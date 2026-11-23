@@ -28,18 +28,13 @@ mc:Ignorable="d">
             </SplitView.Pane>
 
             <!--  Bike image / linkage  -->
-            <v:BikeImageDesktopView />
+            <v:BikeImageDesktopView DataContext="{Binding Linkage}" />
 
         </SplitView>
 
         <shared:EditorBusyOverlay>
             <shared:EditorBusyOverlay.IsActive>
-                <MultiBinding Converter="{x:Static BoolConverters.Or}">
-                    <Binding Path="LoadedCommand.IsRunning" />
-                    <Binding Path="IsLoadingDraft" />
-                    <Binding Path="OpenImageCommand.IsRunning" />
-                    <Binding Path="SaveCommand.IsRunning" />
-                </MultiBinding>
+                <Binding Path="IsBusy" />
             </shared:EditorBusyOverlay.IsActive>
         </shared:EditorBusyOverlay>
 

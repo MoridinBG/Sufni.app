@@ -1,7 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Sufni.App.Bikes.ViewModels.LinkageParts;
+using Sufni.App.Bikes.ViewModels.LinkageEditing;
 using Avalonia.Controls.PanAndZoom;
 
 using Sufni.App.Bikes.ViewModels.Editors;
@@ -26,28 +26,28 @@ public partial class BikeImageDesktopView : UserControl
 
     private void Canvas_DoubleTapped(object? sender, TappedEventArgs args)
     {
-        if (DataContext is not BikeEditorViewModel editor) return;
+        if (DataContext is not LinkageWorkspaceViewModel editor) return;
         var point = args.GetPosition(args.Source as Visual);
-        editor.LinkageEditor.AddPoint(point.X, point.Y);
+        editor.AddPoint(point.X, point.Y);
     }
 
     private void Canvas_Tapped(object? sender, TappedEventArgs args)
     {
-        if (DataContext is BikeEditorViewModel editor)
-            editor.LinkageEditor.ClearSelectionCommand.Execute(null);
+        if (DataContext is LinkageWorkspaceViewModel editor)
+            editor.ClearSelectionCommand.Execute(null);
     }
 
     private void Point_Tapped(object? sender, TappedEventArgs args)
     {
-        if (DataContext is not BikeEditorViewModel editor || sender is not Control { DataContext: JointViewModel point }) return;
-        editor.LinkageEditor.SelectPointCommand.Execute(point);
+        if (DataContext is not LinkageWorkspaceViewModel editor || sender is not Control { DataContext: JointRowViewModel point }) return;
+        editor.SelectPointCommand.Execute(point);
         args.Handled = true;
     }
 
     private void Link_Tapped(object? sender, TappedEventArgs args)
     {
-        if (DataContext is not BikeEditorViewModel editor || sender is not Control { DataContext: LinkViewModel link }) return;
-        editor.LinkageEditor.SelectLinkCommand.Execute(link);
+        if (DataContext is not LinkageWorkspaceViewModel editor || sender is not Control { DataContext: LinkRowViewModel link }) return;
+        editor.SelectLinkCommand.Execute(link);
         args.Handled = true;
     }
 
@@ -62,9 +62,9 @@ public partial class BikeImageDesktopView : UserControl
         ZoomBorder.MinOffsetX = -ZoomBorder.Bounds.Width * (e.ZoomX - 1.0);
         ZoomBorder.MinOffsetY = -ZoomBorder.Bounds.Height * (e.ZoomY - 1.0);
 
-        if (DataContext is BikeEditorViewModel vm)
+        if (DataContext is LinkageWorkspaceViewModel vm)
         {
-            vm.LinkageEditor.UpdateZoomPresentation(e.ZoomX);
+            vm.UpdateZoomPresentation(e.ZoomX);
         }
     }
 }

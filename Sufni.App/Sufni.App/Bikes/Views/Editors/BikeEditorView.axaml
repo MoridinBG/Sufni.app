@@ -44,7 +44,7 @@ mc:Ignorable="d">
         Grid.Column="0"
         Grid.ColumnSpan="4"
         Margin="0,0,0,10"
-        Source="{Binding ImageCanvas.RotatedImage}" />
+        Source="{Binding Linkage.Canvas.RotatedImage}" />
 
         <!--  Head angle  -->
         <TextBlock
@@ -56,7 +56,7 @@ mc:Ignorable="d">
         Grid.Row="2"
         Grid.Column="2"
         Margin="0,0,0,5"
-        Text="{Binding HeadAngle}"
+        Text="{Binding Frame.HeadAngle}"
         TextAlignment="Right" />
 
         <!--  Fork stroke  -->
@@ -69,7 +69,7 @@ mc:Ignorable="d">
         Grid.Row="3"
         Grid.Column="2"
         Margin="0,0,0,5"
-        Text="{Binding ForksStroke}"
+        Text="{Binding Frame.ForksStroke}"
         TextAlignment="Right" />
 
         <!--  Shock stroke  -->
@@ -78,15 +78,15 @@ mc:Ignorable="d">
         Grid.Row="4"
         Grid.Column="1"
         Margin="0,0,10,5"
-        IsVisible="{Binding HasRearSuspension}"
+        IsVisible="{Binding Frame.HasRearSuspension}"
         Text="Shock stroke (mm)" />
         <TextBlock
         Name="ShockStrokeValueTextBlock"
         Grid.Row="4"
         Grid.Column="2"
         Margin="0,0,0,5"
-        IsVisible="{Binding HasRearSuspension}"
-        Text="{Binding ShockStroke}"
+        IsVisible="{Binding Frame.HasRearSuspension}"
+        Text="{Binding Frame.ShockStroke}"
         TextAlignment="Right" />
 
         <!--  Chainstay  -->
@@ -99,7 +99,7 @@ mc:Ignorable="d">
         Grid.Row="5"
         Grid.Column="2"
         Margin="0,0,0,5"
-        Text="{Binding Chainstay, StringFormat={}{0:0}}"
+        Text="{Binding Linkage.Chainstay, StringFormat={}{0:0}}"
         TextAlignment="Right" />
 
         <!--  Front wheel (only if configured)  -->
@@ -110,8 +110,8 @@ mc:Ignorable="d">
         Text="Front wheel">
             <TextBlock.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Path="IsLinkageMode" />
-                    <Binding Path="WheelGeometry.HasWheels" />
+                    <Binding Path="RearSuspension.IsLinkageMode" />
+                    <Binding Path="Wheels.HasWheels" />
                 </MultiBinding>
             </TextBlock.IsVisible>
         </TextBlock>
@@ -119,12 +119,12 @@ mc:Ignorable="d">
         Grid.Row="6"
         Grid.Column="2"
         Margin="0,0,0,5"
-        Text="{Binding WheelGeometry.FrontWheelDisplayText}"
+        Text="{Binding Wheels.FrontWheelDisplayText}"
         TextAlignment="Right">
             <TextBlock.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Path="IsLinkageMode" />
-                    <Binding Path="WheelGeometry.HasWheels" />
+                    <Binding Path="RearSuspension.IsLinkageMode" />
+                    <Binding Path="Wheels.HasWheels" />
                 </MultiBinding>
             </TextBlock.IsVisible>
         </TextBlock>
@@ -137,8 +137,8 @@ mc:Ignorable="d">
         Text="Rear wheel">
             <TextBlock.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Path="IsLinkageMode" />
-                    <Binding Path="WheelGeometry.HasWheels" />
+                    <Binding Path="RearSuspension.IsLinkageMode" />
+                    <Binding Path="Wheels.HasWheels" />
                 </MultiBinding>
             </TextBlock.IsVisible>
         </TextBlock>
@@ -146,12 +146,12 @@ mc:Ignorable="d">
         Grid.Row="7"
         Grid.Column="2"
         Margin="0,0,0,5"
-        Text="{Binding WheelGeometry.RearWheelDisplayText}"
+        Text="{Binding Wheels.RearWheelDisplayText}"
         TextAlignment="Right">
             <TextBlock.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Path="IsLinkageMode" />
-                    <Binding Path="WheelGeometry.HasWheels" />
+                    <Binding Path="RearSuspension.IsLinkageMode" />
+                    <Binding Path="Wheels.HasWheels" />
                 </MultiBinding>
             </TextBlock.IsVisible>
         </TextBlock>
@@ -164,10 +164,10 @@ mc:Ignorable="d">
         Spacing="6">
             <Grid ColumnDefinitions="* auto">
                 <TextBlock Text="Rear suspension" />
-                <TextBlock Grid.Column="1" Text="{Binding RearSuspensionModeDisplayName}" TextAlignment="Right" />
+                <TextBlock Grid.Column="1" Text="{Binding RearSuspension.RearSuspensionModeDisplayName}" TextAlignment="Right" />
             </Grid>
 
-            <Border IsVisible="{Binding $parent[UserControl].((vm:BikeEditorViewModel)DataContext).IsLeverageRatioMode}">
+            <Border IsVisible="{Binding RearSuspension.IsLeverageRatioMode}">
                 <editorViews:LeverageRatioEditorView DataContext="{Binding LeverageRatioEditor}" />
             </Border>
         </StackPanel>
@@ -178,20 +178,20 @@ mc:Ignorable="d">
         Grid.Row="9"
         Grid.Column="0"
         Grid.ColumnSpan="4"
-        IsVisible="{Binding HasRearSuspension}"
+        IsVisible="{Binding Frame.HasRearSuspension}"
         Margin="0,10">
 
             <zoom:PlotZoomContainer>
                 <plots:LeverageRatioPlotView
                 HorizontalAlignment="Stretch"
                 IsHitTestVisible="False"
-                LeverageRatioData="{Binding LeverageRatioData}" />
+                LeverageRatioData="{Binding Analysis.LeverageRatioData}" />
             </zoom:PlotZoomContainer>
 
             <Panel
             Background="#0d0d0d"
             IsHitTestVisible="True"
-            IsVisible="{Binding IsPlotBusy}"
+            IsVisible="{Binding Analysis.IsPlotBusy}"
             Opacity="0.4" />
 
             <progRing:ProgressRing
@@ -201,7 +201,7 @@ mc:Ignorable="d">
             VerticalAlignment="Center"
             Foreground="{DynamicResource SufniAccentPrimary}">
                 <progRing:ProgressRing.IsActive>
-                    <Binding Path="IsPlotBusy" />
+                    <Binding Path="Analysis.IsPlotBusy" />
                 </progRing:ProgressRing.IsActive>
             </progRing:ProgressRing>
         </Grid>
@@ -226,12 +226,7 @@ mc:Ignorable="d">
         Grid.Column="0"
         Grid.ColumnSpan="4">
             <shared:EditorBusyOverlay.IsActive>
-                <MultiBinding Converter="{x:Static BoolConverters.Or}">
-                    <Binding Path="LoadedCommand.IsRunning" />
-                    <Binding Path="IsLoadingDraft" />
-                    <Binding Path="OpenImageCommand.IsRunning" />
-                    <Binding Path="SaveCommand.IsRunning" />
-                </MultiBinding>
+                <Binding Path="IsBusy" />
             </shared:EditorBusyOverlay.IsActive>
         </shared:EditorBusyOverlay>
 

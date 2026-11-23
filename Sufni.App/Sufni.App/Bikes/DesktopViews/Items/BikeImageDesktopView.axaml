@@ -9,10 +9,10 @@ xmlns:shortcuts="using:Sufni.App.Shell.KeyboardShortcuts"
 xmlns:v="using:Sufni.App.Bikes.Views.Items"
 xmlns:vl="using:Sufni.App.Bikes.Views.LinkageParts"
 xmlns:vm="using:Sufni.App.Bikes.ViewModels.Editors"
-xmlns:vml="using:Sufni.App.Bikes.ViewModels.LinkageParts"
+xmlns:vml="using:Sufni.App.Bikes.ViewModels.LinkageEditing"
 d:DesignHeight="450"
 d:DesignWidth="800"
-x:DataType="vm:BikeEditorViewModel"
+x:DataType="vm:LinkageWorkspaceViewModel"
 mc:Ignorable="d">
 
     <UserControl.Styles>
@@ -40,34 +40,34 @@ mc:Ignorable="d">
 
 
         <paz:ZoomBorder.KeyBindings>
-            <KeyBinding Command="{Binding LinkageEditor.DeleteSelectedItemCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.Items.BikeImageDesktopView, Id=delete-selection}" />
+            <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.Items.BikeImageDesktopView, Id=delete-selection}" />
         </paz:ZoomBorder.KeyBindings>
 
         <Viewbox>
             <Canvas
-            Width="{Binding ImageCanvas.CanvasWidth}"
-            Height="{Binding ImageCanvas.CanvasHeight}"
+            Width="{Binding CanvasWidth}"
+            Height="{Binding CanvasHeight}"
             Background="Transparent">
-                <Panel Canvas.Left="{Binding ImageCanvas.ContentOffsetX}" Canvas.Top="{Binding ImageCanvas.ContentOffsetY}">
+                <Panel Canvas.Left="{Binding ContentOffsetX}" Canvas.Top="{Binding ContentOffsetY}">
                     <!--  Bike image  -->
                     <Canvas>
                         <Image
                         Name="BikeImage"
-                        Canvas.Left="{Binding ImageCanvas.RotatedImageLeft}"
-                        Canvas.Top="{Binding ImageCanvas.RotatedImageTop}"
-                        Source="{Binding ImageCanvas.RotatedImage}" />
+                        Canvas.Left="{Binding RotatedImageLeft}"
+                        Canvas.Top="{Binding RotatedImageTop}"
+                        Source="{Binding Canvas.RotatedImage}" />
                     </Canvas>
 
                     <!--  Semi-opaque overlay to improve point visibility  -->
-                    <Canvas IsVisible="{Binding ImageCanvas.OverlayVisible}">
+                    <Canvas IsVisible="{Binding OverlayVisible}">
                         <Border
-                        Width="{Binding ImageCanvas.Image.Size.Width}"
-                        Height="{Binding ImageCanvas.Image.Size.Height}"
+                        Width="{Binding Canvas.Image.PixelSize.Width}"
+                        Height="{Binding Canvas.Image.PixelSize.Height}"
                         Background="White"
                         Opacity="0.7"
                         RenderTransformOrigin="0,0">
                             <Border.RenderTransform>
-                                <RotateTransform Angle="{Binding ImageCanvas.ImageRotationDegrees}" />
+                                <RotateTransform Angle="{Binding ImageRotationDegrees}" />
                             </Border.RenderTransform>
                         </Border>
                     </Canvas>
@@ -77,49 +77,49 @@ mc:Ignorable="d">
                         <Canvas.IsVisible>
                             <MultiBinding Converter="{x:Static BoolConverters.And}">
                                 <Binding Path="IsLinkageMode" />
-                                <Binding Path="WheelGeometry.HasWheels" />
+                                <Binding Path="Wheels.HasWheels" />
                             </MultiBinding>
                         </Canvas.IsVisible>
                         <!--  Front wheel  -->
                         <Grid
-                        Canvas.Left="{Binding WheelGeometry.FrontWheelCircleLeft}"
-                        Canvas.Top="{Binding WheelGeometry.FrontWheelCircleTop}"
-                        Width="{Binding WheelGeometry.FrontWheelCircleDiameter}"
-                        Height="{Binding WheelGeometry.FrontWheelCircleDiameter}">
-                            <Ellipse Stroke="#90404040" StrokeThickness="{Binding WheelGeometry.FrontTireThickness}" Fill="Transparent" />
+                        Canvas.Left="{Binding Wheels.FrontWheelCircleLeft}"
+                        Canvas.Top="{Binding Wheels.FrontWheelCircleTop}"
+                        Width="{Binding Wheels.FrontWheelCircleDiameter}"
+                        Height="{Binding Wheels.FrontWheelCircleDiameter}">
+                            <Ellipse Stroke="#90404040" StrokeThickness="{Binding Wheels.FrontTireThickness}" Fill="Transparent" />
                             <Ellipse
-                            Width="{Binding WheelGeometry.FrontRimCircleDiameter}"
-                            Height="{Binding WheelGeometry.FrontRimCircleDiameter}"
+                            Width="{Binding Wheels.FrontRimCircleDiameter}"
+                            Height="{Binding Wheels.FrontRimCircleDiameter}"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
                             Stroke="#D0C0C0C0"
                             StrokeThickness="15"
                             Fill="Transparent" />
                             <Ellipse
-                            Width="{Binding WheelGeometry.FrontHubDiameter}"
-                            Height="{Binding WheelGeometry.FrontHubDiameter}"
+                            Width="{Binding Wheels.FrontHubDiameter}"
+                            Height="{Binding Wheels.FrontHubDiameter}"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
                             Fill="#90505050" />
                         </Grid>
                         <!--  Rear wheel  -->
                         <Grid
-                        Canvas.Left="{Binding WheelGeometry.RearWheelCircleLeft}"
-                        Canvas.Top="{Binding WheelGeometry.RearWheelCircleTop}"
-                        Width="{Binding WheelGeometry.RearWheelCircleDiameter}"
-                        Height="{Binding WheelGeometry.RearWheelCircleDiameter}">
-                            <Ellipse Stroke="#90404040" StrokeThickness="{Binding WheelGeometry.RearTireThickness}" Fill="Transparent" />
+                        Canvas.Left="{Binding Wheels.RearWheelCircleLeft}"
+                        Canvas.Top="{Binding Wheels.RearWheelCircleTop}"
+                        Width="{Binding Wheels.RearWheelCircleDiameter}"
+                        Height="{Binding Wheels.RearWheelCircleDiameter}">
+                            <Ellipse Stroke="#90404040" StrokeThickness="{Binding Wheels.RearTireThickness}" Fill="Transparent" />
                             <Ellipse
-                            Width="{Binding WheelGeometry.RearRimCircleDiameter}"
-                            Height="{Binding WheelGeometry.RearRimCircleDiameter}"
+                            Width="{Binding Wheels.RearRimCircleDiameter}"
+                            Height="{Binding Wheels.RearRimCircleDiameter}"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
                             Stroke="#D0C0C0C0"
                             StrokeThickness="15"
                             Fill="Transparent" />
                             <Ellipse
-                            Width="{Binding WheelGeometry.RearHubDiameter}"
-                            Height="{Binding WheelGeometry.RearHubDiameter}"
+                            Width="{Binding Wheels.RearHubDiameter}"
+                            Height="{Binding Wheels.RearHubDiameter}"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
                             Fill="#90505050" />
@@ -128,29 +128,29 @@ mc:Ignorable="d">
 
                     <!--  Rear axle path  -->
                     <Polyline
-                    Points="{Binding ImageCanvas.RearAxlePath}"
+                    Points="{Binding RearAxlePath}"
                     Stroke="Cyan"
                     StrokeThickness="10"
-                    IsVisible="{Binding !!ImageCanvas.RearAxlePath.Count}" />
+                    IsVisible="{Binding !!RearAxlePath.Count}" />
 
                     <!--  Links  -->
                     <SelectingItemsControl
                     Background="Transparent"
                     ClipToBounds="False"
-                    IsVisible="{Binding ImageCanvas.Image, Converter={x:Static ObjectConverters.IsNotNull}}"
-                    ItemsSource="{Binding LinkageEditor.LinkViewModels}"
-                    SelectedItem="{Binding LinkageEditor.SelectedLink}">
+                    IsVisible="{Binding Canvas.Image, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    ItemsSource="{Binding LinkViewModels}"
+                    SelectedItem="{Binding SelectedLink}">
                         <SelectingItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <Canvas />
                             </ItemsPanelTemplate>
                         </SelectingItemsControl.ItemsPanel>
                         <SelectingItemsControl.ItemTemplate>
-                            <DataTemplate DataType="vml:LinkViewModel">
+                            <DataTemplate DataType="vml:LinkRowViewModel">
                                 <Line
                                 Opacity="0.6"
                                 Stroke="{Binding Brush}"
-                                StrokeThickness="{Binding $parent[v:BikeViewBase].((vm:BikeEditorViewModel)DataContext).LinkageEditor.LinkStrokeThickness}"
+                                StrokeThickness="{Binding Workspace.LinkStrokeThickness}"
                                 StartPoint="{Binding StartPoint}"
                                 EndPoint="{Binding EndPoint}"
                                 Tapped="Link_Tapped">
@@ -165,11 +165,11 @@ mc:Ignorable="d">
                     Background="Transparent"
                     Classes="draggable"
                     ClipToBounds="False"
-                    IsVisible="{Binding ImageCanvas.Image, Converter={x:Static ObjectConverters.IsNotNull}}"
-                    ItemsSource="{Binding LinkageEditor.JointViewModels}"
-                    SelectedItem="{Binding LinkageEditor.SelectedPoint}">
+                    IsVisible="{Binding Canvas.Image, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    ItemsSource="{Binding JointViewModels}"
+                    SelectedItem="{Binding SelectedPoint}">
                         <SelectingItemsControl.Styles>
-                            <Style x:DataType="vml:JointViewModel" Selector="SelectingItemsControl &gt; ContentPresenter">
+                            <Style x:DataType="vml:JointRowViewModel" Selector="SelectingItemsControl &gt; ContentPresenter">
                                 <Setter Property="(Canvas.Left)" Value="{Binding X, Mode=TwoWay}" />
                                 <Setter Property="(Canvas.Top)" Value="{Binding Y, Mode=TwoWay}" />
                             </Style>

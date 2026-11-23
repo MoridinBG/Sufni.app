@@ -5,7 +5,7 @@ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:controls="using:Sufni.App.Shared.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:editorViews="using:Sufni.App.Bikes.Views.Editors"
-xmlns:bikeVm="using:Sufni.App.Bikes.ViewModels.Editors.BikeEditorParts"
+xmlns:bikeVm="using:Sufni.App.Bikes.ViewModels.Editors"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:models="using:Sufni.App.Bikes.Models"
 xmlns:plots="clr-namespace:Sufni.App.Bikes.Views.Plots"
@@ -14,7 +14,7 @@ xmlns:shortcuts="using:Sufni.App.Shell.KeyboardShortcuts"
 xmlns:v="using:Sufni.App.Bikes.DesktopViews.Items"
 xmlns:vm="using:Sufni.App.Bikes.ViewModels.Editors"
 xmlns:vmle="using:Sufni.App.Bikes.ViewModels.LinkageEditing"
-xmlns:vml="using:Sufni.App.Bikes.ViewModels.LinkageParts"
+xmlns:vml="using:Sufni.App.Bikes.ViewModels.LinkageEditing"
 xmlns:zoom="clr-namespace:Sufni.App.Shared.Views.Plots"
 d:DesignHeight="600"
 d:DesignWidth="400"
@@ -62,26 +62,26 @@ mc:Ignorable="d">
                 <ToggleButton
                 Grid.Column="0"
                 Margin="0,0,5,0"
-                Command="{Binding SetRearSuspensionModeCommand}"
+                Command="{Binding RearSuspension.SetRearSuspensionModeCommand}"
                 CommandParameter="{x:Static models:RearSuspensionKind.None}"
-                IsChecked="{Binding IsHardtailMode}"
-                IsEnabled="{Binding CanChangeRearSuspensionMode}"
+                IsChecked="{Binding RearSuspension.IsHardtailMode}"
+                IsEnabled="{Binding RearSuspension.CanChangeRearSuspensionMode}"
                 Content="Hardtail" />
                 <ToggleButton
                 Name="LinkageModeButton"
                 Grid.Column="1"
                 Margin="0,0,5,0"
-                Command="{Binding SetRearSuspensionModeCommand}"
+                Command="{Binding RearSuspension.SetRearSuspensionModeCommand}"
                 CommandParameter="{x:Static models:RearSuspensionKind.Linkage}"
-                IsChecked="{Binding IsLinkageMode}"
-                IsEnabled="{Binding CanChangeRearSuspensionMode}"
+                IsChecked="{Binding RearSuspension.IsLinkageMode}"
+                IsEnabled="{Binding RearSuspension.CanChangeRearSuspensionMode}"
                 Content="Linkage" />
                 <ToggleButton
                 Grid.Column="2"
-                Command="{Binding SetRearSuspensionModeCommand}"
+                Command="{Binding RearSuspension.SetRearSuspensionModeCommand}"
                 CommandParameter="{x:Static models:RearSuspensionKind.LeverageRatio}"
-                IsChecked="{Binding IsLeverageRatioMode}"
-                IsEnabled="{Binding CanChangeRearSuspensionMode}"
+                IsChecked="{Binding RearSuspension.IsLeverageRatioMode}"
+                IsEnabled="{Binding RearSuspension.CanChangeRearSuspensionMode}"
                 Content="Leverage ratio" />
             </Grid>
 
@@ -97,7 +97,8 @@ mc:Ignorable="d">
             Margin="0,0,0,5"
             Maximum="90"
             Minimum="0"
-            Value="{Binding HeadAngle}" />
+            IsReadOnly="{Binding Frame.IsHeadAngleDerived}"
+            Value="{Binding Frame.HeadAngle}" />
 
             <!--  Fork stroke  -->
             <TextBlock
@@ -111,7 +112,7 @@ mc:Ignorable="d">
             Margin="0,0,0,5"
             Maximum="300"
             Minimum="0"
-            Value="{Binding ForksStroke}" />
+            Value="{Binding Frame.ForksStroke}" />
 
             <!--  Shock stroke  -->
             <TextBlock
@@ -119,33 +120,33 @@ mc:Ignorable="d">
             Grid.Row="4"
             Grid.Column="0"
             Margin="0,0,10,5"
-            IsVisible="{Binding HasRearSuspension}"
+            IsVisible="{Binding Frame.HasRearSuspension}"
             Text="Shock stroke (mm)" />
             <NumericUpDown
             Name="ShockStrokeNumericUpDown"
             Grid.Row="4"
             Grid.Column="1"
             Margin="0,0,0,5"
-            IsVisible="{Binding HasRearSuspension}"
+            IsVisible="{Binding Frame.HasRearSuspension}"
             Maximum="1000"
             Minimum="0"
-            Value="{Binding ShockStroke}" />
+            Value="{Binding Frame.ShockStroke}" />
 
             <!--  Chainstay  -->
             <TextBlock
             Grid.Row="5"
             Grid.Column="0"
             Margin="0,0,0,5"
-            IsVisible="{Binding IsLinkageMode}"
+            IsVisible="{Binding RearSuspension.IsLinkageMode}"
             Text="Chainstay (mm)" />
             <NumericUpDown
             Grid.Row="5"
             Grid.Column="1"
             Margin="0,0,0,5"
-            IsVisible="{Binding IsLinkageMode}"
+            IsVisible="{Binding RearSuspension.IsLinkageMode}"
             Maximum="1000"
             Minimum="0"
-            Value="{Binding Chainstay}" />
+            Value="{Binding Linkage.Chainstay}" />
 
             <!--  Front Wheel  -->
             <Grid
@@ -156,10 +157,7 @@ mc:Ignorable="d">
             Margin="0,10,0,5"
             ColumnDefinitions="auto,*">
                 <Grid.IsVisible>
-                    <MultiBinding Converter="{x:Static BoolConverters.And}">
-                        <Binding Path="IsLinkageMode" />
-                        <Binding Path="ShockStroke" Converter="{x:Static ObjectConverters.IsNotNull}" />
-                    </MultiBinding>
+                    <Binding Path="Wheels.IsWheelEditingAvailable" />
                 </Grid.IsVisible>
                 <Button
                 Grid.Column="0"
@@ -172,7 +170,7 @@ mc:Ignorable="d">
                 HorizontalAlignment="Left"
                 HorizontalContentAlignment="Center"
                 VerticalAlignment="Center"
-                Command="{Binding WheelGeometry.RemoveFrontWheelCommand}"
+                Command="{Binding Wheels.RemoveFrontWheelCommand}"
                 Content="X" />
                 <TextBlock
                 Grid.Column="1"
@@ -186,13 +184,10 @@ mc:Ignorable="d">
             Grid.ColumnSpan="2"
             Margin="0,0,0,5"
             ColumnDefinitions="* * *"
-            x:DataType="bikeVm:BikeWheelGeometryViewModel"
-            DataContext="{Binding WheelGeometry}">
+            x:DataType="vm:BikeWheelsWorkspaceViewModel"
+            DataContext="{Binding Wheels}">
                 <Grid.IsVisible>
-                    <MultiBinding Converter="{x:Static BoolConverters.And}">
-                        <Binding Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).IsLinkageMode" />
-                        <Binding Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke" Converter="{x:Static ObjectConverters.IsNotNull}" />
-                    </MultiBinding>
+                    <Binding Path="IsWheelEditingAvailable" />
                 </Grid.IsVisible>
                 <ComboBox
                 Grid.Column="0"
@@ -236,10 +231,7 @@ mc:Ignorable="d">
             Margin="0,10,0,5"
             ColumnDefinitions="auto,*">
                 <Grid.IsVisible>
-                    <MultiBinding Converter="{x:Static BoolConverters.And}">
-                        <Binding Path="IsLinkageMode" />
-                        <Binding Path="ShockStroke" Converter="{x:Static ObjectConverters.IsNotNull}" />
-                    </MultiBinding>
+                    <Binding Path="Wheels.IsWheelEditingAvailable" />
                 </Grid.IsVisible>
                 <Button
                 Grid.Column="0"
@@ -252,7 +244,7 @@ mc:Ignorable="d">
                 HorizontalAlignment="Left"
                 HorizontalContentAlignment="Center"
                 VerticalAlignment="Center"
-                Command="{Binding WheelGeometry.RemoveRearWheelCommand}"
+                Command="{Binding Wheels.RemoveRearWheelCommand}"
                 Content="X" />
                 <TextBlock
                 Grid.Column="1"
@@ -266,13 +258,10 @@ mc:Ignorable="d">
             Grid.ColumnSpan="2"
             Margin="0,0,0,5"
             ColumnDefinitions="* * *"
-            x:DataType="bikeVm:BikeWheelGeometryViewModel"
-            DataContext="{Binding WheelGeometry}">
+            x:DataType="vm:BikeWheelsWorkspaceViewModel"
+            DataContext="{Binding Wheels}">
                 <Grid.IsVisible>
-                    <MultiBinding Converter="{x:Static BoolConverters.And}">
-                        <Binding Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).IsLinkageMode" />
-                        <Binding Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke" Converter="{x:Static ObjectConverters.IsNotNull}" />
-                    </MultiBinding>
+                    <Binding Path="IsWheelEditingAvailable" />
                 </Grid.IsVisible>
                 <ComboBox
                 Grid.Column="0"
@@ -314,7 +303,7 @@ mc:Ignorable="d">
             Margin="0,0,0,15"
             ColumnDefinitions="* auto">
                 <Grid.IsVisible>
-                    <Binding Path="IsLinkageMode" />
+                    <Binding Path="RearSuspension.IsLinkageMode" />
                 </Grid.IsVisible>
 
                 <!--  Open bike picture  -->
@@ -323,7 +312,7 @@ mc:Ignorable="d">
                 Grid.Column="0"
                 Margin="0,0,5,0"
                 HorizontalAlignment="Stretch"
-                Command="{Binding OpenImageCommand}"
+                Command="{Binding Linkage.OpenImageCommand}"
                 Content="Open image ..." />
 
                 <!--  Overlay  -->
@@ -331,7 +320,7 @@ mc:Ignorable="d">
                 Grid.Row="0"
                 Grid.Column="1"
                 Content="Draw overlay"
-                IsChecked="{Binding ImageCanvas.OverlayVisible}" />
+                IsChecked="{Binding Linkage.OverlayVisible}" />
             </Grid>
 
             <!--  List of Points  -->
@@ -342,7 +331,7 @@ mc:Ignorable="d">
             Margin="0,0,0,5"
             Text="Points">
                 <TextBlock.IsVisible>
-                    <Binding Path="IsLinkageMode" />
+                    <Binding Path="RearSuspension.IsLinkageMode" />
                 </TextBlock.IsVisible>
             </TextBlock>
             <ScrollViewer
@@ -352,17 +341,17 @@ mc:Ignorable="d">
             Margin="2,0,2,6">
 
                 <DataGrid
-                x:DataType="vmle:LinkageEditorViewModel"
+                x:DataType="vm:LinkageWorkspaceViewModel"
                 BeginningEdit="DataGrid_OnBeginningEdit"
                 BorderBrush="Gray"
                 BorderThickness="1"
-                DataContext="{Binding LinkageEditor}"
+                DataContext="{Binding Linkage}"
                 GridLinesVisibility="All"
                 ItemsSource="{Binding JointViewModels}"
                 SelectedItem="{Binding SelectedPoint}">
 
                     <DataGrid.IsVisible>
-                        <Binding Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).IsLinkageMode" />
+                        <Binding Path="IsLinkageMode" />
                     </DataGrid.IsVisible>
 
                     <DataGrid.KeyBindings>
@@ -384,7 +373,7 @@ mc:Ignorable="d">
                         Header="Type"
                         IsReadOnly="False">
                             <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate DataType="vml:JointViewModel">
+                                <DataTemplate DataType="vml:JointRowViewModel">
                                     <TextBlock
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center"
@@ -392,7 +381,7 @@ mc:Ignorable="d">
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                             <DataGridTemplateColumn.CellEditingTemplate>
-                                <DataTemplate DataType="vml:JointViewModel">
+                                <DataTemplate DataType="vml:JointRowViewModel">
                                     <ComboBox
                                     HorizontalAlignment="Stretch"
                                     IsDropDownOpen="True"
@@ -427,7 +416,7 @@ mc:Ignorable="d">
             Margin="0,0,0,5"
             Text="Links">
                 <TextBlock.IsVisible>
-                    <Binding Path="IsLinkageMode" />
+                    <Binding Path="RearSuspension.IsLinkageMode" />
                 </TextBlock.IsVisible>
             </TextBlock>
             <ScrollViewer
@@ -437,17 +426,17 @@ mc:Ignorable="d">
             Margin="2,0,2,5">
 
                 <DataGrid
-                x:DataType="vmle:LinkageEditorViewModel"
+                x:DataType="vm:LinkageWorkspaceViewModel"
                 BeginningEdit="DataGrid_OnBeginningEdit"
                 BorderBrush="Gray"
                 BorderThickness="1"
-                DataContext="{Binding LinkageEditor}"
+                DataContext="{Binding Linkage}"
                 GridLinesVisibility="All"
                 ItemsSource="{Binding LinkViewModels}"
                 SelectedItem="{Binding SelectedLink}">
 
                     <DataGrid.IsVisible>
-                        <Binding Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).IsLinkageMode" />
+                        <Binding Path="IsLinkageMode" />
                     </DataGrid.IsVisible>
 
                     <DataGrid.KeyBindings>
@@ -462,7 +451,7 @@ mc:Ignorable="d">
                         Header="Point A"
                         IsReadOnly="False">
                             <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate DataType="vml:LinkViewModel">
+                                <DataTemplate DataType="vml:LinkRowViewModel">
                                     <TextBlock
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center"
@@ -470,11 +459,11 @@ mc:Ignorable="d">
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                             <DataGridTemplateColumn.CellEditingTemplate>
-                                <DataTemplate DataType="vml:LinkViewModel">
+                                <DataTemplate DataType="vml:LinkRowViewModel">
                                     <ComboBox
                                     HorizontalAlignment="Stretch"
                                     IsDropDownOpen="True"
-                                    ItemsSource="{Binding $parent[DataGrid].((vmle:LinkageEditorViewModel)DataContext).JointViewModels}"
+                                    ItemsSource="{Binding JointOptions}"
                                     SelectedItem="{Binding A}">
                                         <ComboBox.ItemTemplate>
                                             <DataTemplate>
@@ -492,7 +481,7 @@ mc:Ignorable="d">
                         Header="Point B"
                         IsReadOnly="False">
                             <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate DataType="vml:LinkViewModel">
+                                <DataTemplate DataType="vml:LinkRowViewModel">
                                     <TextBlock
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center"
@@ -500,11 +489,11 @@ mc:Ignorable="d">
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                             <DataGridTemplateColumn.CellEditingTemplate>
-                                <DataTemplate DataType="vml:LinkViewModel">
+                                <DataTemplate DataType="vml:LinkRowViewModel">
                                     <ComboBox
                                     HorizontalAlignment="Stretch"
                                     IsDropDownOpen="True"
-                                    ItemsSource="{Binding $parent[DataGrid].((vmle:LinkageEditorViewModel)DataContext).JointViewModels}"
+                                    ItemsSource="{Binding JointOptions}"
                                     SelectedItem="{Binding B}">
                                         <ComboBox.ItemTemplate>
                                             <DataTemplate>
@@ -531,12 +520,12 @@ mc:Ignorable="d">
             Grid.ColumnSpan="2"
             HorizontalAlignment="Stretch"
             HorizontalContentAlignment="Center"
-            x:DataType="vmle:LinkageEditorViewModel"
-            DataContext="{Binding LinkageEditor}"
+            x:DataType="vm:LinkageWorkspaceViewModel"
+            DataContext="{Binding Linkage}"
             Command="{Binding CreateLinkCommand}"
             Content="Add new link">
                 <Button.IsVisible>
-                    <Binding Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).IsLinkageMode" />
+                    <Binding Path="IsLinkageMode" />
                 </Button.IsVisible>
             </Button>
 
@@ -545,8 +534,8 @@ mc:Ignorable="d">
             Grid.RowSpan="5"
             Grid.Column="0"
             Grid.ColumnSpan="2"
-            IsVisible="{Binding $parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).IsLeverageRatioMode}">
-                <editorViews:LeverageRatioEditorView DataContext="{Binding $parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).LeverageRatioEditor}" />
+            IsVisible="{Binding RearSuspension.IsLeverageRatioMode}">
+                <editorViews:LeverageRatioEditorView DataContext="{Binding LeverageRatioEditor}" />
             </Border>
 
             <!--  Leverage ratio plot  -->
@@ -555,20 +544,20 @@ mc:Ignorable="d">
             Grid.Row="16"
             Grid.Column="0"
             Grid.ColumnSpan="2"
-            IsVisible="{Binding HasRearSuspension}"
+            IsVisible="{Binding Frame.HasRearSuspension}"
             Height="250">
 
                 <zoom:PlotZoomContainer>
                     <plots:LeverageRatioPlotView
                     HorizontalAlignment="Stretch"
                     IsHitTestVisible="False"
-                    LeverageRatioData="{Binding LeverageRatioData}" />
+                    LeverageRatioData="{Binding Analysis.LeverageRatioData}" />
                 </zoom:PlotZoomContainer>
 
                 <Panel
                 Background="#0d0d0d"
                 IsHitTestVisible="True"
-                IsVisible="{Binding IsPlotBusy}"
+                IsVisible="{Binding Analysis.IsPlotBusy}"
                 Opacity="0.4" />
 
                 <progRing:ProgressRing
@@ -578,7 +567,7 @@ mc:Ignorable="d">
                 VerticalAlignment="Center"
                 Foreground="{DynamicResource SufniAccentPrimary}">
                     <progRing:ProgressRing.IsActive>
-                        <Binding Path="IsPlotBusy" />
+                        <Binding Path="Analysis.IsPlotBusy" />
                     </progRing:ProgressRing.IsActive>
                 </progRing:ProgressRing>
             </Grid>

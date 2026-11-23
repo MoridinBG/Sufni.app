@@ -1,7 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 
-using Sufni.App.Bikes.ViewModels.LinkageParts;
+using Sufni.App.Bikes.ViewModels.LinkageEditing;
 namespace Sufni.App.Bikes.Views.LinkageParts;
 
 public partial class JointView : UserControl
@@ -13,19 +13,9 @@ public partial class JointView : UserControl
         // Mark PointerPressed as handled, so that dragging the item won't induce panning too.
         PointerPressed += (_, e) => e.Handled = true;
         
-        // Indicate that the Joint might have been dragged if the left mouse button is released on it.
-        PointerReleased += (_, e) =>
-        {
-            if (e.InitialPressMouseButton == MouseButton.Left && DataContext is JointViewModel jvm)
-            {
-                jvm.WasPossiblyDragged = true;
-            }
-        };
-
-        // Show flyout when a new, modifiable point is added.
         Loaded += (_, _) =>
         {
-            if (DataContext is JointViewModel { Immutability: Immutability.Modifiable, ShowFlyout: true } jvm)
+            if (DataContext is JointRowViewModel { EditRule: JointEditRule.Modifiable, ShowFlyout: true } jvm)
             {
                 PointCanvas.ContextFlyout!.ShowAt(PointCanvas);
                 jvm.ShowFlyout = false;
