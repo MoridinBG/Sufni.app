@@ -19,6 +19,7 @@ using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.ViewModels.LinkageEditing;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.App.Tests.TestSupport.Harness;
 namespace Sufni.App.Tests.Bikes.ViewModels.Editors;
 
 [Collection("Ui")]
@@ -36,7 +37,7 @@ public class BikeDraftLoadControllerTests : BikeEditorFixture
         Assert.False(editor.ExportCommand.CanExecute(null));
 
         await background.RunNextAsync();
-        await editor.LoadedCommand.ExecuteAsync(null).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.NotNull(editor.Linkage.Canvas.Image);
         Assert.Equal(BikeEditorPhase.Ready, editor.Phase);
@@ -56,7 +57,7 @@ public class BikeDraftLoadControllerTests : BikeEditorFixture
         editor.UnloadedCommand.Execute(null);
 
         await background.RunNextAsync();
-        await editor.LoadedCommand.ExecuteAsync(null).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.NotNull(editor.Linkage.Canvas.Image);
         Assert.False(editor.IsDirty);

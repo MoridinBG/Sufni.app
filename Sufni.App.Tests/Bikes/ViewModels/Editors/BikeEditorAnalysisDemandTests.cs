@@ -19,6 +19,7 @@ using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.ViewModels.LinkageEditing;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.App.Tests.TestSupport.Harness;
 namespace Sufni.App.Tests.Bikes.ViewModels.Editors;
 
 [Collection("Ui")]
@@ -35,7 +36,7 @@ public class BikeEditorAnalysisDemandTests : BikeEditorFixture
             previousToken = call.Arg<CancellationToken>();
             return pending.Task;
         });
-        var initialLoad = editor.LoadedCommand.ExecuteAsync(null);
+        editor.LoadedCommand.Execute(null);
         var current = new CoordinateList([3, 4], [5, 6]);
         var computed = new TaskCompletionSource();
         analysis.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>()).Returns(_ =>
@@ -49,7 +50,6 @@ public class BikeEditorAnalysisDemandTests : BikeEditorFixture
         timeProvider.Advance(TimeSpan.FromMilliseconds(200));
         await computed.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         pending.SetResult(new BikeEditorAnalysisResult.Computed(PresentationData(new CoordinateList([0, 1], [1, 2]))));
-        await initialLoad.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(current, editor.Analysis.LeverageRatioData);
         Assert.False(editor.Analysis.IsPlotBusy);
@@ -68,7 +68,7 @@ public class BikeEditorAnalysisDemandTests : BikeEditorFixture
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(
                 new BikeEditorAnalysisResult.Computed(new BikeAnalysisPresentationData(data, rearAxlePathData))));
 
-        await editor.LoadedCommand.ExecuteAsync(null);
+        editor.LoadedCommand.Execute(null);
 
         Assert.Equal(data, editor.Analysis.LeverageRatioData);
         Assert.Equal(2, editor.Linkage.RearAxlePath.Count);
@@ -85,12 +85,12 @@ public class BikeEditorAnalysisDemandTests : BikeEditorFixture
         var editor = CreateEditor(snapshot, isNew: true);
         analysis.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(new BikeEditorAnalysisResult.Computed(PresentationData(new CoordinateList([1, 2], [3, 4]))));
-        await editor.LoadedCommand.ExecuteAsync(null);
+        editor.LoadedCommand.Execute(null);
         Assert.NotNull(editor.Analysis.LeverageRatioData);
         analysis.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.NotApplicable()));
 
-        await editor.LoadedCommand.ExecuteAsync(null);
+        editor.LoadedCommand.Execute(null);
 
         Assert.Null(editor.Analysis.LeverageRatioData);
         Assert.Empty(editor.ErrorMessages);
@@ -103,12 +103,12 @@ public class BikeEditorAnalysisDemandTests : BikeEditorFixture
         var editor = CreateEditor(snapshot, isNew: true);
         analysis.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(new BikeEditorAnalysisResult.Computed(PresentationData(new CoordinateList([1, 2], [3, 4]))));
-        await editor.LoadedCommand.ExecuteAsync(null);
+        editor.LoadedCommand.Execute(null);
         Assert.NotNull(editor.Analysis.LeverageRatioData);
         analysis.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Failed(BikeAnalysisFailureReason.Analyze, "boom")));
 
-        await editor.LoadedCommand.ExecuteAsync(null);
+        editor.LoadedCommand.Execute(null);
 
         Assert.Null(editor.Analysis.LeverageRatioData);
         Assert.Single(editor.ErrorMessages);
@@ -128,8 +128,9 @@ public class BikeEditorAnalysisDemandTests : BikeEditorFixture
 
         Assert.True(editor.Analysis.IsPlotBusy);
 
-        pendingAnalysis.SetResult(new BikeEditorAnalysisResult.NotApplicable());
         await resetTask;
+        pendingAnalysis.SetResult(new BikeEditorAnalysisResult.NotApplicable());
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(editor.Analysis.IsPlotBusy);
     }
@@ -143,12 +144,11 @@ public class BikeEditorAnalysisDemandTests : BikeEditorFixture
         analysis.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(pendingAnalysis.Task);
 
-        var loadedTask = editor.LoadedCommand.ExecuteAsync(null);
+        editor.LoadedCommand.Execute(null);
         editor.UnloadedCommand.Execute(null);
 
         pendingAnalysis.SetResult(new BikeEditorAnalysisResult.Computed(
             PresentationData(new CoordinateList([1, 2], [3, 4]))));
-        await loadedTask;
 
         Assert.Null(editor.Analysis.LeverageRatioData);
     }

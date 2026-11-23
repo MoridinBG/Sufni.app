@@ -185,11 +185,10 @@ public sealed partial class BikeEditorViewModel : TabPageViewModelBase
         }
     }
 
-    protected override async Task ResetImplementation()
+    protected override Task ResetImplementation()
     {
         imageOpen.Cancel();
-        await load.Load(controller.Current.Baseline, BikeDraftLoadKind.Reset);
-        await analysisDemand.Pending;
+        return load.Load(controller.Current.Baseline, BikeDraftLoadKind.Reset);
     }
 
     protected override async Task ExportImplementation()
@@ -199,12 +198,10 @@ public sealed partial class BikeEditorViewModel : TabPageViewModelBase
     }
 
     [RelayCommand]
-    private async Task Loaded()
+    private void Loaded()
     {
         EnsureScopedSubscription(s => s.Add(dependencyQuery.Changes.Subscribe(_ => NotifyDeleteCommandStateChanged())));
         controller.Actions.Loaded();
-        await load.Pending;
-        await analysisDemand.Pending;
     }
 
     [RelayCommand]

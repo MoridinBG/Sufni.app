@@ -14,14 +14,13 @@ internal sealed class BikeEditorAnalysisDemand(IRearSuspensionAnalysisQuery quer
 {
     private readonly CancellableOperation operation = new();
     private long generation;
-    public Task Pending { get; private set; } = Task.CompletedTask;
 
     public void Apply(BikeAnalysisRequest request)
     {
         if (request.Generation == generation) return;
         generation = request.Generation;
         var token = operation.Start();
-        Pending = request.Spec is null ? Task.CompletedTask : ComputeAsync(request, token);
+        if (request.Spec is not null) _ = ComputeAsync(request, token);
     }
 
     private async Task ComputeAsync(BikeAnalysisRequest request, CancellationToken token)
