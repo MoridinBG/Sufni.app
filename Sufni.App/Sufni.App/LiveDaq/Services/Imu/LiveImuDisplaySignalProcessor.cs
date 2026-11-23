@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Numerics;
 using Sufni.Telemetry;
 using Sufni.App.Sessions.Plots;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
@@ -12,7 +12,7 @@ public sealed record LiveImuDisplayInputSeries(
     IReadOnlyList<double> Times,
     IReadOnlyList<ImuRecord> Records,
     double AccelLsbPerG,
-    double GyroLsbPerDps);
+    double GyroLsbPerDps, ulong? FirstIndex = null);
 
 public sealed record LiveImuDisplaySeries(
     IReadOnlyDictionary<LiveImuLocation, IReadOnlyList<double>> VibrationTimes,
@@ -43,7 +43,7 @@ public sealed class LiveImuDisplaySignalProcessor
                 locationStates[input.Location] = state;
             }
 
-            var result = state.ProcessBatch(input.Times, input.Records);
+            var result = state.ProcessBatch(input.Times, input.Records, input.FirstIndex);
             if (result.RmsG.Length > 0)
             {
                 vibrationTimes[input.Location] = result.Times;
@@ -72,12 +72,11 @@ public sealed class LiveImuDisplaySignalProcessor
         private readonly RollingRmsState rmsState;
         private AccelVector gravity = AccelVector.BikeLevelGravity;
         private double previousTime;
-        private double pitchDegrees;
-        private double rollDegrees;
+        private Quaternion? orientation;
+        private ulong? nextIndex;
         private bool hasPreviousTime;
         private bool hasGravity;
-        private bool hasAttitude;
-        private bool pitchRollAvailable;
+        private readonly bool pitchRollAvailable;
 
         public StreamingLocationState(
             LiveImuLocation location,
@@ -99,7 +98,7 @@ public sealed class LiveImuDisplaySignalProcessor
                 sampleRateHz.Equals(sampleRate);
         }
 
-        public LocationProcessResult ProcessBatch(IReadOnlyList<double> times, IReadOnlyList<ImuRecord> records)
+        public LocationProcessResult ProcessBatch(IReadOnlyList<double> times, IReadOnlyList<ImuRecord> records, ulong? firstIndex)
         {
             var count = Math.Min(times.Count, records.Count);
             if (count == 0)
@@ -107,39 +106,25 @@ public sealed class LiveImuDisplaySignalProcessor
                 return LocationProcessResult.Empty;
             }
 
-            var samples = new List<TimedImuSample>(count);
+            if (firstIndex.HasValue && firstIndex != nextIndex) orientation = null;
+            nextIndex = firstIndex + (ulong)count;
+            var outputTimes = new double[count];
+            var rms = new double[count];
+            var pitch = pitchRollAvailable ? new double[count] : [];
+            var roll = pitchRollAvailable ? new double[count] : [];
+
             for (var i = 0; i < count; i++)
             {
-                samples.Add(new TimedImuSample(times[i], records[i]));
-            }
-
-            return ProcessCalibratedSamples(samples);
-        }
-
-        private LocationProcessResult ProcessCalibratedSamples(IReadOnlyList<TimedImuSample> samples)
-        {
-            if (samples.Count == 0)
-            {
-                return LocationProcessResult.Empty;
-            }
-
-            var times = new double[samples.Count];
-            var rms = new double[samples.Count];
-            var pitch = pitchRollAvailable ? new double[samples.Count] : [];
-            var roll = pitchRollAvailable ? new double[samples.Count] : [];
-
-            for (var i = 0; i < samples.Count; i++)
-            {
-                var sample = samples[i];
-                var dtSeconds = ImuDisplaySignalProcessor.CalculateDeltaSeconds(sample.Time, ref previousTime, ref hasPreviousTime);
-                var accel = ImuDisplaySignalProcessor.ConvertAccel(sample.Record, accelLsbPerG);
+                var sample = records[i];
+                var dtSeconds = ImuDisplaySignalProcessor.CalculateDeltaSeconds(times[i], ref previousTime, ref hasPreviousTime);
+                var accel = ImuDisplaySignalProcessor.ConvertAccel(sample, accelLsbPerG);
                 gravity = hasGravity
                     ? ImuDisplaySignalProcessor.UpdateGravity(gravity, accel, dtSeconds)
                     : ImuDisplaySignalProcessor.EstimateInitialGravity(accel);
                 hasGravity = true;
                 var dynamic = accel - gravity;
 
-                times[i] = sample.Time;
+                outputTimes[i] = times[i];
                 rms[i] = rmsState.Add(dynamic.Magnitude);
 
                 if (!pitchRollAvailable)
@@ -147,24 +132,16 @@ public sealed class LiveImuDisplaySignalProcessor
                     continue;
                 }
 
-                ImuDisplaySignalProcessor.UpdateAttitude(
-                    accel,
-                    sample.Record,
-                    gyroLsbPerDps,
-                    dtSeconds,
-                    correctionWeight: 1.0,
-                    ref hasAttitude,
-                    ref pitchDegrees,
-                    ref rollDegrees);
-
-                pitch[i] = pitchDegrees;
-                roll[i] = rollDegrees;
+                orientation = FrameAttitudeEstimator.Advance(orientation, sample, dtSeconds, accelLsbPerG, gyroLsbPerDps);
+                var attitude = FrameAttitudeEstimator.Read(orientation.Value);
+                pitch[i] = attitude.PitchDegrees;
+                roll[i] = attitude.RollDegrees;
             }
 
             return new LocationProcessResult(
-                times,
+                outputTimes,
                 rms,
-                pitchRollAvailable ? new FramePitchRollSeries(times.ToArray(), pitch, roll) : null);
+                pitchRollAvailable ? new FramePitchRollSeries(outputTimes, pitch, roll) : null);
         }
     }
 }

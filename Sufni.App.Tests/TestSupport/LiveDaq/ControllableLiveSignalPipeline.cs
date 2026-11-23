@@ -13,6 +13,7 @@ internal sealed class ControllableLiveSignalPipeline(bool blockFirstTravel = tru
     private readonly Channel<bool> travelAppends = Channel.CreateUnbounded<bool>();
     private int shouldBlock = blockFirstTravel ? 1 : 0;
 
+    public TaskCompletionSource PitchRollAppended { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public TaskCompletionSource AppendStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public Action? OnReset { get; set; }
 
@@ -50,8 +51,11 @@ internal sealed class ControllableLiveSignalPipeline(bool blockFirstTravel = tru
         imuAppends.Writer.TryWrite(true);
     }
 
-    public void AppendFramePitchRollSamples(long epoch, ReadOnlySpan<double> times, ReadOnlySpan<double> pitchDegrees, ReadOnlySpan<double> rollDegrees) =>
+    public void AppendFramePitchRollSamples(long epoch, ReadOnlySpan<double> times, ReadOnlySpan<double> pitchDegrees, ReadOnlySpan<double> rollDegrees)
+    {
         inner?.AppendFramePitchRollSamples(epoch, times, pitchDegrees, rollDegrees);
+        PitchRollAppended.TrySetResult();
+    }
 
 
     public void BeginEpoch(long epoch)

@@ -865,6 +865,38 @@ public partial class LiveCaptureCoordinatorTests
 
     }
 
+    [Theory]
+    [InlineData(10, 0)]
+    [InlineData(-10, 0)]
+    [InlineData(0, -10)]
+    public async Task LiveFramePitchFollowsBikeInclination(double initialPitch, double pitchChange)
+    {
+        var signals = new LiveSignalPipelineFixture();
+        await using var coordinator = CreateCoordinator(signalPipeline: signals.Pipeline, sendOptions: false);
+        await coordinator.AttachAsync(TestContext.Current.CancellationToken);
+        await signals.WaitForStartAsync();
+        var rate = (int)sessionHeader.AcceptedImuHz;
+        var count = rate + 1;
+        var records = Enumerable.Range(0, count).Select(i =>
+        {
+            var pitch = (initialPitch + pitchChange * i / rate) * Math.PI / 180;
+            var calibration = sessionHeader.ImuCalibrationScales;
+            return new ImuRecord((short)Math.Round(calibration.FrameAccelLsbPerG * Math.Sin(pitch)), 0,
+                (short)Math.Round(calibration.FrameAccelLsbPerG * Math.Cos(pitch)), 0,
+                (short)Math.Round(-pitchChange * calibration.FrameGyroLsbPerDps), 0);
+        }).ToArray();
+        var batch = CreateImuBatchFrame();
+        var published = WaitForSignalBatchAsync(coordinator.SignalBatches,
+            b => b.FramePitchDegrees.Count > 0, TimeSpan.FromSeconds(5));
+        frames.OnNext(batch with { Batch = batch.Batch with { SampleCount = (ushort)count }, Records = records });
+        await signals.Pipeline.PitchRollAppended.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        signals.Flush();
+
+        var values = (await published).FramePitchDegrees;
+        Assert.InRange(values[0], initialPitch - 0.15, initialPitch + 0.15);
+        Assert.InRange(values[^1], initialPitch + pitchChange - 0.15, initialPitch + pitchChange + 0.15);
+    }
+
     [Fact]
     public async Task Frames_ImuOnlyInterval_StillEmitsBatchWithImuSamples()
     {

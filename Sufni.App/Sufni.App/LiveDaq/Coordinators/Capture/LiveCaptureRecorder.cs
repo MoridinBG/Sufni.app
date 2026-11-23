@@ -9,7 +9,7 @@ namespace Sufni.App.LiveDaq.Coordinators.Capture;
 internal sealed record AcceptedTravelBatch(double[] Times, ushort[]? FrontCounts, ushort[]? RearCounts);
 
 internal sealed record AcceptedImuSeries(
-    LiveImuLocation Location, IReadOnlyList<double> Times, IReadOnlyList<ImuRecord> Records);
+    LiveImuLocation Location, ulong FirstIndex, IReadOnlyList<double> Times, IReadOnlyList<ImuRecord> Records);
 
 internal sealed class LiveCaptureRecorder
 {
@@ -227,7 +227,7 @@ internal sealed class LiveCaptureRecorder
             var location = activeLocations[locationIndex];
             var sampleCount = perLocationCounts[locationIndex];
             inputSeries.Add(new AcceptedImuSeries(
-                location,
+                location, frame.Batch.FirstIndex,
                 TrimSeries(perLocationTimes[locationIndex], sampleCount),
                 TrimSeries(perLocationRecords[locationIndex], sampleCount)));
         }

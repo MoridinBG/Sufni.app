@@ -41,28 +41,20 @@ public static class ImuDisplaySignalProcessor
 {
     public const int GravityLowPassTimeConstantMilliseconds = 750;
     public const int VibrationRmsWindowMilliseconds = 200;
-    public const int AttitudeCorrectionTimeConstantMilliseconds = 500;
 
     private const double MillisecondsPerSecond = 1000.0;
     private const double MinimumGravityMagnitude = 1e-6;
-    private const double AttitudeAccelMagnitudeMinimumG = 0.85;
-    private const double AttitudeAccelMagnitudeMaximumG = 1.15;
 
-    public static RecordedImuDisplaySeries ProcessRecorded(TelemetryData telemetryData)
+    public static RecordedImuDisplaySeries ProcessRecorded(TelemetryData telemetryData, IReadOnlyList<TrackSample>? track = null)
     {
         return telemetryData.ImuData is { } imuData
-            ? ProcessRecorded(imuData, AttitudeCorrectionContext.CreateRecorded(telemetryData))
+            ? ProcessRecorded(imuData, track is { Count: > 0 } ? TrackMotion.FromFixes(track, telemetryData.Metadata.Duration) : null)
             : new RecordedImuDisplaySeries([], null);
     }
 
-    public static RecordedImuDisplaySeries ProcessRecorded(RawImuData imuData)
-    {
-        return ProcessRecorded(imuData, AttitudeCorrectionContext.Empty);
-    }
+    public static RecordedImuDisplaySeries ProcessRecorded(RawImuData imuData) => ProcessRecorded(imuData, null);
 
-    private static RecordedImuDisplaySeries ProcessRecorded(
-        RawImuData imuData,
-        AttitudeCorrectionContext attitudeCorrectionContext)
+    private static RecordedImuDisplaySeries ProcessRecorded(RawImuData imuData, TrackMotion? track)
     {
         if (imuData.SampleRate <= 0 || !imuData.HasSamples || imuData.ActiveLocations.Length == 0)
         {
@@ -86,10 +78,9 @@ public static class ImuDisplaySignalProcessor
                 .Select(segment => ProcessLocation(
                     segment,
                     imuData.SampleRate,
-                    meta.AccelLsbPerG,
-                    meta.GyroLsbPerDps,
+                    meta,
                     includePitchRoll: entry.Key == 0,
-                    attitudeCorrectionContext))
+                    track))
                 .Where(result => result.RmsG.Length > 0)
                 .ToArray();
 
@@ -165,13 +156,6 @@ public static class ImuDisplaySignalProcessor
             gravity.Z + alpha * (accel.Z - gravity.Z));
     }
 
-    internal static AttitudeAngles CalculateAttitude(AccelVector gravity)
-    {
-        var pitch = Math.Atan2(gravity.X, gravity.Z) * 180.0 / Math.PI;
-        var roll = Math.Atan2(gravity.Y, gravity.Z) * 180.0 / Math.PI;
-        return new AttitudeAngles(pitch, roll);
-    }
-
     internal static AccelVector EstimateInitialGravity(AccelVector accel)
     {
         var magnitude = accel.Magnitude;
@@ -186,99 +170,22 @@ public static class ImuDisplaySignalProcessor
             accel.Z / magnitude);
     }
 
-    internal static bool IsAttitudeAccelerationReliable(AccelVector accel)
+    private static LocationProcessResult ProcessLocation(ImuSampleSegment samples, double sampleRateHz,
+        ImuMetaEntry meta, bool includePitchRoll, TrackMotion? track)
     {
-        var magnitude = accel.Magnitude;
-        return double.IsFinite(magnitude) &&
-            magnitude >= AttitudeAccelMagnitudeMinimumG &&
-            magnitude <= AttitudeAccelMagnitudeMaximumG;
-    }
-
-    internal static double CalculateAttitudeCorrection(
-        AccelVector accel,
-        double dtSeconds,
-        double contextWeight)
-    {
-        if (contextWeight <= 0 || !IsAttitudeAccelerationReliable(accel))
-        {
-            return 0;
-        }
-
-        return LowPassAlpha(dtSeconds, AttitudeCorrectionTimeConstantMilliseconds) * contextWeight;
-    }
-
-    internal static void UpdateAttitude(
-        AccelVector accel,
-        ImuRecord record,
-        double gyroLsbPerDps,
-        double dtSeconds,
-        double correctionWeight,
-        ref bool hasAttitude,
-        ref double pitchDegrees,
-        ref double rollDegrees)
-    {
-        if (!hasAttitude)
-        {
-            var initialAttitude = correctionWeight > 0 && IsAttitudeAccelerationReliable(accel)
-                ? CalculateAttitude(accel)
-                : new AttitudeAngles(0, 0);
-            pitchDegrees = initialAttitude.PitchDegrees;
-            rollDegrees = initialAttitude.RollDegrees;
-            hasAttitude = true;
-            return;
-        }
-
-        var gyroX = record.Gx / gyroLsbPerDps;
-        var gyroY = record.Gy / gyroLsbPerDps;
-        var predictedRoll = rollDegrees + gyroX * dtSeconds;
-        var predictedPitch = pitchDegrees + gyroY * dtSeconds;
-        var correction = CalculateAttitudeCorrection(accel, dtSeconds, correctionWeight);
-        if (correction <= 0)
-        {
-            rollDegrees = predictedRoll;
-            pitchDegrees = predictedPitch;
-            return;
-        }
-
-        var attitude = CalculateAttitude(accel);
-        rollDegrees = predictedRoll + correction * (attitude.RollDegrees - predictedRoll);
-        pitchDegrees = predictedPitch + correction * (attitude.PitchDegrees - predictedPitch);
-    }
-
-    internal static LocationProcessResult ProcessLocation(
-        IReadOnlyList<TimedImuSample> samples,
-        double sampleRateHz,
-        double accelLsbPerG,
-        double gyroLsbPerDps,
-        bool includePitchRoll,
-        AttitudeCorrectionContext attitudeCorrectionContext)
-    {
-        if (samples.Count == 0 || accelLsbPerG <= 0)
-        {
-            return LocationProcessResult.Empty;
-        }
-
-        var pitchRollAvailable = includePitchRoll && gyroLsbPerDps > 0;
+        var attitudes = includePitchRoll && meta.GyroLsbPerDps > 0
+            ? FrameAttitudeEstimator.Recorded(samples, sampleRateHz, meta, track) : [];
         var rmsWindow = CalculateRmsWindowSamples(sampleRateHz);
         var rmsState = new RollingRmsState(rmsWindow);
         var times = new double[samples.Count];
         var rms = new double[samples.Count];
-        var pitch = pitchRollAvailable ? new double[samples.Count] : [];
-        var roll = pitchRollAvailable ? new double[samples.Count] : [];
         var gravity = AccelVector.BikeLevelGravity;
         var hasGravity = false;
-        var hasPreviousTime = false;
-        var previousTime = 0.0;
-        var pitchDegrees = 0.0;
-        var rollDegrees = 0.0;
-        var hasAttitude = false;
-
+        var start = samples.FirstMonotonicDeltaUs / 1e6;
         for (var i = 0; i < samples.Count; i++)
         {
-            var sample = samples[i];
-            var dtSeconds = CalculateDeltaSeconds(sample.Time, ref previousTime, ref hasPreviousTime);
-            var accel = ConvertAccel(sample.Record, accelLsbPerG);
-
+            var dtSeconds = i == 0 ? 0 : 1 / sampleRateHz;
+            var accel = ConvertAccel(samples[i], meta.AccelLsbPerG);
             gravity = hasGravity
                 ? UpdateGravity(gravity, accel, dtSeconds)
                 : EstimateInitialGravity(accel);
@@ -286,32 +193,12 @@ public static class ImuDisplaySignalProcessor
             var dynamic = accel - gravity;
             var dynamicMagnitude = dynamic.Magnitude;
 
-            times[i] = sample.Time;
+            times[i] = start + i / sampleRateHz;
             rms[i] = rmsState.Add(dynamicMagnitude);
-
-            if (!pitchRollAvailable)
-            {
-                continue;
-            }
-
-            UpdateAttitude(
-                accel,
-                sample.Record,
-                gyroLsbPerDps,
-                dtSeconds,
-                attitudeCorrectionContext.CorrectionWeightAt(sample.Time),
-                ref hasAttitude,
-                ref pitchDegrees,
-                ref rollDegrees);
-
-            pitch[i] = pitchDegrees;
-            roll[i] = rollDegrees;
         }
-
-        var pitchRoll = pitchRollAvailable
-            ? new FramePitchRollSeries(times.ToArray(), pitch, roll)
+        var pitchRoll = attitudes.Length > 0
+            ? new FramePitchRollSeries(times, attitudes.Select(a => a.PitchDegrees).ToArray(), attitudes.Select(a => a.RollDegrees).ToArray())
             : null;
-
         return new LocationProcessResult(times, rms, pitchRoll);
     }
 
@@ -340,9 +227,9 @@ public static class ImuDisplaySignalProcessor
         return lookup;
     }
 
-    private static Dictionary<byte, List<List<TimedImuSample>>> BuildSampleSegmentsByLocation(RawImuData imuData)
+    private static Dictionary<byte, List<ImuSampleSegment>> BuildSampleSegmentsByLocation(RawImuData imuData)
     {
-        var samplesByLocation = new Dictionary<byte, List<List<TimedImuSample>>>();
+        var samplesByLocation = new Dictionary<byte, List<ImuSampleSegment>>();
         foreach (var location in imuData.ActiveLocations)
         {
             samplesByLocation.TryAdd(location, []);
@@ -363,114 +250,10 @@ public static class ImuDisplaySignalProcessor
                 samplesByLocation[segment.LocationId] = segments;
             }
 
-            var startSeconds = segment.FirstMonotonicDeltaUs / 1_000_000.0;
-            var samples = new List<TimedImuSample>(segment.Count);
-            for (var index = 0; index < segment.Count; index++)
-            {
-                samples.Add(new TimedImuSample(
-                    startSeconds + index / (double)imuData.SampleRate,
-                    segment[index]));
-            }
-
-            segments.Add(samples);
+            segments.Add(segment);
         }
 
         return samplesByLocation;
-    }
-}
-
-internal sealed class AttitudeCorrectionContext
-{
-    public static AttitudeCorrectionContext Empty { get; } = new();
-
-    private const double AirtimePaddingSeconds = 0.10;
-    private const double SuspensionVelocityThresholdMmPerSecond = 300.0;
-
-    private readonly int travelSampleRate;
-    private readonly Suspension? front;
-    private readonly Suspension? rear;
-    private readonly SuspensionTimeSeriesSampler? frontVelocitySampler;
-    private readonly SuspensionTimeSeriesSampler? rearVelocitySampler;
-    private readonly IReadOnlyList<Airtime> airtimes;
-
-    private AttitudeCorrectionContext()
-    {
-        airtimes = [];
-    }
-
-    private AttitudeCorrectionContext(TelemetryData telemetryData)
-    {
-        travelSampleRate = telemetryData.Metadata?.SampleRate ?? 0;
-        front = telemetryData.Front;
-        rear = telemetryData.Rear;
-        frontVelocitySampler = CreateVelocitySampler(front, travelSampleRate);
-        rearVelocitySampler = CreateVelocitySampler(rear, travelSampleRate);
-        airtimes = telemetryData.Airtimes.IsDefault ? [] : telemetryData.Airtimes;
-    }
-
-    private static SuspensionTimeSeriesSampler? CreateVelocitySampler(Suspension? suspension, int sampleRate) =>
-        suspension is { HasGaps: true, Segments.Length: > 0 } && sampleRate > 0
-            ? new SuspensionTimeSeriesSampler(suspension.Segments, suspension.Velocity, sampleRate)
-            : null;
-
-    public static AttitudeCorrectionContext CreateRecorded(TelemetryData telemetryData)
-    {
-        return new AttitudeCorrectionContext(telemetryData);
-    }
-
-    public double CorrectionWeightAt(double timeSeconds)
-    {
-        if (IsWithinAirtimeWindow(timeSeconds) ||
-            HasHighSuspensionVelocity(front, frontVelocitySampler, timeSeconds) ||
-            HasHighSuspensionVelocity(rear, rearVelocitySampler, timeSeconds))
-        {
-            return 0;
-        }
-
-        return 1;
-    }
-
-    private bool IsWithinAirtimeWindow(double timeSeconds)
-    {
-        foreach (var airtime in airtimes)
-        {
-            if (timeSeconds >= airtime.Start - AirtimePaddingSeconds &&
-                timeSeconds <= airtime.End + AirtimePaddingSeconds)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private bool HasHighSuspensionVelocity(Suspension? suspension, SuspensionTimeSeriesSampler? sampler, double timeSeconds)
-    {
-        if (travelSampleRate <= 0 || suspension is not { Present: true })
-        {
-            return false;
-        }
-
-        // Gapped suspensions can't be indexed by dense position; sample by real time instead
-        // (and treat a time that falls in a gap as "not high velocity").
-        if (sampler is not null)
-        {
-            return sampler.TrySampleVelocity(timeSeconds, out var sampledVelocity) &&
-                Math.Abs(sampledVelocity) >= SuspensionVelocityThresholdMmPerSecond;
-        }
-
-        if (suspension.Velocity is not { Length: > 0 } velocity)
-        {
-            return false;
-        }
-
-        var index = (int)Math.Round(timeSeconds * travelSampleRate);
-        if (index < 0 || index >= velocity.Length)
-        {
-            return false;
-        }
-
-        return Math.Abs(velocity[index]) >= SuspensionVelocityThresholdMmPerSecond;
     }
 }
 
@@ -500,8 +283,6 @@ internal sealed class RollingRmsState
     }
 }
 
-internal readonly record struct TimedImuSample(double Time, ImuRecord Record);
-
 internal readonly record struct AccelVector(double X, double Y, double Z)
 {
     public static AccelVector BikeLevelGravity { get; } = new(0, 0, 1);
@@ -513,8 +294,6 @@ internal readonly record struct AccelVector(double X, double Y, double Z)
         return new AccelVector(left.X - right.X, left.Y - right.Y, left.Z - right.Z);
     }
 }
-
-internal readonly record struct AttitudeAngles(double PitchDegrees, double RollDegrees);
 
 internal sealed record LocationProcessResult(double[] Times, double[] RmsG, FramePitchRollSeries? FramePitchRoll)
 {

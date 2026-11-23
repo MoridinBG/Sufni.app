@@ -42,7 +42,7 @@ internal sealed class LiveDisplayProjector(BikeData bikeData)
         var inputs = series.Select(input => new LiveImuDisplayInputSeries(
             input.Location, input.Times, input.Records,
             header.ImuCalibrationScales.GetAccelScale(input.Location),
-            header.ImuCalibrationScales.GetGyroScale(input.Location))).ToArray();
+            header.ImuCalibrationScales.GetGyroScale(input.Location), input.FirstIndex)).ToArray();
         var display = imuDisplaySignalProcessor.ProcessBatch(inputs, header.AcceptedImuHz);
         HasPitchRollData |= display.FramePitchRoll is not null;
         return display.VibrationTimes.Count == 0 && display.FramePitchRoll is null
