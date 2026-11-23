@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Common;
 using Sufni.App.Sessions.Store;
 using System;
 using System.Collections.Immutable;
@@ -69,19 +70,11 @@ internal sealed class VideoCoordinator(
 {
     private static readonly ILogger logger = Log.ForContext<VideoCoordinator>();
     private readonly object activeTasksGate = new();
-    private readonly HashSet<Task> activeTasks = [];
+    private readonly RetainedWork retainedWork = new();
 
-    public async Task StopAsync()
+    public Task StopAsync()
     {
-        Task[] tasks;
-        lock (activeTasksGate) tasks = activeTasks.ToArray();
-        await Task.WhenAll(tasks).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-    }
-
-    private async Task ReleaseAsync(Task task)
-    {
-        await task.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-        lock (activeTasksGate) activeTasks.Remove(task);
+        lock (activeTasksGate) return retainedWork.DrainAsync();
     }
 
     private readonly IDisposable presenceSubscription = ObservePresence(videoStore, filePresence, dispatcher);
@@ -133,10 +126,7 @@ internal sealed class VideoCoordinator(
     {
         lock (activeTasksGate)
         {
-            var task = ShiftAlignmentCoreAsync(clipId, deltaSeconds);
-            activeTasks.Add(task);
-            _ = ReleaseAsync(task);
-            return task;
+            return retainedWork.Retain(ShiftAlignmentCoreAsync(clipId, deltaSeconds));
         }
     }
 

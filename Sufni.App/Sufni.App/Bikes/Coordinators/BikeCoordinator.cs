@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Common;
 using System.Linq;
 using System.Collections.Generic;
 using Serilog;
@@ -25,19 +26,11 @@ internal class BikeCoordinator(
 {
     private static readonly ILogger logger = Log.ForContext<BikeCoordinator>();
     private readonly object activeTasksGate = new();
-    private readonly HashSet<Task> activeTasks = [];
+    private readonly RetainedWork retainedWork = new();
 
-    public async Task StopAsync()
+    public Task StopAsync()
     {
-        Task[] tasks;
-        lock (activeTasksGate) tasks = activeTasks.ToArray();
-        await Task.WhenAll(tasks).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-    }
-
-    private async Task ReleaseAsync(Task task)
-    {
-        await task.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-        lock (activeTasksGate) activeTasks.Remove(task);
+        lock (activeTasksGate) return retainedWork.DrainAsync();
     }
 
 
@@ -175,10 +168,7 @@ internal class BikeCoordinator(
     {
         lock (activeTasksGate)
         {
-            var task = UpdateDampingSpeedCutoffCoreAsync(bikeId, expectedCutoffMmPerSecond, side, circuit, cutoffMmPerSecond);
-            activeTasks.Add(task);
-            _ = ReleaseAsync(task);
-            return task;
+            return retainedWork.Retain(UpdateDampingSpeedCutoffCoreAsync(bikeId, expectedCutoffMmPerSecond, side, circuit, cutoffMmPerSecond));
         }
     }
 

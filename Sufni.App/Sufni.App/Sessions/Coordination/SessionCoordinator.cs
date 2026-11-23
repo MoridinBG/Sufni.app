@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Common;
 using System.Collections.Generic;
 using Sufni.App.Sessions.Services.Preferences;
 using System;
@@ -31,19 +32,11 @@ internal sealed class SessionCoordinator : ISessionCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SessionCoordinator>();
     private readonly object activeTasksGate = new();
-    private readonly HashSet<Task> activeTasks = [];
+    private readonly RetainedWork retainedWork = new();
 
-    public async Task StopAsync()
+    public Task StopAsync()
     {
-        Task[] tasks;
-        lock (activeTasksGate) tasks = activeTasks.ToArray();
-        await Task.WhenAll(tasks).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-    }
-
-    private async Task ReleaseAsync(Task task)
-    {
-        await task.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-        lock (activeTasksGate) activeTasks.Remove(task);
+        lock (activeTasksGate) return retainedWork.DrainAsync();
     }
 
 
@@ -192,10 +185,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
     {
         lock (activeTasksGate)
         {
-            var task = ShiftGpsOffsetCoreAsync(sessionId, deltaSeconds, cancellationToken);
-            activeTasks.Add(task);
-            _ = ReleaseAsync(task);
-            return task;
+            return retainedWork.Retain(ShiftGpsOffsetCoreAsync(sessionId, deltaSeconds, cancellationToken));
         }
     }
 

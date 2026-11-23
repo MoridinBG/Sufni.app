@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Common;
 using System.Collections.Generic;
 using System;
 using System.Linq;
@@ -57,19 +58,11 @@ internal sealed class SessionEditingCoordinator(
 {
     private static readonly ILogger logger = Log.ForContext<SessionEditingCoordinator>();
     private readonly object activeTasksGate = new();
-    private readonly HashSet<Task> activeTasks = [];
+    private readonly RetainedWork retainedWork = new();
 
-    public async Task StopAsync()
+    public Task StopAsync()
     {
-        Task[] tasks;
-        lock (activeTasksGate) tasks = activeTasks.ToArray();
-        await Task.WhenAll(tasks).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-    }
-
-    private async Task ReleaseAsync(Task task)
-    {
-        await task.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-        lock (activeTasksGate) activeTasks.Remove(task);
+        lock (activeTasksGate) return retainedWork.DrainAsync();
     }
 
 
@@ -89,10 +82,7 @@ internal sealed class SessionEditingCoordinator(
     {
         lock (activeTasksGate)
         {
-            var task = RunCoreAsync(sessionId, commit, progress);
-            activeTasks.Add(task);
-            _ = ReleaseAsync(task);
-            return task;
+            return retainedWork.Retain(RunCoreAsync(sessionId, commit, progress));
         }
     }
 
