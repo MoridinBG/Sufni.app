@@ -7,14 +7,14 @@
       "request": "launch",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "desktop: build macOS",
-      "command": "dotnet run --no-build --project Sufni.App/Sufni.App.macOS/Sufni.App.macOS.csproj -c Debug -f net10.0-macos"
+      "command": "dotnet run --no-build --project Sufni.App/Sufni.App.macOS/Sufni.App.macOS.csproj -c Debug -f net11.0-macos"
     },
     {
       "name": "Sufni macOS (debug)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "desktop: build macOS",
-      "program": "${workspaceFolder}/Sufni.App/Sufni.App.macOS/bin/Debug/net10.0-macos/osx-arm64/Sufni.App.macOS.app/Contents/MacOS/Sufni.App.macOS",
+      "program": "${workspaceFolder}/Sufni.App/Sufni.App.macOS/bin/Debug/net11.0-macos/osx-arm64/Sufni.App.macOS.app/Contents/MacOS/Sufni.App.macOS",
       "args": [],
       "cwd": "${workspaceFolder}",
       "console": "internalConsole",
@@ -29,7 +29,7 @@
       "request": "launch",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "desktop: build Linux",
-      "command": "dotnet run --no-build --project Sufni.App/Sufni.App.Linux/Sufni.App.Linux.csproj -c Debug -f net10.0"
+      "command": "dotnet run --no-build --project Sufni.App/Sufni.App.Linux/Sufni.App.Linux.csproj -c Debug -f net11.0"
     },
     {
       "name": "Sufni Windows (Windows host)",
@@ -37,7 +37,7 @@
       "request": "launch",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "desktop: build Windows",
-      "command": "dotnet run --no-build --project Sufni.App/Sufni.App.Windows/Sufni.App.Windows.csproj -c Debug -f net10.0-windows"
+      "command": "dotnet run --no-build --project Sufni.App/Sufni.App.Windows/Sufni.App.Windows.csproj -c Debug -f net11.0-windows"
     },
     {
       "name": "Sufni iOS Simulator (arm64)",
@@ -45,7 +45,7 @@
       "request": "launch",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "mobile: build iOS simulator (arm64)",
-      "command": "MLAUNCH=\"$(command -v mlaunch || find /usr/local/share/dotnet/packs -path '*/tools/bin/mlaunch' -print | sort | tail -n 1)\" && test -n \"$MLAUNCH\" && \"$MLAUNCH\" --launchsim Sufni.App/Sufni.App.iOS/bin/Debug/net10.0-ios/iossimulator-arm64/Sufni.App.iOS.app --device=:v2:udid=${input:iosSimulatorUdid} -sdk \"$(xcrun --sdk iphonesimulator --show-sdk-version)\" --sdkroot \"$(xcode-select -p)\""
+      "command": "MLAUNCH=\"$(command -v mlaunch || find /usr/local/share/dotnet/packs -path '*/Microsoft.iOS.Sdk.net11.0_*/tools/bin/mlaunch' -print | sort | tail -n 1)\" && test -n \"$MLAUNCH\" && \"$MLAUNCH\" --launchsim Sufni.App/Sufni.App.iOS/bin/Debug/net11.0-ios/iossimulator-arm64/Sufni.App.iOS.app --device=:v2:udid=${input:iosSimulatorUdid} -sdk \"$(xcrun --sdk iphonesimulator --show-sdk-version)\" --sdkroot \"$(xcode-select -p)\""
     },
     {
       "name": "Sufni iOS Device",
@@ -53,7 +53,7 @@
       "request": "launch",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "mobile: build iOS device",
-      "command": "MLAUNCH=\"$(command -v mlaunch || find /usr/local/share/dotnet/packs -path '*/tools/bin/mlaunch' -print | sort | tail -n 1)\" && SDK_VERSION=\"$(xcrun --sdk iphoneos --show-sdk-version)\" && SDK_ROOT=\"$(xcode-select -p)\" && test -n \"$MLAUNCH\" && \"$MLAUNCH\" --devname \"${input:iosDeviceName}\" --installdev Sufni.App/Sufni.App.iOS/bin/Debug/net10.0-ios/ios-arm64/Sufni.App.iOS.app --wait-for-unlock -sdk \"$SDK_VERSION\" --sdkroot \"$SDK_ROOT\" && \"$MLAUNCH\" --devname \"${input:iosDeviceName}\" --killdev com.moridinbg.Sufni.App --launchdev Sufni.App/Sufni.App.iOS/bin/Debug/net10.0-ios/ios-arm64/Sufni.App.iOS.app --wait-for-unlock --argument=-connection-mode --argument=usb -sdk \"$SDK_VERSION\" --sdkroot \"$SDK_ROOT\""
+      "command": "MLAUNCH=\"$(command -v mlaunch || find /usr/local/share/dotnet/packs -path '*/Microsoft.iOS.Sdk.net11.0_*/tools/bin/mlaunch' -print | sort | tail -n 1)\" && SDK_VERSION=\"$(xcrun --sdk iphoneos --show-sdk-version)\" && SDK_ROOT=\"$(xcode-select -p)\" && test -n \"$MLAUNCH\" && \"$MLAUNCH\" --devname \"${input:iosDeviceName}\" --installdev Sufni.App/Sufni.App.iOS/bin/Debug/net11.0-ios/ios-arm64/Sufni.App.iOS.app --wait-for-unlock -sdk \"$SDK_VERSION\" --sdkroot \"$SDK_ROOT\" && \"$MLAUNCH\" --devname \"${input:iosDeviceName}\" --killdev com.moridinbg.Sufni.App --launchdev Sufni.App/Sufni.App.iOS/bin/Debug/net11.0-ios/ios-arm64/Sufni.App.iOS.app --wait-for-unlock --argument=-connection-mode --argument=usb -sdk \"$SDK_VERSION\" --sdkroot \"$SDK_ROOT\""
     },
     {
       "name": "Sufni iOS Device (Release)",
@@ -61,21 +61,21 @@
       "request": "launch",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "mobile: build iOS device (Release)",
-      "command": "MLAUNCH=\"$(command -v mlaunch || find /usr/local/share/dotnet/packs -path '*/tools/bin/mlaunch' -print | sort | tail -n 1)\" && SDK_VERSION=\"$(xcrun --sdk iphoneos --show-sdk-version)\" && SDK_ROOT=\"$(xcode-select -p)\" && test -n \"$MLAUNCH\" && \"$MLAUNCH\" --devname \"${input:iosDeviceName}\" --installdev Sufni.App/Sufni.App.iOS/bin/Release/net10.0-ios/ios-arm64/Sufni.App.iOS.app --wait-for-unlock -sdk \"$SDK_VERSION\" --sdkroot \"$SDK_ROOT\" && \"$MLAUNCH\" --devname \"${input:iosDeviceName}\" --killdev com.moridinbg.Sufni.App --launchdev Sufni.App/Sufni.App.iOS/bin/Release/net10.0-ios/ios-arm64/Sufni.App.iOS.app --wait-for-unlock --argument=-connection-mode --argument=usb -sdk \"$SDK_VERSION\" --sdkroot \"$SDK_ROOT\""
+      "command": "MLAUNCH=\"$(command -v mlaunch || find /usr/local/share/dotnet/packs -path '*/Microsoft.iOS.Sdk.net11.0_*/tools/bin/mlaunch' -print | sort | tail -n 1)\" && SDK_VERSION=\"$(xcrun --sdk iphoneos --show-sdk-version)\" && SDK_ROOT=\"$(xcode-select -p)\" && test -n \"$MLAUNCH\" && \"$MLAUNCH\" --devname \"${input:iosDeviceName}\" --installdev Sufni.App/Sufni.App.iOS/bin/Release/net11.0-ios/ios-arm64/Sufni.App.iOS.app --wait-for-unlock -sdk \"$SDK_VERSION\" --sdkroot \"$SDK_ROOT\" && \"$MLAUNCH\" --devname \"${input:iosDeviceName}\" --killdev com.moridinbg.Sufni.App --launchdev Sufni.App/Sufni.App.iOS/bin/Release/net11.0-ios/ios-arm64/Sufni.App.iOS.app --wait-for-unlock --argument=-connection-mode --argument=usb -sdk \"$SDK_VERSION\" --sdkroot \"$SDK_ROOT\""
     },
     {
       "name": "Sufni Android (arm64)",
       "type": "node-terminal",
       "request": "launch",
       "cwd": "${workspaceFolder}",
-      "command": "dotnet build Sufni.App/Sufni.App.Android/Sufni.App.Android.csproj -c Debug -f net10.0-android -r android-arm64 -p:RuntimeIdentifier=android-arm64 -t:Run"
+      "command": "dotnet build Sufni.App/Sufni.App.Android/Sufni.App.Android.csproj -c Debug -f net11.0-android -r android-arm64 -p:RuntimeIdentifier=android-arm64 -t:Run"
     },
     {
       "name": "Sufni Android (x64 emulator)",
       "type": "node-terminal",
       "request": "launch",
       "cwd": "${workspaceFolder}",
-      "command": "dotnet build Sufni.App/Sufni.App.Android/Sufni.App.Android.csproj -c Debug -f net10.0-android -r android-x64 -p:RuntimeIdentifier=android-x64 -t:Run"
+      "command": "dotnet build Sufni.App/Sufni.App.Android/Sufni.App.Android.csproj -c Debug -f net11.0-android -r android-x64 -p:RuntimeIdentifier=android-x64 -t:Run"
     },
     {
       "name": "Start Android Emulator",
