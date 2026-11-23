@@ -1,5 +1,7 @@
 using Avalonia.Headless.XUnit;
 using NSubstitute;
+using System.Reactive;
+using System.Reactive.Subjects;
 using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Infrastructure;
@@ -254,6 +256,34 @@ public class BikeEditorViewModelTests : BikeEditorFixture
         dependencyQuery.IsBikeInUse(snapshot.Id).Returns(true);
         var editor = CreateEditor(snapshot);
 
+        Assert.False(editor.DeleteCommand.CanExecute(true));
+    }
+
+    [AvaloniaFact]
+    public void DeleteCommand_Enabled_ForAnUnsavedBike()
+    {
+        var snapshot = TestSnapshots.Bike();
+        dependencyQuery.IsBikeInUse(snapshot.Id).Returns(true);
+        var editor = CreateEditor(snapshot, isNew: true);
+
+        Assert.True(editor.DeleteCommand.CanExecute(true));
+    }
+
+    [AvaloniaFact]
+    public void DeleteCommand_ReevaluatesWhenDependenciesChange()
+    {
+        var snapshot = TestSnapshots.Bike();
+        var changes = new Subject<Unit>();
+        dependencyQuery.Changes.Returns(changes);
+        var editor = CreateEditor(snapshot);
+        editor.LoadedCommand.Execute(null);
+        var notified = false;
+        editor.DeleteCommand.CanExecuteChanged += (_, _) => notified = true;
+        dependencyQuery.IsBikeInUse(snapshot.Id).Returns(true);
+
+        changes.OnNext(Unit.Default);
+
+        Assert.True(notified);
         Assert.False(editor.DeleteCommand.CanExecute(true));
     }
 
