@@ -97,6 +97,14 @@ An idling stroke is marked as an air candidate during stroke categorization when
 
 `SignalFilters` applies a second-order Butterworth low-pass or a band-pass from a second-order prototype. Each continuous input is filtered forward and backward with odd reflection at its ends.
 
+### Terrain profile
+
+`TerrainProfileCalculator.Calculate` derives 10 m windows inside each original-fix track span. A window contributes measurements when its speed exceeds 2.5 m/s and its duration is at least 0.4 s. Each fully covered IMU window retains broadband and three narrower RMS acceleration levels. The classification removes the speed effect and applies the calibration for the sensor location and scale. Raw levels remain available for unknown scales. Two calibrated sensors contribute equally unless more than 2% of fork samples clip. A single eligible calibrated sensor supplies the class and is identified as its source.
+
+Steepness needs a frame IMU, elevation at both moving endpoints and 800 m of moving distance. Forward acceleration is removed before low-pass tilt estimation. The moving distance-weighted grade is anchored to the measured elevation drop. A 50 m baseline supplies the steepness class. A recording gap interrupts sensor coverage; windows without full sensor coverage carry no measurement for that sensor.
+
+The profile includes per-side velocity figures and per-metre IMU matching values. `Summarize` reports distance shares only over windows classified on the corresponding axis. The algorithm and calibration have independent versions. The profile has its own MessagePack contract.
+
 ### Processing Parameters
 
 Stroke and histogram defaults in `Sufni.Telemetry/Parameters.cs`:
