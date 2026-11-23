@@ -1,3 +1,4 @@
+using System.Threading.Channels;
 using Sufni.App.Infrastructure;
 
 namespace Sufni.App.Tests.TestSupport.Async;
@@ -5,7 +6,7 @@ namespace Sufni.App.Tests.TestSupport.Async;
 /// <summary>Holds background work until a test explicitly executes the next job.</summary>
 public sealed class DeferredBackgroundTaskRunner : IBackgroundTaskRunner
 {
-    private readonly Queue<Func<Task>> pending = [];
+    private readonly Channel<Func<Task>> pending = Channel.CreateUnbounded<Func<Task>>();
 
     public Task RunAsync(Func<Task> work, CancellationToken cancellationToken = default) =>
         RunAsync(async () => { await work(); return true; }, cancellationToken);
@@ -16,7 +17,7 @@ public sealed class DeferredBackgroundTaskRunner : IBackgroundTaskRunner
     public Task<T> RunAsync<T>(Func<Task<T>> work, CancellationToken cancellationToken = default)
     {
         var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
-        pending.Enqueue(async () =>
+        pending.Writer.TryWrite(async () =>
         {
             try
             {
@@ -35,5 +36,24 @@ public sealed class DeferredBackgroundTaskRunner : IBackgroundTaskRunner
         return completion.Task;
     }
 
-    public Task RunNextAsync() => pending.Dequeue()();
+    public Task RunNextAsync() => pending.Reader.TryRead(out var work)
+        ? work() : throw new InvalidOperationException("No queued background work.");
+
+    public async Task DrainUntilAsync(ManualUiThreadDispatcher dispatcher, Task completion)
+    {
+        using var waiting = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        waiting.CancelAfter(TimeSpan.FromSeconds(5));
+        while (!completion.IsCompleted)
+        {
+            waiting.Token.ThrowIfCancellationRequested();
+            await dispatcher.DrainAsync();
+            while (pending.Reader.TryRead(out var work)) _ = work();
+            if (completion.IsCompleted) break;
+            using var wake = CancellationTokenSource.CreateLinkedTokenSource(waiting.Token);
+            await Task.WhenAny(completion, dispatcher.WaitForWorkAsync(wake.Token),
+                pending.Reader.WaitToReadAsync(wake.Token).AsTask());
+            await wake.CancelAsync();
+        }
+        await completion;
+    }
 }
