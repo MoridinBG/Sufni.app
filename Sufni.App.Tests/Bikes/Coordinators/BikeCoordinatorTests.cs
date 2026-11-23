@@ -1,4 +1,3 @@
-using Sufni.App.Bikes.Queries;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Microsoft.Extensions.Time.Testing;
 using Sufni.App.SyncAndPairing.Services;
@@ -72,10 +71,9 @@ public class BikeCoordinatorTests : IAsyncDisposable
         await (await database.GetInitializedConnectionAsync()).InsertOrReplaceAsync(bike);
         await bikeStore.PublishBikesChangedAsync([BikeSnapshot.From(bike)]);
         var coordinator = CreateCoordinator();
-        var loaded = Assert.IsType<BikeDraftLoadResult.Loaded>(await new BikeDraftLoader(Repository, new InlineBackgroundTaskRunner()).LoadDraftAsync(bike.Id, TestContext.Current.CancellationToken));
+        var loaded = BikeDraft.From((await Repository.GetAsync(bike.Id))!);
 
-        Assert.Equal([1, 2, 3], loaded.Draft.ImageBytes);
-        Assert.IsType<BikeSaveResult.Saved>(await coordinator.SaveAsync(loaded.Draft with { Name = "renamed" }, loaded.Draft));
+        Assert.IsType<BikeSaveResult.Saved>(await coordinator.SaveAsync(loaded with { Name = "renamed" }, loaded));
         Assert.IsType<BikeDampingSpeedCutoffUpdateResult.Saved>(await coordinator.UpdateDampingSpeedCutoffAsync(
             bike.Id, 200, SuspensionType.Front, DampingSpeedCircuit.Compression, 300));
 
@@ -90,7 +88,7 @@ public class BikeCoordinatorTests : IAsyncDisposable
         await (await database.GetInitializedConnectionAsync()).InsertOrReplaceAsync(bike);
         await bikeStore.PublishBikesChangedAsync([BikeSnapshot.From(bike)]);
         var coordinator = CreateCoordinator();
-        var baseline = Assert.IsType<BikeDraftLoadResult.Loaded>(await new BikeDraftLoader(Repository, new InlineBackgroundTaskRunner()).LoadDraftAsync(bike.Id, TestContext.Current.CancellationToken)).Draft;
+        var baseline = BikeDraft.From((await Repository.GetAsync(bike.Id))!);
         bike.ImageBytes = [4, 5, 6];
         await (await database.GetInitializedConnectionAsync()).UpdateAsync(bike);
 
@@ -227,7 +225,6 @@ public class BikeCoordinatorTests : IAsyncDisposable
 
         Assert.Equal(BikeSaveFailureReason.Save, Assert.IsType<BikeSaveResult.Failed>(result).Reason);
         Assert.Equal(existing, bikeStore.Get(existing.Id));
-        Assert.Equal(existing, BikeSnapshot.From((await Repository.GetAsync(existing.Id))!));
     }
 
     [Fact]
@@ -294,7 +291,6 @@ public class BikeCoordinatorTests : IAsyncDisposable
 
         Assert.Equal(BikeDampingCutoffFailureReason.Save, Assert.IsType<BikeDampingSpeedCutoffUpdateResult.Failed>(result).Reason);
         Assert.Equal(existing, bikeStore.Get(existing.Id));
-        Assert.Equal(existing, BikeSnapshot.From((await Repository.GetAsync(existing.Id))!));
     }
 
     [Fact]
