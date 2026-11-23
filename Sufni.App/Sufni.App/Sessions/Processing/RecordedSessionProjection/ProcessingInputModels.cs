@@ -20,7 +20,9 @@ public sealed record BikeProcessingInput(
     double HeadAngle,
     double? ForkStroke,
     double? ShockStroke,
-    string RearSuspensionJson);
+    string RearSuspensionJson,
+    double? FrontWheelDiameterMm,
+    double? RearWheelDiameterMm);
 
 public sealed record SessionProcessingInputBundle(
     SessionProcessingInput Session,

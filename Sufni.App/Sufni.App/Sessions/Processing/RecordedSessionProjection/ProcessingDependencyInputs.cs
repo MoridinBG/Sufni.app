@@ -49,7 +49,7 @@ internal sealed record ProcessingDependencyInputs(
                 SensorPayload.FromJson(setup.RearSensorConfigurationJson)),
             Bike: new BikePayload(
                 bike.Id,
-                bike.HeadAngle,
+                BikeGeometry.EffectiveHeadAngle(bike.HeadAngle, rearSuspension, bike.FrontWheelDiameterMm, bike.RearWheelDiameterMm),
                 bike.ForkStroke,
                 bike.ShockStroke,
                 rearSuspension.Kind,

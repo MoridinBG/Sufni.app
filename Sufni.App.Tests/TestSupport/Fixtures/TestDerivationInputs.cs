@@ -20,7 +20,8 @@ internal static class TestDerivationInputs
         new SetupProcessingInput(domain.Setup.Id, domain.Setup.BikeId,
             domain.Setup.FrontSensorConfigurationJson, domain.Setup.RearSensorConfigurationJson),
         new BikeProcessingInput(domain.Bike!.Id, domain.Bike.HeadAngle, domain.Bike.ForkStroke,
-            domain.Bike.ShockStroke, RearSuspensionJsonCodec.Serialize(domain.Bike.RearSuspension)),
+            domain.Bike.ShockStroke, RearSuspensionJsonCodec.Serialize(domain.Bike.RearSuspension),
+                domain.Bike.FrontWheelDiameterMm, domain.Bike.RearWheelDiameterMm),
         domain.Source!);
 
 }

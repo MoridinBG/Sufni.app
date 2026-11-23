@@ -292,6 +292,28 @@ public class ProcessingFingerprintServiceTests
     }
 
     [Fact]
+    public void DatabaseAndSnapshotFingerprintsUseTheSamePhotoAngle()
+    {
+        var context = CreateContext();
+        var row = Bike.FromSnapshot(context.Bike, []);
+        row.RearSuspension = new RearSuspensionSpec.Linkage(TestSnapshots.FullSuspensionLinkageSpec(true));
+        row.FrontWheelDiameterMm = 702;
+        row.RearWheelDiameterMm = 700;
+        row.HeadAngle = 65;
+        var bike = BikeSnapshot.From(row);
+        var expected = service.CreateCurrent(context.Session, context.Setup, bike with { HeadAngle = 71.6 }, context.Source);
+        var bundle = new SessionProcessingInputBundle(
+            new SessionProcessingInput(context.Session.Id, context.Setup.Id),
+            new SetupProcessingInput(context.Setup.Id, row.Id, context.Setup.FrontSensorConfigurationJson,
+                context.Setup.RearSensorConfigurationJson),
+            new BikeProcessingInput(row.Id, row.HeadAngle, row.ForkStroke, row.ShockStroke,
+                row.RearSuspensionJson, row.FrontWheelDiameterMm, row.RearWheelDiameterMm), context.Source);
+
+        Assert.Equal(expected, service.CreateCurrentDatabaseInputs(bundle));
+        Assert.Equal(expected, service.CreateCurrent(context.Session, context.Setup, bike, context.Source));
+    }
+
+    [Fact]
     public void CreateCurrent_ReorderedIndependentLinkageCollectionsKeepFingerprint()
     {
         var context = CreateContext();

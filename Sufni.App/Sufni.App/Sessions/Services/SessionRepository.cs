@@ -186,6 +186,8 @@ internal sealed class SessionRepository(
                                                         setup.front_sensor_configuration AS front_sensor_configuration,
                                                         setup.rear_sensor_configuration AS rear_sensor_configuration,
                                                         bike.head_angle AS head_angle,
+                                                        bike.front_wheel_diameter AS front_wheel_diameter,
+                                                        bike.rear_wheel_diameter AS rear_wheel_diameter,
                                                         bike.fork_stroke AS fork_stroke,
                                                         bike.shock_stroke AS shock_stroke,
                                                         bike.rear_suspension AS rear_suspension,
@@ -614,6 +616,12 @@ internal sealed class SessionRepository(
         [Column("rear_sensor_configuration")]
         public string? RearSensorConfigurationJson { get; set; }
 
+        [Column("front_wheel_diameter")]
+        public double? FrontWheelDiameterMm { get; set; }
+
+        [Column("rear_wheel_diameter")]
+        public double? RearWheelDiameterMm { get; set; }
+
         [Column("head_angle")]
         public double HeadAngle { get; set; }
 
@@ -680,7 +688,9 @@ internal sealed class SessionRepository(
                     HeadAngle,
                     ForkStroke,
                     ShockStroke,
-                    RearSuspensionJson!),
+                    RearSuspensionJson!,
+                    FrontWheelDiameterMm,
+                    RearWheelDiameterMm),
                 new RecordedSessionSourceSnapshot(
                     SourceSessionId,
                     sourceKind,

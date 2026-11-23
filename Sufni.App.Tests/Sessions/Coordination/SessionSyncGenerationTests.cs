@@ -247,7 +247,8 @@ public class SessionSyncGenerationTests : IDisposable
             new SessionProcessingInput(session.Id, setup.Id),
             new SetupProcessingInput(setup.Id, setup.BikeId, null, null),
             new BikeProcessingInput(bike.Id, bike.HeadAngle, bike.ForkStroke, bike.ShockStroke,
-                RearSuspensionJsonCodec.Serialize(bike.RearSuspension)),
+                RearSuspensionJsonCodec.Serialize(bike.RearSuspension),
+                bike.FrontWheelDiameterMm, bike.RearWheelDiameterMm),
             RecordedSessionSourceSnapshot.From(PersistenceTestData.CreateRecordedSessionSource(session.Id)));
         targetFingerprint = AppJson.Serialize(new ProcessingFingerprintService().CreateCurrentDatabaseInputs(inputs));
         if (!withData) session.ProcessingFingerprintJson = targetFingerprint;
