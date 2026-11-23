@@ -19,9 +19,7 @@ public class FrameAttitudeEstimatorTests
         Quaternion? rotation = null;
         for (var i = 0; i <= 200; i++)
         {
-            var angle = -10 * i / 200d * Math.PI / 180;
-            var sample = new ImuRecord((short)Math.Round(4096 * Math.Sin(angle)), 0, (short)Math.Round(4096 * Math.Cos(angle)),
-                0, 160, 0);
+            var sample = PitchedImuRecord.At(-10 * i / 200d, 4096, pitchRateDps: -10, gyroLsbPerDps: 16);
             rotation = FrameAttitudeEstimator.Advance(rotation, sample, 1d / 200, 4096, 16);
         }
         Assert.InRange(FrameAttitudeEstimator.Read(rotation!.Value).PitchDegrees, -10.1, -9.9);

@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NSubstitute;
 using Sufni.Telemetry;
+using Sufni.Telemetry.Tests;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
@@ -877,14 +878,9 @@ public partial class LiveCaptureCoordinatorTests
         await signals.WaitForStartAsync();
         var rate = (int)sessionHeader.AcceptedImuHz;
         var count = rate + 1;
-        var records = Enumerable.Range(0, count).Select(i =>
-        {
-            var pitch = (initialPitch + pitchChange * i / rate) * Math.PI / 180;
-            var calibration = sessionHeader.ImuCalibrationScales;
-            return new ImuRecord((short)Math.Round(calibration.FrameAccelLsbPerG * Math.Sin(pitch)), 0,
-                (short)Math.Round(calibration.FrameAccelLsbPerG * Math.Cos(pitch)), 0,
-                (short)Math.Round(-pitchChange * calibration.FrameGyroLsbPerDps), 0);
-        }).ToArray();
+        var calibration = sessionHeader.ImuCalibrationScales;
+        var records = Enumerable.Range(0, count).Select(i => PitchedImuRecord.At(initialPitch + pitchChange * i / rate,
+            calibration.FrameAccelLsbPerG, pitchChange, calibration.FrameGyroLsbPerDps)).ToArray();
         var batch = CreateImuBatchFrame();
         var published = WaitForSignalBatchAsync(coordinator.SignalBatches,
             b => b.FramePitchDegrees.Count > 0, TimeSpan.FromSeconds(5));
