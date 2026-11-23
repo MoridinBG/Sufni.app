@@ -27,11 +27,11 @@ public enum VelocityAverageMode
 }
 
 public sealed record TravelStatisticsOptions(
-    TelemetryTimeRange? Range = null,
+    TelemetryTimeSelection? Selection = null,
     TravelDistributionMode HistogramMode = TravelDistributionMode.ActiveSuspension);
 
 public sealed record BalanceStatisticsOptions(
-    TelemetryTimeRange? Range = null,
+    TelemetryTimeSelection? Selection = null,
     BalanceDisplacementMode DisplacementMode = BalanceDisplacementMode.Zenith,
     BalanceSpeedMode SpeedMode = BalanceSpeedMode.Both,
     double FrontCompressionHighSpeedThreshold = 200.0,
@@ -40,7 +40,7 @@ public sealed record BalanceStatisticsOptions(
     double RearReboundHighSpeedThreshold = 200.0);
 
 public sealed record VelocityStatisticsOptions(
-    TelemetryTimeRange? Range = null,
+    TelemetryTimeSelection? Selection = null,
     VelocityAverageMode VelocityAverageMode = VelocityAverageMode.SampleAveraged,
     double CompressionHighSpeedThreshold = 200.0,
     double ReboundHighSpeedThreshold = 200.0);

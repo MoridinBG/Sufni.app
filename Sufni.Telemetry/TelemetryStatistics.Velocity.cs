@@ -11,7 +11,7 @@ public static partial class TelemetryStatistics
     public static StackedHistogramData CalculateVelocityHistogram(
         TelemetryData telemetryData,
         SuspensionType type,
-        TelemetryTimeRange? range = null)
+        TelemetryTimeSelection? range = null)
     {
         return CalculateVelocityHistogram(telemetryData, type, new VelocityStatisticsOptions(range));
     }
@@ -28,9 +28,9 @@ public static partial class TelemetryStatistics
             VelocityAverageMode.SampleAveraged => CalculateSampleVelocityHistogram(
                 telemetryData,
                 suspension,
-                options.Range,
+                options.Selection,
                 telemetryData.CoarseStrokeIndexes),
-            VelocityAverageMode.StrokePeakAveraged => CalculateStrokePeakVelocityHistogram(telemetryData, suspension, options.Range),
+            VelocityAverageMode.StrokePeakAveraged => CalculateStrokePeakVelocityHistogram(telemetryData, suspension, options.Selection),
             _ => throw new ArgumentOutOfRangeException(nameof(options), options.VelocityAverageMode, null),
         };
     }
@@ -38,15 +38,15 @@ public static partial class TelemetryStatistics
     public static NormalDistributionData CalculateNormalDistribution(
         TelemetryData telemetryData,
         SuspensionType type,
-        TelemetryTimeRange? range = null)
+        TelemetryTimeSelection? range = null)
     {
         var suspension = GetSuspension(telemetryData, type);
         var step = suspension.VelocityBins[1] - suspension.VelocityBins[0];
         var compressions = GetIncludedCompressions(telemetryData, suspension, range);
         var rebounds = GetIncludedRebounds(telemetryData, suspension, range);
         var statistics = new NormalDistributionStatistics();
-        AccumulateStrokeVelocity(suspension.Velocity.AsSpan(), compressions, ref statistics);
-        AccumulateStrokeVelocity(suspension.Velocity.AsSpan(), rebounds, ref statistics);
+        AccumulateStrokeVelocity(suspension.Velocity.AsSpan(), compressions, range, telemetryData.Metadata.SampleRate, ref statistics);
+        AccumulateStrokeVelocity(suspension.Velocity.AsSpan(), rebounds, range, telemetryData.Metadata.SampleRate, ref statistics);
         if (statistics.Count < 2)
         {
             return new NormalDistributionData([], []);
@@ -75,13 +75,13 @@ public static partial class TelemetryStatistics
     private static void AccumulateStrokeVelocity(
         ReadOnlySpan<double> velocity,
         ImmutableArray<Stroke> strokes,
-        ref NormalDistributionStatistics statistics)
+        TelemetryTimeSelection? range, int sampleRate, ref NormalDistributionStatistics statistics)
     {
         foreach (var stroke in strokes)
         {
             for (var index = stroke.Start; index <= stroke.End; index++)
             {
-                statistics.Add(velocity[index]);
+                if (IncludesSample(range, stroke, index - stroke.Start, sampleRate)) statistics.Add(velocity[index]);
             }
         }
     }
@@ -131,7 +131,7 @@ public static partial class TelemetryStatistics
     public static VelocityStatistics CalculateVelocityStatistics(
         TelemetryData telemetryData,
         SuspensionType type,
-        TelemetryTimeRange? range = null)
+        TelemetryTimeSelection? range = null)
     {
         return CalculateVelocityStatistics(telemetryData, type, new VelocityStatisticsOptions(range));
     }
@@ -142,19 +142,19 @@ public static partial class TelemetryStatistics
         VelocityStatisticsOptions options)
     {
         var suspension = GetSuspension(telemetryData, type);
-        var compressions = GetIncludedCompressions(telemetryData, suspension, options.Range);
-        var rebounds = GetIncludedRebounds(telemetryData, suspension, options.Range);
+        var compressions = GetIncludedCompressions(telemetryData, suspension, options.Selection);
+        var rebounds = GetIncludedRebounds(telemetryData, suspension, options.Selection);
 
         var averageCompression = options.VelocityAverageMode switch
         {
-            VelocityAverageMode.SampleAveraged => CalculateSampleAverageVelocity(compressions),
+            VelocityAverageMode.SampleAveraged => CalculateSampleAverageVelocity(compressions, suspension, options.Selection, telemetryData.Metadata.SampleRate),
             VelocityAverageMode.StrokePeakAveraged => CalculateStrokePeakAverageVelocity(compressions, signedRebound: false),
             _ => throw new ArgumentOutOfRangeException(nameof(options), options.VelocityAverageMode, null),
         };
 
         var averageRebound = options.VelocityAverageMode switch
         {
-            VelocityAverageMode.SampleAveraged => CalculateSampleAverageVelocity(rebounds),
+            VelocityAverageMode.SampleAveraged => CalculateSampleAverageVelocity(rebounds, suspension, options.Selection, telemetryData.Metadata.SampleRate),
             VelocityAverageMode.StrokePeakAveraged => CalculateStrokePeakAverageVelocity(rebounds, signedRebound: true),
             _ => throw new ArgumentOutOfRangeException(nameof(options), options.VelocityAverageMode, null),
         };
@@ -183,13 +183,13 @@ public static partial class TelemetryStatistics
                 suspension,
                 options.CompressionHighSpeedThreshold,
                 options.ReboundHighSpeedThreshold,
-                options.Range),
+                options.Selection),
             VelocityAverageMode.StrokePeakAveraged => CalculateStrokePeakVelocityBands(
                 telemetryData,
                 suspension,
                 options.CompressionHighSpeedThreshold,
                 options.ReboundHighSpeedThreshold,
-                options.Range),
+                options.Selection),
             _ => throw new ArgumentOutOfRangeException(nameof(options), options.VelocityAverageMode, null),
         };
     }
@@ -199,7 +199,7 @@ public static partial class TelemetryStatistics
         Suspension suspension,
         double compressionHighSpeedThreshold,
         double reboundHighSpeedThreshold,
-        TelemetryTimeRange? range)
+        TelemetryTimeSelection? range)
     {
         var velocity = suspension.Velocity;
 
@@ -209,9 +209,10 @@ public static partial class TelemetryStatistics
 
         foreach (var compression in GetIncludedCompressions(telemetryData, suspension, range))
         {
-            totalCount += compression.Stat.Count;
             for (var index = compression.Start; index <= compression.End; index++)
             {
+                if (!IncludesSample(range, compression, index - compression.Start, telemetryData.Metadata.SampleRate)) continue;
+                totalCount++;
                 if (velocity[index] < compressionHighSpeedThreshold)
                 {
                     lowSpeedCompression++;
@@ -228,9 +229,10 @@ public static partial class TelemetryStatistics
 
         foreach (var rebound in GetIncludedRebounds(telemetryData, suspension, range))
         {
-            totalCount += rebound.Stat.Count;
             for (var index = rebound.Start; index <= rebound.End; index++)
             {
+                if (!IncludesSample(range, rebound, index - rebound.Start, telemetryData.Metadata.SampleRate)) continue;
+                totalCount++;
                 if (velocity[index] > -reboundHighSpeedThreshold)
                 {
                     lowSpeedRebound++;
@@ -260,7 +262,7 @@ public static partial class TelemetryStatistics
         Suspension suspension,
         double compressionHighSpeedThreshold,
         double reboundHighSpeedThreshold,
-        TelemetryTimeRange? range)
+        TelemetryTimeSelection? range)
     {
         var compressions = GetIncludedCompressions(telemetryData, suspension, range);
         var rebounds = GetIncludedRebounds(telemetryData, suspension, range);
@@ -286,7 +288,7 @@ public static partial class TelemetryStatistics
     public static bool HasStrokeData(
         TelemetryData telemetryData,
         SuspensionType type,
-        TelemetryTimeRange? range = null)
+        TelemetryTimeSelection? range = null)
     {
         var suspension = GetSuspension(telemetryData, type);
         if (!suspension.Present || suspension.Strokes is null)
@@ -301,7 +303,7 @@ public static partial class TelemetryStatistics
     public static IReadOnlyList<TelemetryHighlightRange> CalculateHighlightRanges(
         TelemetryData telemetryData,
         TelemetryRangeSelection selection,
-        TelemetryTimeRange? range = null)
+        TelemetryTimeSelection? range = null)
     {
         var suspension = GetSuspension(telemetryData, selection.SuspensionType);
         if (!IsValidHighlightSelection(telemetryData, suspension))
@@ -384,7 +386,7 @@ public static partial class TelemetryStatistics
     private static StackedHistogramData CalculateSampleVelocityHistogram(
         TelemetryData telemetryData,
         Suspension suspension,
-        TelemetryTimeRange? range,
+        TelemetryTimeSelection? range,
         StrokeCoarseIndexes coarseIndexes)
     {
         var divider = GetVelocityHistogramTravelDivider(suspension);
@@ -397,12 +399,13 @@ public static partial class TelemetryStatistics
         var totalCount = 0;
         foreach (var stroke in GetIncludedCompressions(telemetryData, suspension, range).Concat(GetIncludedRebounds(telemetryData, suspension, range)))
         {
-            totalCount += stroke.Stat.Count;
             var indexes = coarseIndexes.Get(suspension, stroke);
             var digitizedVelocity = indexes.Velocity.Span;
             var digitizedTravel = indexes.Travel.Span;
             for (var index = 0; index < stroke.Stat.Count; index++)
             {
+                if (!IncludesSample(range, stroke, index, telemetryData.Metadata.SampleRate)) continue;
+                totalCount++;
                 var velocityBin = digitizedVelocity[index];
                 var travelBin = digitizedTravel[index] / divider;
                 histogram[velocityBin][travelBin] += 1;
@@ -428,7 +431,7 @@ public static partial class TelemetryStatistics
     private static StackedHistogramData CalculateStrokePeakVelocityHistogram(
         TelemetryData telemetryData,
         Suspension suspension,
-        TelemetryTimeRange? range)
+        TelemetryTimeSelection? range)
     {
         var divider = GetVelocityHistogramTravelDivider(suspension);
         var histogram = new double[suspension.VelocityBins.Length - 1][];
@@ -475,7 +478,7 @@ public static partial class TelemetryStatistics
         TelemetryData telemetryData,
         Suspension suspension,
         DampingRangeSelection selection,
-        TelemetryTimeRange? range,
+        TelemetryTimeSelection? range,
         StrokeCoarseIndexes coarseIndexes)
     {
         if (!IsValidVelocityStatisticsSelection(suspension, selection))
@@ -495,7 +498,7 @@ public static partial class TelemetryStatistics
                 telemetryData.Metadata.SampleRate,
                 selection,
                 divider,
-                coarseIndexes),
+                coarseIndexes, range),
             VelocityAverageMode.StrokePeakAveraged => CalculateStrokePeakVelocityStatisticsHighlightRanges(
                 strokes,
                 suspension,
@@ -530,7 +533,7 @@ public static partial class TelemetryStatistics
         TelemetryData telemetryData,
         Suspension suspension,
         StrokeLengthRangeSelection selection,
-        TelemetryTimeRange? range)
+        TelemetryTimeSelection? range)
     {
         if (suspension.TravelBins is not { IsDefault: false, Length: >= 2 } travelBins ||
             !selection.Bin.MatchesBins(travelBins))
@@ -561,7 +564,7 @@ public static partial class TelemetryStatistics
         TelemetryData telemetryData,
         Suspension suspension,
         StrokeSpeedRangeSelection selection,
-        TelemetryTimeRange? range)
+        TelemetryTimeSelection? range)
     {
         var strokes = GetIncludedStrokes(telemetryData, suspension, selection.StrokeKind, range);
         var bins = CreateStrokeSpeedHistogramBins(strokes);
@@ -587,7 +590,7 @@ public static partial class TelemetryStatistics
         TelemetryData telemetryData,
         Suspension suspension,
         DeepTravelRangeSelection selection,
-        TelemetryTimeRange? range)
+        TelemetryTimeSelection? range)
     {
         if (suspension.MaxTravel is not { } maxTravel ||
             suspension.TravelBins is not { IsDefault: false, Length: >= 6 } travelBins)
@@ -632,7 +635,7 @@ public static partial class TelemetryStatistics
         int sampleRate,
         DampingRangeSelection selection,
         int divider,
-        StrokeCoarseIndexes coarseIndexes)
+        StrokeCoarseIndexes coarseIndexes, TelemetryTimeSelection? range)
     {
         var ranges = new List<TelemetryHighlightRange>();
         foreach (var stroke in strokes)
@@ -645,7 +648,7 @@ public static partial class TelemetryStatistics
             for (var index = 0; index < sampleCount; index++)
             {
                 var travelBin = digitizedTravel[index] / divider;
-                var matches = digitizedVelocity[index] == selection.VelocityBinIndex &&
+                var matches = IncludesSample(range, stroke, index, sampleRate) && digitizedVelocity[index] == selection.VelocityBinIndex &&
                     travelBin >= selection.TravelBinStartIndex &&
                     travelBin <= selection.TravelBinEndIndex;
 
@@ -718,14 +721,26 @@ public static partial class TelemetryStatistics
             strokeStartSeconds + (lastStrokeSampleOffset + 1) * step);
     }
 
-    private static double CalculateSampleAverageVelocity(ImmutableArray<Stroke> strokes)
+    private static double CalculateSampleAverageVelocity(ImmutableArray<Stroke> strokes, Suspension suspension, TelemetryTimeSelection? range, int sampleRate)
     {
         var sum = 0.0;
         var count = 0.0;
         foreach (var stroke in strokes)
         {
-            sum += stroke.Stat.SumVelocity;
-            count += stroke.Stat.Count;
+            if (range is null)
+            {
+                sum += stroke.Stat.SumVelocity;
+                count += stroke.Stat.Count;
+            }
+            else
+            {
+                for (var i = stroke.Start; i <= stroke.End; i++)
+                {
+                    if (!IncludesSample(range, stroke, i - stroke.Start, sampleRate)) continue;
+                    sum += suspension.Velocity[i];
+                    count++;
+                }
+            }
         }
 
         return count > 0 ? sum / count : 0;

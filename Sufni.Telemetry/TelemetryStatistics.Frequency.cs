@@ -11,7 +11,7 @@ public static partial class TelemetryStatistics
     public static HistogramData CalculateTravelFrequencyHistogram(
         TelemetryData telemetryData,
         SuspensionType type,
-        TelemetryTimeRange? range = null)
+        TelemetryTimeSelection? range = null)
     {
         var suspension = GetSuspension(telemetryData, type);
         var travelSamples = GetTravelSamples(telemetryData, suspension, range);

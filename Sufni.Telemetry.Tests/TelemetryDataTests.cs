@@ -701,7 +701,48 @@ public class TelemetryDataTests
     }
 
     [Fact]
-    public void CalculateTravelStatistics_WithRange_UsesOnlyWholeIncludedStrokes()
+    public void DisjointSelectionPoolsSamplesFromLongStrokesAndCountsTheirWholePeaks()
+    {
+        var data = CreateTelemetry([0, 10, 20, 90, 90, 90, 30, 40, 99, 99], 100, 10,
+            compressions: [CreateStroke(1, 4, maxVelocity: 90, maxTravel: 90),
+                CreateStroke(6, 9, maxVelocity: 99, maxTravel: 99)],
+            rebounds: [CreateStroke(0, 2, maxVelocity: -200)],
+            velocity: [0, 10, 20, 90, 90, 90, 30, 40, 99, 99]);
+        var selected = new TelemetryTimeSelection([new(0.1, 0.3), new(0.6, 0.8)]);
+        var travel = TelemetryStatistics.CalculateTravelStatistics(data, SuspensionType.Front, selected);
+        Assert.Equal(99, travel.Max);
+        Assert.Equal(25, travel.Average);
+        var velocities = TelemetryStatistics.CalculateVelocityStatistics(data, SuspensionType.Front, selected);
+        Assert.Equal(25, velocities.AverageCompression);
+        Assert.Equal(99, velocities.MaxCompression);
+        Assert.Equal(2, velocities.CompressionStrokeCount);
+        Assert.Equal(0, velocities.ReboundStrokeCount);
+        var histogram = TelemetryStatistics.CalculateTravelHistogram(data, SuspensionType.Front, selected);
+        Assert.Equal(4, histogram.Values.Count(v => v == 25));
+        Assert.Equal(0, TelemetryStatistics.CalculateTravelStatistics(data, SuspensionType.Front, new TelemetryTimeSelection([])).Max);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void VibrationPoolsTwoIntervalsInsideAlreadyMovingStrokes(bool segmented)
+    {
+        var imu = CreateImuData(ImuLocation.Fork, 10, 10, vibrationG: 1);
+        var data = CreateTelemetry(new double[10], 100, 10, compressions: [CreateStroke(0, 4)],
+            rebounds: [CreateStroke(5, 9)], imuData: imu);
+        if (segmented)
+            data = data with { Front = data.Front with { HasGaps = true, Segments =
+                [new() { FirstDenseIndex = 0, StartSeconds = 0, SampleCount = 5 },
+                 new() { FirstDenseIndex = 5, StartSeconds = 0.5, SampleCount = 5 }] } };
+        var selected = new TelemetryTimeSelection([new(0.1, 0.3), new(0.6, 0.9)]);
+        var values = TelemetryStatistics.CalculateVibration(data, ImuLocation.Fork, SuspensionType.Front, selected);
+        Assert.NotNull(values);
+        Assert.Equal(40, values.CompressionPercent, 6);
+        Assert.Equal(60, values.ReboundPercent, 6);
+    }
+
+    [Fact]
+    public void CalculateTravelStatistics_WithRange_UsesOnlyStrokesStartingInside()
     {
         var telemetry = CreateTelemetry(
             travel: Enumerable.Range(0, 10).Select(index => (double)index).ToArray(),
@@ -724,7 +765,7 @@ public class TelemetryDataTests
     }
 
     [Fact]
-    public void CalculateTravelStatistics_WithRangeExcludingWholeStrokes_ReturnsSafeDefaults()
+    public void CalculateTravelStatistics_WithNoSelectedStrokeStart_ReturnsSafeDefaults()
     {
         var telemetry = CreateTelemetry(
             travel: Enumerable.Range(0, 10).Select(index => (double)index).ToArray(),
@@ -735,7 +776,7 @@ public class TelemetryDataTests
                 CreateStroke(0, 1, maxTravel: 10),
                 CreateStroke(3, 4, maxTravel: 40),
             ]);
-        var range = new TelemetryTimeRange(0.15, 0.35);
+        var range = new TelemetryTimeRange(0.15, 0.29);
 
         var rangeStatistics = TelemetryStatistics.CalculateTravelStatistics(telemetry, SuspensionType.Front, range);
 
@@ -781,7 +822,7 @@ public class TelemetryDataTests
             },
         ] } };
         var options = new TravelStatisticsOptions(
-            Range: new TelemetryTimeRange(0.9, 1.2),
+            Selection: new TelemetryTimeRange(0.9, 1.2),
             HistogramMode: TravelDistributionMode.DynamicSag);
 
         var statistics = TelemetryStatistics.CalculateTravelStatistics(telemetry, SuspensionType.Front, options);

@@ -10,191 +10,62 @@ public static partial class TelemetryStatistics
         Rebound,
     }
 
-    private readonly record struct SampleRange(int Start, int End)
-    {
-        public int Count => End - Start + 1;
-
-        public bool Contains(Stroke stroke)
-        {
-            return stroke.Start >= Start && stroke.End <= End;
-        }
-    }
-
     private static Suspension GetSuspension(TelemetryData telemetryData, SuspensionType type)
     {
         return type == SuspensionType.Front ? telemetryData.Front : telemetryData.Rear;
     }
 
-    private static bool TryGetSampleRange(
-        TelemetryData telemetryData,
-        Suspension suspension,
-        TelemetryTimeRange? range,
-        out SampleRange sampleRange)
-    {
-        sampleRange = default;
-        if (suspension.Travel.Length == 0 || telemetryData.Metadata.SampleRate <= 0)
-        {
-            return false;
-        }
-
-        if (range is null)
-        {
-            sampleRange = new SampleRange(0, suspension.Travel.Length - 1);
-            return true;
-        }
-
-        var startSeconds = Math.Clamp(range.Value.StartSeconds, 0, telemetryData.Metadata.Duration);
-        var endSeconds = Math.Clamp(range.Value.EndSeconds, 0, telemetryData.Metadata.Duration);
-        if (endSeconds - startSeconds < TelemetryTimeRange.MinimumDurationSeconds)
-        {
-            return false;
-        }
-
-        var startIndex = (int)Math.Floor(startSeconds * telemetryData.Metadata.SampleRate);
-        var endIndex = (int)Math.Ceiling(endSeconds * telemetryData.Metadata.SampleRate) - 1;
-        startIndex = Math.Clamp(startIndex, 0, suspension.Travel.Length - 1);
-        endIndex = Math.Clamp(endIndex, 0, suspension.Travel.Length - 1);
-        if (endIndex < startIndex)
-        {
-            return false;
-        }
-
-        sampleRange = new SampleRange(startIndex, endIndex);
-        return true;
-    }
-
     private static ImmutableArray<double> GetTravelSamples(
-        TelemetryData telemetryData,
-        Suspension suspension,
-        TelemetryTimeRange? range)
+        TelemetryData telemetryData, Suspension suspension, TelemetryTimeSelection? selection)
     {
-        if (suspension.HasGaps && range is not null)
-        {
-            return GetSegmentTravelSamples(telemetryData, suspension, range.Value);
-        }
-
-        if (!TryGetSampleRange(telemetryData, suspension, range, out var sampleRange))
-        {
-            return [];
-        }
-
-        return range is null
-            ? suspension.Travel
-            : suspension.Travel[sampleRange.Start..(sampleRange.End + 1)];
-    }
-
-    private static ImmutableArray<double> GetSegmentTravelSamples(
-        TelemetryData telemetryData,
-        Suspension suspension,
-        TelemetryTimeRange range)
-    {
-        if (telemetryData.Metadata.SampleRate <= 0 ||
-            !TryGetAnalysisRangeSeconds(telemetryData, range, out var startSeconds, out var endSeconds))
-        {
-            return [];
-        }
-
-        var samples = new List<double>();
-        foreach (var segment in suspension.Segments.OrderBy(segment => segment.StartSeconds))
-        {
-            var endIndex = segment.FirstDenseIndex + segment.SampleCount;
-            for (var denseIndex = segment.FirstDenseIndex; denseIndex < endIndex && denseIndex < suspension.Travel.Length; denseIndex++)
-            {
-                if (denseIndex < 0)
-                {
-                    continue;
-                }
-
-                var segmentIndex = denseIndex - segment.FirstDenseIndex;
-                var seconds = segment.StartSeconds + segmentIndex / (double)telemetryData.Metadata.SampleRate;
-                if (seconds < startSeconds || seconds >= endSeconds)
-                {
-                    continue;
-                }
-
-                samples.Add(suspension.Travel[denseIndex]);
-            }
-        }
-
-        return [.. samples];
+        if (telemetryData.Metadata.SampleRate <= 0 || suspension.Travel.IsDefaultOrEmpty) return [];
+        if (selection is null) return suspension.Travel;
+        var samples = ImmutableArray.CreateBuilder<double>();
+        foreach (var interval in SuspensionSampleInterval.Select(suspension.Segments, suspension.Travel.Length,
+                     telemetryData.Metadata.SampleRate, selection))
+            samples.AddRange(suspension.Travel.AsSpan(interval.Start, interval.Count));
+        return samples.ToImmutable();
     }
 
     private static ImmutableArray<Stroke> GetIncludedStrokes(
-        TelemetryData telemetryData,
-        Suspension suspension,
-        ImmutableArray<Stroke>? source,
-        TelemetryTimeRange? range)
+        TelemetryData telemetryData, ImmutableArray<Stroke>? source, TelemetryTimeSelection? selection)
     {
-        if (source is not { IsDefaultOrEmpty: false } strokes ||
-            telemetryData.Metadata.SampleRate <= 0)
-        {
-            return [];
-        }
-
-        if (range is null)
-        {
-            return strokes;
-        }
-
-        if (suspension.HasGaps)
-        {
-            if (!TryGetAnalysisRangeSeconds(telemetryData, range.Value, out var startSeconds, out var endSeconds))
-            {
-                return [];
-            }
-
-            return strokes
-                .Where(stroke =>
-                    StrokeStartSeconds(stroke, telemetryData.Metadata.SampleRate) >= startSeconds &&
-                    StrokeEndSeconds(stroke, telemetryData.Metadata.SampleRate) <= endSeconds)
-                .ToImmutableArray();
-        }
-
-        if (!TryGetSampleRange(telemetryData, suspension, range, out var sampleRange))
-        {
-            return [];
-        }
-
-        return strokes.Where(sampleRange.Contains).ToImmutableArray();
+        if (source is not { IsDefaultOrEmpty: false } strokes || telemetryData.Metadata.SampleRate <= 0) return [];
+        if (selection is null) return strokes;
+        return strokes.Where(stroke => selection.Contains(StrokeStartSeconds(stroke, telemetryData.Metadata.SampleRate)))
+            .ToImmutableArray();
     }
 
     private static ImmutableArray<Stroke> GetIncludedCompressions(
         TelemetryData telemetryData,
         Suspension suspension,
-        TelemetryTimeRange? range)
+        TelemetryTimeSelection? range)
     {
-        return GetIncludedStrokes(telemetryData, suspension, suspension.Strokes?.Compressions, range);
+        return GetIncludedStrokes(telemetryData, suspension.Strokes?.Compressions, range);
     }
 
     private static ImmutableArray<Stroke> GetIncludedRebounds(
         TelemetryData telemetryData,
         Suspension suspension,
-        TelemetryTimeRange? range)
+        TelemetryTimeSelection? range)
     {
-        return GetIncludedStrokes(telemetryData, suspension, suspension.Strokes?.Rebounds, range);
+        return GetIncludedStrokes(telemetryData, suspension.Strokes?.Rebounds, range);
     }
 
     private static ImmutableArray<Stroke> GetIncludedStrokes(
         TelemetryData telemetryData,
         Suspension suspension,
         BalanceType strokeKind,
-        TelemetryTimeRange? range)
+        TelemetryTimeSelection? range)
     {
         return strokeKind == BalanceType.Compression
             ? GetIncludedCompressions(telemetryData, suspension, range)
             : GetIncludedRebounds(telemetryData, suspension, range);
     }
 
-    private static bool TryGetAnalysisRangeSeconds(
-        TelemetryData telemetryData,
-        TelemetryTimeRange range,
-        out double startSeconds,
-        out double endSeconds)
-    {
-        startSeconds = Math.Clamp(range.StartSeconds, 0, telemetryData.Metadata.Duration);
-        endSeconds = Math.Clamp(range.EndSeconds, 0, telemetryData.Metadata.Duration);
-        return endSeconds - startSeconds >= TelemetryTimeRange.MinimumDurationSeconds;
-    }
+    private static bool IncludesSample(TelemetryTimeSelection? selection, Stroke stroke, int offset, int rate) =>
+        selection is null || selection.Contains(stroke.EndSeconds > stroke.StartSeconds
+            ? stroke.StartSeconds + (double)offset / rate : (double)(stroke.Start + offset) / rate);
 
     private static double StrokeStartSeconds(Stroke stroke, int sampleRate) =>
         stroke.EndSeconds > stroke.StartSeconds

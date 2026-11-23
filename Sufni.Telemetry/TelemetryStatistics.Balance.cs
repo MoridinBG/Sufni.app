@@ -8,7 +8,7 @@ public static partial class TelemetryStatistics
     public static bool HasBalanceData(
         TelemetryData telemetryData,
         BalanceType type,
-        TelemetryTimeRange? range = null)
+        TelemetryTimeSelection? range = null)
     {
         return HasBalanceData(telemetryData, type, new BalanceStatisticsOptions(range));
     }
@@ -18,8 +18,8 @@ public static partial class TelemetryStatistics
         BalanceType type,
         BalanceStatisticsOptions options)
     {
-        if (!HasStrokeData(telemetryData, SuspensionType.Front, options.Range) ||
-            !HasStrokeData(telemetryData, SuspensionType.Rear, options.Range))
+        if (!HasStrokeData(telemetryData, SuspensionType.Front, options.Selection) ||
+            !HasStrokeData(telemetryData, SuspensionType.Rear, options.Selection))
         {
             return false;
         }
@@ -33,7 +33,7 @@ public static partial class TelemetryStatistics
     public static BalanceData CalculateBalance(
         TelemetryData telemetryData,
         BalanceType type,
-        TelemetryTimeRange? range = null)
+        TelemetryTimeSelection? range = null)
     {
         return CalculateBalance(telemetryData, type, new BalanceStatisticsOptions(range));
     }
@@ -118,7 +118,7 @@ public static partial class TelemetryStatistics
             ? telemetryData.Front.MaxTravel!.Value
             : telemetryData.Rear.MaxTravel!.Value;
         var highSpeedThreshold = HighSpeedThresholdFor(suspensionType, balanceType, options);
-        var strokes = GetIncludedStrokes(telemetryData, suspension, balanceType, options.Range)
+        var strokes = GetIncludedStrokes(telemetryData, suspension, balanceType, options.Selection)
             .Where(stroke => IncludesSpeedMode(stroke, options.SpeedMode, highSpeedThreshold))
             .ToArray();
 

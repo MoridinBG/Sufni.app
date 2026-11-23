@@ -4,8 +4,8 @@ public class TelemetryNormalDistributionTests
 {
     [Theory]
     [InlineData(false, -4.5, 6.25, 0.5714285714285714, 14.869047619047619)]
-    [InlineData(true, -3.25, 2.75, 0, 9.1875)]
-    public void CalculateNormalDistribution_UsesOnlyWholeActiveStrokes(
+    [InlineData(true, -4.5, 2.75, -1.125, 11.1875)]
+    public void CalculateNormalDistribution_UsesSelectedSamplesOfCountedStrokes(
         bool selectRange, double minimum, double maximum, double mean, double variance)
     {
         var result = TelemetryStatistics.CalculateNormalDistribution(

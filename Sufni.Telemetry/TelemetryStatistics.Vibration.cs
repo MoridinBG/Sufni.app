@@ -16,7 +16,7 @@ public static partial class TelemetryStatistics
         TelemetryData telemetryData,
         ImuLocation location,
         SuspensionType pairedSuspension,
-        TelemetryTimeRange? range = null)
+        TelemetryTimeSelection? range = null)
     {
         if (!HasVibrationData(telemetryData, location))
         {
@@ -25,105 +25,22 @@ public static partial class TelemetryStatistics
 
         Debug.Assert(telemetryData.ImuData is not null);
         var suspension = GetSuspension(telemetryData, pairedSuspension);
-        // Only divert to the segmented path when there is an actual gap. SST3/SST4 (and dense SST5)
-        // populate one dense IMU segment per location with HasGaps = false, and must keep the dense
-        // path so their vibration numbers do not change.
-        if (suspension.HasGaps || telemetryData.ImuData.HasGaps)
-        {
-            return CalculateSegmentedVibration(telemetryData, location, suspension, range);
-        }
-
-        if (!HasStrokeData(telemetryData, pairedSuspension, range))
-        {
+        var imu = telemetryData.ImuData;
+        var rate = telemetryData.Metadata.SampleRate;
+        if (!suspension.Present || suspension.MaxTravel is not > 0 || suspension.Travel.Length < 2 ||
+            rate <= 0 || imu.SampleRate <= 0 || suspension.Strokes is not { } strokes ||
+            strokes.Compressions.IsDefaultOrEmpty && strokes.Rebounds.IsDefaultOrEmpty)
             return null;
-        }
 
-        if (suspension.MaxTravel is not > 0 ||
-            suspension.Travel.Length < 2 ||
-            telemetryData.Metadata.SampleRate <= 0 ||
-            telemetryData.ImuData.SampleRate <= 0)
-        {
-            return null;
-        }
+        var meta = imu.Meta.FirstOrDefault(entry => entry.LocationId == (byte)location);
+        if (meta is null || meta.AccelLsbPerG <= 0) return null;
+        var totalMovement = 0d;
+        foreach (var interval in SuspensionSampleInterval.Select(suspension.Segments, suspension.Travel.Length, rate, range))
+            for (var i = interval.Start + 1; i < interval.EndExclusive; i++)
+                totalMovement += Math.Abs(suspension.Travel[i] - suspension.Travel[i - 1]);
 
-        var meta = telemetryData.ImuData.Meta.FirstOrDefault(entry => entry.LocationId == (byte)location);
-        if (meta is null || meta.AccelLsbPerG <= 0)
-        {
-            return null;
-        }
-
-        if (!TryGetSampleRange(telemetryData, suspension, range, out var sampleRange) || sampleRange.Count < 2)
-        {
-            return null;
-        }
-
-        var selectedStartSeconds = range is null ? 0.0 : sampleRange.Start / (double)telemetryData.Metadata.SampleRate;
-        var selectedEndSeconds = range is null
-            ? double.PositiveInfinity
-            : (sampleRange.End + 1) / (double)telemetryData.Metadata.SampleRate;
-
-        var totalMovement = 0.0;
-        for (var index = sampleRange.Start + 1; index <= sampleRange.End; index++)
-        {
-            totalMovement += Math.Abs(suspension.Travel[index] - suspension.Travel[index - 1]);
-        }
-
-        return CalculateVibrationFromSegments(
-            telemetryData,
-            location,
-            suspension,
-            meta,
-            selectedStartSeconds,
-            selectedEndSeconds,
-            GetIncludedCompressions(telemetryData, suspension, range),
-            GetIncludedRebounds(telemetryData, suspension, range),
-            segmented: false,
-            totalMovement);
-    }
-
-    private static VibrationStats? CalculateSegmentedVibration(
-        TelemetryData telemetryData,
-        ImuLocation location,
-        Suspension suspension,
-        TelemetryTimeRange? range)
-    {
-        Debug.Assert(telemetryData.ImuData is not null);
-        if (suspension.MaxTravel is not > 0 ||
-            suspension.Segments.Length == 0 ||
-            telemetryData.Metadata.SampleRate <= 0 ||
-            telemetryData.ImuData.SampleRate <= 0)
-        {
-            return null;
-        }
-
-        var meta = telemetryData.ImuData.Meta.FirstOrDefault(entry => entry.LocationId == (byte)location);
-        if (meta is null || meta.AccelLsbPerG <= 0)
-        {
-            return null;
-        }
-
-        if (!TryGetSelectedSeconds(telemetryData, range, out var selectedStartSeconds, out var selectedEndSeconds) ||
-            !HasStrokeInTimeRange(suspension, selectedStartSeconds, selectedEndSeconds, telemetryData.Metadata.SampleRate))
-        {
-            return null;
-        }
-
-        var totalMovement = CalculateSegmentedMovement(
-            suspension,
-            telemetryData.Metadata.SampleRate,
-            selectedStartSeconds,
-            selectedEndSeconds);
-        return CalculateVibrationFromSegments(
-            telemetryData,
-            location,
-            suspension,
-            meta,
-            selectedStartSeconds,
-            selectedEndSeconds,
-            suspension.Strokes.Compressions,
-            suspension.Strokes.Rebounds,
-            segmented: true,
-            totalMovement);
+        return CalculateVibrationFromSegments(telemetryData, location, suspension, meta, range,
+            strokes.Compressions, strokes.Rebounds, suspension.HasGaps || imu.HasGaps, totalMovement);
     }
 
     private static VibrationStats? CalculateVibrationFromSegments(
@@ -131,8 +48,7 @@ public static partial class TelemetryStatistics
         ImuLocation location,
         Suspension suspension,
         ImuMetaEntry meta,
-        double selectedStartSeconds,
-        double selectedEndSeconds,
+        TelemetryTimeSelection? selection,
         ImmutableArray<Stroke> compressions,
         ImmutableArray<Stroke> rebounds,
         bool segmented,
@@ -165,7 +81,7 @@ public static partial class TelemetryStatistics
             for (var sampleIndex = 0; sampleIndex < segment.Count; sampleIndex++)
             {
                 var sampleTime = startSeconds + sampleIndex / (double)imuData.SampleRate;
-                if (sampleTime < selectedStartSeconds || sampleTime >= selectedEndSeconds)
+                if (selection is not null && !selection.Contains(sampleTime))
                 {
                     continue;
                 }
@@ -212,29 +128,6 @@ public static partial class TelemetryStatistics
             rebound.Thirds,
             overall.Thirds);
     }
-
-    private static bool TryGetSelectedSeconds(
-        TelemetryData telemetryData,
-        TelemetryTimeRange? range,
-        out double selectedStartSeconds,
-        out double selectedEndSeconds)
-    {
-        if (range is null)
-        {
-            selectedStartSeconds = 0.0;
-            selectedEndSeconds = double.PositiveInfinity;
-            return true;
-        }
-
-        selectedStartSeconds = Math.Clamp(range.Value.StartSeconds, 0, telemetryData.Metadata.Duration);
-        selectedEndSeconds = Math.Clamp(range.Value.EndSeconds, 0, telemetryData.Metadata.Duration);
-        return selectedEndSeconds - selectedStartSeconds >= TelemetryTimeRange.MinimumDurationSeconds;
-    }
-
-    private static bool HasStrokeInTimeRange(Suspension suspension, double selectedStartSeconds, double selectedEndSeconds, int sampleRate) =>
-        suspension.Strokes.Compressions.Concat(suspension.Strokes.Rebounds).Any(stroke =>
-            StrokeEndSeconds(stroke, sampleRate) >= selectedStartSeconds &&
-            StrokeStartSeconds(stroke, sampleRate) < selectedEndSeconds);
 
     private readonly struct OrderedImuSegments
     {
@@ -576,37 +469,6 @@ public static partial class TelemetryStatistics
 
             return source;
         }
-    }
-
-    private static double CalculateSegmentedMovement(
-        Suspension suspension,
-        int sampleRate,
-        double selectedStartSeconds,
-        double selectedEndSeconds)
-    {
-        var total = 0.0;
-        foreach (var segment in suspension.Segments)
-        {
-            for (var index = 1; index < segment.SampleCount; index++)
-            {
-                var seconds = segment.StartSeconds + index / (double)sampleRate;
-                if (seconds < selectedStartSeconds || seconds >= selectedEndSeconds)
-                {
-                    continue;
-                }
-
-                var denseIndex = segment.FirstDenseIndex + index;
-                var previousDenseIndex = denseIndex - 1;
-                if (previousDenseIndex < 0 || denseIndex >= suspension.Travel.Length)
-                {
-                    continue;
-                }
-
-                total += Math.Abs(suspension.Travel[denseIndex] - suspension.Travel[previousDenseIndex]);
-            }
-        }
-
-        return total;
     }
 
     private sealed class VibrationAccumulator
