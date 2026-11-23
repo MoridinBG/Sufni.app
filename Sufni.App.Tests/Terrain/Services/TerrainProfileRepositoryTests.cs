@@ -5,6 +5,7 @@ using Sufni.App.Terrain.Queries;
 using Sufni.App.Tests.TestSupport.Io;
 using Sufni.App.Tests.TestSupport.Persistence;
 using Sufni.Telemetry;
+using Sufni.Telemetry.Tests;
 
 namespace Sufni.App.Tests.Terrain.Services;
 
@@ -18,9 +19,9 @@ public class TerrainProfileRepositoryTests
         var session = new Session(Guid.NewGuid(), "ride", "", null, 150) { ProcessedData = [1], DurationSeconds = 15 };
         await db.PutAsync(session);
         var key = SessionTerrainStatusQuery.Evaluate(SessionSnapshot.From((await db.GetSessionAsync(session.Id))!), []).Key;
-        var window = new TerrainWindow(0, 0, 2, 5, true) { Roughness = RoughnessClass.Rough, Source = RoughnessSource.FrameOnly };
-        var profile = new TerrainProfile([window], [new(1, 0.2, -1)], [], TerrainRoughnessState.Classified,
-            TerrainSteepnessState.NoElevation, 4096, null);
+        var window = TerrainProfiles.Window(0) with { Roughness = RoughnessClass.Rough, Source = RoughnessSource.FrameOnly };
+        var profile = TerrainProfiles.Profile([window], steepness: TerrainSteepnessState.NoElevation, lowersScale: null)
+            with { FrameMatching = [new(1, 0.2, -1)] };
         Assert.True(await db.TerrainProfiles.TryCommitAsync(session.Id, key, TerrainMaterialization.Computed(profile)));
         var stored = SessionSnapshot.From(Assert.Single(await db.GetSessionsAsync()));
         var current = Assert.IsType<TerrainStatus.Current>(SessionTerrainStatusQuery.Evaluate(stored, []).Status);

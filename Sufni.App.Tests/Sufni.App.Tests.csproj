@@ -31,6 +31,7 @@
     <Compile Include="..\Sufni.Telemetry.Tests\SyntheticResponseRides.cs" Link="TestSupport\Fixtures\SyntheticResponseRides.cs" />
     <Compile Include="..\Sufni.Telemetry.Tests\SyntheticTrailRuns.cs" Link="TestSupport\Fixtures\SyntheticTrailRuns.cs" />
     <Compile Include="..\Sufni.Telemetry.Tests\SyntheticRide.cs" Link="TestSupport\Fixtures\SyntheticRide.cs" />
+    <Compile Include="..\Sufni.Telemetry.Tests\TerrainProfiles.cs" Link="TestSupport\Fixtures\TerrainProfiles.cs" />
     <Compile Include="..\Sufni.Telemetry.Tests\PitchedImuRecord.cs" Link="TestSupport\Fixtures\PitchedImuRecord.cs" />
     <Compile Include="..\Sufni.Kinematics.Tests\TestLinkages.cs" Link="TestSupport\Fixtures\TestLinkages.cs" />
   </ItemGroup>

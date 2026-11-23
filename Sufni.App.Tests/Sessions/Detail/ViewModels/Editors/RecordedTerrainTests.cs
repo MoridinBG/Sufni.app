@@ -145,8 +145,8 @@ public class RecordedTerrainTests
         Assert.True(editor.SignalsWorkspace.TerrainSignalState.ShowSpinner);
 
         var key = SessionTerrainStatusQuery.Evaluate(session, []).Key;
-        var profile = new TerrainProfile([new TerrainWindow(0, 0, 2, 5, true)], [], [],
-            TerrainRoughnessState.ValuesOnly, TerrainSteepnessState.NoElevation, 2048, null);
+        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0)], TerrainRoughnessState.ValuesOnly,
+            TerrainSteepnessState.NoElevation, 2048, null);
         h.TerrainProfiles.ReadAsync(Arg.Is<IReadOnlyDictionary<Guid, TerrainProfileKey>>(
             keys => keys[session.Id] == key), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<Guid, TerrainProfile> { [session.Id] = profile });
@@ -180,7 +180,7 @@ public class RecordedTerrainTests
         using var h = new SessionDetailHarness();
         var session = h.CreateRecordedSession();
         var key = SessionTerrainStatusQuery.Evaluate(session, []).Key;
-        var profile = new TerrainProfile([], [], [], TerrainRoughnessState.NoSensor, TerrainSteepnessState.NoFrameSensor, null, null);
+        var profile = TerrainProfiles.Profile([], TerrainRoughnessState.NoSensor, TerrainSteepnessState.NoFrameSensor, null, null);
         var domain = SessionDetailHarness.DomainFromSnapshot(session);
         var current = new TerrainStatus.Current(key, TerrainProfileCalculator.Summarize(profile));
         using var changes = new BehaviorSubject<RecordedSessionDomainSnapshot>(domain with { Terrain = current });

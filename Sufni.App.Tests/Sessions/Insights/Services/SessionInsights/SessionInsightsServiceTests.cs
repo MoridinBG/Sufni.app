@@ -3,6 +3,7 @@ using Sufni.App.Terrain.Models;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Bikes.Models;
 using Sufni.Telemetry;
+using Sufni.Telemetry.Tests;
 using Sufni.App.Shared.Common;
 using static Sufni.App.Tests.TestSupport.Fixtures.AnalysisTelemetryFixture;
 

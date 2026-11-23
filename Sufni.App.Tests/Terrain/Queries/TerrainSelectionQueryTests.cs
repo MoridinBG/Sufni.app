@@ -2,6 +2,7 @@ using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Queries;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.Telemetry;
+using Sufni.Telemetry.Tests;
 
 namespace Sufni.App.Tests.Terrain.Queries;
 

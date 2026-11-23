@@ -65,8 +65,7 @@ public class TrailAverageTests
         Assert.IsType<TrailAverage.Averaged>(TrailAverage.Calculate(profiles[0], new(0, WindowCount),
             profiles.Skip(1).Select(Aligned).ToArray()));
 
-    private static AlignedTerrainRun Aligned(TerrainProfile profile) => new(profile,
-        new(ImuLocation.Frame, [], [.. Enumerable.Range(0, WindowCount).Select(i => new TerrainWindowPair(i, i))]));
+    private static AlignedTerrainRun Aligned(TerrainProfile profile) => new(profile, TerrainProfiles.Identity(WindowCount));
 
     private static TerrainProfile Measurements(int seed, double frameLevel = 2.31, bool calibrated = true,
         double? lowersLevel = null, bool clipped = false)
@@ -75,17 +74,15 @@ public class TrailAverageTests
         var windows = Enumerable.Range(0, WindowCount).Select(i =>
         {
             var noise = (random.Next(2) == 0 ? -1 : 1) * (0.014 + 0.002 * random.NextDouble());
-            return new TerrainWindow(i * 10, i, i + 1, 10, true)
+            return TerrainProfiles.Window(i) with
             {
                 Grade = GroundGrade + noise,
-                Frame = Sensor(frameLevel, calibrated ? Math.Log(frameLevel / 1.4) / Math.Log(2.2 / 1.4) : null, 0),
-                Lowers = lowersLevel is { } l ? Sensor(l, Math.Log(l / 2.5) / Math.Log(3.8 / 2.5), clipped ? 0.10 : 0) : null
+                Frame = TerrainProfiles.Sensor(frameLevel, calibrated ? Math.Log(frameLevel / 1.4) / Math.Log(2.2 / 1.4) : null),
+                Lowers = lowersLevel is { } l
+                    ? TerrainProfiles.Sensor(l, Math.Log(l / 2.5) / Math.Log(3.8 / 2.5), clipped ? 0.10 : 0) : null
             };
         });
-        return new([.. windows], [], [], calibrated ? TerrainRoughnessState.Classified : TerrainRoughnessState.ValuesOnly,
-            TerrainSteepnessState.Available, calibrated ? 4096 : 2048, lowersLevel.HasValue ? 4096 : null);
+        return TerrainProfiles.Profile(windows, calibrated ? TerrainRoughnessState.Classified : TerrainRoughnessState.ValuesOnly,
+            frameScale: calibrated ? 4096 : 2048, lowersScale: lowersLevel.HasValue ? 4096 : null);
     }
-
-    private static SensorRoughness Sensor(double level, double? normalised, double clippedShare) =>
-        new(level, level, level, level, level, normalised, clippedShare);
 }

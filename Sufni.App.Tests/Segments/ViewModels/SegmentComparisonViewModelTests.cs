@@ -15,6 +15,7 @@ using Sufni.App.Segments.Services;
 using Sufni.App.Segments.ViewModels;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.Telemetry;
+using Sufni.Telemetry.Tests;
 
 namespace Sufni.App.Tests.Segments.ViewModels;
 

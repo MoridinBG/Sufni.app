@@ -41,9 +41,7 @@ public class TerrainRunComparisonTests
     public void TwoHundredMatchedMetresAreTooShort()
     {
         var profile = earlier.Value;
-        var alignment = new TerrainRunAlignment.Aligned(ImuLocation.Frame, [],
-            [.. Enumerable.Range(0, 20).Select(i => new TerrainWindowPair(i, i))]);
-        var rows = TerrainRunComparison.Compare(profile, profile, alignment, SuspensionResponseModel.FitPair(profile, profile, []));
+        var rows = TerrainRunComparison.Compare(profile, profile, TerrainProfiles.Identity(20), SuspensionResponseModel.FitPair(profile, profile, []));
         var all = rows.Single(row => row.Class is null);
         Assert.Equal(200, all.DistanceMetres);
         Assert.Null(all.Pace);
@@ -55,7 +53,7 @@ public class TerrainRunComparisonTests
     public void AveragedClassesDetermineMatchedDistanceIncludingUnclassifiedGaps()
     {
         var profile = earlier.Value;
-        var alignment = Assert.IsType<TerrainRunAlignment.Aligned>(TerrainRunAlignment.Calculate(profile, profile, SyntheticTrailRuns.Map(profile, profile)));
+        var alignment = TerrainProfiles.Identity(60);
         var windows = alignment.Pairs.Take(50).Select((pair, i) =>
         {
             var w = profile.Windows[pair.SourceIndex];
@@ -66,7 +64,7 @@ public class TerrainRunComparisonTests
             new TrailAverage.Averaged(4, [.. windows]));
         Assert.Equal(400, rows.Single(r => r.Class == RoughnessClass.Medium).DistanceMetres);
         Assert.Equal(0, rows.Single(r => r.Class == RoughnessClass.Rough).DistanceMetres);
-        Assert.True(rows.Single(r => r.Class is null).DistanceMetres > 500);
+        Assert.Equal(600, rows.Single(r => r.Class is null).DistanceMetres);
     }
 
     private static IReadOnlyList<TerrainComparisonRow> Compare(TerrainProfile current)

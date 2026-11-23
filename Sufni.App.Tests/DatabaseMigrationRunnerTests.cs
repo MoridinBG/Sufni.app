@@ -4,6 +4,7 @@ using System.Text.Json;
 using SQLite;
 using Sufni.Kinematics;
 using Sufni.Telemetry;
+using Sufni.Telemetry.Tests;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
@@ -37,8 +38,8 @@ public class DatabaseMigrationRunnerTests
             legacy.CreateTable<Session>();
             legacy.Insert(session);
         }
-        var profile = new TerrainProfile([new TerrainWindow(0, 0, 2, 5, true)], [], [],
-            TerrainRoughnessState.NoSensor, TerrainSteepnessState.NoFrameSensor, null, null);
+        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0)], TerrainRoughnessState.NoSensor,
+            TerrainSteepnessState.NoFrameSensor, null, null);
         TerrainProfileKey key;
         await using (var db = new TestPersistenceHarness(temp.DatabasePath))
         {
