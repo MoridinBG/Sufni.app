@@ -1,3 +1,5 @@
+using Sufni.App.Sessions.Analysis.Services;
+using Sufni.Telemetry.Tests;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -16,6 +18,47 @@ namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 [Collection("Ui")]
 public class RecordedTerrainTests
 {
+    [AvaloniaFact]
+    public async Task RoughChipChangesTravelStatisticsAndClearingRestoresTheWholeRide()
+    {
+        using var h = new SessionDetailHarness();
+        var ride = SyntheticRide.Build([new(140, LowBandG: 0.2, MiddleBandG: 0.2, HighBandG: 0.2),
+            new(140, LowBandG: 1.5, MiddleBandG: 1.6, HighBandG: 1.8)]);
+        var profile = Assert.IsType<TerrainProfileResult.Computed>(TerrainProfileCalculator.Calculate(ride.Telemetry, ride.Fixes)).Profile;
+        var session = h.CreateRecordedSession();
+        var key = SessionTerrainStatusQuery.Evaluate(session, []).Key;
+        var domain = SessionDetailHarness.DomainFromSnapshot(session) with
+        {
+            Terrain = new TerrainStatus.Current(key, TerrainProfileCalculator.Summarize(profile))
+        };
+        h.TerrainProfiles.ReadAsync(Arg.Any<IReadOnlyDictionary<Guid, TerrainProfileKey>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<Guid, TerrainProfile> { [session.Id] = profile });
+        var editor = h.CreateRecordedEditor(session, h.CreateLoadedResult(ride.Telemetry), Observable.Return(domain));
+        await h.LoadAsync(editor);
+        var filter = editor.SignalsWorkspace.TerrainFilter!;
+        var rough = filter.Roughness[(int)RoughnessClass.Rough];
+        Assert.InRange(rough.DistanceMetres, 120, 150);
+        var full = await TravelAsync();
+        rough.Toggle.Execute(null);
+        Assert.True(filter.IsActive);
+        Assert.True(rough.IsChecked);
+        Assert.Equal(rough.DistanceMetres, filter.SelectedMetres);
+        var filtered = await TravelAsync();
+        Assert.True(filtered.Average > full.Average);
+        filter.Clear.Execute(null);
+        Assert.False(filter.IsActive);
+        Assert.Equal(full, await TravelAsync());
+        await h.CloseAsync(editor);
+
+        async Task<TravelStatistics> TravelAsync()
+        {
+            var results = editor.SignalsWorkspace.AnalysisResultState;
+            var current = results.CurrentInputs!.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
+            await results.RequestAsync(current, TestContext.Current.CancellationToken);
+            return Assert.IsType<TravelDistributionAnalysisResult>(results.Get(current)).Statistics;
+        }
+    }
+
     [AvaloniaTheory]
     [InlineData(false)]
     [InlineData(true)]

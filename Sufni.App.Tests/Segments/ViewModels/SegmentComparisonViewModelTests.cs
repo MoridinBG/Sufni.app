@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.Models;
 using Sufni.App.Shared.Models;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Sessions.Signals.Views.Controls;
@@ -25,7 +26,7 @@ public class SegmentComparisonViewModelTests
     private readonly List<(double Start, double End)> visibleRanges = [];
     private readonly List<FailurePresentation> errors = [];
     private readonly List<string> notifications = [];
-    private readonly Subject<SegmentComparisonSessionState> sessionState = new();
+    private readonly BehaviorSubject<SegmentComparisonSessionState> sessionState = new(SegmentComparisonSessionState.Empty);
 
     [Fact]
     public void MatchCommand_CannotExecute_WithoutAnAnalysisRange()
@@ -214,6 +215,35 @@ public class SegmentComparisonViewModelTests
         Assert.Single(comparison.TravelRows);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ClassFilterSupersedesLoadedAndPendingAnalysisComparisons(bool finishFirst)
+    {
+        await using var vm = CreateComparison();
+        var compared = Comparison(TestSegmentMatches.Match(10, 13));
+        MatchReturns(compared);
+        var result = new TaskCompletionSource<SegmentComparisonDetailResult>();
+        coordinator.LoadComparisonDetailAsync(compared, Arg.Any<CancellationToken>()).Returns(result.Task);
+        await vm.MatchCommand.ExecuteAsync(null);
+        var load = ((IAsyncRelayCommand)CompareAction(vm.TravelRows[0]).Command!).ExecuteAsync(null);
+        Assert.Equal(new AnalysisScope.SegmentComparison(compared.Match.SessionId), sessionState.Value.Scope);
+        var detail = new SegmentComparisonDetailResult.Loaded(SegmentComparisonBuilder.BuildDetail(telemetry, []));
+        if (finishFirst)
+        {
+            result.SetResult(detail);
+            await load;
+            Assert.True(vm.HasAnalysisComparison);
+        }
+        var filter = AnalysisScope.For(new TerrainClassFilter().Toggle(RoughnessClass.Rough));
+        sessionState.OnNext(sessionState.Value with { Scope = filter });
+        if (!finishFirst) result.SetResult(detail);
+        await load;
+        Assert.False(vm.HasAnalysisComparison);
+        Assert.Equal(filter, sessionState.Value.Scope);
+        Assert.False(CompareAction(vm.TravelRows[0]).IsChecked);
+    }
+
     [Fact]
     public async Task DisposeAsync_CancelsAndDrainsDetailLoadWithoutPublishingLateFailure()
     {
@@ -272,12 +302,14 @@ public class SegmentComparisonViewModelTests
             TestSegmentComparisons.BuildAnalysisComparisons(coordinator),
             (start, end) => visibleRanges.Add((start, end)),
             errors.Add,
-            notifications.Add);
+            notifications.Add,
+            id => sessionState.OnNext(sessionState.Value with { Scope = new AnalysisScope.SegmentComparison(id) }),
+            () => sessionState.OnNext(sessionState.Value with { Scope = new AnalysisScope.Whole() }));
         sessionState.OnNext(State());
         return comparison;
     }
 
-    private SegmentComparisonSessionState State() => SegmentComparisonSessionState.Empty with
+    private SegmentComparisonSessionState State() => sessionState.Value with
     {
         AnalysisRange = AnalysisRange,
         Telemetry = telemetry,

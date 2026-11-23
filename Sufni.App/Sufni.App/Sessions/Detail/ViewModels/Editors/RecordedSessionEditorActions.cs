@@ -12,6 +12,11 @@ namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
 internal closed record RecordedSessionEditorIntent
 {
+    public sealed record ToggleRoughness(RoughnessClass Class) : RecordedSessionEditorIntent;
+    public sealed record ToggleSteepness(SteepnessClass Class) : RecordedSessionEditorIntent;
+    public sealed record ClearClassFilter : RecordedSessionEditorIntent;
+    public sealed record BeginSegmentComparison(Guid MatchedSessionId) : RecordedSessionEditorIntent;
+    public sealed record EndSegmentComparison : RecordedSessionEditorIntent;
     public sealed record SetMapTrackColoring(MapTrackColoring Value) : RecordedSessionEditorIntent;
     public sealed record SetTerrain(TerrainStatus.Current Expected, RecordedTerrainState Value) : RecordedSessionEditorIntent;
 
@@ -158,6 +163,11 @@ internal sealed class RecordedSessionEditorActions : IDisposable
         Emit(new RecordedSessionEditorIntent.SetLayoutPreferences(preferences));
     }
 
+    public void ToggleRoughness(RoughnessClass value) => Emit(new RecordedSessionEditorIntent.ToggleRoughness(value));
+    public void ToggleSteepness(SteepnessClass value) => Emit(new RecordedSessionEditorIntent.ToggleSteepness(value));
+    public void ClearClassFilter() => Emit(new RecordedSessionEditorIntent.ClearClassFilter());
+    public void BeginSegmentComparison(Guid id) => Emit(new RecordedSessionEditorIntent.BeginSegmentComparison(id));
+    public void EndSegmentComparison() => Emit(new RecordedSessionEditorIntent.EndSegmentComparison());
     public void SetMapTrackColoring(MapTrackColoring value) => Emit(new RecordedSessionEditorIntent.SetMapTrackColoring(value));
 
     public void SetTerrain(TerrainStatus.Current expected, RecordedTerrainState value) =>

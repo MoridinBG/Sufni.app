@@ -17,7 +17,7 @@ public interface ISegmentComparisonFactory
         IObservable<SegmentComparisonSessionState> sessionState,
         Action<double, double> setTimelineVisibleRange,
         Action<FailurePresentation> reportError,
-        Action<string> reportNotification);
+        Action<string> reportNotification, Action<Guid> beginComparison, Action endComparison);
 }
 
 internal sealed class SegmentComparisonFactory(
@@ -28,6 +28,6 @@ internal sealed class SegmentComparisonFactory(
         IObservable<SegmentComparisonSessionState> sessionState,
         Action<double, double> setTimelineVisibleRange,
         Action<FailurePresentation> reportError,
-        Action<string> reportNotification) =>
-        new(sessionId, sessionState, segmentCoordinator, setTimelineVisibleRange, reportError, reportNotification);
+        Action<string> reportNotification, Action<Guid> beginComparison, Action endComparison) =>
+        new(sessionId, sessionState, segmentCoordinator, setTimelineVisibleRange, reportError, reportNotification, beginComparison, endComparison);
 }

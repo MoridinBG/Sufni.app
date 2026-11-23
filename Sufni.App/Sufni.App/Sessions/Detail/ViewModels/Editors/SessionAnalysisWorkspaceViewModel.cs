@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.ViewModels;
 using Sufni.App.Sessions.Presentation;
 using Sufni.App.Sessions.Analysis.ViewModels.Editors;
 using Sufni.App.Segments.ViewModels;
@@ -31,7 +32,7 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
         DampingCutoffWorkflow dampingCutoffs,
         RecordedSessionAnalysisDemand analysisDemand,
         RecordedSessionEditorActions actions,
-        SegmentComparisonViewModel segmentComparison)
+        SegmentComparisonViewModel segmentComparison, TerrainClassFilterViewModel terrainFilter)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(actions);
@@ -45,6 +46,7 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
             else actions.SelectAnalysisRange(selection);
         });
         AnalysisResultState = analysisDemand.ResultState;
+        TerrainFilter = terrainFilter;
         SegmentComparison = segmentComparison;
         PositionVelocity = new PositionVelocityPageViewModel(this);
         stateSubscription = state.Subscribe(ApplyState);
@@ -84,6 +86,7 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
         set => actions.SetSessionInsightsTargetProfile(value);
     }
 
+    public TerrainClassFilterViewModel TerrainFilter { get; }
     public SegmentComparisonViewModel SegmentComparison { get; }
 
     public IReadOnlyList<TravelDistributionModeOption> TravelDistributionModeOptions { get; } =

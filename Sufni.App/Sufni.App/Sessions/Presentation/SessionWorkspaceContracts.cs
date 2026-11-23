@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.ViewModels;
 using Sufni.App.Terrain.Models;
 using Sufni.App.LiveDaq.Coordinators.Capture;
 using Sufni.App.Shell.ViewModels.Base;
@@ -74,6 +75,7 @@ public interface IRecordedSessionSignalsWorkspace : ITimeSeriesPlotInteractions
     TelemetrySourceVisibilityStore SourceVisibility { get; }
     SessionTimelineLinkViewModel Timeline { get; }
     SegmentPickerViewModel SegmentPicker { get; }
+    TerrainClassFilterViewModel? TerrainFilter { get; }
     SegmentComparisonViewModel SegmentComparison { get; }
     bool ShowAirtime { get; }
     bool ShowVelocityAirtime { get; }
@@ -131,6 +133,7 @@ public interface ISessionAnalysisWorkspace
     BalanceSpeedMode SelectedBalanceSpeedMode { get; set; }
     VelocityAverageMode SelectedVelocityAverageMode { get; set; }
     SessionInsightsTargetProfile SelectedSessionInsightsTargetProfile { get; set; }
+    TerrainClassFilterViewModel? TerrainFilter { get; }
     SegmentComparisonViewModel? SegmentComparison { get; }
     IReadOnlyList<TravelDistributionModeOption> TravelDistributionModeOptions { get; }
     IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; }

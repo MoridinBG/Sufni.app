@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.Models;
 using Sufni.App.Sessions.Analysis.Services;
 using System;
 using System.Collections.Generic;
@@ -82,6 +83,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             {
                 Presentation = state.Presentation with
                 {
+                    TerrainSelection = availability.TerrainSelection,
                     Analysis = RecordedSessionPresentationDeriver.CreateAnalysisPresentation(availability, state.Intent.AnalysisRange),
                 },
             }),
@@ -94,6 +96,9 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             .Scan(new Reduction(initial, 0, AnalysisRangeIntentState.Empty), static (current, update) =>
             {
                 var next = update(current);
+                if (current.Editor.TelemetryData != next.Editor.TelemetryData ||
+                    next.Editor.Intent.Scope is AnalysisScope.ClassFilter && next.Editor.Terrain is not RecordedTerrainState.Loaded)
+                    next = next with { Editor = next.Editor with { Intent = next.Editor.Intent with { Scope = new AnalysisScope.Whole() } } };
                 if (next.Editor.Terrain != current.Editor.Terrain || next.Editor.Preferences.SignalDisplay != current.Editor.Preferences.SignalDisplay ||
                     next.Editor.Presentation.Signals != current.Editor.Presentation.Signals ||
                     next.Editor.Presentation.SignalAvailability != current.Editor.Presentation.SignalAvailability)
@@ -125,9 +130,12 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
 
     private static RecordedSessionEditorState InvalidateAnalysisResults(RecordedSessionEditorState previous, RecordedSessionEditorState next)
     {
-        var scopeChanged = previous.TelemetryData != next.TelemetryData || previous.Intent.AnalysisRange != next.Intent.AnalysisRange;
+        var scopeChanged = previous.TelemetryData != next.TelemetryData || previous.Intent.AnalysisRange != next.Intent.AnalysisRange ||
+            previous.Intent.Scope != next.Intent.Scope || previous.Intent.Scope is AnalysisScope.ClassFilter && previous.Terrain != next.Terrain;
         if (scopeChanged)
             next = ApplySelection(next, next.AnalysisSelection with { HighlightRanges = [] });
+        if (scopeChanged || previous.Terrain != next.Terrain)
+            next = next with { Presentation = next.Presentation with { TerrainSelection = null } };
         var dampingChanged = scopeChanged ||
             previous.Preferences.Analysis.VelocityAverageMode != next.Preferences.Analysis.VelocityAverageMode ||
             previous.Intent.DampingSpeedCutoffs != next.Intent.DampingSpeedCutoffs;
@@ -150,6 +158,21 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
     private static Reduction ReduceIntent(Reduction current, RecordedSessionEditorIntent intent)
     {
         var state = current.Editor;
+        var scope = state.Intent.Scope;
+        var filter = scope is AnalysisScope.ClassFilter selected ? selected.Filter : default;
+        var nextScope = intent switch
+        {
+            RecordedSessionEditorIntent.ToggleRoughness toggle when state.Terrain is RecordedTerrainState.Loaded =>
+                AnalysisScope.For(filter.Toggle(toggle.Class)),
+            RecordedSessionEditorIntent.ToggleSteepness toggle when state.Terrain is RecordedTerrainState.Loaded =>
+                AnalysisScope.For(filter.Toggle(toggle.Class)),
+            RecordedSessionEditorIntent.ClearClassFilter when scope is AnalysisScope.ClassFilter => new AnalysisScope.Whole(),
+            RecordedSessionEditorIntent.BeginSegmentComparison begin => new AnalysisScope.SegmentComparison(begin.MatchedSessionId),
+            RecordedSessionEditorIntent.EndSegmentComparison when scope is AnalysisScope.SegmentComparison => new AnalysisScope.Whole(),
+            _ => scope
+        };
+        if (nextScope != scope)
+            return current with { Editor = state with { Intent = state.Intent with { Scope = nextScope } } };
 
         if (CreateAnalysisRangeUpdate(intent, state.TelemetryData) is { } rangeUpdate)
         {

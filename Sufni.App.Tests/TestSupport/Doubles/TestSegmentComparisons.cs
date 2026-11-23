@@ -1,3 +1,5 @@
+using System.Reactive.Subjects;
+using Sufni.App.Terrain.Models;
 using Sufni.App.Segments.Models;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Sessions.Models;
@@ -32,7 +34,7 @@ internal static class TestSegmentComparisons
     }
 
     public static SegmentComparisonViewModel Create() =>
-        CreateFactory().Create(Guid.NewGuid(), Observable.Never<SegmentComparisonSessionState>(), (_, _) => { }, _ => { }, _ => { });
+        CreateFactory().Create(Guid.NewGuid(), Observable.Never<SegmentComparisonSessionState>(), (_, _) => { }, _ => { }, _ => { }, _ => { }, () => { });
 
     /// <summary>
     /// A comparison that shows one match; its compare action loads the matched
@@ -54,12 +56,15 @@ internal static class TestSegmentComparisons
             Telemetry = telemetry,
             TrackTimeline = new TrackTimeRange(1000, telemetry.Metadata.Duration),
         };
+        var states = new BehaviorSubject<SegmentComparisonSessionState>(sessionState);
         var segmentComparison = CreateFactory(coordinator).Create(
             Guid.NewGuid(),
-            Observable.Return(sessionState),
+            states,
             (_, _) => { },
             _ => { },
-            _ => { });
+            _ => { },
+            id => states.OnNext(states.Value with { Scope = new AnalysisScope.SegmentComparison(id) }),
+            () => states.OnNext(states.Value with { Scope = new AnalysisScope.Whole() }));
         await segmentComparison.MatchCommand.ExecuteAsync(null);
         return segmentComparison;
     }

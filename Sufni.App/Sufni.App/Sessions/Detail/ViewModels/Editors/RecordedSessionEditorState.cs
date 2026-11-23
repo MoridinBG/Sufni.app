@@ -1,3 +1,5 @@
+using Sufni.App.Terrain.Queries;
+using Sufni.App.Terrain.Models;
 using Sufni.App.Shared.Models;
 using System.Collections.Generic;
 using Sufni.App.Bikes.Models;
@@ -108,7 +110,10 @@ internal sealed record RecordedSessionEditorIntentState(
     int SelectedPageIndex,
     TelemetryTimeRange? AnalysisRange,
     double? PendingAnalysisRangeBoundary,
-    DampingSpeedCutoffs DampingSpeedCutoffs);
+    DampingSpeedCutoffs DampingSpeedCutoffs)
+{
+    public AnalysisScope Scope { get; init; } = new AnalysisScope.Whole();
+}
 
 internal sealed record RecordedSessionEditorPresentationState(
     SurfacePresentationState MapState,
@@ -120,7 +125,10 @@ internal sealed record RecordedSessionEditorPresentationState(
     bool CanEditDampingSpeedCutoffs,
     SessionInsightsResult SessionInsights,
     SessionScreenPresentationState ScreenState,
-    SessionOperationPresentationState OperationState);
+    SessionOperationPresentationState OperationState)
+{
+    public TerrainSelectionResult? TerrainSelection { get; init; }
+}
 
 internal sealed record RecordedSignalAvailabilityState(
     bool Travel,

@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.Models;
 using Sufni.App.Shared.Models;
 using System;
 using System.Collections.Generic;
@@ -29,6 +30,8 @@ public sealed record SegmentComparisonSessionState(
     DampingSpeedCutoffs DampingSpeedCutoffs,
     SessionDampingPercentages DampingPercentages)
 {
+    public AnalysisScope Scope { get; init; } = new AnalysisScope.Whole();
+
     public static SegmentComparisonSessionState Empty { get; } = new(
         null,
         null,
@@ -55,6 +58,8 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
     private readonly Action<double, double> setTimelineVisibleRange;
     private readonly Action<FailurePresentation> reportError;
     private readonly Action<string> reportNotification;
+    private readonly Action<Guid> beginComparison;
+    private readonly Action endComparison;
     private readonly IDisposable sessionStateSubscription;
     private SegmentComparisonSessionState state = SegmentComparisonSessionState.Empty;
     private IReadOnlyList<SegmentMatch> matches = [];
@@ -87,13 +92,15 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         ISegmentCoordinator segmentCoordinator,
         Action<double, double> setTimelineVisibleRange,
         Action<FailurePresentation> reportError,
-        Action<string> reportNotification)
+        Action<string> reportNotification, Action<Guid> beginComparison, Action endComparison)
     {
         this.sessionId = sessionId;
         this.segmentCoordinator = segmentCoordinator;
         this.setTimelineVisibleRange = setTimelineVisibleRange;
         this.reportError = reportError;
         this.reportNotification = reportNotification;
+        this.beginComparison = beginComparison;
+        this.endComparison = endComparison;
         sessionStateSubscription = sessionState.Subscribe(OnSessionStateChanged);
     }
 
@@ -113,6 +120,8 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
 
         var previous = state;
         state = next;
+        if (comparedMatch is not null && (next.Scope is not AnalysisScope.SegmentComparison selected ||
+            selected.MatchedSessionId != comparedMatch.Match.SessionId)) ReleaseAnalysisComparison();
         MatchCommand.NotifyCanExecuteChanged();
         if (previous.AnalysisRange != next.AnalysisRange ||
             !ReferenceEquals(previous.Telemetry, next.Telemetry) ||
@@ -216,6 +225,12 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
     [RelayCommand]
     private void ClearAnalysisComparison()
     {
+        if (comparedMatch is not null || state.Scope is AnalysisScope.SegmentComparison) endComparison();
+        ReleaseAnalysisComparison();
+    }
+
+    private void ReleaseAnalysisComparison()
+    {
         Cancel(ref analysisLoad);
         comparedMatch = null;
         comparedDetail = null;
@@ -267,8 +282,9 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
             return;
         }
 
-        ClearAnalysisComparison();
+        ReleaseAnalysisComparison();
         comparedMatch = comparison;
+        beginComparison(comparison.Match.SessionId);
         UpdateComparedRows();
         using var cancellation = Replace(ref analysisLoad);
         try
@@ -281,6 +297,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
 
             if (result is SegmentComparisonDetailResult.Failed failed)
             {
+                ClearAnalysisComparison();
                 reportError(FailurePresentation.From(failed.Reason, failed.Details));
                 return;
             }

@@ -30,6 +30,7 @@ namespace Sufni.App.Tests.TestSupport.Sessions;
 
 internal sealed class TestSessionAnalysisWorkspace : ISessionAnalysisWorkspace, INotifyPropertyChanged, IDisposable
 {
+    public Sufni.App.Terrain.ViewModels.TerrainClassFilterViewModel? TerrainFilter => null;
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public TestSessionAnalysisWorkspace(

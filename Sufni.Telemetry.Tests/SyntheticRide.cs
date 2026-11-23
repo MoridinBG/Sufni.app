@@ -203,7 +203,9 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
                 rebounds.AddRange(strokes.Rebounds.Select(Place));
             }
             return new Suspension { Present = true, Travel = [.. travel], Velocity = [.. velocity], MaxTravel = 200,
-                HasGaps = segments.Count > 1, Segments = [.. segments], TravelBins = [], VelocityBins = [],
+                HasGaps = segments.Count > 1, Segments = [.. segments],
+                TravelBins = [.. HistogramBuilder.Linspace(0, 200, Parameters.TravelHistBins + 1)],
+                VelocityBins = [.. HistogramBuilder.Linspace(-2000, 2000, 41)],
                 Strokes = new Strokes { Compressions = [.. compressions], Rebounds = [.. rebounds] } };
         }
     }

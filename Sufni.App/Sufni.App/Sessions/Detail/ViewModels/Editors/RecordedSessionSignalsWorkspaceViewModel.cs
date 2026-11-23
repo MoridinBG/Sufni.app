@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.ViewModels;
 using Sufni.App.Terrain.Models;
 using Sufni.App.Sessions.Presentation;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
@@ -36,7 +37,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
         RecordedSessionEditorActions actions,
         SegmentPickerViewModel segmentPicker,
         SegmentComparisonViewModel segmentComparison,
-        SignalPlotContextActions contextActions)
+        SignalPlotContextActions contextActions, TerrainClassFilterViewModel terrainFilter)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(analysisResultState);
@@ -49,6 +50,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
         Timeline = timeline;
         this.actions = actions;
         SegmentPicker = segmentPicker;
+        TerrainFilter = terrainFilter;
         SegmentComparison = segmentComparison;
         this.contextActions = contextActions;
         signalRowActions = new SignalRowActionsController(() => currentState.Presentation.Signals, actions);
@@ -95,6 +97,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
     public SessionTimelineLinkViewModel Timeline { get; }
 
     public SegmentPickerViewModel SegmentPicker { get; }
+    public TerrainClassFilterViewModel TerrainFilter { get; }
     public SegmentComparisonViewModel SegmentComparison { get; }
 
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId =>

@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.ViewModels;
 using Sufni.App.Terrain.Coordinators;
 using Sufni.App.Terrain.Services;
 using System;
@@ -62,6 +63,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     private readonly SignalPlotContextActions plotContextActions;
     private readonly RecordedSessionLoadController loadController;
     private readonly SessionStalenessPrompt stalenessPrompt;
+    private readonly TerrainClassFilterViewModel terrainFilter;
     private readonly RecordedSessionTerrainController terrainController;
     private readonly GpsOffsetSuggestionPrompt gpsOffsetPrompt;
     private readonly RecordedSessionPreferencesController preferencesController;
@@ -312,10 +314,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
                 state.Preferences.Analysis.TravelDistributionMode,
                 state.Preferences.Analysis.VelocityAverageMode,
                 state.Intent.DampingSpeedCutoffs,
-                state.Presentation.DampingPercentages)),
+                state.Presentation.DampingPercentages) { Scope = state.Intent.Scope }),
             (start, end) => { if (!editorLifetime.IsCancellationRequested) timeline.SetVisibleRange(start, end, this); },
             ReportError,
-            Notify);
+            Notify, editorActions.BeginSegmentComparison, editorActions.EndSegmentComparison);
         draftBase = SessionDraft.From(snapshot);
         Id = snapshot.Id;
         segmentPicker = segmentPickerFactory.Create(
@@ -353,9 +355,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
             sessionEditingCoordinator, shell, uiThreadDispatcher, editorLifetime.Token, ReportError, Notify);
         plotContextActions = new SignalPlotContextActions(editorStateController.State, editorActions,
             timeline, segmentPicker, alignmentController, windowEditController, editorLifetime.Token);
+        terrainFilter = new(editorStateController.State, editorActions);
         SignalsWorkspace = new RecordedSessionSignalsWorkspaceViewModel(
             editorStateController.State, analysisDemand.ResultState, sourceVisibility, timeline,
-            editorActions, segmentPicker, segmentComparison, plotContextActions);
+            editorActions, segmentPicker, segmentComparison, plotContextActions, terrainFilter);
         mapViewModel = mapViewModelFactory.Create(editorActions.SetMapTrackColoring);
         MediaWorkspace = new SessionMediaWorkspaceViewModel(
             editorStateController.State, mapViewModel, timeline, videoPane, segmentComparison);
@@ -366,7 +369,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
             bikeCoordinator,
             ReportError, editorLifetime.Token);
         var analysisWorkspace = new SessionAnalysisWorkspaceViewModel(
-            editorStateController.State, dampingCutoffWorkflow, analysisDemand, editorActions, segmentComparison);
+            editorStateController.State, dampingCutoffWorkflow, analysisDemand, editorActions, segmentComparison, terrainFilter);
         AnalysisWorkspace = analysisWorkspace;
         var positionVelocityPage = analysisWorkspace.PositionVelocity;
         SidebarWorkspace = new SessionSidebarWorkspaceViewModel(
@@ -574,6 +577,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         stalenessPrompt.Dispose();
         await gpsOffsetPrompt.DisposeAsync();
         await terrainController.DisposeAsync();
+        terrainFilter.Dispose();
         alignmentController.Dispose();
         windowEditController.Dispose();
         plotContextActions.Dispose();

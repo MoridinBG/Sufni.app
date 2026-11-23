@@ -1,3 +1,5 @@
+using Sufni.App.Terrain.Queries;
+using Sufni.App.Terrain.Models;
 using Sufni.App.Sessions.Analysis.ViewModels.Editors;
 using System;
 using System.Collections.Immutable;
@@ -30,6 +32,7 @@ internal sealed class RecordedSessionAnalysisDemand : IAsyncDisposable
     private int telemetryGeneration;
     private long trackGeneration;
     private Lazy<ImmutableArray<TrackSample>>? trackSamples;
+    private Lazy<TerrainSelectionResult>? terrainSelection;
     private bool insightsRequested;
 
     public RecordedSessionAnalysisDemand(IObservable<RecordedSessionEditorIntent> intents, IRecordedSessionAnalysisResultStateFactory factory,
@@ -74,6 +77,14 @@ internal sealed class RecordedSessionAnalysisDemand : IAsyncDisposable
                 state.TelemetryData?.Metadata.Duration is { } duration
                 ? new(() => TrackSampleAdapter.FromOriginalFixes(fixes, timeline, duration)) : null;
         }
+        if (previous.Terrain != state.Terrain || previous.Intent.Scope != state.Intent.Scope ||
+            previous.Intent.AnalysisRange != state.Intent.AnalysisRange)
+        {
+            var filter = state.Intent.Scope is AnalysisScope.ClassFilter classes ? classes.Filter : default;
+            var range = state.Intent.AnalysisRange;
+            terrainSelection = state.Terrain is RecordedTerrainState.Loaded loaded
+                ? new(() => TerrainSelectionQuery.Evaluate(loaded.Profile, filter, range)) : null;
+        }
         UpdateAnalysisRequests(previous);
     }
 
@@ -89,6 +100,9 @@ internal sealed class RecordedSessionAnalysisDemand : IAsyncDisposable
             currentState.Presentation.PlotDampingSpeedCutoffs,
             currentState.Preferences.Analysis.SessionInsightsTargetProfile)
         {
+            Scope = currentState.Intent.Scope,
+            TerrainProfileKey = (currentState.Terrain as RecordedTerrainState.Loaded)?.Key,
+            TerrainSelection = terrainSelection,
             TrackGeneration = trackGeneration,
             TrackSamples = trackSamples,
             FrontSelection = currentState.AnalysisSelection.ActiveFront,
