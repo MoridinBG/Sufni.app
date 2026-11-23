@@ -1,0 +1,40 @@
+<UserControl
+    x:Class="Sufni.App.Bikes.Views.Editors.BikeAnalysisPlotView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Sufni.App.Bikes.ViewModels.Editors"
+    xmlns:plots="clr-namespace:Sufni.App.Bikes.Views.Plots"
+    xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
+    xmlns:zoom="clr-namespace:Sufni.App.Shared.Views.Plots"
+    x:DataType="vm:BikeAnalysisWorkspaceViewModel"
+    IsVisible="{Binding HasRearSuspension}">
+    <Grid
+    Name="LeverageRatioPlotGrid"
+
+    >
+
+        <zoom:PlotZoomContainer>
+            <plots:LeverageRatioPlotView
+            HorizontalAlignment="Stretch"
+            IsHitTestVisible="False"
+            LeverageRatioData="{Binding LeverageRatioData}" />
+        </zoom:PlotZoomContainer>
+
+        <Panel
+        Background="#0d0d0d"
+        IsHitTestVisible="True"
+        IsVisible="{Binding IsPlotBusy}"
+        Opacity="0.4" />
+
+        <progRing:ProgressRing
+        Width="40"
+        Height="40"
+        HorizontalAlignment="Center"
+        VerticalAlignment="Center"
+        Foreground="{DynamicResource SufniAccentPrimary}">
+            <progRing:ProgressRing.IsActive>
+                <Binding Path="IsPlotBusy" />
+            </progRing:ProgressRing.IsActive>
+        </progRing:ProgressRing>
+    </Grid>
+</UserControl>

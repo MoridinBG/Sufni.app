@@ -1,0 +1,34 @@
+<UserControl
+    x:Class="Sufni.App.Bikes.Views.Editors.BikeFrameSummaryView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Sufni.App.Bikes.ViewModels.Editors"
+    x:DataType="vm:BikeFrameWorkspaceViewModel">
+    <Grid RowDefinitions="auto auto auto" ColumnDefinitions="* *">
+        <TextBlock Grid.Column="0" Grid.Row="0"
+        Margin="0,0,0,5"
+        Text="Head angle (°)" />
+        <TextBlock Grid.Column="1" Grid.Row="0"
+        Margin="0,0,0,5"
+        Text="{Binding HeadAngle}"
+        TextAlignment="Right" />
+        <TextBlock Grid.Column="0" Grid.Row="1"
+        Margin="0,0,0,5"
+        Text="Fork stroke (mm)" />
+        <TextBlock Grid.Column="1" Grid.Row="1"
+        Margin="0,0,0,5"
+        Text="{Binding ForksStroke}"
+        TextAlignment="Right" />
+        <TextBlock Grid.Column="0" Grid.Row="2"
+        Name="ShockStrokeLabel"
+        Margin="0,0,10,5"
+        IsVisible="{Binding HasRearSuspension}"
+        Text="Shock stroke (mm)" />
+        <TextBlock Grid.Column="1" Grid.Row="2"
+        Name="ShockStrokeValueTextBlock"
+        Margin="0,0,0,5"
+        IsVisible="{Binding HasRearSuspension}"
+        Text="{Binding ShockStroke}"
+        TextAlignment="Right" />
+    </Grid>
+</UserControl>
