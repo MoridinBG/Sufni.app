@@ -24,23 +24,6 @@ public static class CoordinateRotation
     }
 
     /// <summary>
-    /// Rotates all points in place around a center point by the specified angle.
-    /// CLockwise in screen coordinates
-    /// </summary>
-    public static void RotatePoints(
-        IEnumerable<IPoint> points,
-        double centerX, double centerY,
-        double angleDegrees)
-    {
-        foreach (var point in points)
-        {
-            var (newX, newY) = RotatePoint(point.X, point.Y, centerX, centerY, angleDegrees);
-            point.X = newX;
-            point.Y = newY;
-        }
-    }
-
-    /// <summary>
     /// Calculates the bounding box of a rectangle rotated around a center point.
     /// </summary>
     public static (double minX, double minY, double maxX, double maxY) GetRotatedBounds(

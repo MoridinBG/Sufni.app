@@ -182,7 +182,10 @@ public partial class LinkageEditorViewModel : ObservableObject
     {
         RunWithoutNotifications(() =>
         {
-            CoordinateRotation.RotatePoints(jointViewModels, 0, 0, deltaRotationDegrees);
+            foreach (var joint in jointViewModels)
+            {
+                (joint.X, joint.Y) = CoordinateRotation.RotatePoint(joint.X, joint.Y, 0, 0, deltaRotationDegrees);
+            }
 
             var items = jointViewModels.ToList();
             jointViewModels.Clear();

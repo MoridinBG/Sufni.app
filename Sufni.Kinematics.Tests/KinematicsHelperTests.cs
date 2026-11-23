@@ -141,8 +141,8 @@ public class KinematicsHelperTests
 
     private sealed class TestPoint(double x, double y) : IPoint
     {
-        public double X { get; set; } = x;
+        public double X { get; } = x;
 
-        public double Y { get; set; } = y;
+        public double Y { get; } = y;
     }
 }

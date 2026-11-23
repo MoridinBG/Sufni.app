@@ -6,4 +6,4 @@ public sealed record JointSpec(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("type")] JointType? Type,
     [property: JsonPropertyName("x")] double X,
-    [property: JsonPropertyName("y")] double Y);
+    [property: JsonPropertyName("y")] double Y) : IPoint;
