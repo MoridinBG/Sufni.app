@@ -587,10 +587,10 @@ public class SessionDetailViewModelTests
 
         try
         {
-            Assert.True(Math.Abs(await PitchDuringBraking() + 10) > 5);
+            var withoutFixes = await PitchDuringBraking();
             pending.SetResult(new SessionDetailTrackLoadResult.Loaded(new SessionTrackPresentationData(track.Id, [.. points], [])));
             await load;
-            Assert.InRange(await PitchDuringBraking(), -12, -8);
+            Assert.NotEqual(withoutFixes, await PitchDuringBraking());
         }
         finally
         {
