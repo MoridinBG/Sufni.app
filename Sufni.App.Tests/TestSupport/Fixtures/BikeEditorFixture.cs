@@ -18,8 +18,7 @@ using Sufni.App.Shell.Coordinators;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.ViewModels.LinkageEditing;
 using Sufni.App.Tests.TestSupport.Doubles;
-using Sufni.App.Tests.TestSupport.Fixtures;
-namespace Sufni.App.Tests.Bikes.ViewModels.Editors;
+namespace Sufni.App.Tests.TestSupport.Fixtures;
 
 public abstract class BikeEditorFixture
 {

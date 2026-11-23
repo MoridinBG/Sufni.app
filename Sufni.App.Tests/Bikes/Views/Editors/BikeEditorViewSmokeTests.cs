@@ -17,7 +17,6 @@ using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.ViewModels.Editors;
 using Sufni.App.Infrastructure;
 using Sufni.App.Bikes.DesktopViews.Editors;
-using Sufni.App.Bikes.DesktopViews.Items;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Queries;
 using Sufni.App.Bikes.Views.Editors;
@@ -28,22 +27,22 @@ using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.Bikes.Views.Editors;
 
 [Collection("Ui")]
-public class BikeEditorViewSmokeTests
+public class BikeEditorViewSmokeTests : BikeEditorFixture
 {
     [AvaloniaTheory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task DesktopModeButton_FollowsPointerCapability(bool hasPointer)
     {
-        EnsureBikeEditorViewResources();
+        ViewTestHelpers.EnsureFluentTheme();
+        ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsurePlotViewStyle();
-        var view = new BikeEditorDesktopView { DataContext = CreateViewModel(hasPointer: hasPointer) };
+        var view = new BikeEditorDesktopView { DataContext = CreateEditor(FullSuspensionSnapshot(), hasPointer: hasPointer) };
         var host = await ViewTestHelpers.ShowViewAsync(view);
         try
         {
-            var splitView = Assert.Single(view.GetVisualDescendants().OfType<SplitView>());
-            var controls = Assert.IsType<BikeImageControlsDesktopView>(splitView.Pane);
-            Assert.Equal(hasPointer, controls.FindControl<ToggleButton>("LinkageModeButton")!.IsEnabled);
+            var selector = view.GetVisualDescendants().OfType<RearSuspensionModeSelectorDesktopView>().Single();
+            Assert.Equal(hasPointer, selector.FindControl<ToggleButton>("LinkageModeButton")!.IsEnabled);
         }
         finally
         {
@@ -55,12 +54,13 @@ public class BikeEditorViewSmokeTests
     [AvaloniaFact]
     public async Task BikeEditorView_HidesShockStrokeAndPlot_WhenBikeIsHardtail()
     {
-        EnsureBikeEditorViewResources();
+        ViewTestHelpers.EnsureFluentTheme();
+        ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsurePlotViewStyle();
 
         var view = new BikeEditorView
         {
-            DataContext = CreateViewModel(TestSnapshots.Bike())
+            DataContext = CreateEditor(TestSnapshots.Bike())
         };
         var host = new Window
         {
@@ -72,64 +72,74 @@ public class BikeEditorViewSmokeTests
         ViewTestHelpers.ShowWindow(host);
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        Assert.False(view.FindControl<TextBlock>("ShockStrokeLabel")!.IsVisible);
-        Assert.False(view.FindControl<Grid>("LeverageRatioPlotGrid")!.IsVisible);
+        var frame = view.GetVisualDescendants().OfType<BikeFrameSummaryView>().Single();
+        Assert.False(frame.FindControl<TextBlock>("ShockStrokeLabel")!.IsVisible);
+        Assert.False(view.FindControl<BikeAnalysisPlotView>("AnalysisPlot")!.IsVisible);
 
         host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();
     }
 
-    private static BikeEditorViewModel CreateViewModel(BikeSnapshot? snapshot = null, IDialogService? dialogService = null, bool hasPointer = true)
+    [AvaloniaFact]
+    public async Task HeadAngleFieldBecomesEditableWhenPhotoCalibrationIsRemoved()
     {
-        var bikeCoordinator = TestCoordinatorSubstitutes.Bike();
-        var dependencyQuery = Substitute.For<IBikeDependencyQuery>();
-        dependencyQuery.Changes.Returns(Observable.Empty<Unit>());
-        dependencyQuery.IsBikeInUse(Arg.Any<Guid>()).Returns(false);
-
-        snapshot ??= CreateSnapshot();
-        var draftLoader = TestCoordinatorSubstitutes.BikeDraftLoader();
-        draftLoader.LoadDraftAsync(snapshot.Id, Arg.Any<CancellationToken>()).Returns(
-            new BikeDraftLoadResult.Loaded(BikeDraft.From(snapshot, snapshot.HasImage ? TestImages.SmallPngBytes() : [])));
-        var editor = new BikeEditorViewModel(
-            snapshot,
-            isNew: false,
-            bikeCoordinator,
-            draftLoader,
-            TestCoordinatorSubstitutes.BikeAnalysis(),
-            TestCoordinatorSubstitutes.BikeFiles(),
-            dependencyQuery,
-            Substitute.For<IShellCoordinator>(),
-            dialogService ?? Substitute.For<IDialogService>(),
-            new InlineUiThreadDispatcher(), TestAppEnvironment.Create(UiLayoutProfile.Workspace).Input with { HasPointer = hasPointer }, new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
-        return editor;
-    }
-
-    private static BikeSnapshot CreateSnapshot()
-    {
-        var bike = new Bike(Guid.NewGuid(), "view bike")
-        {
-            HeadAngle = 64,
-            ForkStroke = 170,
-            ShockStroke = 0.5,
-            PixelsToMillimeters = 1,
-            RearSuspension = new RearSuspensionSpec.Linkage(
-                TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true)),
-            FrontWheelRimSize = EtrtoRimSize.Inch29,
-            FrontWheelTireWidth = 2.4,
-            FrontWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
-            RearWheelRimSize = EtrtoRimSize.Inch275,
-            RearWheelTireWidth = 2.5,
-            RearWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
-            ImageRotationDegrees = 12.5,
-            ImageBytes = TestImages.SmallPngBytes(),
-            Updated = 1,
-        };
-
-        return BikeSnapshot.From(bike);
-    }
-
-    private static void EnsureBikeEditorViewResources()
-    {
+        ViewTestHelpers.EnsureFluentTheme();
         ViewTestHelpers.EnsureViewTestResources();
+        var editor = CreateEditor(FullSuspensionSnapshot(true, frontWheelDiameter: 702, rearWheelDiameter: 700));
+        var view = new BikeFrameFieldsDesktopView { DataContext = editor.Frame };
+        await using var mounted = await ViewTestHelpers.MountAsync(view);
+        var field = view.FindControl<NumericUpDown>("HeadAngleInput")!;
+        Assert.True(field.IsReadOnly);
+
+        editor.Linkage.Chainstay = null;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.False(field.IsReadOnly);
+    }
+
+    [AvaloniaFact]
+    public async Task WheelEditorTracksLinkageAndShockStrokeAvailability()
+    {
+        ViewTestHelpers.EnsureFluentTheme();
+        ViewTestHelpers.EnsureViewTestResources();
+        var editor = CreateEditor(FullSuspensionSnapshot());
+        var view = new BikeWheelsEditorDesktopView { DataContext = editor.Wheels };
+        await using var mounted = await ViewTestHelpers.MountAsync(view);
+        Assert.True(view.IsVisible);
+
+        editor.Frame.ShockStroke = null;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.False(view.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task LinkageGridHonorsJointAndShockEditRules()
+    {
+        ViewTestHelpers.EnsureFluentTheme();
+        ViewTestHelpers.EnsureViewTestResources();
+        var editor = CreateEditor(FullSuspensionSnapshot());
+        var view = new LinkageControlsDesktopView { DataContext = editor.Linkage };
+        view.Styles.Add(new Avalonia.Markup.Xaml.Styling.StyleInclude(new Uri("avares://Sufni.App/"))
+            { Source = new Uri("avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml") });
+        await using var mounted = await ViewTestHelpers.MountAsync(view);
+        var joints = view.FindControl<DataGrid>("JointGrid")!;
+        var links = view.FindControl<DataGrid>("LinkGrid")!;
+
+        async Task<bool> Begin(DataGrid grid, object item, int column)
+        {
+            grid.SelectedItem = item;
+            grid.CurrentColumn = grid.Columns[column];
+            grid.ScrollIntoView(item, grid.CurrentColumn);
+            await ViewTestHelpers.FlushDispatcherAsync();
+            grid.Focus();
+            return grid.BeginEdit();
+        }
+
+        var eye = editor.Linkage.JointViewModels.Single(joint => joint.Name == JointNames.ShockEye1);
+        var wheel = editor.Linkage.JointViewModels.Single(joint => joint.Type == JointType.RearWheel);
+        Assert.False(await Begin(joints, wheel, 1));
+        Assert.False(await Begin(joints, eye, 0));
+        Assert.True(await Begin(joints, eye, 1));
+        joints.CancelEdit();
+        Assert.False(await Begin(links, editor.Linkage.LinkViewModels.Single(link => link.IsImmutable), 0));
     }
 }
