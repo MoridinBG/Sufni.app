@@ -49,7 +49,6 @@ mc:Ignorable="d">
             Height="{Binding CanvasHeight}"
             Background="Transparent">
                 <Panel Canvas.Left="{Binding ContentOffsetX}" Canvas.Top="{Binding ContentOffsetY}">
-                    <!--  Bike image  -->
                     <Canvas>
                         <Image
                         Name="BikeImage"
@@ -72,7 +71,6 @@ mc:Ignorable="d">
                         </Border>
                     </Canvas>
 
-                    <!--  Wheels  -->
                     <Canvas Name="WheelOverlayCanvas">
                         <Canvas.IsVisible>
                             <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -80,7 +78,6 @@ mc:Ignorable="d">
                                 <Binding Path="Wheels.HasWheels" />
                             </MultiBinding>
                         </Canvas.IsVisible>
-                        <!--  Front wheel  -->
                         <Grid
                         Canvas.Left="{Binding Wheels.FrontWheelCircleLeft}"
                         Canvas.Top="{Binding Wheels.FrontWheelCircleTop}"
@@ -102,7 +99,6 @@ mc:Ignorable="d">
                             VerticalAlignment="Center"
                             Fill="#90505050" />
                         </Grid>
-                        <!--  Rear wheel  -->
                         <Grid
                         Canvas.Left="{Binding Wheels.RearWheelCircleLeft}"
                         Canvas.Top="{Binding Wheels.RearWheelCircleTop}"
@@ -126,14 +122,12 @@ mc:Ignorable="d">
                         </Grid>
                     </Canvas>
 
-                    <!--  Rear axle path  -->
                     <Polyline
                     Points="{Binding RearAxlePath}"
                     Stroke="Cyan"
                     StrokeThickness="10"
                     IsVisible="{Binding !!RearAxlePath.Count}" />
 
-                    <!--  Links  -->
                     <SelectingItemsControl
                     Background="Transparent"
                     ClipToBounds="False"
@@ -160,7 +154,6 @@ mc:Ignorable="d">
                         </SelectingItemsControl.ItemTemplate>
                     </SelectingItemsControl>
 
-                    <!--  Points  -->
                     <SelectingItemsControl
                     Background="Transparent"
                     Classes="draggable"

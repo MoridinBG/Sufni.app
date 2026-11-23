@@ -22,7 +22,6 @@
         Margin="0,0,0,15"
         ColumnDefinitions="* auto">
 
-            <!--  Open bike picture  -->
             <Button
             Grid.Row="0"
             Grid.Column="0"
@@ -31,7 +30,6 @@
             Command="{Binding OpenImageCommand}"
             Content="Open image ..." />
 
-            <!--  Overlay  -->
             <CheckBox
             Grid.Row="0"
             Grid.Column="1"
@@ -60,14 +58,12 @@
 
                 <DataGrid.Columns>
 
-                    <!--  Name  -->
                     <DataGridTextColumn
                     Width="1.5*"
                     Binding="{Binding Name}"
                     Header="Name"
                     IsReadOnly="False" />
 
-                    <!--  Type  -->
                     <DataGridTemplateColumn
                     Width="1.5*"
                     Header="Type"
@@ -89,14 +85,12 @@
                         </DataGridTemplateColumn.CellEditingTemplate>
                     </DataGridTemplateColumn>
 
-                    <!--  X  -->
                     <DataGridTextColumn
                     Width="*"
                     Binding="{Binding X, StringFormat={}{0:0.00}}"
                     Header="X (px)"
                     IsReadOnly="True" />
 
-                    <!--  Y  -->
                     <DataGridTextColumn
                     Width="*"
                     Binding="{Binding Y, StringFormat={}{0:0.00}}"
@@ -127,7 +121,6 @@
 
                 <DataGrid.Columns>
 
-                    <!--  Point A  -->
                     <DataGridTemplateColumn
                     Width="*"
                     Header="Point A"
@@ -157,7 +150,6 @@
                         </DataGridTemplateColumn.CellEditingTemplate>
                     </DataGridTemplateColumn>
 
-                    <!--  Point B  -->
                     <DataGridTemplateColumn
                     Width="*"
                     Header="Point B"
@@ -187,7 +179,6 @@
                         </DataGridTemplateColumn.CellEditingTemplate>
                     </DataGridTemplateColumn>
 
-                    <!--  Length  -->
                     <DataGridTextColumn
                     Width="*"
                     Binding="{Binding Length, StringFormat={}{0:0.00}}"

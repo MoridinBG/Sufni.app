@@ -155,8 +155,8 @@ public class BikeEditorViewModelTests : BikeEditorFixture
     {
         var snapshot = TestSnapshots.Bike();
         var editor = CreateEditor(snapshot);
-        editor.Name = "renamed";   // make dirty
-        editor.Frame.ForksStroke = null; // invalidate
+        editor.Name = "renamed";
+        editor.Frame.ForksStroke = null;
 
         Assert.False(editor.SaveCommand.CanExecute(null));
     }
@@ -168,7 +168,6 @@ public class BikeEditorViewModelTests : BikeEditorFixture
         var editor = CreateEditor(snapshot);
         editor.Name = "renamed";
 
-        // CanSave allows fork-only bikes when ShockStroke is null.
         Assert.True(editor.SaveCommand.CanExecute(null));
     }
 

@@ -15,7 +15,6 @@ ClipToBounds="False"
 mc:Ignorable="d">
 
     <Canvas Name="PointCanvas">
-        <!--  Context flyout with name and type  -->
         <Canvas.ContextFlyout>
             <Flyout>
                 <Grid ColumnDefinitions="auto *" RowDefinitions="auto auto">
@@ -42,7 +41,6 @@ mc:Ignorable="d">
             </Flyout>
         </Canvas.ContextFlyout>
 
-        <!--  Name  -->
         <Grid
         Canvas.Left="0"
         Canvas.Top="0"
@@ -61,7 +59,6 @@ mc:Ignorable="d">
             StrokeThickness="1" />
         </Grid>
 
-        <!--  Crosshair  -->
         <Line
         Stroke="{Binding Brush}"
         StrokeThickness="2"
