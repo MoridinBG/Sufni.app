@@ -10,7 +10,10 @@ public closed record GpsTimeOffsetEstimate
     private GpsTimeOffsetEstimate() { }
     public sealed record Measured(double LagSeconds, double Correlation) : GpsTimeOffsetEstimate
     {
-        public bool ShouldSuggest => Correlation >= 0.65 && Math.Abs(LagSeconds) > 0.5;
+        private const double MinimumSuggestedCorrelation = 0.65;
+        private const double MinimumSuggestedLagSeconds = 0.5;
+
+        public bool ShouldSuggest => Correlation >= MinimumSuggestedCorrelation && Math.Abs(LagSeconds) > MinimumSuggestedLagSeconds;
     }
     public sealed record Unavailable(GpsTimeOffsetUnavailableReason Reason) : GpsTimeOffsetEstimate;
 }
