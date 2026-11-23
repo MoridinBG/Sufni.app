@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.Models;
 using Sufni.App.Sessions.Presentation;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Sessions.Signals.Views.Controls;
@@ -64,6 +65,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
 
     public TrackTimeRange? TrackTimelineContext => currentState.TrackTimelineContext;
 
+    public TerrainPresentation? TerrainPresentation => (currentState.Terrain as RecordedTerrainState.Loaded)?.Presentation;
     public SurfacePresentationState TerrainSignalState => currentState.Presentation.Signals.Terrain;
     public SurfacePresentationState RoughnessSignalState => currentState.Presentation.Signals.Roughness;
     public SurfacePresentationState GradeSignalState => currentState.Presentation.Signals.Grade;
@@ -171,6 +173,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
         NotifyChanged(previous.Intent.AnalysisRange, state.Intent.AnalysisRange, nameof(AnalysisRange));
         NotifyChanged(previous.TrackPoints, state.TrackPoints, nameof(TrackPoints));
         NotifyChanged(previous.TrackTimelineContext, state.TrackTimelineContext, nameof(TrackTimelineContext));
+        NotifyChanged((previous.Terrain as RecordedTerrainState.Loaded)?.Presentation, TerrainPresentation, nameof(TerrainPresentation));
         NotifyChanged(previous.Presentation.Signals.Terrain, state.Presentation.Signals.Terrain, nameof(TerrainSignalState));
         NotifyChanged(previous.Presentation.Signals.Roughness, state.Presentation.Signals.Roughness, nameof(RoughnessSignalState));
         NotifyChanged(previous.Presentation.Signals.Grade, state.Presentation.Signals.Grade, nameof(GradeSignalState));

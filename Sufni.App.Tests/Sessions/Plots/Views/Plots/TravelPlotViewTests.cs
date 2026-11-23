@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.Models;
 using Sufni.App.Sessions.Presentation;
 using Sufni.App.Sessions.Signals.Views.Controls;
 using Sufni.App.Sessions.Models;
@@ -403,6 +404,7 @@ public class TravelPlotViewTests
         public IReadOnlyList<SignalRowAction> ElevationHeaderActions { get; } = [];
         public IReadOnlyList<TrackPoint>? TrackPoints => null;
         public TrackTimeRange? TrackTimelineContext => null;
+        public TerrainPresentation? TerrainPresentation => null;
         public SurfacePresentationState TerrainSignalState => SurfacePresentationState.Hidden;
         public SurfacePresentationState RoughnessSignalState => SurfacePresentationState.Hidden;
         public SurfacePresentationState GradeSignalState => SurfacePresentationState.Hidden;

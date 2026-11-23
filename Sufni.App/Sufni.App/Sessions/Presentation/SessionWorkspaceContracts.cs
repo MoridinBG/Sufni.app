@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.Models;
 using Sufni.App.LiveDaq.Coordinators.Capture;
 using Sufni.App.Shell.ViewModels.Base;
 using Sufni.App.Sessions.Signals.Views.Controls;
@@ -58,6 +59,7 @@ public interface IRecordedSessionSignalsWorkspace : ITimeSeriesPlotInteractions
     TelemetryTimeRange? AnalysisRange { get; }
     IReadOnlyList<TrackPoint>? TrackPoints { get; }
     TrackTimeRange? TrackTimelineContext { get; }
+    TerrainPresentation? TerrainPresentation { get; }
     SurfacePresentationState TerrainSignalState { get; }
     SurfacePresentationState RoughnessSignalState { get; }
     SurfacePresentationState GradeSignalState { get; }

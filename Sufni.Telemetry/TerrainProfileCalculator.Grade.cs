@@ -58,25 +58,30 @@ public static partial class TerrainProfileCalculator
             if (windows[i].Grade.HasValue) windows[i] = windows[i] with { Grade = windows[i].Grade - zero };
         for (var i = 0; i < windows.Count; i++)
         {
-            if (windows[i].Grade is not { } grade) continue;
-            var sum = grade;
-            var count = 1;
-            for (var direction = -1; direction <= 1; direction += 2)
-            {
-                for (var offset = 1; offset <= 2; offset++)
-                {
-                    var j = i + direction * offset;
-                    if (j < 0 || j >= windows.Count) break;
-                    var lower = Math.Min(j, j - direction);
-                    if (windows[lower].EndSeconds != windows[lower + 1].StartSeconds) break;
-                    if (windows[j].Grade is { } neighbour) { sum += neighbour; count++; }
-                }
-            }
-            if (count < 3) continue;
-            var baseline = sum / count;
+            if (BaselineGrade(windows, i) is not { } baseline) continue;
             windows[i] = windows[i] with { Steepness = baseline < GentleGrade ? SteepnessClass.Gentle :
                 baseline < SteepGrade ? SteepnessClass.Moderate : SteepnessClass.Steep };
         }
         return TerrainSteepnessState.Available;
+    }
+
+    /// <summary>Mean downhill grade over up to five adjacent windows, requiring three measured grades.</summary>
+    public static double? BaselineGrade(IReadOnlyList<TerrainWindow> windows, int i)
+    {
+        if (windows[i].Grade is not { } grade) return null;
+        var sum = grade;
+        var count = 1;
+        for (var direction = -1; direction <= 1; direction += 2)
+        {
+            for (var offset = 1; offset <= 2; offset++)
+            {
+                var j = i + direction * offset;
+                if (j < 0 || j >= windows.Count) break;
+                var lower = Math.Min(j, j - direction);
+                if (windows[lower].EndSeconds != windows[lower + 1].StartSeconds) break;
+                if (windows[j].Grade is { } neighbour) { sum += neighbour; count++; }
+            }
+        }
+        return count < 3 ? null : sum / count;
     }
 }

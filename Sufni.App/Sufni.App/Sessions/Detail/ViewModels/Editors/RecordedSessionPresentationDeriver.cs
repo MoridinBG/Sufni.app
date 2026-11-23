@@ -9,7 +9,7 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
-internal static class RecordedSessionPresentationDeriver
+internal static partial class RecordedSessionPresentationDeriver
 {
     public static RecordedSessionEditorState WithTerrainPresentation(RecordedSessionEditorState state)
     {

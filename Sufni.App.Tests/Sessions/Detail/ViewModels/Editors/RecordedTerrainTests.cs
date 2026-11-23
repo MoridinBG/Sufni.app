@@ -1,3 +1,5 @@
+using Sufni.App.Tests.TestSupport.Fixtures;
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Avalonia.Headless.XUnit;
 using NSubstitute;
@@ -14,6 +16,45 @@ namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 [Collection("Ui")]
 public class RecordedTerrainTests
 {
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StripBreaksAtStopsAndReportsEachSensorContribution(bool jointlyRecorded)
+    {
+        using var h = new SessionDetailHarness();
+        var session = h.CreateRecordedSession();
+        var key = SessionTerrainStatusQuery.Evaluate(session, []).Key;
+        var first = jointlyRecorded ? RoughnessSource.Both : RoughnessSource.LowersOnly;
+        var window = TerrainProfiles.Window(0, RoughnessClass.Calm, first);
+        var clipped = TerrainProfiles.Window(3, RoughnessClass.Rough, RoughnessSource.FrameOnly) with
+        {
+            Lowers = jointlyRecorded ? window.Lowers! with { ClippedShare = 0.12 } : null
+        };
+        var profile = TerrainProfiles.Classified(window, TerrainProfiles.Window(1, RoughnessClass.Rough, first),
+            TerrainProfiles.Window(2, RoughnessClass.Rough, first) with { Moving = false, Grade = null }, clipped,
+            TerrainProfiles.Window(4, RoughnessClass.Rough, RoughnessSource.FrameOnly),
+            TerrainProfiles.Window(5, RoughnessClass.Rough, RoughnessSource.FrameOnly, 0.3));
+        var domain = SessionDetailHarness.DomainFromSnapshot(session) with
+        {
+            Terrain = new TerrainStatus.Current(key, TerrainProfileCalculator.Summarize(profile))
+        };
+        h.TerrainProfiles.ReadAsync(Arg.Any<IReadOnlyDictionary<Guid, TerrainProfileKey>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<Guid, TerrainProfile> { [session.Id] = profile });
+        var editor = h.CreateRecordedEditor(session, projectionChanges: Observable.Return(domain));
+        await h.LoadAsync(editor);
+        var presentation = Assert.IsType<TerrainPresentation>(editor.SignalsWorkspace.TerrainPresentation);
+        Assert.Equal([new TerrainClassRun(0, 1, TerrainLevel.Low), new TerrainClassRun(1, 2, TerrainLevel.High),
+            new TerrainClassRun(3, 6, TerrainLevel.High)],
+            presentation.RoughnessRuns);
+        Assert.Equal(RoughnessSource.Both, presentation.Coverage.Source);
+        Assert.Equal(0.6, presentation.Coverage.FrameOnlyShare);
+        Assert.Equal(jointlyRecorded ? 0.4 : 0, presentation.Coverage.JointShare);
+        Assert.Equal(jointlyRecorded, presentation.Coverage.LowersClipped);
+        Assert.Equal(4.5, presentation.Signals[^2].MidSeconds);
+        Assert.Equal(Math.Asin(0.1) * 180 / Math.PI, presentation.Signals[^2].GradeDegrees!.Value, 8);
+        await h.CloseAsync(editor);
+    }
+
     [AvaloniaFact]
     public async Task OpenEditorPrioritizesPendingAndShowsTheProfileWhenPublished()
     {

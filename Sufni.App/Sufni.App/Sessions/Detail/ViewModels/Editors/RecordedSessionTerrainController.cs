@@ -16,7 +16,7 @@ namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 internal closed record RecordedTerrainState
 {
     public sealed record Pending : RecordedTerrainState;
-    public sealed record Loaded(TerrainProfileKey Key, TerrainProfile Profile) : RecordedTerrainState;
+    public sealed record Loaded(TerrainProfileKey Key, TerrainProfile Profile, TerrainPresentation Presentation) : RecordedTerrainState;
     public sealed record Unavailable(TerrainAvailabilityReason Reason) : RecordedTerrainState;
     public sealed record Failed : RecordedTerrainState;
 
@@ -58,7 +58,7 @@ internal sealed class RecordedSessionTerrainController : IAsyncDisposable
                     var profiles = await repository.ReadAsync(new Dictionary<Guid, TerrainProfileKey> { [id] = current.Key }, token)
                         .ConfigureAwait(false);
                     return profiles.TryGetValue(id, out var profile)
-                        ? new RecordedTerrainState.Loaded(current.Key, profile) : new RecordedTerrainState.Pending();
+                        ? new RecordedTerrainState.Loaded(current.Key, profile, RecordedSessionPresentationDeriver.CreateTerrain(profile)) : new RecordedTerrainState.Pending();
                 }, token).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
