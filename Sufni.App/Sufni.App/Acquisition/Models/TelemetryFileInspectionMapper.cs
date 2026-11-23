@@ -18,8 +18,7 @@ internal static class TelemetryFileInspectionMapper
                 StartTime: malformed.StartTime ?? fallbackStartTime,
                 Duration: malformed.Duration?.ToString(@"hh\:mm\:ss") ?? "unknown",
                 MalformedMessage: malformed.Message,
-                CanImport: false),
-            _ => throw new ArgumentOutOfRangeException(nameof(inspection), inspection, "Unknown SST inspection result.")
+                CanImport: false)
         };
     }
 }

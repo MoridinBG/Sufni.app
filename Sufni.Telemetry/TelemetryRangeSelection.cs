@@ -1,6 +1,6 @@
 namespace Sufni.Telemetry;
 
-public abstract record TelemetryRangeSelection(SuspensionType SuspensionType)
+public closed record TelemetryRangeSelection(SuspensionType SuspensionType)
 {
     public readonly record struct BinRange(
         int Index,
