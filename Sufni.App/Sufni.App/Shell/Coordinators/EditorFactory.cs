@@ -1,3 +1,4 @@
+using Sufni.App.Bikes.Services;
 using Sufni.App.LiveDaq.Coordinators.Capture;
 using Sufni.App.Shell.ViewModels.Base;
 using Sufni.App.Sessions.Services.Preferences;
@@ -39,6 +40,8 @@ namespace Sufni.App.Shell.Coordinators;
 internal sealed class EditorFactory(
     IBikeCoordinator bikeCoordinator,
     IBikeDraftLoader bikeDraftLoader,
+    IRearSuspensionAnalysisQuery analysisQuery,
+    IBikeEditorService bikeEditorService,
     IBikeDependencyQuery bikeDependencyQuery,
     IBikeStore bikeStore,
     ISetupCoordinator setupCoordinator,
@@ -93,6 +96,8 @@ internal sealed class EditorFactory(
             isNew,
             bikeCoordinator,
             bikeDraftLoader,
+            analysisQuery,
+            bikeEditorService,
             bikeDependencyQuery,
             shell,
             dialogService,

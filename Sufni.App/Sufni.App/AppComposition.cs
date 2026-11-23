@@ -145,6 +145,7 @@ public static class AppComposition
         services.AddSingleton<BikeStore>();
         services.AddSingleton<IBikeStore>(sp => sp.GetRequiredService<BikeStore>());
         services.AddSingleton<IBikeStoreWriter>(sp => sp.GetRequiredService<BikeStore>());
+        services.AddSingleton<IRearSuspensionAnalysisQuery, RearSuspensionAnalysisQuery>();
         services.AddSingleton<IBikeDraftLoader, BikeDraftLoader>();
         services.AddSingleton<IBikeDependencyQuery, BikeDependencyQuery>();
         services.AddSingleton<ILiveDaqKnownBoardsQuery, LiveDaqKnownBoardsQuery>();

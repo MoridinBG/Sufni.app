@@ -11,15 +11,7 @@ public interface IBikeCoordinator
 {
     Task StopAsync();
 
-    Task<BikeEditorAnalysisResult> LoadAnalysisAsync(
-        RearSuspensionSpec rearSuspension,
-        CancellationToken cancellationToken = default);
-
-    Task<BikeImageLoadResult> LoadImageAsync(CancellationToken cancellationToken = default);
-
     Task<BikeImportResult> ImportBikeAsync(CancellationToken cancellationToken = default);
-
-    Task<LeverageRatioImportResult> ImportLeverageRatioAsync(CancellationToken cancellationToken = default);
 
     Task<BikeExportResult> ExportBikeAsync(BikeDraft draft, CancellationToken cancellationToken = default);
 

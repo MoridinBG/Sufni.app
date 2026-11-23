@@ -51,6 +51,8 @@ internal static class TestEditorFactories
         return new EditorFactory(
             TestCoordinatorSubstitutes.Bike(),
             TestCoordinatorSubstitutes.BikeDraftLoader(),
+            TestCoordinatorSubstitutes.BikeAnalysis(),
+            TestCoordinatorSubstitutes.BikeFiles(),
             Substitute.For<IBikeDependencyQuery>(),
             Substitute.For<IBikeStore>(),
             TestCoordinatorSubstitutes.Setup(),

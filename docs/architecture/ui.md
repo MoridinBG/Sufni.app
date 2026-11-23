@@ -80,7 +80,7 @@ graph TB
     subgraph Application["Application"]
         Coords["Coordinators<br/>(per entity + shell)"]
         Stores["Stores<br/>(IXxxStore / IXxxStoreWriter)"]
-        Queries["Queries<br/>(IBikeDependencyQuery)<br/>(ILiveDaqKnownBoardsQuery)<br/>(IRecordedSessionDomainQuery)<br/>(IRecordedSessionProjection)"]
+        Queries["Queries<br/>(IBikeDependencyQuery)<br/>(IBikeDraftLoader)<br/>(IRearSuspensionAnalysisQuery)<br/>(ILiveDaqKnownBoardsQuery)<br/>(IRecordedSessionDomainQuery)<br/>(IRecordedSessionProjection)"]
     end
 
     subgraph Services["Services"]
@@ -262,6 +262,8 @@ successful confirmation asks the shell to return to the previous page.
 `PairedDeviceUnpairFailureReason.Unpair` maps to a fixed summary. Pending-delete
 completion carries `FailurePresentation`, retaining details for the error bar
 without putting exception text in the summary.
+
+`IRearSuspensionAnalysisQuery` computes presentation-neutral curve and axle-path coordinates. Image reads return encoded bytes. The editor owns background bitmap decoding and display resources.
 
 `BikeEditorAnalysisResult` is `Computed | NotApplicable | Unsolvable | Failed`.
 Hardtails are not applicable; incomplete drafts and typed invalid-geometry inputs

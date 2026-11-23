@@ -95,6 +95,8 @@ public class BikeEditorViewSmokeTests
             isNew: false,
             bikeCoordinator,
             draftLoader,
+            TestCoordinatorSubstitutes.BikeAnalysis(),
+            TestCoordinatorSubstitutes.BikeFiles(),
             dependencyQuery,
             Substitute.For<IShellCoordinator>(),
             dialogService ?? Substitute.For<IDialogService>(),

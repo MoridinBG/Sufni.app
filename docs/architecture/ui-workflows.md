@@ -18,8 +18,8 @@ the `*Coordinator` classes, it covers `SessionRecomputeEngine`,
 Three transaction runners own the multi-row SQLite transactions. They are
 persistence services and do not publish:
 
-- `IBikePersistenceTransactionRunner` deletes a bike only when no active setup
-  references it. `BikeCoordinator` calls it.
+- `IBikePersistenceTransactionRunner` compares the draft baseline or expected cutoff
+  and writes the bike in one transaction. Deletion checks active setup references.
 - `ISetupPersistenceTransactionRunner` commits setup save, import and delete
   with the board association. `SetupCoordinator` calls it.
 - `ISessionPersistenceTransactionRunner` commits session delete and the trim and
@@ -53,9 +53,10 @@ All coordinators are singletons.
 
 Details per coordinator:
 
-- **`BikeCoordinator`** uses `IBikeEditorService` for analysis, file and image
-  I/O. Image loading returns encoded bytes and a file name. The editor decodes
-  the bitmap. Save returns a snapshot without analysis data.
+- **`BikeCoordinator`** validates saves, delegates guarded writes to the transaction
+  runner, and publishes committed snapshots. It uses `IBikeEditorService`
+  for bike import and export. The editor calls the service directly for images
+  and leverage-ratio files.
 - **`SetupCoordinator`** uses one transaction rule. The rule rejects a save
   whose bike is missing or deleted, which the coordinator returns as
   `Invalid(Bike)`. It rejects a board claim held by another setup. It clears a previous board only while this setup
@@ -101,11 +102,10 @@ Details per coordinator:
 suspension and solvability. It runs in the background for save and import and
 logs a rejection or failure once. Save compares the immutable draft base against
 the complete persisted row after validation. Import applies the same validation
-and returns a new draft. The coordinator builds rows from `BikeDraft` and
+and returns a new draft. The transaction runner builds rows from `BikeDraft`. The coordinator
 publishes the saved metadata snapshot. Initial image-bearing editor loads and
 conflicts return the complete current draft, including image bytes. Save preserves
-separately authored cutoffs. Cutoff-only writes prepare a separate row that
-keeps the persisted image. `Bike.Chainstay` is computed from the linkage geometry.
+separately authored cutoffs. Cutoff-only writes modify the current row, preserving the image and authored fields. `Bike.Chainstay` is computed from the linkage geometry.
 
 `SetupCoordinator.SaveAsync` accepts a `SetupDraft` and its optional persisted
 base. It compares authored values, including the board association and typed
@@ -405,7 +405,7 @@ Shared registrations in `AppComposition`:
   together. No coordinator depends on an editor factory or the shell.
   `ShellWorkspaceCoordinator` holds `IEditorFactory`, and
   `CreateEditor(key, shell)` receives the shell at call time.
-- **Queries**: `IBikeDependencyQuery`,
+- **Queries**: `IBikeDependencyQuery`, `IBikeDraftLoader`, `IRearSuspensionAnalysisQuery`,
   `ISetupBoardQuery`, `ILiveDaqKnownBoardsQuery`, `IRecordedSessionDomainQuery`,
   `IProcessingDependencyHashIndex`, and `IRecordedSessionProjection`.
 - **Live DAQ**: `LiveDaqStore` (singleton behind both `ILiveDaqStore` and

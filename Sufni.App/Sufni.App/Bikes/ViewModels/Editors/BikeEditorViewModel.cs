@@ -45,6 +45,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     #region Private fields
 
+    private readonly IRearSuspensionAnalysisQuery analysisQuery;
+    private readonly IBikeEditorService bikeEditorService;
     private readonly IBikeDraftLoader draftLoader;
     private readonly IBikeCoordinator bikeCoordinator;
     private readonly IBikeDependencyQuery dependencyQuery;
@@ -189,6 +191,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         bool isNew,
         IBikeCoordinator bikeCoordinator,
         IBikeDraftLoader draftLoader,
+        IRearSuspensionAnalysisQuery analysisQuery,
+        IBikeEditorService bikeEditorService,
         IBikeDependencyQuery dependencyQuery,
         IShellCoordinator shell,
         IDialogService dialogService,
@@ -199,6 +203,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         BikeDraft? initialDraft = null)
         : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
     {
+        this.analysisQuery = analysisQuery;
+        this.bikeEditorService = bikeEditorService;
         this.draftLoader = draftLoader;
         this.bikeCoordinator = bikeCoordinator;
         this.backgroundTaskRunner = backgroundTaskRunner;
@@ -499,7 +505,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         try
         {
             if (debounce) await Task.Delay(TimeSpan.FromMilliseconds(200), Clock, token);
-            var result = await bikeCoordinator.LoadAnalysisAsync(spec, token);
+            var result = await analysisQuery.LoadAnalysisAsync(spec, token);
             if (token.IsCancellationRequested) return;
 
             ApplyAnalysisResult(result);
@@ -969,7 +975,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         var token = imageOperation.Start();
         try
         {
-            var result = await bikeCoordinator.LoadImageAsync(token);
+            var result = await bikeEditorService.LoadImageAsync(token);
             if (token.IsCancellationRequested) return;
 
             switch (result)
@@ -1022,7 +1028,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         var token = leverageRatioImportOperation.Start();
         try
         {
-            var result = await bikeCoordinator.ImportLeverageRatioAsync(token);
+            var result = await bikeEditorService.ImportLeverageRatioAsync(token);
             if (token.IsCancellationRequested) return;
 
             if (result is LeverageRatioImportResult.Failed failed)

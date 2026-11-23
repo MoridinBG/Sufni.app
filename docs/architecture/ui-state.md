@@ -318,6 +318,8 @@ a query: `IBikePersistenceTransactionRunner` checks active setup references insi
 the bike delete transaction, and `BikeCoordinator.DeleteAsync` maps a rejection to
 `BikeDeleteResult.InUse`.
 
+`IRearSuspensionAnalysisQuery` derives curve and axle-path data from a rear-suspension specification through the kinematic cache and background runner.
+
 `IBikeDraftLoader` reads the full persisted bike draft, including image bytes, on demand. It distinguishes missing rows and read failures.
 
 `ILiveDaqKnownBoardsQuery` derives known board rows from `IBoardStore`, `ISetupStore` and `IBikeStore`. It captures committed snapshots, builds names, calibration and live-session contexts off-thread, and publishes on the UI dispatcher. The latest input replaces a pending computation; disposal cancels observation and suppresses late publication. Boards without setups remain visible. It has no repository dependency. See [Live DAQ Streaming](live-streaming.md).

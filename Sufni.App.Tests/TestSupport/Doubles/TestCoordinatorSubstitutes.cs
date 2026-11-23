@@ -1,5 +1,5 @@
-using Sufni.App.Bikes.Queries;
 global using Sufni.App.Tests.TestSupport;
+using Sufni.App.Bikes.Queries;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Setups.Services;
 using System.Reactive.Linq;
@@ -39,18 +39,30 @@ internal static class TestCoordinatorSubstitutes
         return loader;
     }
 
+    public static IRearSuspensionAnalysisQuery BikeAnalysis()
+    {
+        var query = Substitute.For<IRearSuspensionAnalysisQuery>();
+        query.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.NotApplicable()));
+        return query;
+    }
+
+    public static IBikeEditorService BikeFiles()
+    {
+        var service = Substitute.For<IBikeEditorService>();
+        service.LoadImageAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<BikeImageLoadResult>(new BikeImageLoadResult.Canceled()));
+        service.ImportLeverageRatioAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<LeverageRatioImportResult>(new LeverageRatioImportResult.Canceled()));
+        return service;
+    }
+
     public static IBikeCoordinator Bike()
     {
         var coordinator = Substitute.For<IBikeCoordinator>();
 
-        coordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.NotApplicable()));
-        coordinator.LoadImageAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeImageLoadResult>(new BikeImageLoadResult.Canceled()));
         coordinator.ImportBikeAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeImportResult>(new BikeImportResult.Canceled()));
-        coordinator.ImportLeverageRatioAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<LeverageRatioImportResult>(new LeverageRatioImportResult.Canceled()));
         coordinator.ExportBikeAsync(Arg.Any<BikeDraft>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeExportResult>(new BikeExportResult.Canceled()));
 

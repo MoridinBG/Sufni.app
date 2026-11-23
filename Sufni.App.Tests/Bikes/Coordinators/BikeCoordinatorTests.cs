@@ -120,8 +120,6 @@ public class BikeCoordinatorTests : IAsyncDisposable
         };
         bikeEditorService.ImportBikeAsync(Arg.Any<CancellationToken>())
             .Returns(new BikeFileImportResult.Imported(importedBike));
-        bikeEditorService.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
-            .Returns(new BikeEditorAnalysisResult.NotApplicable());
 
         var result = await CreateCoordinator().ImportBikeAsync(cancellationToken: TestContext.Current.CancellationToken);
 

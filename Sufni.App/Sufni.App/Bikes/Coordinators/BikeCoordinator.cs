@@ -33,14 +33,6 @@ internal class BikeCoordinator(
     }
 
 
-    public Task<BikeEditorAnalysisResult> LoadAnalysisAsync(
-        RearSuspensionSpec rearSuspension,
-        CancellationToken cancellationToken = default) =>
-        bikeEditorService.LoadAnalysisAsync(rearSuspension, cancellationToken);
-
-    public Task<BikeImageLoadResult> LoadImageAsync(CancellationToken cancellationToken = default) =>
-        bikeEditorService.LoadImageAsync(cancellationToken);
-
     public async Task<BikeImportResult> ImportBikeAsync(CancellationToken cancellationToken = default)
     {
         logger.Information("Starting bike import");
@@ -72,9 +64,6 @@ internal class BikeCoordinator(
                 throw new ArgumentOutOfRangeException(nameof(result));
         }
     }
-
-    public Task<LeverageRatioImportResult> ImportLeverageRatioAsync(CancellationToken cancellationToken = default) =>
-        bikeEditorService.ImportLeverageRatioAsync(cancellationToken);
 
     public async Task<BikeExportResult> ExportBikeAsync(BikeDraft draft, CancellationToken cancellationToken = default)
     {
