@@ -1,3 +1,5 @@
+using Sufni.App.Terrain.Models;
+using Sufni.App.Terrain.Queries;
 using Sufni.App.Sessions.Plots;
 using System.Collections.Immutable;
 using Sufni.App.Shared.Models;
@@ -39,7 +41,10 @@ public sealed record RecordedSessionAnalysisInputs(
     DampingSpeedCutoffs PlotDampingSpeedCutoffs,
     SessionInsightsTargetProfile SessionInsightsTargetProfile)
 {
+    public AnalysisScope Scope { get; init; } = new AnalysisScope.Whole();
+    public TerrainProfileKey? TerrainProfileKey { get; init; }
     public long TrackGeneration { get; init; }
+    public Lazy<TerrainSelectionResult>? TerrainSelection { get; init; }
     public Lazy<ImmutableArray<TrackSample>>? TrackSamples { get; init; }
     public TelemetryRangeSelection? FrontSelection { get; init; }
     public TelemetryRangeSelection? RearSelection { get; init; }
@@ -56,8 +61,9 @@ public sealed record RecordedSessionAnalysisInputs(
         RecordedSessionAnalysisFamily family,
         SuspensionType? suspensionType = null,
         BalanceType? balanceType = null,
-        ImuLocation? imuLocation = null) =>
-        family switch
+        ImuLocation? imuLocation = null)
+    {
+        var key = family switch
         {
             RecordedSessionAnalysisFamily.DampingPercentages => new RecordedSessionAnalysisKey(
                 family,
@@ -227,6 +233,13 @@ public sealed record RecordedSessionAnalysisInputs(
             },
             _ => throw new ArgumentOutOfRangeException(nameof(family), family, null),
         };
+        return family == RecordedSessionAnalysisFamily.ImuDisplayProjection ? key : key with
+        {
+            Scope = Scope,
+            TerrainProfileKey = Scope is AnalysisScope.ClassFilter || family is RecordedSessionAnalysisFamily.Availability
+                or RecordedSessionAnalysisFamily.SessionInsights ? TerrainProfileKey : null
+        };
+    }
 }
 
 public sealed record RecordedSessionAnalysisKey(
@@ -243,6 +256,8 @@ public sealed record RecordedSessionAnalysisKey(
     DampingSpeedCutoffs DampingSpeedCutoffs,
     SessionInsightsTargetProfile? SessionInsightsTargetProfile)
 {
+    public AnalysisScope Scope { get; init; } = new AnalysisScope.Whole();
+    public TerrainProfileKey? TerrainProfileKey { get; init; }
     public long TrackGeneration { get; init; }
     public TelemetryRangeSelection? FrontSelection { get; init; }
     public TelemetryRangeSelection? RearSelection { get; init; }
@@ -315,6 +330,9 @@ public sealed record AnalysisAvailabilityResult(
     AnalysisDataAvailability FrontFrameVibration,
     AnalysisDataAvailability RearForkVibration,
     AnalysisDataAvailability RearFrameVibration,
-    bool FullSessionBalanceAvailable) : RecordedSessionAnalysisResult;
+    bool FullSessionBalanceAvailable) : RecordedSessionAnalysisResult
+{
+    public TerrainSelectionResult? TerrainSelection { get; init; }
+}
 
 public sealed record SelectionHighlightsAnalysisResult(ImmutableArray<TelemetryHighlightRange> Ranges) : RecordedSessionAnalysisResult;

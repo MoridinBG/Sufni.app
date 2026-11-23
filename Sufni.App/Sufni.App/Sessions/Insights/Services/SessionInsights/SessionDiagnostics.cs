@@ -57,14 +57,14 @@ internal static class SessionDiagnostics
             front,
             ImuLocation.Fork,
             SuspensionType.Front,
-            context.Request.AnalysisRange,
+            context.Request.Selection,
             calculateVibration);
         var rearVibration = CalculateVibration(
             telemetryData,
             rear,
             ImuLocation.Shock,
             SuspensionType.Rear,
-            context.Request.AnalysisRange,
+            context.Request.Selection,
             calculateVibration);
         AddVibrationFindings(telemetryData, frontVibration, rearVibration, findings);
 
@@ -88,7 +88,7 @@ internal static class SessionDiagnostics
         AnalysisContext context,
         List<DiagnosticFinding> findings)
     {
-        if (context.Request.AnalysisRange is null)
+        if (context.Request.Selection is null)
         {
             findings.Add(new DiagnosticFinding(
                 SessionInsightsFindingId.FullSessionInsights,
@@ -98,19 +98,19 @@ internal static class SessionDiagnostics
                 [new DiagnosticEvidence(DiagnosticMeasurement.AnalysisRangeFullSession, null, null)],
                 []));
         }
-        else if (context.Request.AnalysisRange.Value.DurationSeconds < ShortRangeSeconds)
+        else if (context.Request.Selection.Ranges.Sum(r => r.DurationSeconds) < ShortRangeSeconds)
         {
             findings.Add(new DiagnosticFinding(
                 SessionInsightsFindingId.ShortSelectedRange,
                 SessionInsightsCategory.DataQuality,
                 SessionInsightsSeverity.Watch,
                 SessionInsightsConfidence.Low,
-                [new DiagnosticEvidence(DiagnosticMeasurement.RangeDurationSeconds, null, context.Request.AnalysisRange.Value.DurationSeconds)],
+                [new DiagnosticEvidence(DiagnosticMeasurement.RangeDurationSeconds, null, context.Request.Selection.Ranges.Sum(r => r.DurationSeconds))],
                 []));
         }
 
-        var frontHasStrokeData = TelemetryStatistics.HasStrokeData(telemetryData, SuspensionType.Front, context.Request.AnalysisRange);
-        var rearHasStrokeData = TelemetryStatistics.HasStrokeData(telemetryData, SuspensionType.Rear, context.Request.AnalysisRange);
+        var frontHasStrokeData = TelemetryStatistics.HasStrokeData(telemetryData, SuspensionType.Front, context.Request.Selection);
+        var rearHasStrokeData = TelemetryStatistics.HasStrokeData(telemetryData, SuspensionType.Rear, context.Request.Selection);
         if (!frontHasStrokeData && !rearHasStrokeData)
         {
             findings.Add(new DiagnosticFinding(
@@ -158,7 +158,7 @@ internal static class SessionDiagnostics
             return null;
         }
 
-        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetryData, side, context.Request.AnalysisRange);
+        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetryData, side, context.Request.Selection);
         var travelStatistics = TelemetryStatistics.CalculateTravelStatistics(telemetryData, side, context.TravelOptions);
         var velocityStatistics = TelemetryStatistics.CalculateVelocityStatistics(telemetryData, side, context.VelocityOptions);
         var maxTravel = suspension.MaxTravel;
@@ -486,7 +486,7 @@ internal static class SessionDiagnostics
             SessionInsightsFindingId.BalanceSlopesDiverge,
             SessionInsightsCategory.Balance,
             severity,
-            context.Request.AnalysisRange is null ? SessionInsightsConfidence.Low : SessionInsightsConfidence.Medium,
+            context.Request.Selection is null ? SessionInsightsConfidence.Low : SessionInsightsConfidence.Medium,
             [
                 new DiagnosticEvidence(deltaMeasurement, null, balance.AbsoluteSlopeDeltaPercent),
                 new DiagnosticEvidence(DiagnosticMeasurement.FrontBalanceSlope, SuspensionType.Front, balance.FrontSlope),
@@ -532,10 +532,10 @@ internal static class SessionDiagnostics
         SideSnapshot? side,
         ImuLocation imuLocation,
         SuspensionType suspensionType,
-        TelemetryTimeRange? range,
+        TelemetryTimeSelection? range,
         Func<TelemetryData, ImuLocation, SuspensionType, TelemetryTimeSelection?, VibrationStats?> calculateVibration)
     {
-        return side?.HasStrokeData == true && TelemetryStatistics.HasVibrationData(telemetryData, imuLocation)
+        return side is not null && TelemetryStatistics.HasPairedVibrationSamples(telemetryData, imuLocation, suspensionType, range)
             ? calculateVibration(telemetryData, imuLocation, suspensionType, range)
             : null;
     }
@@ -759,7 +759,7 @@ internal static class SessionDiagnostics
 
     private static SessionInsightsConfidence CreateConfidence(AnalysisContext context, params SideSnapshot?[] sides)
     {
-        if (context.Request.AnalysisRange is null)
+        if (context.Request.Selection is null)
         {
             return SessionInsightsConfidence.Low;
         }

@@ -245,7 +245,7 @@ public class SessionDetailViewModelTests
             editor.MobileWorkspace.Pages.OfType<SessionInsightsPageViewModel>().Single());
 
         harness.SessionInsightsService.Received(1).Analyze(Arg.Is<SessionInsightsRequest>(
-            request => request.TelemetryData == editor.SignalsWorkspace.TelemetryData && request.AnalysisRange == null));
+            request => request.TelemetryData == editor.SignalsWorkspace.TelemetryData && request.Selection == null));
         await harness.CloseAsync(editor);
     }
 
@@ -263,7 +263,7 @@ public class SessionDetailViewModelTests
         editor.SignalsWorkspace.SetAnalysisRange(0.05, 0.2);
 
         harness.SessionInsightsService.Received(1).Analyze(Arg.Is<SessionInsightsRequest>(
-            request => request.AnalysisRange == new TelemetryTimeRange(0.05, 0.2)));
+            request => request.Selection == new TelemetryTimeRange(0.05, 0.2)));
         await harness.CloseAsync(editor);
     }
 
@@ -274,7 +274,7 @@ public class SessionDetailViewModelTests
         var initialResult = CreateAnalysisResult();
         var changedResult = initialResult with { AllFindings = [] };
         harness.SessionInsightsService.Analyze(Arg.Any<SessionInsightsRequest>())
-            .Returns(call => call.Arg<SessionInsightsRequest>().AnalysisRange == null ? initialResult : changedResult);
+            .Returns(call => call.Arg<SessionInsightsRequest>().Selection == null ? initialResult : changedResult);
         var editor = harness.CreateRecordedEditor();
         await harness.LoadAsync(editor);
         editor.MobileWorkspace.SelectedPageIndex = editor.MobileWorkspace.Pages.IndexOf(

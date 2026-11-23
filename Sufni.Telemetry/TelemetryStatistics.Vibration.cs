@@ -12,6 +12,28 @@ public static partial class TelemetryStatistics
             telemetryData.ImuData.ActiveLocations.Contains((byte)location);
     }
 
+    public static bool HasPairedVibrationSamples(TelemetryData telemetry, ImuLocation location, SuspensionType side,
+        TelemetryTimeSelection? selection)
+    {
+        var suspension = GetSuspension(telemetry, side);
+        if (!suspension.Present || suspension.Travel.IsDefaultOrEmpty ||
+            !HasStrokeData(telemetry, side) || !HasVibrationData(telemetry, location)) return false;
+        if (selection is null) return true;
+        var imu = telemetry.ImuData!;
+        if (imu.SampleRate <= 0) return false;
+        foreach (var segment in imu.SampleSegments)
+        {
+            if (segment.LocationId != (byte)location || segment.Count == 0) continue;
+            var start = segment.FirstMonotonicDeltaUs / 1_000_000d;
+            foreach (var range in selection.Ranges)
+            {
+                var sample = Math.Max(0, Math.Ceiling((range.StartSeconds - start) * imu.SampleRate));
+                if (sample < segment.Count && start + sample / imu.SampleRate < range.EndSeconds) return true;
+            }
+        }
+        return false;
+    }
+
     public static VibrationStats? CalculateVibration(
         TelemetryData telemetryData,
         ImuLocation location,

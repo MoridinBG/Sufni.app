@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.Models;
 using Sufni.App.Sessions.Plots;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,42 +19,49 @@ internal interface IRecordedSessionAnalysisComputer
 internal sealed class RecordedSessionAnalysisComputer(
     ISessionInsightsService sessionInsightsService) : IRecordedSessionAnalysisComputer
 {
-    public RecordedSessionAnalysisResult Compute(RecordedSessionAnalysisKey key, TelemetryData telemetry, RecordedSessionAnalysisInputs? inputs = null) =>
-        key.Family switch
+    public RecordedSessionAnalysisResult Compute(RecordedSessionAnalysisKey key, TelemetryData telemetry, RecordedSessionAnalysisInputs? inputs = null)
+    {
+        var timeSelection = SelectionFor(key, inputs);
+        return key.Family switch
         {
             RecordedSessionAnalysisFamily.DampingPercentages => new DampingPercentagesAnalysisResult(
-                CalculateDampingPercentages(key, telemetry)),
-            RecordedSessionAnalysisFamily.SessionInsights => CalculateSessionInsights(key, telemetry),
-            RecordedSessionAnalysisFamily.Availability => CalculateAvailability(key, telemetry),
-            RecordedSessionAnalysisFamily.SelectionHighlights => CalculateHighlights(key, telemetry),
+                CalculateDampingPercentages(key, telemetry, timeSelection)),
+            RecordedSessionAnalysisFamily.SessionInsights => CalculateSessionInsights(key, telemetry, timeSelection),
+            RecordedSessionAnalysisFamily.Availability => CalculateAvailability(key, telemetry, timeSelection) with { TerrainSelection = inputs?.TerrainSelection?.Value },
+            RecordedSessionAnalysisFamily.SelectionHighlights => CalculateHighlights(key, telemetry, timeSelection),
             _ => ComputePlot(key, telemetry, inputs),
         };
 
-    private static AnalysisAvailabilityResult CalculateAvailability(RecordedSessionAnalysisKey key, TelemetryData telemetry)
+    }
+
+    private static TelemetryTimeSelection? SelectionFor(RecordedSessionAnalysisKey key, RecordedSessionAnalysisInputs? inputs) =>
+        key.Scope is AnalysisScope.ClassFilter ? inputs!.TerrainSelection!.Value.Selection : key.AnalysisRange;
+
+    private static AnalysisAvailabilityResult CalculateAvailability(RecordedSessionAnalysisKey key, TelemetryData telemetry, TelemetryTimeSelection? timeSelection)
     {
-        var front = TelemetryStatistics.HasStrokeData(telemetry, SuspensionType.Front, key.AnalysisRange);
-        var rear = TelemetryStatistics.HasStrokeData(telemetry, SuspensionType.Rear, key.AnalysisRange);
-        var compression = TelemetryStatistics.HasBalanceData(telemetry, BalanceType.Compression, key.AnalysisRange);
-        var rebound = TelemetryStatistics.HasBalanceData(telemetry, BalanceType.Rebound, key.AnalysisRange);
+        var front = TelemetryStatistics.HasStrokeData(telemetry, SuspensionType.Front, timeSelection);
+        var rear = TelemetryStatistics.HasStrokeData(telemetry, SuspensionType.Rear, timeSelection);
+        var compression = TelemetryStatistics.HasBalanceData(telemetry, BalanceType.Compression, timeSelection);
+        var rebound = TelemetryStatistics.HasBalanceData(telemetry, BalanceType.Rebound, timeSelection);
         var forkVibration = TelemetryStatistics.HasVibrationData(telemetry, ImuLocation.Fork);
         var frameVibration = TelemetryStatistics.HasVibrationData(telemetry, ImuLocation.Frame);
-        var fullBalance = key.AnalysisRange is null ? compression || rebound
+        var fullBalance = timeSelection is null ? compression || rebound
             : TelemetryStatistics.HasBalanceData(telemetry, BalanceType.Compression) || TelemetryStatistics.HasBalanceData(telemetry, BalanceType.Rebound);
         return new AnalysisAvailabilityResult(
             Availability(telemetry.Front.Present, front),
             Availability(telemetry.Rear.Present, rear),
             Availability(telemetry.Front.Present && telemetry.Rear.Present, compression),
             Availability(telemetry.Front.Present && telemetry.Rear.Present, rebound),
-            Availability(telemetry.Front.Present && forkVibration, front),
-            Availability(telemetry.Front.Present && frameVibration, front),
-            Availability(telemetry.Rear.Present && forkVibration, rear),
-            Availability(telemetry.Rear.Present && frameVibration, rear), fullBalance);
+            Availability(telemetry.Front.Present && forkVibration, TelemetryStatistics.HasPairedVibrationSamples(telemetry, ImuLocation.Fork, SuspensionType.Front, timeSelection)),
+            Availability(telemetry.Front.Present && frameVibration, TelemetryStatistics.HasPairedVibrationSamples(telemetry, ImuLocation.Frame, SuspensionType.Front, timeSelection)),
+            Availability(telemetry.Rear.Present && forkVibration, TelemetryStatistics.HasPairedVibrationSamples(telemetry, ImuLocation.Fork, SuspensionType.Rear, timeSelection)),
+            Availability(telemetry.Rear.Present && frameVibration, TelemetryStatistics.HasPairedVibrationSamples(telemetry, ImuLocation.Frame, SuspensionType.Rear, timeSelection)), fullBalance);
 
         static AnalysisDataAvailability Availability(bool present, bool hasData) => !present
             ? AnalysisDataAvailability.Absent : hasData ? AnalysisDataAvailability.Available : AnalysisDataAvailability.Empty;
     }
 
-    private static SelectionHighlightsAnalysisResult CalculateHighlights(RecordedSessionAnalysisKey key, TelemetryData telemetry)
+    private static SelectionHighlightsAnalysisResult CalculateHighlights(RecordedSessionAnalysisKey key, TelemetryData telemetry, TelemetryTimeSelection? timeSelection)
     {
         var ranges = new List<TelemetryHighlightRange>();
         Add(key.FrontSelection);
@@ -63,43 +71,47 @@ internal sealed class RecordedSessionAnalysisComputer(
         void Add(TelemetryRangeSelection? selection)
         {
             if (selection is null) return;
-            ranges.AddRange(TelemetryStatistics.CalculateHighlightRanges(telemetry, selection, key.AnalysisRange)
+            ranges.AddRange(TelemetryStatistics.CalculateHighlightRanges(telemetry, selection, timeSelection)
                 .Select(range => range with { SuspensionType = selection.SuspensionType }));
         }
     }
 
-    internal static RecordedSessionAnalysisResult ComputePlot(RecordedSessionAnalysisKey key, TelemetryData telemetry, RecordedSessionAnalysisInputs? inputs = null) =>
-        key.Family switch
+    internal static RecordedSessionAnalysisResult ComputePlot(RecordedSessionAnalysisKey key, TelemetryData telemetry, RecordedSessionAnalysisInputs? inputs = null)
+    {
+        var timeSelection = SelectionFor(key, inputs);
+        return key.Family switch
         {
-            RecordedSessionAnalysisFamily.TravelDistribution => CalculateTravelDistribution(key, telemetry),
-            RecordedSessionAnalysisFamily.TravelFrequencyDistribution => CalculateTravelFrequencyDistribution(key, telemetry),
-            RecordedSessionAnalysisFamily.VelocityDistribution => CalculateVelocityDistribution(key, telemetry),
-            RecordedSessionAnalysisFamily.Balance => CalculateBalance(key, telemetry),
-            RecordedSessionAnalysisFamily.StrokeLengthDistribution => CalculateStrokeLengthDistribution(key, telemetry),
-            RecordedSessionAnalysisFamily.StrokeSpeedDistribution => CalculateStrokeSpeedDistribution(key, telemetry),
-            RecordedSessionAnalysisFamily.DeepTravelDistribution => CalculateDeepTravelDistribution(key, telemetry),
-            RecordedSessionAnalysisFamily.VibrationDistribution => CalculateVibrationDistribution(key, telemetry),
+            RecordedSessionAnalysisFamily.TravelDistribution => CalculateTravelDistribution(key, telemetry, timeSelection),
+            RecordedSessionAnalysisFamily.TravelFrequencyDistribution => CalculateTravelFrequencyDistribution(key, telemetry, timeSelection),
+            RecordedSessionAnalysisFamily.VelocityDistribution => CalculateVelocityDistribution(key, telemetry, timeSelection),
+            RecordedSessionAnalysisFamily.Balance => CalculateBalance(key, telemetry, timeSelection),
+            RecordedSessionAnalysisFamily.StrokeLengthDistribution => CalculateStrokeLengthDistribution(key, telemetry, timeSelection),
+            RecordedSessionAnalysisFamily.StrokeSpeedDistribution => CalculateStrokeSpeedDistribution(key, telemetry, timeSelection),
+            RecordedSessionAnalysisFamily.DeepTravelDistribution => CalculateDeepTravelDistribution(key, telemetry, timeSelection),
+            RecordedSessionAnalysisFamily.VibrationDistribution => CalculateVibrationDistribution(key, telemetry, timeSelection),
             RecordedSessionAnalysisFamily.ImuDisplayProjection => new ImuDisplayProjectionAnalysisResult(
                 ImuDisplaySignalProcessor.ProcessRecorded(telemetry, inputs?.TrackSamples?.Value)),
             RecordedSessionAnalysisFamily.PositionVelocity => new PositionVelocityAnalysisResult(
-                PositionVelocityTraceBuilder.Build(telemetry, key.AnalysisRange)),
+                PositionVelocityTraceBuilder.Build(telemetry, timeSelection)),
             _ => throw new ArgumentOutOfRangeException(nameof(key), key.Family, null),
         };
 
+    }
+
     private SessionDampingPercentages CalculateDampingPercentages(
         RecordedSessionAnalysisKey key,
-        TelemetryData telemetry)
+        TelemetryData telemetry, TelemetryTimeSelection? timeSelection)
     {
         return CalculateDampingPercentages(
             telemetry,
-            key.AnalysisRange,
+            timeSelection,
             key.VelocityAverageMode ?? VelocityAverageMode.SampleAveraged,
             key.DampingSpeedCutoffs);
     }
 
     internal static SessionDampingPercentages CalculateDampingPercentages(
         TelemetryData telemetryData,
-        TelemetryTimeRange? range = null,
+        TelemetryTimeSelection? range = null,
         VelocityAverageMode velocityAverageMode = VelocityAverageMode.SampleAveraged,
         DampingSpeedCutoffs? dampingSpeedCutoffs = null)
     {
@@ -111,11 +123,11 @@ internal sealed class RecordedSessionAnalysisComputer(
 
     private SessionInsightsAnalysisResult CalculateSessionInsights(
         RecordedSessionAnalysisKey key,
-        TelemetryData telemetry)
+        TelemetryData telemetry, TelemetryTimeSelection? timeSelection)
     {
         var request = new SessionInsightsRequest(
             telemetry,
-            key.AnalysisRange,
+            timeSelection,
             key.TravelDistributionMode ?? TravelDistributionMode.ActiveSuspension,
             key.VelocityAverageMode ?? VelocityAverageMode.SampleAveraged,
             key.BalanceDisplacementMode ?? BalanceDisplacementMode.Zenith,
@@ -130,13 +142,14 @@ internal sealed class RecordedSessionAnalysisComputer(
 
     internal static TravelDistributionAnalysisResult CalculateTravelDistribution(
         RecordedSessionAnalysisKey key,
-        TelemetryData telemetry)
+        TelemetryData telemetry, TelemetryTimeSelection? timeSelection = null)
     {
+        timeSelection ??= key.AnalysisRange;
         var side = RequireSuspensionType(key);
         var options = new TravelStatisticsOptions(
-            key.AnalysisRange,
+            timeSelection,
             key.TravelDistributionMode ?? TravelDistributionMode.ActiveSuspension);
-        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetry, side, key.AnalysisRange);
+        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetry, side, timeSelection);
         var suspension = side == SuspensionType.Front ? telemetry.Front : telemetry.Rear;
         if (options.HistogramMode == TravelDistributionMode.ActiveSuspension && !hasStrokeData)
         {
@@ -156,18 +169,19 @@ internal sealed class RecordedSessionAnalysisComputer(
 
     private static TravelFrequencyDistributionAnalysisResult CalculateTravelFrequencyDistribution(
         RecordedSessionAnalysisKey key,
-        TelemetryData telemetry)
+        TelemetryData telemetry, TelemetryTimeSelection? timeSelection)
     {
         var side = RequireSuspensionType(key);
-        return new(TelemetryStatistics.CalculateTravelFrequencyHistogram(telemetry, side, key.AnalysisRange));
+        return new(TelemetryStatistics.CalculateTravelFrequencyHistogram(telemetry, side, timeSelection));
     }
 
     internal static VelocityDistributionAnalysisResult CalculateVelocityDistribution(
         RecordedSessionAnalysisKey key,
-        TelemetryData telemetry)
+        TelemetryData telemetry, TelemetryTimeSelection? timeSelection = null)
     {
+        timeSelection ??= key.AnalysisRange;
         var side = RequireSuspensionType(key);
-        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetry, side, key.AnalysisRange);
+        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetry, side, timeSelection);
         if (!hasStrokeData)
         {
             return new VelocityDistributionAnalysisResult(
@@ -177,26 +191,27 @@ internal sealed class RecordedSessionAnalysisComputer(
                 HasStrokeData: false);
         }
 
-        var options = CreateVelocityOptions(key, side);
+        var options = CreateVelocityOptions(key, side, timeSelection);
         var averageMode = key.VelocityAverageMode ?? VelocityAverageMode.SampleAveraged;
         return new VelocityDistributionAnalysisResult(
             TelemetryStatistics.CalculateVelocityHistogram(telemetry, side, options),
             TelemetryStatistics.CalculateVelocityStatistics(telemetry, side, options),
             averageMode == VelocityAverageMode.SampleAveraged
-                ? TelemetryStatistics.CalculateNormalDistribution(telemetry, side, key.AnalysisRange)
+                ? TelemetryStatistics.CalculateNormalDistribution(telemetry, side, timeSelection)
                 : new NormalDistributionData([], []),
             HasStrokeData: true);
     }
 
     internal static BalanceAnalysisResult CalculateBalance(
         RecordedSessionAnalysisKey key,
-        TelemetryData telemetry)
+        TelemetryData telemetry, TelemetryTimeSelection? timeSelection = null)
     {
+        timeSelection ??= key.AnalysisRange;
         return new BalanceAnalysisResult(TelemetryStatistics.CalculateBalance(
             telemetry,
             RequireBalanceType(key),
             new BalanceStatisticsOptions(
-                key.AnalysisRange,
+                timeSelection,
                 key.BalanceDisplacementMode ?? BalanceDisplacementMode.Zenith,
                 key.BalanceSpeedMode ?? BalanceSpeedMode.Both,
                 key.DampingSpeedCutoffs.Front.CompressionMmPerSecond,
@@ -207,63 +222,64 @@ internal sealed class RecordedSessionAnalysisComputer(
 
     private static StrokeLengthDistributionAnalysisResult CalculateStrokeLengthDistribution(
         RecordedSessionAnalysisKey key,
-        TelemetryData telemetry)
+        TelemetryData telemetry, TelemetryTimeSelection? timeSelection = null)
     {
+        timeSelection ??= key.AnalysisRange;
         var side = RequireSuspensionType(key);
         var strokeKind = RequireBalanceType(key);
-        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetry, side, key.AnalysisRange);
+        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetry, side, timeSelection);
         return new StrokeLengthDistributionAnalysisResult(
             hasStrokeData
-                ? TelemetryStatistics.CalculateStrokeLengthHistogram(telemetry, side, strokeKind, key.AnalysisRange)
+                ? TelemetryStatistics.CalculateStrokeLengthHistogram(telemetry, side, strokeKind, timeSelection)
                 : new HistogramData([], []),
             hasStrokeData);
     }
 
     private static StrokeSpeedDistributionAnalysisResult CalculateStrokeSpeedDistribution(
         RecordedSessionAnalysisKey key,
-        TelemetryData telemetry)
+        TelemetryData telemetry, TelemetryTimeSelection? timeSelection)
     {
         var side = RequireSuspensionType(key);
         var strokeKind = RequireBalanceType(key);
-        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetry, side, key.AnalysisRange);
+        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetry, side, timeSelection);
         return new StrokeSpeedDistributionAnalysisResult(
             hasStrokeData
-                ? TelemetryStatistics.CalculateStrokeSpeedHistogram(telemetry, side, strokeKind, key.AnalysisRange)
+                ? TelemetryStatistics.CalculateStrokeSpeedHistogram(telemetry, side, strokeKind, timeSelection)
                 : new HistogramData([], []),
             hasStrokeData);
     }
 
     private static DeepTravelDistributionAnalysisResult CalculateDeepTravelDistribution(
         RecordedSessionAnalysisKey key,
-        TelemetryData telemetry)
+        TelemetryData telemetry, TelemetryTimeSelection? timeSelection)
     {
         var side = RequireSuspensionType(key);
-        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetry, side, key.AnalysisRange);
+        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetry, side, timeSelection);
         return new DeepTravelDistributionAnalysisResult(
             hasStrokeData
-                ? TelemetryStatistics.CalculateDeepTravelHistogram(telemetry, side, key.AnalysisRange)
+                ? TelemetryStatistics.CalculateDeepTravelHistogram(telemetry, side, timeSelection)
                 : new HistogramData([], []),
             hasStrokeData);
     }
 
     private static VibrationDistributionAnalysisResult CalculateVibrationDistribution(
         RecordedSessionAnalysisKey key,
-        TelemetryData telemetry)
+        TelemetryData telemetry, TelemetryTimeSelection? timeSelection)
     {
         return new VibrationDistributionAnalysisResult(TelemetryStatistics.CalculateVibration(
             telemetry,
             key.ImuLocation ?? throw new ArgumentException("Analysis key requires an IMU location.", nameof(key)),
             RequireSuspensionType(key),
-            key.AnalysisRange));
+            timeSelection));
     }
 
     private static VelocityStatisticsOptions CreateVelocityOptions(
         RecordedSessionAnalysisKey key,
-        SuspensionType side)
+        SuspensionType side, TelemetryTimeSelection? timeSelection)
     {
         var cutoffs = key.DampingSpeedCutoffs.ForSide(side);
         return new VelocityStatisticsOptions(
-            key.AnalysisRange,
+            timeSelection,
             key.VelocityAverageMode ?? VelocityAverageMode.SampleAveraged,
             cutoffs.CompressionMmPerSecond,
             cutoffs.ReboundMmPerSecond);
@@ -278,7 +294,7 @@ internal sealed class RecordedSessionAnalysisComputer(
     private static SessionDampingSidePercentages CalculateDampingSidePercentages(
         TelemetryData telemetryData,
         SuspensionType suspensionType,
-        TelemetryTimeRange? range,
+        TelemetryTimeSelection? range,
         VelocityAverageMode velocityAverageMode,
         DampingSpeedCutoffSide cutoffs)
     {

@@ -117,7 +117,7 @@ public sealed record SessionInsightsTargetProfileOption(
 
 public sealed record SessionInsightsRequest(
     TelemetryData? TelemetryData,
-    TelemetryTimeRange? AnalysisRange,
+    TelemetryTimeSelection? Selection,
     TravelDistributionMode TravelDistributionMode,
     VelocityAverageMode VelocityAverageMode,
     BalanceDisplacementMode BalanceDisplacementMode,

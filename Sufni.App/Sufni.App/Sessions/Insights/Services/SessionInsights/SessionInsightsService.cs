@@ -20,10 +20,10 @@ public sealed class SessionInsightsService : ISessionInsightsService
             return SessionInsightsResult.Hidden;
         }
 
-        var travelOptions = new TravelStatisticsOptions(request.AnalysisRange, request.TravelDistributionMode);
-        var velocityOptions = new VelocityStatisticsOptions(request.AnalysisRange, request.VelocityAverageMode);
+        var travelOptions = new TravelStatisticsOptions(request.Selection, request.TravelDistributionMode);
+        var velocityOptions = new VelocityStatisticsOptions(request.Selection, request.VelocityAverageMode);
         var balanceOptions = new BalanceStatisticsOptions(
-            request.AnalysisRange,
+            request.Selection,
             request.BalanceDisplacementMode,
             request.BalanceSpeedMode,
             request.DampingSpeedCutoffs.Front.CompressionMmPerSecond,
@@ -37,7 +37,7 @@ public sealed class SessionInsightsService : ISessionInsightsService
             balanceOptions,
             SessionDiagnostics.GetProfileReferences(request.TargetProfile),
             RecordedSessionAnalysisComputer.CalculateDampingPercentages(request.TelemetryData,
-                request.AnalysisRange, request.VelocityAverageMode, request.DampingSpeedCutoffs));
+                request.Selection, request.VelocityAverageMode, request.DampingSpeedCutoffs));
 
         var report = SessionDiagnostics.Run(request.TelemetryData, context);
         var orderedFindings = report.Findings

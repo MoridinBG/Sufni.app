@@ -392,7 +392,7 @@ internal static class SessionInsightsTextCatalog
         var frontHasStrokeData = TelemetryStatistics.HasStrokeData(
             context.Request.TelemetryData!,
             SuspensionType.Front,
-            context.Request.AnalysisRange);
+            context.Request.Selection);
         return frontHasStrokeData ? "rear" : "front";
     }
 
