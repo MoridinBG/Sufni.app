@@ -67,23 +67,14 @@ public class InboundSyncCoordinatorTests
         Assert.Equal(RecordedSessionSourceSnapshot.From(source), fixture.Sources.Get(source.SessionId));
     }
 
-    [Fact]
-    public async Task ApplySourceAsync_InvalidHashLeavesSourceMissing()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ApplySourceAsync_InvalidPayloadLeavesSourceMissing(bool malformedCompression)
     {
         await using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());
-        var payload = SyncTestServerHarness.ToPayload(SyncTestServerHarness.CreateRecordedSource()) with { SourceHash = "wrong" };
-
-        Assert.Equal(InboundSourceApplyResult.InvalidPayload, await fixture.CreateCoordinator().ApplySourceAsync(payload));
-
-        Assert.Null(await fixture.Database.GetRecordedSessionSourceAsync(payload.SessionId));
-        Assert.Null(fixture.Sources.Get(payload.SessionId));
-    }
-
-    [Fact]
-    public async Task ApplySourceAsync_MalformedImportedPayloadLeavesSourceMissing()
-    {
-        await using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());
-        var payload = SyncTestServerHarness.ToPayload(SyncTestServerHarness.CreateRecordedSource()) with { Payload = [1, 2, 3] };
+        var valid = SyncTestServerHarness.ToPayload(SyncTestServerHarness.CreateRecordedSource());
+        var payload = malformedCompression ? valid with { Payload = [1, 2, 3] } : valid with { SourceHash = "wrong" };
 
         Assert.Equal(InboundSourceApplyResult.InvalidPayload, await fixture.CreateCoordinator().ApplySourceAsync(payload));
 
