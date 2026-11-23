@@ -54,6 +54,7 @@ public sealed record SegmentComparisonSessionState(
 public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisposable, IAsyncDisposable
 {
     private const double TimelinePaddingFraction = 0.05;
+    private const string TrailAverageMinimumText = "Trail average needs 3 runs";
 
     private readonly Guid sessionId;
     private readonly ISegmentCoordinator segmentCoordinator;
@@ -83,7 +84,8 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
     public string? TrailAverageStatus => TrailAverage switch
     {
         SegmentTrailAverage.Averaged a => $"Trail average: {a.Measurement.RunCount} runs",
-        SegmentTrailAverage.TooFewRuns => "Trail average needs 3 runs",
+        SegmentTrailAverage.TooFewRuns => TrailAverageMinimumText,
+        null when MatchCount == 1 && state.Terrain is not null => TrailAverageMinimumText,
         SegmentTrailAverage.Failed => "Could not prepare the trail average. Run Match to retry.",
         _ => null
     };
@@ -106,7 +108,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
     public partial SegmentAnalysisComparison? AnalysisComparison { get; private set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasMultiplePages))]
+    [NotifyPropertyChangedFor(nameof(HasMultiplePages), nameof(TrailAverageStatus))]
     [NotifyCanExecuteChangedFor(nameof(PreviousPageCommand), nameof(NextPageCommand))]
     public partial int MatchCount { get; private set; }
 
@@ -162,7 +164,8 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         {
             averaging.Cancel();
             TrailAverage = null;
-            if (!MatchCommand.IsRunning && next.Terrain is { } terrain && next.AnalysisRange is { } range)
+            if (matches.Count == 1) OnPropertyChanged(nameof(TrailAverageStatus));
+            else if (!MatchCommand.IsRunning && next.Terrain is { } terrain && next.AnalysisRange is { } range)
                 _ = TrackAsync(AverageAsync(terrain, range, matches));
         }
 
@@ -255,7 +258,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
                 if (state.Terrain is { } terrain)
                 {
                     if (matches.Count == 0) TrailAverage = new SegmentTrailAverage.TooFewRuns(1);
-                    else await AverageAsync(terrain, source.Range, matches, token);
+                    else if (matches.Count >= 2) await AverageAsync(terrain, source.Range, matches, token);
                 }
                 break;
             case SegmentMatchResult.NoTrack:

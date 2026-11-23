@@ -316,7 +316,7 @@ public class SegmentComparisonViewModelTests
     public async Task NewMatchRemovesBothTrailRowsBeforeItsResultArrives()
     {
         await using var vm = CreateComparison();
-        TwoTrailMatches();
+        TrailMatches((10, 13), (6, 12));
         TestSegmentComparisons.WithTrailAverage(coordinator);
         await vm.MatchCommand.ExecuteAsync(null);
         Assert.Equal(SegmentComparisonSeriesRole.FrameImu, Assert.Single(Assert.Single(vm.RoughnessRows).Series).Role);
@@ -338,7 +338,7 @@ public class SegmentComparisonViewModelTests
     public async Task ClearingWhileAverageIsPendingDiscardsItsLateResult()
     {
         await using var vm = CreateComparison();
-        TwoTrailMatches();
+        TrailMatches((10, 13), (6, 12));
         var result = new TaskCompletionSource<SegmentTrailAverage>();
         CancellationToken token = default;
         coordinator.BuildTrailAverageAsync(Arg.Any<SegmentTerrainSource>(), Arg.Any<TelemetryTimeRange>(),
@@ -352,11 +352,30 @@ public class SegmentComparisonViewModelTests
         Assert.Null(vm.TrailAverage);
     }
 
-    private void TwoTrailMatches()
+    [Fact]
+    public async Task SingleMatchCompletesWithoutWaitingForTrailAveraging()
+    {
+        await using var vm = CreateComparison();
+        TrailMatches((10, 13));
+        var deferred = new TaskCompletionSource<SegmentTrailAverage>();
+        coordinator.BuildTrailAverageAsync(Arg.Any<SegmentTerrainSource>(), Arg.Any<TelemetryTimeRange>(),
+                Arg.Any<IReadOnlyList<SegmentMatch>>(), Arg.Any<CancellationToken>())
+            .Returns(deferred.Task);
+        var match = vm.MatchCommand.ExecuteAsync(null);
+        var completed = match.IsCompletedSuccessfully;
+        deferred.SetResult(new SegmentTrailAverage.TooFewRuns(2));
+        await match;
+        Assert.True(completed);
+        Assert.Single(vm.TravelRows);
+        Assert.NotNull(vm.TrailAverageStatus);
+        Assert.Empty(vm.RoughnessRows);
+    }
+
+    private void TrailMatches(params (int Start, int End)[] ranges)
     {
         var profile = TerrainProfiles.Classified(TerrainProfiles.Window(0, RoughnessClass.Calm, RoughnessSource.FrameOnly));
         sessionState.OnNext(State() with { Terrain = new(Guid.NewGuid(), TerrainProfileKey.From(TestSegmentMatches.Token), profile, TerrainBaselineIdentity.Empty) });
-        MatchReturns(Comparison(TestSegmentMatches.Match(10, 13)), Comparison(TestSegmentMatches.Match(6, 12)));
+        MatchReturns(ranges.Select(r => Comparison(TestSegmentMatches.Match(r.Start, r.End))).ToArray());
     }
 
     private SegmentComparisonViewModel CreateComparison(SegmentTerrainComparison? terrain = null)
