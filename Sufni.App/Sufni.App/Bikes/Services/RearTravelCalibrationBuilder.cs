@@ -17,7 +17,7 @@ internal interface IRearTravelCalibrationBuilder
     RearTravelCalibrationResult TryBuild(SetupSnapshot setup, BikeSnapshot bike);
 }
 
-internal abstract record RearTravelCalibrationResult
+internal closed record RearTravelCalibrationResult
 {
     private RearTravelCalibrationResult() { }
     public sealed record Built(RearTravelCalibration Calibration) : RearTravelCalibrationResult;

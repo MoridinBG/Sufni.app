@@ -10,7 +10,7 @@ public interface IBikePersistenceTransactionRunner
     Task<BikeDeletePersistenceResult> DeleteBikeAsync(Guid bikeId, CancellationToken cancellationToken = default);
 }
 
-public abstract record BikeDeletePersistenceResult
+public closed record BikeDeletePersistenceResult
 {
     private BikeDeletePersistenceResult() { }
     public sealed record Deleted : BikeDeletePersistenceResult;

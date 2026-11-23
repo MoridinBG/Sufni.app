@@ -8,7 +8,7 @@ public sealed record BikeAnalysisPresentationData(
     CoordinateList LeverageRatioData,
     CoordinateList? RearAxlePathData);
 
-public abstract record BikeEditorAnalysisResult
+public closed record BikeEditorAnalysisResult
 {
     private BikeEditorAnalysisResult() { }
 
@@ -18,7 +18,7 @@ public abstract record BikeEditorAnalysisResult
     public sealed record Failed(BikeAnalysisFailureReason Reason, string? Details = null) : BikeEditorAnalysisResult;
 }
 
-public abstract record BikeImageLoadResult
+public closed record BikeImageLoadResult
 {
     private BikeImageLoadResult() { }
 
@@ -27,7 +27,7 @@ public abstract record BikeImageLoadResult
     public sealed record Failed(BikeImageFailureReason Reason, string? Details = null) : BikeImageLoadResult;
 }
 
-public abstract record BikeFileImportResult
+public closed record BikeFileImportResult
 {
     private BikeFileImportResult() { }
 
@@ -37,7 +37,7 @@ public abstract record BikeFileImportResult
     public sealed record Failed(BikeImportFailureReason Reason, string? Details = null) : BikeFileImportResult;
 }
 
-public abstract record BikeExportResult
+public closed record BikeExportResult
 {
     private BikeExportResult() { }
 
@@ -46,7 +46,7 @@ public abstract record BikeExportResult
     public sealed record Failed(BikeExportFailureReason Reason, string? Details = null) : BikeExportResult;
 }
 
-public abstract record LeverageRatioImportResult
+public closed record LeverageRatioImportResult
 {
     private LeverageRatioImportResult() { }
 

@@ -30,9 +30,7 @@ internal sealed class BikeRearSuspensionValidator : IBikeRearSuspensionValidator
                 ValidateLinkage(snapshot, linkage.Spec),
 
             RearSuspensionSpec.LeverageRatio leverageRatio =>
-                ValidateLeverageRatio(snapshot, leverageRatio.Spec),
-
-            _ => throw new ArgumentOutOfRangeException(nameof(snapshot), snapshot.RearSuspension.GetType().Name)
+                ValidateLeverageRatio(snapshot, leverageRatio.Spec)
         };
     }
 
@@ -110,7 +108,7 @@ internal sealed class BikeRearSuspensionValidator : IBikeRearSuspensionValidator
 
 }
 
-internal abstract record BikeRearSuspensionValidationResult
+internal closed record BikeRearSuspensionValidationResult
 {
     private BikeRearSuspensionValidationResult() { }
 

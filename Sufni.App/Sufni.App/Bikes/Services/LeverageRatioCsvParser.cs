@@ -151,7 +151,7 @@ public static class LeverageRatioCsvParser
     }
 }
 
-public abstract record LeverageRatioParseResult
+public closed record LeverageRatioParseResult
 {
     private LeverageRatioParseResult() { }
 

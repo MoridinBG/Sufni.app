@@ -1,11 +1,10 @@
-using System;
 using System.Text.Json.Serialization;
 using Sufni.Kinematics;
 
 namespace Sufni.App.Bikes.Models;
 
 [JsonConverter(typeof(RearSuspensionSpecJsonConverter))]
-public abstract record RearSuspensionSpec
+public closed record RearSuspensionSpec
 {
     private RearSuspensionSpec() { }
 
@@ -26,7 +25,6 @@ public abstract record RearSuspensionSpec
         LinkageDraft => RearSuspensionKind.Linkage,
         Linkage => RearSuspensionKind.Linkage,
         LeverageRatioDraft => RearSuspensionKind.LeverageRatio,
-        LeverageRatio => RearSuspensionKind.LeverageRatio,
-        _ => throw new ArgumentOutOfRangeException(nameof(RearSuspensionSpec), GetType().Name)
+        LeverageRatio => RearSuspensionKind.LeverageRatio
     };
 }

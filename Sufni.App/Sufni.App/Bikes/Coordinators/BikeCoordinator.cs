@@ -82,7 +82,6 @@ internal class BikeCoordinator(
                     BikeSaveValidation.Valid => new BikeImportResult.Imported(draft),
                     BikeSaveValidation.Invalid invalid => new BikeImportResult.InvalidFile(invalid.Message),
                     BikeSaveValidation.Failed failed => new BikeImportResult.Failed(BikeImportFailureReason.Import, failed.Details),
-                    _ => throw new ArgumentOutOfRangeException(),
                 };
 
             case BikeFileImportResult.Canceled:
@@ -258,7 +257,7 @@ internal class BikeCoordinator(
 
 }
 
-public abstract record BikeSaveResult
+public closed record BikeSaveResult
 {
     private BikeSaveResult() { }
 
@@ -269,7 +268,7 @@ public abstract record BikeSaveResult
     public sealed record Failed(BikeSaveFailureReason Reason, string? Details = null) : BikeSaveResult;
 }
 
-public abstract record BikeDeleteResult
+public closed record BikeDeleteResult
 {
     private BikeDeleteResult() { }
     public sealed record Deleted : BikeDeleteResult;
@@ -277,7 +276,7 @@ public abstract record BikeDeleteResult
     public sealed record Failed(BikeDeleteFailureReason Reason, string? Details = null) : BikeDeleteResult;
 }
 
-public abstract record BikeDampingSpeedCutoffUpdateResult
+public closed record BikeDampingSpeedCutoffUpdateResult
 {
     private BikeDampingSpeedCutoffUpdateResult() { }
 

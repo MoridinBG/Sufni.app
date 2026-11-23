@@ -4,7 +4,7 @@ using Sufni.App.Bikes.Services;
 
 namespace Sufni.App.Bikes.Coordinators;
 
-public abstract record BikeImportResult
+public closed record BikeImportResult
 {
     private BikeImportResult() { }
 
@@ -14,7 +14,7 @@ public abstract record BikeImportResult
     public sealed record Failed(BikeImportFailureReason Reason, string? Details = null) : BikeImportResult;
 }
 
-public abstract record BikeDraftLoadResult
+public closed record BikeDraftLoadResult
 {
     private BikeDraftLoadResult() { }
     public sealed record Loaded(BikeDraft Draft) : BikeDraftLoadResult;

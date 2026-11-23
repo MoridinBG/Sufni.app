@@ -65,7 +65,7 @@ internal sealed class BikeSaveValidator(
     }
 }
 
-internal abstract record BikeSaveValidation
+internal closed record BikeSaveValidation
 {
     private BikeSaveValidation() { }
     public sealed record Valid : BikeSaveValidation;
