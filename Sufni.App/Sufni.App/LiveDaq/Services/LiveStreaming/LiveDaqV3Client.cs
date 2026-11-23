@@ -39,7 +39,7 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
     private readonly SemaphoreSlim lifecycleGate = new(1, 1);
     private readonly LiveV3ProtocolReader protocolReader = new();
 
-    private abstract record CapabilitiesOutcome
+    private closed record CapabilitiesOutcome
     {
         public sealed record Ready(LiveV3Capabilities Capabilities) : CapabilitiesOutcome;
         public sealed record NotReady(LivePreviewStartResult.NotStarted Outcome) : CapabilitiesOutcome;

@@ -5,7 +5,7 @@ namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 public enum DaqManagementOperation { SetTime, ReadConfig, WriteConfig, ListFiles }
 
 // The operation holding the DAQ's single-client port, independently of tab observers.
-public abstract record DaqTransportHolder
+public closed record DaqTransportHolder
 {
     private DaqTransportHolder() { }
     public sealed record Streaming : DaqTransportHolder;
@@ -14,7 +14,7 @@ public abstract record DaqTransportHolder
     public sealed record Import(Guid BatchId) : DaqTransportHolder;
 }
 
-public abstract record DaqTransportAcquisition
+public closed record DaqTransportAcquisition
 {
     private DaqTransportAcquisition() { }
     public sealed record Acquired(IDisposable Lease) : DaqTransportAcquisition;

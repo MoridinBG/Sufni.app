@@ -2,7 +2,7 @@ namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 
 public enum LiveStreamClosedReason { Offline, ProtocolChanged, ConnectionLost, TransportFailure, Disposed }
 
-public abstract record LiveConnectionState
+public closed record LiveConnectionState
 {
     private LiveConnectionState() { }
     public virtual string? Message => null;

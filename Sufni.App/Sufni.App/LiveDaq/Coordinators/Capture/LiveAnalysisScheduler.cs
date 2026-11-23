@@ -16,7 +16,7 @@ public sealed record LiveAnalysisKey(long ResetGeneration, long CaptureRevision,
 internal sealed record LiveAnalysisJob(
     LiveAnalysisKey Key, LiveCaptureContent Content, BikeData BikeData);
 
-internal abstract record LiveAnalysisCompletion(LiveAnalysisKey Key)
+internal closed record LiveAnalysisCompletion(LiveAnalysisKey Key)
 {
     public sealed record Computed(LiveAnalysisKey Key, LiveSessionAnalysis Analysis)
         : LiveAnalysisCompletion(Key);

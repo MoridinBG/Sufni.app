@@ -112,6 +112,5 @@ public sealed record LiveDaqUiSnapshot(
         LiveConnectionState.Connected => "Connected",
         LiveConnectionState.Disconnecting => "Disconnecting",
         LiveConnectionState.Closed => "Closed",
-        _ => throw new ArgumentOutOfRangeException(nameof(state)),
     };
 }

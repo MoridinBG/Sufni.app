@@ -4,7 +4,7 @@ using Sufni.App.Sessions.Plots;
 
 namespace Sufni.App.LiveDaq.Coordinators.Capture;
 
-internal abstract record LiveDisplayUpdate(long Epoch)
+internal closed record LiveDisplayUpdate(long Epoch)
 {
     public sealed record Travel(
         long Epoch,

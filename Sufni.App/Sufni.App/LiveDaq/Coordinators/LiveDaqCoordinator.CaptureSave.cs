@@ -120,7 +120,7 @@ public partial class LiveDaqCoordinator
 
 }
 
-public abstract record LiveSessionSaveResult
+public closed record LiveSessionSaveResult
 {
     private LiveSessionSaveResult() { }
 

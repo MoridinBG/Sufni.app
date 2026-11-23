@@ -20,8 +20,7 @@ internal static class LiveDaqMessages
         DaqTransportHolder.Streaming => "DAQ is busy: streaming.",
         DaqTransportHolder.Import => "DAQ is busy: importing.",
         DaqTransportHolder.Identify => "DAQ is busy: identifying the device.",
-        DaqTransportHolder.Management => "DAQ is busy: device management.",
-        _ => throw new ArgumentOutOfRangeException(nameof(holder))
+        DaqTransportHolder.Management => "DAQ is busy: device management."
     };
 
     public static FailurePresentation? ManagementFailure(LiveDaqManagementResult result) => result switch

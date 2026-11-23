@@ -7,7 +7,7 @@ namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 
 public enum LiveDisconnectResult { Stopped, Locked }
 
-public abstract record LiveStreamLeaseResult
+public closed record LiveStreamLeaseResult
 {
     private LiveStreamLeaseResult() { }
     public sealed record Acquired(ILiveDaqSharedStreamLease Lease) : LiveStreamLeaseResult;

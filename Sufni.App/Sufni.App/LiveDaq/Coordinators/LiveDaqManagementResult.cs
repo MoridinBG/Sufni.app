@@ -15,7 +15,7 @@ public sealed record LiveDaqManagementAvailability(LiveDaqCatalogEntry? Device, 
 
 public enum DaqManagementUnavailability { Offline, Unsupported }
 
-public abstract record LiveDaqManagementResult
+public closed record LiveDaqManagementResult
 {
     private LiveDaqManagementResult() { }
     public sealed record TimeSet(TimeSpan RoundTripTime) : LiveDaqManagementResult;

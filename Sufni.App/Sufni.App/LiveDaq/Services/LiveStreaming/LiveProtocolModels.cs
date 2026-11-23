@@ -284,9 +284,9 @@ public sealed record LiveSessionStatsFrame(LiveFrameMetadata Header, LiveSession
 public enum LiveStartUnavailableReason { Offline, NotConnected, NotReady }
 public enum LiveStartFailureReason { Connection, Negotiation, Request, SessionMismatch, Interrupted, DeviceEnded }
 
-public abstract record LivePreviewStartResult
+public closed record LivePreviewStartResult
 {
-    public abstract record NotStarted : LivePreviewStartResult
+    public closed record NotStarted : LivePreviewStartResult
     {
         public abstract string Message { get; }
     }
@@ -326,7 +326,7 @@ public abstract record LivePreviewStartResult
     }
 }
 
-public abstract record LiveDaqClientEvent
+public closed record LiveDaqClientEvent
 {
     public sealed record FrameReceived(LiveProtocolFrame Frame) : LiveDaqClientEvent;
     public sealed record DropCountersChanged(LiveDaqClientDropCounters Counters) : LiveDaqClientEvent;
