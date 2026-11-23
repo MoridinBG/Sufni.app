@@ -1,0 +1,36 @@
+<UserControl
+    x:Class="Sufni.App.Bikes.DesktopViews.Editors.RearSuspensionModeSelectorDesktopView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Sufni.App.Bikes.ViewModels.Editors"
+    xmlns:models="using:Sufni.App.Bikes.Models"
+    x:DataType="vm:RearSuspensionWorkspaceViewModel">
+    <Grid
+    Margin="0,0,0,8"
+    ColumnDefinitions="* * *">
+        <ToggleButton
+        Grid.Column="0"
+        Margin="0,0,5,0"
+        Command="{Binding SetRearSuspensionModeCommand}"
+        CommandParameter="{x:Static models:RearSuspensionKind.None}"
+        IsChecked="{Binding IsHardtailMode}"
+        IsEnabled="{Binding CanChangeRearSuspensionMode}"
+        Content="Hardtail" />
+        <ToggleButton
+        Name="LinkageModeButton"
+        Grid.Column="1"
+        Margin="0,0,5,0"
+        Command="{Binding SetRearSuspensionModeCommand}"
+        CommandParameter="{x:Static models:RearSuspensionKind.Linkage}"
+        IsChecked="{Binding IsLinkageMode}"
+        IsEnabled="{Binding CanChangeRearSuspensionMode}"
+        Content="Linkage" />
+        <ToggleButton
+        Grid.Column="2"
+        Command="{Binding SetRearSuspensionModeCommand}"
+        CommandParameter="{x:Static models:RearSuspensionKind.LeverageRatio}"
+        IsChecked="{Binding IsLeverageRatioMode}"
+        IsEnabled="{Binding CanChangeRearSuspensionMode}"
+        Content="Leverage ratio" />
+    </Grid>
+</UserControl>

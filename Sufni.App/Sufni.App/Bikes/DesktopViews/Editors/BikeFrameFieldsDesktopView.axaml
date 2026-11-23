@@ -1,0 +1,39 @@
+<UserControl
+    x:Class="Sufni.App.Bikes.DesktopViews.Editors.BikeFrameFieldsDesktopView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Sufni.App.Bikes.ViewModels.Editors"
+    x:DataType="vm:BikeFrameWorkspaceViewModel">
+    <Grid RowDefinitions="auto auto auto" ColumnDefinitions="auto *">
+        <TextBlock Grid.Column="0" Grid.Row="0"
+        Margin="0,0,0,5"
+        Text="Head angle (°)" />
+        <NumericUpDown Grid.Column="1" Grid.Row="0"
+        Margin="0,0,0,5"
+        Maximum="90"
+        Minimum="0"
+        Name="HeadAngleInput"
+        IsReadOnly="{Binding IsHeadAngleDerived}"
+        Value="{Binding HeadAngle}" />
+        <TextBlock Grid.Column="0" Grid.Row="1"
+        Margin="0,0,0,5"
+        Text="Fork stroke (mm)" />
+        <NumericUpDown Grid.Column="1" Grid.Row="1"
+        Margin="0,0,0,5"
+        Maximum="300"
+        Minimum="0"
+        Value="{Binding ForksStroke}" />
+        <TextBlock Grid.Column="0" Grid.Row="2"
+        Name="ShockStrokeLabel"
+        Margin="0,0,10,5"
+        IsVisible="{Binding HasRearSuspension}"
+        Text="Shock stroke (mm)" />
+        <NumericUpDown Grid.Column="1" Grid.Row="2"
+        Name="ShockStrokeNumericUpDown"
+        Margin="0,0,0,5"
+        IsVisible="{Binding HasRearSuspension}"
+        Maximum="1000"
+        Minimum="0"
+        Value="{Binding ShockStroke}" />
+    </Grid>
+</UserControl>

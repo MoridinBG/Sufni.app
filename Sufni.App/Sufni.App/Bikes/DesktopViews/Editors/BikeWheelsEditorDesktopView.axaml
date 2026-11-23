@@ -1,0 +1,130 @@
+<UserControl
+    x:Class="Sufni.App.Bikes.DesktopViews.Editors.BikeWheelsEditorDesktopView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Sufni.App.Bikes.ViewModels.Editors"
+    x:DataType="vm:BikeWheelsWorkspaceViewModel"
+    IsVisible="{Binding IsWheelEditingAvailable}">
+    <Grid RowDefinitions="auto auto auto auto" ColumnDefinitions="auto *">
+        <Grid Grid.ColumnSpan="2" Grid.Column="0" Grid.Row="0"
+        Name="FrontWheelEditorHeaderGrid"
+        Margin="0,10,0,5"
+        ColumnDefinitions="auto,*">
+            <Button
+            Grid.Column="0"
+            Width="28"
+            Height="28"
+            MinWidth="28"
+            MinHeight="28"
+            Margin="0,0,8,0"
+            Padding="0"
+            HorizontalAlignment="Left"
+            HorizontalContentAlignment="Center"
+            VerticalAlignment="Center"
+            Command="{Binding RemoveFrontWheelCommand}"
+            Content="X" />
+            <TextBlock
+            Grid.Column="1"
+            FontWeight="SemiBold"
+            Text="Front Wheel" />
+        </Grid>
+        <Grid Grid.ColumnSpan="2" Grid.Column="0" Grid.Row="1"
+        Name="FrontWheelEditorInputsGrid"
+        Margin="0,0,0,5"
+        ColumnDefinitions="* * *"
+
+        >
+            <ComboBox
+            Grid.Column="0"
+            HorizontalAlignment="Stretch"
+            Margin="0,0,5,0"
+            ItemsSource="{Binding RimSizeOptions}"
+            PlaceholderText="Rim"
+            SelectedValue="{Binding FrontWheelRimSize}"
+            SelectedValueBinding="{Binding Value, DataType=vm:RimSizeOption}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:RimSizeOption">
+                        <TextBlock Text="{Binding DisplayName}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <NumericUpDown
+            Grid.Column="1"
+            Margin="0,0,5,0"
+            FormatString="0.00"
+            Increment="0.05"
+            Maximum="5"
+            Minimum="1"
+            Value="{Binding FrontWheelTireWidth}"
+            PlaceholderText="Width" />
+            <NumericUpDown
+            Grid.Column="2"
+            FormatString="0.0"
+            Increment="1"
+            Maximum="1000"
+            Minimum="400"
+            Value="{Binding FrontWheelDiameter}"
+            PlaceholderText="Ø mm" />
+        </Grid>
+        <Grid Grid.ColumnSpan="2" Grid.Column="0" Grid.Row="2"
+        Name="RearWheelEditorHeaderGrid"
+        Margin="0,10,0,5"
+        ColumnDefinitions="auto,*">
+            <Button
+            Grid.Column="0"
+            Width="28"
+            Height="28"
+            MinWidth="28"
+            MinHeight="28"
+            Margin="0,0,8,0"
+            Padding="0"
+            HorizontalAlignment="Left"
+            HorizontalContentAlignment="Center"
+            VerticalAlignment="Center"
+            Command="{Binding RemoveRearWheelCommand}"
+            Content="X" />
+            <TextBlock
+            Grid.Column="1"
+            FontWeight="SemiBold"
+            Text="Rear Wheel" />
+        </Grid>
+        <Grid Grid.ColumnSpan="2" Grid.Column="0" Grid.Row="3"
+        Name="RearWheelEditorInputsGrid"
+        Margin="0,0,0,5"
+        ColumnDefinitions="* * *"
+
+        >
+            <ComboBox
+            Grid.Column="0"
+            HorizontalAlignment="Stretch"
+            Margin="0,0,5,0"
+            ItemsSource="{Binding RimSizeOptions}"
+            PlaceholderText="Rim"
+            SelectedValue="{Binding RearWheelRimSize}"
+            SelectedValueBinding="{Binding Value, DataType=vm:RimSizeOption}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:RimSizeOption">
+                        <TextBlock Text="{Binding DisplayName}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <NumericUpDown
+            Grid.Column="1"
+            Margin="0,0,5,0"
+            FormatString="0.00"
+            Increment="0.05"
+            Maximum="5"
+            Minimum="1"
+            Value="{Binding RearWheelTireWidth}"
+            PlaceholderText="Width" />
+            <NumericUpDown
+            Grid.Column="2"
+            FormatString="0.0"
+            Increment="1"
+            Maximum="1000"
+            Minimum="400"
+            Value="{Binding RearWheelDiameter}"
+            PlaceholderText="Ø mm" />
+        </Grid>
+    </Grid>
+</UserControl>
