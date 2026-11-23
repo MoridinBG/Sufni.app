@@ -124,6 +124,38 @@ public class TerrainProfileCalculatorTests
     }
 
     [Fact]
+    public void BandLevelsMatchTheGroundBandAmplitudes()
+    {
+        var frame = SyntheticRide.Build([new(300, LowBandG: 0.3, MiddleBandG: 0.6, HighBandG: 1.2)]).Profile().Windows[15].Frame!;
+        Assert.InRange(frame.LowBand, 0.3 * 0.95, 0.3 * 1.05);
+        Assert.InRange(frame.MiddleBand, 0.6 * 0.95, 0.6 * 1.05);
+        Assert.InRange(frame.HighBand, 1.2 * 0.95, 1.2 * 1.05);
+    }
+
+    [Fact]
+    public void SuspensionFiguresFollowTheResponseLaw()
+    {
+        // At 5 m/s a window lasts 2 s, four whole response cycles.
+        const double speed = 5;
+        var section = new RideSection(300, speed, LowBandG: 0.6, MiddleBandG: 0.8, HighBandG: 0, CompressionGain: 1.5, ReboundGain: 0.5);
+        var response = SyntheticRide.ResponseAmplitude(1, speed);
+        var front = SyntheticRide.Build([section]).Profile().Windows[15].Front!.Value;
+        // Compression takes a quarter of each cycle at 1.5 × the amplitude, rebound three quarters at 0.5 ×.
+        var rms = response * Math.Sqrt((0.25 * 1.5 * 1.5 + 0.75 * 0.5 * 0.5) / 2);
+        Assert.InRange(front.RmsVelocity, rms * 0.98, rms * 1.02);
+        Assert.InRange(front.PeakCompression, 1.5 * response * 0.98, 1.5 * response * 1.02);
+        Assert.InRange(front.PeakRebound, 0.5 * response * 0.98, 0.5 * response * 1.02);
+    }
+
+    [Fact]
+    public void MatchingSeriesHoldsTheLogBroadbandLevelOfEachMetre()
+    {
+        var matching = SyntheticRide.Build([new(300, LowBandG: 0.2, MiddleBandG: 0.6, HighBandG: 0.9)]).Profile().FrameMatching;
+        var expected = Math.Log(Math.Sqrt(0.2 * 0.2 + 0.6 * 0.6 + 0.9 * 0.9));
+        Assert.All(matching.Where(m => m.Metres is >= 20 and <= 280), m => Assert.InRange(m.LogLevel, expected - 0.03, expected + 0.03));
+    }
+
+    [Fact]
     public void UncalibratedSensorStillProvidesPhysicalBandLevelsAndMatchingSeries()
     {
         var profile = SyntheticRide.Build([new(350)], new RideRecording(AccelScale: 2048, Lowers: false)).Profile();

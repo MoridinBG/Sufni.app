@@ -81,7 +81,7 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
                 }
                 var level = surface * Math.Sqrt(section.LowBandG * section.LowBandG +
                     section.MiddleBandG * section.MiddleBandG + section.HighBandG * section.HighBandG);
-                var response = speed > 0 ? 140 * Math.Pow(level, 0.8) * Math.Pow(speed / 7, 0.7) : 0;
+                var response = ResponseAmplitude(level, speed);
                 front.Add(tick, response, section);
                 rear.Add(tick, response * 0.8, section);
             }
@@ -128,6 +128,10 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
         };
         return new(telemetry, fixes.ToImmutable());
     }
+
+    /// <summary>Front suspension velocity amplitude for a ground RMS level in g at a speed; the rear gets 0.8 of it.</summary>
+    public static double ResponseAmplitude(double groundLevel, double speed) =>
+        speed > 0 ? 140 * Math.Pow(groundLevel, 0.8) * Math.Pow(speed / 7, 0.7) : 0;
 
     private static bool Inside(TelemetryTimeRange? range, double seconds) =>
         range is { } r && seconds >= r.StartSeconds && seconds < r.EndSeconds;
