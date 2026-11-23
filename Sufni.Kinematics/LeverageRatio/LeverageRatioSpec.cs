@@ -36,8 +36,10 @@ public sealed class LeverageRatioSpec : IEquatable<LeverageRatioSpec>
     [JsonPropertyName("points")]
     public IReadOnlyList<LeverageRatioPoint> Points => pointView;
 
+    [JsonIgnore]
     public double MaxShockStroke => travelCurve.X[^1];
 
+    [JsonIgnore]
     public double MaxWheelTravel => travelCurve.Y[^1];
 
     public static LeverageRatioSpec FromPoints(IReadOnlyList<LeverageRatioPoint> points)

@@ -97,7 +97,7 @@ internal sealed class SessionSyncApplier : ISessionSyncApplier
     {
         var current = await sessionRepository.GetSessionAsync(expected.Id);
         if (current is null) return SessionDataApplyResult.Missing;
-        var telemetry = telemetryProcessor.ReadProcessedTelemetryData(payload.Data);
+        var duration = SessionDuration.Normalize(telemetryProcessor.ReadProcessedTelemetryData(payload.Data).Metadata?.Duration ?? current.DurationSeconds);
         if (generation is null && current.HasProcessedData) return SessionDataApplyResult.Ignored;
         var inputs = await sessionRepository.GetProcessingInputBundleAsync(expected.Id);
         var decision = ProcessedGenerationAcceptance.DecideProcessedGenerationTarget(
@@ -118,7 +118,6 @@ internal sealed class SessionSyncApplier : ISessionSyncApplier
         }
         else
         {
-            var duration = SessionDuration.Normalize(telemetry.Metadata?.Duration ?? current.DurationSeconds);
             committed = await sessionRepository.UpdateSessionPsstAsync(expected.Id, payload.Data, payload.Fingerprint, duration, guard);
         }
         if (!committed) return SessionDataApplyResult.Pending;

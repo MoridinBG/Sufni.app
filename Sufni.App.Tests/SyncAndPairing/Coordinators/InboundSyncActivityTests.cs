@@ -23,8 +23,9 @@ public class InboundSyncActivityTests
         await coordinator.BeginRunAsync("phone", request with { DatabaseIncarnation = response.DatabaseIncarnation });
         var running = Assert.IsType<PeerSyncActivity.Running>(observed.Last());
         Assert.Equal(request.RunId, running.RunId);
-        Assert.Equal(request.Phases[0], running.Phase);
-        Assert.Equal(6, running.PhaseCount);
+        Assert.Equal(request.Phases[0], running.Progress.Phase);
+        Assert.Null(running.Progress.Items);
+        Assert.Equal(1.0 / 9, running.Progress.Fraction);
     }
 
     [Theory]
@@ -43,14 +44,43 @@ public class InboundSyncActivityTests
         await coordinator.ObserveRequestAsync("phone", request.RunId, request.Phases[3]);
         fixture.Time.Advance(TimeSpan.FromMinutes(2) - TimeSpan.FromSeconds(1));
         var running = Assert.IsType<PeerSyncActivity.Running>(state);
-        Assert.Equal(4, running.Step);
-        Assert.Equal(request.Phases[3], running.Phase);
+        Assert.Equal(request.Phases[3], running.Progress.Phase);
 
         if (complete) await coordinator.CompleteRunAsync("phone", request.RunId);
         fixture.Time.Advance(TimeSpan.FromSeconds(1));
 
         if (complete) Assert.Equal(new PeerSyncActivity.Completed(request.RunId), state);
         else Assert.Equal(new PeerSyncActivity.Interrupted(request.RunId), state);
+    }
+
+    [Fact]
+    public async Task AbsoluteCountsSurviveDataRequestsAndLateReportsAndResetForANewRun()
+    {
+        await using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());
+        var coordinator = fixture.CreateCoordinator();
+        PeerSyncActivity? state = null;
+        using var observation = coordinator.Activity.Subscribe(value => state = value);
+        var request = new SynchronizationRunStart(Guid.NewGuid(),
+            await fixture.Database.SyncDataStore.GetDatabaseIncarnationAsync(), SyncTestServerHarness.TransferPhases);
+        await coordinator.BeginRunAsync("phone", request);
+        const SynchronizationPhase phase = SynchronizationPhase.PullingIncompleteSessions;
+        var latest = new SynchronizationItemProgress(2, 4, 3, 7);
+        await coordinator.ObserveRequestAsync("phone", request.RunId, phase, latest);
+        await coordinator.ObserveRequestAsync("phone", request.RunId, phase);
+        await coordinator.ObserveRequestAsync("phone", request.RunId, phase, latest with { Checked = 1 });
+        await coordinator.ObserveRequestAsync("phone", request.RunId, phase, latest with { Checked = 5 });
+        await coordinator.ObserveRequestAsync("phone", request.RunId, phase, latest with { RunTotal = 8 });
+        await coordinator.ObserveRequestAsync("phone", request.RunId, SynchronizationPhase.PullingIncompleteSessionSources);
+        Assert.Equal(latest, Assert.IsType<PeerSyncActivity.Running>(state).Progress.Items);
+
+        await coordinator.ObserveRequestAsync("phone", request.RunId, SynchronizationPhase.Verifying);
+        var verifying = Assert.IsType<PeerSyncActivity.Running>(state);
+        Assert.Null(verifying.Progress.Items);
+        Assert.Equal(8.0 / 9, verifying.Progress.Fraction);
+
+        await coordinator.BeginRunAsync("phone", request with { RunId = Guid.NewGuid() });
+        await coordinator.ObserveRequestAsync("phone", request.RunId, phase, latest with { Checked = 4 });
+        Assert.Null(Assert.IsType<PeerSyncActivity.Running>(state).Progress.Items);
     }
 
     [Fact]
@@ -75,7 +105,7 @@ public class InboundSyncActivityTests
         await coordinator.CompleteRunAsync("another-phone", next.RunId);
 
         Assert.Equal(current, state);
-        Assert.Equal(next.Phases[0], current.Phase);
+        Assert.Equal(next.Phases[0], current.Progress.Phase);
         await coordinator.CompleteRunAsync("phone", next.RunId);
         Assert.Equal(new PeerSyncActivity.Completed(next.RunId), state);
     }

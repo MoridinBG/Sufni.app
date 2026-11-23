@@ -184,7 +184,7 @@ public sealed class RawImuDataFormatter : IMessagePackFormatter<RawImuData?>
             SampleRate = reader.ReadInt32(),
             Meta = [.. ReadCompactMeta(ref reader)],
             ActiveLocations = [.. ReadCompactActiveLocations(ref reader)],
-            Segments = [.. ReadCompactSegments(ref reader)],
+            Segments = ReadCompactSegments(ref reader),
             HasGaps = reader.ReadBoolean(),
         };
 
@@ -241,7 +241,7 @@ public sealed class RawImuDataFormatter : IMessagePackFormatter<RawImuData?>
         return result;
     }
 
-    private static List<RawImuSegment> ReadCompactSegments(ref MessagePackReader reader)
+    private static ImmutableArray<RawImuSegment> ReadCompactSegments(ref MessagePackReader reader)
     {
         if (reader.TryReadNil())
         {
@@ -249,7 +249,7 @@ public sealed class RawImuDataFormatter : IMessagePackFormatter<RawImuData?>
         }
 
         var count = reader.ReadArrayHeader();
-        var result = new List<RawImuSegment>(count);
+        var result = ImmutableArray.CreateBuilder<RawImuSegment>(count);
         for (var index = 0; index < count; index++)
         {
             var fieldCount = reader.ReadArrayHeader();
@@ -263,14 +263,14 @@ public sealed class RawImuDataFormatter : IMessagePackFormatter<RawImuData?>
                 LocationId = reader.ReadByte(),
                 FirstIndex = reader.ReadUInt64(),
                 FirstMonotonicDeltaUs = reader.ReadUInt64(),
-                Records = [.. ReadCompactSamples(ref reader)],
+                Records = ReadCompactSamples(ref reader),
             });
             SkipRemaining(ref reader, fieldCount, 4);
         }
-        return result;
+        return result.MoveToImmutable();
     }
 
-    private static ImuRecord[] ReadCompactSamples(ref MessagePackReader reader)
+    private static ImmutableArray<ImuRecord> ReadCompactSamples(ref MessagePackReader reader)
     {
         if (reader.TryReadNil())
         {
@@ -278,7 +278,7 @@ public sealed class RawImuDataFormatter : IMessagePackFormatter<RawImuData?>
         }
 
         var count = reader.ReadArrayHeader();
-        var result = new ImuRecord[count];
+        var result = ImmutableArray.CreateBuilder<ImuRecord>(count);
         for (var index = 0; index < count; index++)
         {
             var fieldCount = reader.ReadArrayHeader();
@@ -287,16 +287,16 @@ public sealed class RawImuDataFormatter : IMessagePackFormatter<RawImuData?>
                 throw new InvalidDataException("Compact IMU samples must contain six fields.");
             }
 
-            result[index] = new ImuRecord(
+            result.Add(new ImuRecord(
                 reader.ReadInt16(),
                 reader.ReadInt16(),
                 reader.ReadInt16(),
                 reader.ReadInt16(),
                 reader.ReadInt16(),
-                reader.ReadInt16());
+                reader.ReadInt16()));
             SkipRemaining(ref reader, fieldCount, 6);
         }
-        return result;
+        return result.MoveToImmutable();
     }
 
     private static void SkipRemaining(ref MessagePackReader reader, int fieldCount, int consumed)

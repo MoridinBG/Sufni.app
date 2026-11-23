@@ -23,7 +23,7 @@ internal sealed class SessionTelemetryProcessor : ISessionTelemetryProcessor
         {
             throw;
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception.GetBaseException() is not OutOfMemoryException)
         {
             throw new InvalidDataException("Processed session data is not valid telemetry.", exception);
         }

@@ -124,7 +124,8 @@ public class MainPagesDesktopViewTests
 
         var runId = Guid.NewGuid();
         syncHarness.InboundActivity.OnNext(new PeerSyncActivity.Running("phone", runId,
-            SynchronizationPhase.PullingRemoteChanges, 1, 6, syncHarness.Time.GetUtcNow()));
+            SynchronizationProgressSnapshot.ForPhase(SynchronizationRunStart.OrderedPhases(pullFirst: true),
+                SynchronizationPhase.PullingIncompleteSessions, new(1, 2, 3, 5)), syncHarness.Time.GetUtcNow()));
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(viewModel.IsPairedDevicesListOpen);
@@ -136,6 +137,10 @@ public class MainPagesDesktopViewTests
 
         Assert.True(panel.IsVisible);
         Assert.True(overlay!.IsVisible);
+
+        Assert.Equal(7.5 / 9, overlay.ProgressValue);
+        Assert.False(overlay.ShowIndicator);
+        Assert.False(overlay.IsProgressIndeterminate);
 
         syncHarness.InboundActivity.OnNext(new PeerSyncActivity.Completed(runId));
         await ViewTestHelpers.FlushDispatcherAsync();

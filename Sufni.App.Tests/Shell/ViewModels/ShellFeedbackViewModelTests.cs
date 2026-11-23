@@ -84,18 +84,18 @@ public class ShellFeedbackViewModelTests
             if (args.PropertyName == nameof(feedback.SyncProgressValue)) observedProgress.Add(feedback.SyncProgressValue);
         };
         states.OnNext(new(PairingClientState.Paired, SyncActivity.Outbound,
-            new SynchronizationProgressSnapshot(SynchronizationPhase.PushingLocalChanges, "receiving", 3, 8, true)));
+            SynchronizationProgressSnapshot.ForPhase(SynchronizationRunStart.OrderedPhases(pullFirst: false),
+                SynchronizationPhase.PullingIncompleteSessions, new(2, 6, 1, 7))));
 
         Assert.True(feedback.SyncInProgress);
-        Assert.Equal(0.375, feedback.SyncProgressValue);
-        Assert.False(feedback.SyncProgressIsIndeterminate);
+        var expected = (7 + 2.0 / 6) / 9;
+        Assert.Equal(expected, feedback.SyncProgressValue);
 
         states.OnNext(new(PairingClientState.Paired, SyncActivity.Idle));
 
         Assert.False(feedback.SyncInProgress);
         Assert.Equal(0, feedback.SyncProgressValue);
-        Assert.Empty(feedback.SyncProgressText);
-        Assert.Equal([0.375, 0], observedProgress);
+        Assert.Equal([expected, 0], observedProgress);
     }
 
     [Fact]

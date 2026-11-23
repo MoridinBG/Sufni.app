@@ -323,7 +323,7 @@ advertised via mDNS. Mobile clients
 pair through `PairingClientCoordinator`; `SyncCoordinator` owns their run,
 cursors and publication through the captured peer transport. They push and pull
 entity changes plus processed-session and
-recorded-source BLOBs through dedicated binary endpoints. Protocol version 6 is
+recorded-source BLOBs through dedicated binary endpoints. The protocol version is
 carried by an HTTP header on every sync request. `SynchronizationPeer` and the
 server service define the endpoints and payloads; `SynchronizationApplier`
 merges and publishes affected row families on both sides.

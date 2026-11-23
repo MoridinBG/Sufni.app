@@ -138,15 +138,22 @@ public class SyncCoordinatorTests : IDisposable
         coordinator.SyncFailed += (_, args) => failure = args;
 
         harness.InboundActivity.OnNext(new PeerSyncActivity.Running("phone", id,
-            SynchronizationPhase.PullingRemoteChanges, 1, 6, harness.Time.GetUtcNow()));
+            SynchronizationProgressSnapshot.ForPhase(SyncTestServerHarness.TransferPhases,
+                SynchronizationPhase.PullingIncompleteSessions, new(2, 6, 1, 7)), harness.Time.GetUtcNow()));
 
         Assert.True(coordinator.State.IsRunning);
-        Assert.Equal(SynchronizationPhase.PullingRemoteChanges, coordinator.State.Progress?.Phase);
-        Assert.Equal(1.0 / 6, coordinator.State.Progress!.Fraction);
+        Assert.Equal(SynchronizationPhase.PullingIncompleteSessions, coordinator.State.Progress?.Phase);
+        Assert.Equal((7 + 2.0 / 6) / 9, coordinator.State.Progress!.Fraction);
+        var observations = new List<double>();
+        using var subscription = coordinator.States.Subscribe(state =>
+        {
+            if (state.Progress is { } progress) observations.Add(progress.Fraction);
+        });
         harness.InboundActivity.OnNext(interrupted ? new PeerSyncActivity.Interrupted(id) : new PeerSyncActivity.Completed(id));
 
         Assert.False(coordinator.State.IsRunning);
         Assert.Null(coordinator.State.Progress);
+        Assert.Equal(!interrupted, observations.Contains(1));
         if (interrupted) Assert.Equal(Sufni.App.Shared.Models.SyncFailureReason.Interrupted, failure?.Reason);
         else Assert.Null(failure);
     }

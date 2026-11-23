@@ -48,7 +48,7 @@ Startup purges segment tombstones older than one day. It keeps segments whose se
 
 ## Synchronization
 
-Segments travel with source-hash ownership and source-relative anchors in the `segment` list of `SynchronizationData` (protocol v6). Client and hub apply the same authored-history merge rule after sessions in the same transaction. Deletion ledger entries survive payload purge and reject older content. The shared `SynchronizationApplier` publishes affected segments with the other changed row families in one batch before the operation completes. See [sync.md](sync.md).
+Segments travel with source-hash ownership and source-relative anchors in the `segment` list of `SynchronizationData`. Client and hub apply the same authored-history merge rule after sessions in the same transaction. Deletion ledger entries survive payload purge and reject older content. The shared `SynchronizationApplier` publishes affected segments with the other changed row families in one batch before the operation completes. See [sync.md](sync.md).
 
 ## Trim And Split
 

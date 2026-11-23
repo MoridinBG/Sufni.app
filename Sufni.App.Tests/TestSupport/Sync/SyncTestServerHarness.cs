@@ -75,9 +75,7 @@ internal sealed class SyncTestServerHarness : IDisposable
     public IInboundSyncCoordinator Inbound { get; } = Substitute.For<IInboundSyncCoordinator>();
     public BehaviorSubject<PeerSyncActivity> InboundActivity { get; } = new(new PeerSyncActivity.Idle());
     public static SynchronizationPhase[] TransferPhases =>
-        [SynchronizationPhase.PushingLocalChanges, SynchronizationPhase.PullingRemoteChanges,
-         SynchronizationPhase.PushingIncompleteSessions, SynchronizationPhase.PullingIncompleteSessions,
-         SynchronizationPhase.PushingIncompleteSessionSources, SynchronizationPhase.PullingIncompleteSessionSources];
+        SynchronizationRunStart.OrderedPhases(pullFirst: false);
     public BehaviorSubject<PairingClientState> PairingStates { get; } = new(PairingClientState.Paired);
     public IPairingClientCoordinator Pairing { get; } = Substitute.For<IPairingClientCoordinator>();
     public IRecordedSessionSourceSyncQuery RecordedSessionSourceSyncQuery { get; } = Substitute.For<IRecordedSessionSourceSyncQuery>();

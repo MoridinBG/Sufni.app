@@ -28,21 +28,31 @@ public sealed partial class InboundSyncCoordinator
             {
                 runPhases = request.Phases.ToArray();
                 activity.OnNext(new PeerSyncActivity.Running(deviceId, request.RunId,
-                    runPhases[0], 1, runPhases.Length, clock.GetUtcNow()));
+                    SynchronizationProgressSnapshot.ForPhase(runPhases, runPhases[0]), clock.GetUtcNow()));
                 ResetInterruptionTimer();
             });
         }
         return new SynchronizationRunStarted(incarnation);
     }
 
-    public Task ObserveRequestAsync(string deviceId, Guid runId, SynchronizationPhase phase) =>
+    public Task ObserveRequestAsync(string deviceId, Guid runId, SynchronizationPhase phase, SynchronizationItemProgress? items = null) =>
         uiThreadDispatcher.InvokeAsync(() =>
         {
             if (activity.Value is not PeerSyncActivity.Running current ||
                 current.DeviceId != deviceId || current.RunId != runId) return;
-            var step = Array.IndexOf(runPhases, phase) + 1;
-            if (step < current.Step) return;
-            activity.OnNext(current with { Phase = phase, Step = step, LastRequest = clock.GetUtcNow() });
+            var step = Array.IndexOf(runPhases, phase);
+            if (step < Array.IndexOf(runPhases, current.Progress.Phase)) return;
+            if (items is not null && !items.IsValidFor(phase)) return;
+            if (current.Progress.Items is { } previous && items is not null &&
+                (items.RunTotal != previous.RunTotal ||
+                 (phase == current.Progress.Phase
+                     ? items.Previous != previous.Previous || items.Total != previous.Total || items.Checked < previous.Checked
+                     : items.Previous < previous.Previous + previous.Total))) return;
+
+            var progress = phase == current.Progress.Phase && items is null
+                ? current.Progress
+                : SynchronizationProgressSnapshot.ForPhase(runPhases, phase, items);
+            activity.OnNext(current with { Progress = progress, LastRequest = clock.GetUtcNow() });
             ResetInterruptionTimer();
         });
 

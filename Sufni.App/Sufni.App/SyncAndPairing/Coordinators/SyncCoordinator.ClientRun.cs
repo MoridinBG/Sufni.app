@@ -49,25 +49,21 @@ public partial class SyncCoordinator
         await syncDataStore.UpdateLastPushSequenceAsync(peer, upperInclusive);
     }
 
-    private async Task PushIncompleteSessions(ISynchronizationPeer httpApiService, ConcurrentBag<SynchronizationPendingTransfer> pending, CancellationToken cancellationToken)
+    private async Task PushIncompleteSessions(ISynchronizationPeer httpApiService, IReadOnlyList<Guid> incompleteSessions,
+        Func<Task> itemChecked, ConcurrentBag<SynchronizationPendingTransfer> pending, CancellationToken cancellationToken)
     {
-        var incompleteSessions = await httpApiService.GetIncompleteSessionIdsAsync(cancellationToken: cancellationToken);
         var uploadedCount = 0;
 
         await Parallel.ForEachAsync(incompleteSessions, new ParallelOptions { MaxDegreeOfParallelism = SyncTransferDop, CancellationToken = cancellationToken }, async (id, _) =>
         {
             var blob = await sessionRepository.GetSessionRawPsstWithFingerprintAsync(id);
-            if (blob is not null)
-            {
-                // Upload the bytes with their fingerprint so the hub rejects a
-                // mismatch instead of storing bytes that contradict its metadata.
-                if (await httpApiService.PatchSessionPsstAsync(id, blob.Value.Data, blob.Value.Fingerprint, cancellationToken: cancellationToken) == SynchronizationTransferStatus.Completed)
-                {
-                    Interlocked.Increment(ref uploadedCount);
-                    return;
-                }
-            }
-            pending.Add(new(id, SynchronizationTransferKind.ProcessedSession, SynchronizationDirection.Push));
+            // Upload the fingerprint with the bytes so the hub can validate the generation.
+            if (blob is not null && await httpApiService.PatchSessionPsstAsync(id, blob.Value.Data, blob.Value.Fingerprint,
+                    cancellationToken: cancellationToken) == SynchronizationTransferStatus.Completed)
+                Interlocked.Increment(ref uploadedCount);
+            else
+                pending.Add(new(id, SynchronizationTransferKind.ProcessedSession, SynchronizationDirection.Push));
+            await itemChecked();
         });
 
         logger.Verbose(
@@ -96,7 +92,8 @@ public partial class SyncCoordinator
         return (applied.Swaps, syncData.UpperBound);
     }
 
-    private async Task<int> PullIncompleteSessions(ISynchronizationPeer httpApiService, IReadOnlyList<SessionBlobSwap> swaps, ConcurrentBag<SynchronizationPendingTransfer> pending, CancellationToken cancellationToken)
+    private async Task<int> PullIncompleteSessions(ISynchronizationPeer httpApiService, IReadOnlyList<(Guid Id, string? Fingerprint)> fills,
+        IReadOnlyList<SessionBlobSwap> swaps, Func<Task> itemChecked, ConcurrentBag<SynchronizationPendingTransfer> pending, CancellationToken cancellationToken)
     {
         // A "session blob to pull" is a missing or stale processed BLOB, identified
         // by an (id, target-fingerprint) pair. Two sources, one match-checked
@@ -105,18 +102,18 @@ public partial class SyncCoordinator
         //    fingerprint, so a fill commits only bytes matching its metadata.
         //  - swaps: rows whose held BLOB has a different current-schema fingerprint
         //    than the one just pulled; target = the accepted remote fingerprint.
-        var fills = await sessionRepository.GetIncompleteSessionIdsWithFingerprintAsync();
         var downloadedCount = 0;
 
-        await Parallel.ForEachAsync(fills, new ParallelOptions { MaxDegreeOfParallelism = SyncTransferDop, CancellationToken = cancellationToken }, async (fill, _) =>
+        foreach (var (id, fingerprint) in fills)
         {
-            var (id, fingerprint) = fill;
+            cancellationToken.ThrowIfCancellationRequested();
             if (await TryDownloadAndCommitAsync(httpApiService, id, fingerprint, cancellationToken: cancellationToken))
             {
-                Interlocked.Increment(ref downloadedCount);
+                downloadedCount++;
             }
             else pending.Add(new(id, SynchronizationTransferKind.ProcessedSession, SynchronizationDirection.Pull));
-        });
+            await itemChecked();
+        }
 
         // Count swaps that did not commit this run. Fills are re-derived every run from
         // `data IS NULL`, so an unresolved fill is naturally retried; a swap is derived
@@ -124,21 +121,23 @@ public partial class SyncCoordinator
         // can strand a transfer whose remote generation has not changed again.
         // The caller therefore holds the watermark back while any swap is unresolved.
         var unresolvedSwaps = 0;
-        await Parallel.ForEachAsync(swaps, new ParallelOptions { MaxDegreeOfParallelism = SyncTransferDop, CancellationToken = cancellationToken }, async (swap, _) =>
+        foreach (var swap in swaps)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (await TryDownloadAndCommitAsync(httpApiService,
                     swap.SessionId,
                     swap.TargetFingerprint,
                     swap.TargetGeneration, cancellationToken))
             {
-                Interlocked.Increment(ref downloadedCount);
+                downloadedCount++;
             }
             else
             {
-                Interlocked.Increment(ref unresolvedSwaps);
+                unresolvedSwaps++;
                 pending.Add(new(swap.SessionId, SynchronizationTransferKind.ProcessedSession, SynchronizationDirection.Pull));
             }
-        });
+            await itemChecked();
+        }
 
         logger.Verbose(
             "Pulled {DownloadedCount} session blobs ({FillCount} fills, {SwapCount} swaps requested, {UnresolvedSwapCount} swaps unresolved)",
@@ -192,23 +191,20 @@ public partial class SyncCoordinator
         }
     }
 
-    private async Task PushIncompleteSessionSources(ISynchronizationPeer httpApiService, ConcurrentBag<SynchronizationPendingTransfer> pending, CancellationToken cancellationToken)
+    private async Task PushIncompleteSessionSources(ISynchronizationPeer httpApiService, IReadOnlyList<Guid> incompleteSourceIds,
+        Func<Task> itemChecked, ConcurrentBag<SynchronizationPendingTransfer> pending, CancellationToken cancellationToken)
     {
-        var incompleteSourceIds = await httpApiService.GetIncompleteSessionSourceIdsAsync(cancellationToken: cancellationToken);
         var uploadedCount = 0;
 
         await Parallel.ForEachAsync(incompleteSourceIds, new ParallelOptions { MaxDegreeOfParallelism = SyncTransferDop, CancellationToken = cancellationToken }, async (id, _) =>
         {
             var source = await recordedSessionSourceRepository.GetRecordedSessionSourceAsync(id);
-            if (source is not null)
-            {
-                if (await httpApiService.PatchRecordedSessionSourceAsync(ToPayload(source), cancellationToken: cancellationToken) == SynchronizationTransferStatus.Completed)
-                {
-                    Interlocked.Increment(ref uploadedCount);
-                    return;
-                }
-            }
-            pending.Add(new(id, SynchronizationTransferKind.RecordedSource, SynchronizationDirection.Push));
+            if (source is not null && await httpApiService.PatchRecordedSessionSourceAsync(ToPayload(source),
+                    cancellationToken: cancellationToken) == SynchronizationTransferStatus.Completed)
+                Interlocked.Increment(ref uploadedCount);
+            else
+                pending.Add(new(id, SynchronizationTransferKind.RecordedSource, SynchronizationDirection.Push));
+            await itemChecked();
         });
 
         logger.Verbose(
@@ -217,9 +213,9 @@ public partial class SyncCoordinator
             incompleteSourceIds.Count);
     }
 
-    private async Task PullIncompleteSessionSources(ISynchronizationPeer httpApiService, ConcurrentBag<SynchronizationPendingTransfer> pending, CancellationToken cancellationToken)
+    private async Task PullIncompleteSessionSources(ISynchronizationPeer httpApiService, IReadOnlyList<Guid> incompleteSourceIds,
+        Func<Task> itemChecked, ConcurrentBag<SynchronizationPendingTransfer> pending, CancellationToken cancellationToken)
     {
-        var incompleteSourceIds = await recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync();
         var committedSources = new ConcurrentBag<RecordedSessionSourceSnapshot>();
 
         try
@@ -236,6 +232,7 @@ public partial class SyncCoordinator
                 };
                 if (!complete)
                     pending.Add(new(id, SynchronizationTransferKind.RecordedSource, SynchronizationDirection.Pull));
+                await itemChecked();
             });
         }
         finally
@@ -304,20 +301,14 @@ public partial class SyncCoordinator
             var runId = Guid.NewGuid();
             long lastPushSequence;
             long lastPullSequence;
-            (SynchronizationPhase Phase, string Message)[] phases;
+            SynchronizationPhase[] phases;
             for (var attempt = 0; ; attempt++)
             {
                 lastPushSequence = await syncDataStore.GetLastPushSequenceAsync(peer);
                 lastPullSequence = await syncDataStore.GetLastPullSequenceAsync(peer);
-                var push = (SynchronizationPhase.PushingLocalChanges, "Pushing local changes");
-                var pull = (SynchronizationPhase.PullingRemoteChanges, "Pulling remote changes");
-                phases = [lastPushSequence == 0 ? pull : push, lastPushSequence == 0 ? push : pull,
-                    (SynchronizationPhase.PushingIncompleteSessions, "Uploading session data"),
-                    (SynchronizationPhase.PullingIncompleteSessions, "Downloading session data"),
-                    (SynchronizationPhase.PushingIncompleteSessionSources, "Uploading recorded sources"),
-                    (SynchronizationPhase.PullingIncompleteSessionSources, "Downloading recorded sources")];
+                phases = SynchronizationRunStart.OrderedPhases(pullFirst: lastPushSequence == 0);
                 var verified = await httpApiService.BeginRunAsync(new SynchronizationRunStart(
-                    runId, peer.DatabaseIncarnation, phases.Select(value => value.Phase).ToArray()), cancellationToken);
+                    runId, peer.DatabaseIncarnation, phases), cancellationToken);
                 if (verified == peer) break;
                 if (attempt == 1) throw new System.Net.Http.HttpRequestException("The hub identity changed during run negotiation.");
                 peer = verified;
@@ -325,41 +316,19 @@ public partial class SyncCoordinator
 
             IReadOnlyList<SessionBlobSwap> swaps = [];
             var pullUpperBound = lastPullSequence;
-            var pending = new ConcurrentBag<SynchronizationPendingTransfer>();
-            for (var index = 0; index < phases.Length; index++)
+            foreach (var phase in phases.Take(2))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var phase = phases[index];
-                httpApiService.SetRunPhase(phase.Phase);
-                await uiThreadDispatcher.InvokeAsync(() => Progress = new SynchronizationProgressSnapshot(
-                    phase.Phase, phase.Message, index + 2, phases.Length + 1, true));
-                switch (phase.Phase)
-                {
-                    case SynchronizationPhase.PushingLocalChanges:
-                        await PushLocalChanges(httpApiService, peer, lastPushSequence, pushUpperBound, cancellationToken);
-                        break;
-                    case SynchronizationPhase.PullingRemoteChanges:
-                        (swaps, pullUpperBound) = await PullRemoteChanges(httpApiService, lastPullSequence, cancellationToken);
-                        break;
-                    case SynchronizationPhase.PushingIncompleteSessions:
-                        await PushIncompleteSessions(httpApiService, pending, cancellationToken);
-                        break;
-                    case SynchronizationPhase.PullingIncompleteSessions:
-                        var unresolved = await PullIncompleteSessions(httpApiService, swaps, pending, cancellationToken);
-                        if (unresolved == 0) await syncDataStore.UpdateLastPullSequenceAsync(peer, pullUpperBound);
-                        else logger.Information("Holding pull cursor for {UnresolvedSwapCount} pending session generations", unresolved);
-                        break;
-                    case SynchronizationPhase.PushingIncompleteSessionSources:
-                        await PushIncompleteSessionSources(httpApiService, pending, cancellationToken);
-                        break;
-                    case SynchronizationPhase.PullingIncompleteSessionSources:
-                        await PullIncompleteSessionSources(httpApiService, pending, cancellationToken);
-                        break;
-                }
+                await BeginPhaseAsync(httpApiService, phases, phase);
+                if (phase == SynchronizationPhase.PushingLocalChanges)
+                    await PushLocalChanges(httpApiService, peer, lastPushSequence, pushUpperBound, cancellationToken);
+                else
+                    (swaps, pullUpperBound) = await PullRemoteChanges(httpApiService, lastPullSequence, cancellationToken);
             }
-            var result = await VerifyLocalCompleteness(pending);
 
+            var result = await TransferAndVerifyAsync(httpApiService, phases, peer, swaps, pullUpperBound, cancellationToken);
             await httpApiService.CompleteRunAsync(cancellationToken);
+            await uiThreadDispatcher.InvokeAsync(() => Progress = SynchronizationProgressSnapshot.Verified);
             logger.Verbose("Synchronization client run completed");
             return result;
         }
@@ -373,6 +342,68 @@ public partial class SyncCoordinator
             return new SynchronizationRunResult.Failed(reason, exception.Message);
         }
         finally { httpApiService.ClearRun(); }
+    }
+
+    private Task BeginPhaseAsync(ISynchronizationPeer transport, SynchronizationPhase[] phases, SynchronizationPhase phase)
+    {
+        transport.SetRunPhase(phase);
+        return uiThreadDispatcher.InvokeAsync(() => Progress = SynchronizationProgressSnapshot.ForPhase(phases, phase));
+    }
+
+    private async Task<SynchronizationRunResult> TransferAndVerifyAsync(ISynchronizationPeer transport, SynchronizationPhase[] phases,
+        PeerIdentity peer, IReadOnlyList<SessionBlobSwap> swaps, long pullUpperBound, CancellationToken cancellationToken)
+    {
+        await BeginPhaseAsync(transport, phases, SynchronizationPhase.PlanningTransfers);
+        // Snapshot only identities and target fingerprints. Read each payload when its turn comes.
+        var sourceUploads = await transport.GetIncompleteSessionSourceIdsAsync(cancellationToken);
+        var sourceDownloads = await recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync();
+        var sessionUploads = await transport.GetIncompleteSessionIdsAsync(cancellationToken);
+        var fills = await sessionRepository.GetIncompleteSessionIdsWithFingerprintAsync();
+        var sessionDownloads = checked(fills.Count + swaps.Count);
+        var total = checked(sourceUploads.Count + sourceDownloads.Count + sessionUploads.Count + sessionDownloads);
+        var pending = new ConcurrentBag<SynchronizationPendingTransfer>();
+        var previous = 0;
+        var unresolved = 0;
+        using var reporting = new SemaphoreSlim(1);
+
+        await RunBatchAsync(SynchronizationPhase.PushingIncompleteSessionSources, sourceUploads.Count,
+            report => PushIncompleteSessionSources(transport, sourceUploads, report, pending, cancellationToken));
+        await RunBatchAsync(SynchronizationPhase.PullingIncompleteSessionSources, sourceDownloads.Count,
+            report => PullIncompleteSessionSources(transport, sourceDownloads, report, pending, cancellationToken));
+        await RunBatchAsync(SynchronizationPhase.PushingIncompleteSessions, sessionUploads.Count,
+            report => PushIncompleteSessions(transport, sessionUploads, report, pending, cancellationToken));
+        await RunBatchAsync(SynchronizationPhase.PullingIncompleteSessions, sessionDownloads,
+            async report => { unresolved = await PullIncompleteSessions(transport, fills, swaps, report, pending, cancellationToken); });
+
+        cancellationToken.ThrowIfCancellationRequested();
+        transport.SetRunPhase(SynchronizationPhase.Verifying);
+        await PublishAsync(SynchronizationPhase.Verifying, new(0, 0, previous, total));
+        if (unresolved == 0) await syncDataStore.UpdateLastPullSequenceAsync(peer, pullUpperBound);
+        else logger.Information("Holding pull cursor for {UnresolvedSwapCount} pending session generations", unresolved);
+        return await VerifyLocalCompleteness(pending);
+
+        async Task RunBatchAsync(SynchronizationPhase phase, int count, Func<Func<Task>, Task> transfer)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (count == 0) return;
+            transport.SetRunPhase(phase);
+            var handled = 0;
+            await PublishAsync(phase, new(0, count, previous, total));
+            await transfer(async () =>
+            {
+                // Parallel transfers settle independently. Publish their observations in order on both devices.
+                await reporting.WaitAsync(cancellationToken);
+                try { await PublishAsync(phase, new(++handled, count, previous, total)); }
+                finally { reporting.Release(); }
+            });
+            previous += count;
+        }
+
+        async Task PublishAsync(SynchronizationPhase phase, SynchronizationItemProgress items)
+        {
+            await uiThreadDispatcher.InvokeAsync(() => Progress = SynchronizationProgressSnapshot.ForPhase(phases, phase, items));
+            await transport.ReportItemProgressAsync(items, cancellationToken);
+        }
     }
 
     private static RecordedSessionSourcePayload ToPayload(RecordedSessionSource source) => new(

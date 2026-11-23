@@ -98,7 +98,7 @@ public class SyncCoordinatorClientRunTests : IDisposable
                     SyncTestServerHarness.CreateAccessToken(harness.Time.GetUtcNow().AddMinutes(10)), "refresh-2", SyncTestServerHarness.Peer.DatabaseIncarnation)));
             if (path == SynchronizationProtocol.EndpointRunStart)
                 return Task.FromResult(SyncTestServerHarness.Json(new SynchronizationRunStarted(SyncTestServerHarness.Peer.DatabaseIncarnation)));
-            if (path == SynchronizationProtocol.EndpointRunEnd)
+            if (path is SynchronizationProtocol.EndpointRunEnd or SynchronizationProtocol.EndpointRunProgress)
                 return Task.FromResult(new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.NoContent));
             if (path == SynchronizationProtocol.EndpointSyncPull)
                 return Task.FromResult(SyncTestServerHarness.Json(new SynchronizationData()));
@@ -337,9 +337,10 @@ public class SyncCoordinatorClientRunTests : IDisposable
     }
 
     [Fact]
-    public async Task SyncAll_CompletesFillDownloads_AndCommits_BeforeAnySwapDownloadStarts()
+    public async Task SyncAll_CommitsEachFillBeforeDownloadingAnotherFillOrSwap()
     {
         var fillId = Guid.NewGuid();
+        var nextFillId = Guid.NewGuid();
         var swapId = Guid.NewGuid();
         const string fillFingerprint = """{"fill":true}""";
         const string swapTarget = """{"target":true}""";
@@ -350,7 +351,7 @@ public class SyncCoordinatorClientRunTests : IDisposable
         syncDataStore.ApplyRemoteSynchronizationDataAsync(Arg.Any<SynchronizationData>())
             .Returns(SyncTestServerHarness.ApplyResult(new SessionBlobSwap(swapId, swapTarget, new SessionProcessedGeneration(80))));
         sessionRepository.GetIncompleteSessionIdsWithFingerprintAsync()
-            .Returns([(fillId, fillFingerprint)]);
+            .Returns([(fillId, fillFingerprint), (nextFillId, fillFingerprint)]);
 
         var fillRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var fillDownload = new TaskCompletionSource<SynchronizationTransferResult<SessionBlobPayload>>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -361,6 +362,7 @@ public class SyncCoordinatorClientRunTests : IDisposable
         });
         httpApiService.GetSessionPsstAsync(swapId, Arg.Any<CancellationToken>()).Returns(new SynchronizationTransferResult<SessionBlobPayload>.Received(new SessionBlobPayload(swapTarget, [1, 2, 3])));
         sessionRepository.GetSessionAsync(fillId).Returns(new Session(fillId, "fill", "", null));
+        sessionRepository.GetSessionAsync(nextFillId).Returns(new Session(nextFillId, "next fill", "", null));
         sessionRepository.GetSessionAsync(swapId).Returns(new Session(swapId, "swap", "", null));
 
         var commitStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -372,7 +374,8 @@ public class SyncCoordinatorClientRunTests : IDisposable
             commitStarted.SetResult();
             return commit.Task;
         });
-        var syncTask = CreateCoordinator().RunSyncAsync();
+        var coordinator = CreateCoordinator();
+        var syncTask = coordinator.RunSyncAsync();
 
         // The swap pass must not start while a fill download is still pending.
         await fillRequested.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
@@ -382,12 +385,15 @@ public class SyncCoordinatorClientRunTests : IDisposable
         await commitStarted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         try
         {
+            await httpApiService.DidNotReceive().GetSessionPsstAsync(nextFillId, Arg.Any<CancellationToken>());
             await httpApiService.DidNotReceive().GetSessionPsstAsync(swapId, Arg.Any<CancellationToken>());
             Assert.False(syncTask.IsCompleted);
+            Assert.Equal(new SynchronizationItemProgress(0, 3, 0, 3), coordinator.State.Progress?.Items);
         }
         finally { commit.TrySetResult(SessionDataApplyResult.Applied); }
         await syncTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
+        await httpApiService.Received(1).GetSessionPsstAsync(nextFillId, Arg.Any<CancellationToken>());
         await httpApiService.Received(1).GetSessionPsstAsync(swapId, Arg.Any<CancellationToken>());
     }
 
@@ -415,30 +421,92 @@ public class SyncCoordinatorClientRunTests : IDisposable
     }
 
     [Fact]
-    public async Task SyncAll_ReportsDiscoveryAndSixTransferPhases()
+    public async Task SyncAll_AppliesAFillRequiringASourceReceivedInTheSameRun()
+    {
+        var source = SyncTestServerHarness.CreateRecordedSource();
+        var id = source.SessionId;
+        const string fingerprint = "target";
+        recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([id]);
+        httpApiService.GetRecordedSessionSourceAsync(id, Arg.Any<CancellationToken>())
+            .Returns(new SynchronizationTransferResult<RecordedSessionSourcePayload>.Received(SyncTestServerHarness.ToPayload(source)));
+        sessionRepository.GetIncompleteSessionIdsWithFingerprintAsync().Returns([(id, fingerprint)]);
+        sessionRepository.GetSessionAsync(id).Returns(new Session(id, "ride", "", null));
+        var blob = new SessionBlobPayload(fingerprint, [1, 2, 3]);
+        httpApiService.GetSessionPsstAsync(id, Arg.Any<CancellationToken>())
+            .Returns(new SynchronizationTransferResult<SessionBlobPayload>.Received(blob));
+        harness.SessionSyncApplier.ApplyDownloadedAsync(Arg.Any<SessionSnapshot>(), blob, fingerprint, null)
+            .Returns(_ => sourceStore.Get(id)?.SourceHash == source.SourceHash
+                ? SessionDataApplyResult.Applied
+                : SessionDataApplyResult.Pending);
+
+        var outcome = await CreateCoordinator().RunSyncAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.IsType<SynchronizationRunResult.Completed>(outcome);
+        await harness.SessionSyncApplier.Received(1).ApplyDownloadedAsync(Arg.Any<SessionSnapshot>(), blob, fingerprint, null);
+    }
+
+    [Fact]
+    public async Task SyncAll_CountsEveryPlannedItemOnceAcrossPhases_IncludingMissingAndIgnoredItems()
     {
         syncDataStore.GetLastPushSequenceAsync(SyncTestServerHarness.Peer).Returns(5);
         syncDataStore.GetLastPullSequenceAsync(SyncTestServerHarness.Peer).Returns(5);
         syncDataStore.GetSynchronizationDataAsync(SynchronizationDirection.Push, 5, Arg.Any<long>()).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5, Arg.Any<CancellationToken>()).Returns(new SynchronizationData { UpperBound = 12 });
+        var unavailable = Guid.NewGuid();
+        httpApiService.GetIncompleteSessionSourceIdsAsync(Arg.Any<CancellationToken>()).Returns([unavailable]);
+        var ignored = Guid.NewGuid();
+        recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([unavailable, ignored]);
+        httpApiService.GetRecordedSessionSourceAsync(ignored, Arg.Any<CancellationToken>())
+            .Returns(new SynchronizationTransferResult<RecordedSessionSourcePayload>.Ignored());
+        sessionRepository.GetIncompleteSessionIdsWithFingerprintAsync().Returns([(unavailable, null)]);
         var progress = new RecordingProgress<SynchronizationProgressSnapshot>();
 
-        await CreateCoordinator().RunSyncAsync(progress);
+        var result = await CreateCoordinator().RunSyncAsync(progress, TestContext.Current.CancellationToken);
 
-        Assert.Equal(
-            [
-                SynchronizationPhase.ResolvingServer,
-                SynchronizationPhase.PushingLocalChanges,
-                SynchronizationPhase.PullingRemoteChanges,
-                SynchronizationPhase.PushingIncompleteSessions,
-                SynchronizationPhase.PullingIncompleteSessions,
-                SynchronizationPhase.PushingIncompleteSessionSources,
-                SynchronizationPhase.PullingIncompleteSessionSources,
-            ],
-            progress.Reports.Select(e => e.Phase).ToArray());
-        Assert.All(progress.Reports, e => Assert.True(e.IsDeterminate));
-        Assert.All(progress.Reports, e => Assert.Equal(7, e.TotalSteps));
-        Assert.Equal([1, 2, 3, 4, 5, 6, 7], progress.Reports.Select(e => e.CurrentStep).ToArray());
+        Assert.IsType<SynchronizationRunResult.IncompleteData>(result);
+        var reports = progress.Reports;
+        Assert.Equal([SynchronizationPhase.ResolvingServer, SynchronizationPhase.PushingLocalChanges,
+            SynchronizationPhase.PullingRemoteChanges, SynchronizationPhase.PlanningTransfers,
+            SynchronizationPhase.PushingIncompleteSessionSources, SynchronizationPhase.PullingIncompleteSessionSources,
+            SynchronizationPhase.PullingIncompleteSessions, SynchronizationPhase.Verifying], reports.Select(r => r.Phase).Distinct());
+        SynchronizationItemProgress[] expected =
+            [new(0, 1, 0, 4), new(1, 1, 0, 4), new(0, 2, 1, 4), new(1, 2, 1, 4), new(2, 2, 1, 4),
+             new(0, 1, 3, 4), new(1, 1, 3, 4), new(0, 0, 4, 4)];
+        Assert.Equal(expected, reports.Select(r => r.Items).OfType<SynchronizationItemProgress>());
+        Assert.Equal(expected, httpApiService.ReceivedCalls().Where(call => call.GetMethodInfo().Name == nameof(ISynchronizationPeer.ReportItemProgressAsync))
+            .Select(call => (SynchronizationItemProgress)call.GetArguments()[0]!));
+        // The empty recording upload batch is credited when the recording download batch starts.
+        double[] ninths = [0, 1, 2, 3, 4, 5, 5, 5.5, 6, 7, 8, 8, 9];
+        Assert.Equal(ninths.Select(steps => steps / 9), reports.Select(r => r.Fraction));
+    }
+
+    [Theory]
+    [InlineData(0, SynchronizationPhase.PullingRemoteChanges)]
+    [InlineData(5, SynchronizationPhase.PushingLocalChanges)]
+    public async Task EmptySync_CreditsMetadataInRunOrderAndFinishesOnlyAfterAcknowledgement(
+        long cursor, SynchronizationPhase firstMetadata)
+    {
+        syncDataStore.GetLastPushSequenceAsync(SyncTestServerHarness.Peer).Returns(cursor);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        httpApiService.CompleteRunAsync(Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            entered.SetResult();
+            return release.Task.WaitAsync(call.Arg<CancellationToken>());
+        });
+        var progress = new RecordingProgress<SynchronizationProgressSnapshot>();
+        var run = CreateCoordinator().RunSyncAsync(progress, TestContext.Current.CancellationToken);
+        try
+        {
+            await entered.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+            var reports = progress.Reports;
+            Assert.Equal(firstMetadata, reports[1].Phase);
+            Assert.Equal([0, 1.0 / 9, 2.0 / 9, 3.0 / 9, 8.0 / 9], reports.Select(r => r.Fraction));
+        }
+        finally { release.TrySetResult(); }
+
+        Assert.IsType<SynchronizationRunResult.Completed>(await run);
+        Assert.Equal(1, progress.Reports.Last().Fraction);
     }
 
     [Theory]
@@ -522,9 +590,9 @@ public class SyncCoordinatorClientRunTests : IDisposable
             await syncDataStore.Received(1).UpdateLastPushSequenceAsync(
                 SyncTestServerHarness.Peer,
                 Arg.Any<long>());
-            await syncDataStore.Received(1).UpdateLastPullSequenceAsync(
+            await syncDataStore.DidNotReceive().UpdateLastPullSequenceAsync(
                 SyncTestServerHarness.Peer,
-                12);
+                Arg.Any<long>());
             return;
         }
 

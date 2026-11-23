@@ -45,11 +45,26 @@ public class MainViewTests
         Assert.False(overlay!.IsVisible);
 
         var runId = Guid.NewGuid();
+        var phases = SynchronizationRunStart.OrderedPhases(pullFirst: true);
         syncHarness.InboundActivity.OnNext(new PeerSyncActivity.Running("phone", runId,
-            SynchronizationPhase.PullingRemoteChanges, 1, 6, syncHarness.Time.GetUtcNow()));
+            SynchronizationProgressSnapshot.ForPhase(phases, SynchronizationPhase.PullingRemoteChanges), syncHarness.Time.GetUtcNow()));
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.True(overlay.IsVisible);
+        Assert.Equal(1.0 / 9, overlay.ProgressValue);
+        Assert.False(overlay.IsProgressIndeterminate);
+        Assert.False(overlay.ShowIndicator);
+
+        syncHarness.InboundActivity.OnNext(new PeerSyncActivity.Running("phone", runId,
+            SynchronizationProgressSnapshot.ForPhase(phases, SynchronizationPhase.PullingIncompleteSessions, new(1, 2, 3, 5)),
+            syncHarness.Time.GetUtcNow()));
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.True(overlay.IsVisible);
+
+        Assert.Equal(7.5 / 9, overlay.ProgressValue);
+        Assert.False(overlay.ShowIndicator);
+        Assert.False(overlay.IsProgressIndeterminate);
 
         syncHarness.InboundActivity.OnNext(new PeerSyncActivity.Completed(runId));
         await ViewTestHelpers.FlushDispatcherAsync();

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
@@ -135,6 +136,27 @@ internal sealed class SynchronizationPeer : ISynchronizationPeer, IDisposable
         Volatile.Write(ref runHeaders, current with { Phase = phase });
     }
 
+    public async Task ReportItemProgressAsync(SynchronizationItemProgress progress, CancellationToken cancellationToken)
+    {
+        await EnsureTokenFreshAsync();
+        var route = $"{Endpoint.Address}{SynchronizationProtocol.EndpointRunProgress}";
+        try
+        {
+            using var response = await SendWithLoggingAsync(HttpMethod.Put, route, () =>
+                SendRequestAsync(HttpMethod.Put, route, JsonContent.Create(progress, AppJson.Context.SynchronizationItemProgress),
+                    cancellationToken: cancellationToken));
+            response.EnsureSuccessStatusCode();
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode is null or >= HttpStatusCode.InternalServerError)
+        {
+            // The next absolute snapshot catches the display up after a transient network failure.
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && !Lifetime.IsCancellationRequested)
+        {
+            // A timed-out progress notification does not invalidate a committed item.
+        }
+    }
+
     public async Task CompleteRunAsync(CancellationToken cancellationToken)
     {
         await EnsureTokenFreshAsync();
@@ -262,7 +284,8 @@ internal sealed class SynchronizationPeer : ISynchronizationPeer, IDisposable
         HttpContent? content = null,
         Action<HttpRequestMessage>? configureRequest = null,
         CancellationToken cancellationToken = default,
-        bool finishAfterRetirement = false)
+        bool finishAfterRetirement = false,
+        HttpCompletionOption completion = HttpCompletionOption.ResponseContentRead)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken,
             finishAfterRetirement ? CancellationToken.None : Lifetime);
@@ -280,7 +303,37 @@ internal sealed class SynchronizationPeer : ISynchronizationPeer, IDisposable
         }
         configureRequest?.Invoke(request);
         linked.Token.ThrowIfCancellationRequested();
-        return await client.SendAsync(request, linked.Token);
+        return await client.SendAsync(request, completion, linked.Token);
+    }
+
+    private CancellationTokenSource CreateDownloadCancellation(CancellationToken cancellationToken)
+    {
+        var download = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, Lifetime);
+        download.CancelAfter(client.Timeout);
+        return download;
+    }
+
+    private async Task<byte[]> ReadDownloadBodyAsync(HttpContent content, CancellationToken cancellationToken)
+    {
+        if (content.Headers.ContentLength is not { } length)
+        {
+            await content.LoadIntoBufferAsync(client.MaxResponseContentBufferSize, cancellationToken);
+            return await content.ReadAsByteArrayAsync(cancellationToken);
+        }
+        if (length > client.MaxResponseContentBufferSize || length > Array.MaxLength)
+            throw new HttpRequestException("Sync response exceeds the supported buffer size.");
+
+        var data = GC.AllocateUninitializedArray<byte>((int)length);
+        using var stream = await content.ReadAsStreamAsync(cancellationToken);
+        try
+        {
+            await stream.ReadExactlyAsync(data, cancellationToken);
+        }
+        catch (IOException exception)
+        {
+            throw new HttpRequestException("Sync response body could not be read in full.", exception);
+        }
+        return data;
     }
 
     private static ByteArrayContent CreateOctetStreamContent(byte[] data)
@@ -429,13 +482,13 @@ internal sealed class SynchronizationPeer : ISynchronizationPeer, IDisposable
         TransferAsync<SynchronizationTransferResult<SessionBlobPayload>>(id, async () =>
     {
         await EnsureTokenFreshAsync();
-        cancellationToken.ThrowIfCancellationRequested();
+        using var download = CreateDownloadCancellation(cancellationToken);
 
         var route = $"{Endpoint.Address}{SynchronizationProtocol.EndpointSessionData}{id}";
         using var response = await SendWithLoggingAsync(
             HttpMethod.Get,
             route,
-            () => SendRequestAsync(HttpMethod.Get, route, cancellationToken: cancellationToken));
+            () => SendRequestAsync(HttpMethod.Get, route, cancellationToken: download.Token, completion: HttpCompletionOption.ResponseHeadersRead));
         if (response.StatusCode == HttpStatusCode.NoContent)
             return new SynchronizationTransferResult<SessionBlobPayload>.Ignored();
         if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Conflict)
@@ -444,7 +497,7 @@ internal sealed class SynchronizationPeer : ISynchronizationPeer, IDisposable
             return new SynchronizationTransferResult<SessionBlobPayload>.Pending();
         }
         response.EnsureSuccessStatusCode();
-        var data = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        var data = await ReadDownloadBodyAsync(response.Content, download.Token);
         var transfer = new SessionBlobPayload(
             GetResponseHeader(response, SynchronizationProtocol.FingerprintHeader),
             data);
@@ -505,13 +558,13 @@ internal sealed class SynchronizationPeer : ISynchronizationPeer, IDisposable
         TransferAsync<SynchronizationTransferResult<RecordedSessionSourcePayload>>(id, async () =>
     {
         await EnsureTokenFreshAsync();
-        cancellationToken.ThrowIfCancellationRequested();
+        using var download = CreateDownloadCancellation(cancellationToken);
 
         var route = $"{Endpoint.Address}{SynchronizationProtocol.EndpointSessionSourceData}{id}";
         using var response = await SendWithLoggingAsync(
             HttpMethod.Get,
             route,
-            () => SendRequestAsync(HttpMethod.Get, route, cancellationToken: cancellationToken));
+            () => SendRequestAsync(HttpMethod.Get, route, cancellationToken: download.Token, completion: HttpCompletionOption.ResponseHeadersRead));
         if (response.StatusCode == HttpStatusCode.NoContent)
             return new SynchronizationTransferResult<RecordedSessionSourcePayload>.Ignored();
         if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Conflict)
@@ -547,7 +600,7 @@ internal sealed class SynchronizationPeer : ISynchronizationPeer, IDisposable
             sourceName,
             schemaVersion,
             GetRequiredResponseHeader(response, SynchronizationProtocol.SourceHashHeader),
-            await response.Content.ReadAsByteArrayAsync(cancellationToken));
+            await ReadDownloadBodyAsync(response.Content, download.Token));
 
         logger.Verbose(
             "Downloaded recorded source for {SessionId} with {ByteCount} bytes",

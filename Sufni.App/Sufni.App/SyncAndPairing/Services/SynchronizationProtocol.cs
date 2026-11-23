@@ -8,7 +8,7 @@ public static class SynchronizationProtocol
     public const string ServiceType = "_sstsync._tcp";
     public const string CertificateSubjectName = "cn=com.sghctoma.sst-api";
     public const int PinTtlSeconds = 30;
-    public const int SyncProtocolVersion = 6;
+    public const int SyncProtocolVersion = 7;
     public const string SyncProtocolHeader = "X-Sufni-Sync-Protocol";
     public const string FingerprintHeader = "X-Sufni-Processing-Fingerprint";
     public const string SourceKindHeader = "X-Sufni-Source-Kind";
@@ -23,6 +23,7 @@ public static class SynchronizationProtocol
     public const string RunIdHeader = "X-Sufni-Sync-Run";
     public const string RunPhaseHeader = "X-Sufni-Sync-Phase";
     public const string EndpointRunStart = "/sync/run/start";
+    public const string EndpointRunProgress = "/sync/run/progress";
     public const string EndpointRunEnd = "/sync/run/end";
     public const string EndpointSyncPush = "/sync/push";
     public const string EndpointSyncPull = "/sync/pull";

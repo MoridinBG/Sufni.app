@@ -91,6 +91,7 @@ internal static class AppJson
 [JsonSerializable(typeof(PairingConfirm))]
 [JsonSerializable(typeof(TokenResponse))]
 [JsonSerializable(typeof(SynchronizationRunStart))]
+[JsonSerializable(typeof(SynchronizationItemProgress))]
 [JsonSerializable(typeof(SynchronizationRunStarted))]
 [JsonSerializable(typeof(RefreshRequest))]
 [JsonSerializable(typeof(UnpairRequest))]

@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Reactive.Linq;
 using System.Threading;
+using System.Text.Json;
 using NSubstitute;
 using Sufni.App.Infrastructure;
 
@@ -173,7 +174,7 @@ public class HttpApiServiceTests : IAsyncDisposable
 
         await service.GetIncompleteSessionIdsAsync();
 
-        Assert.Equal(["6", "6"], seenProtocolHeaders);
+        Assert.Equal(["7", "7"], seenProtocolHeaders);
     }
 
     [Fact]
@@ -220,6 +221,53 @@ public class HttpApiServiceTests : IAsyncDisposable
         var transfer = Assert.IsType<SynchronizationTransferResult<SessionBlobPayload>.Received>(result).Payload;
         Assert.Equal("fp-1", transfer.Fingerprint);
         Assert.Equal([1, 2, 3], transfer.Data);
+    }
+
+    [Fact]
+    public async Task GetSessionPsstAsync_TruncatedBodyRemainsPending()
+    {
+        var token = TestContext.Current.CancellationToken;
+        var access = SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10));
+        var service = await CreateService(CreateSecureStorage(), (request, _) =>
+        {
+            if (request.RequestUri!.AbsolutePath == SynchronizationProtocol.EndpointPairRefresh)
+                return Task.FromResult(SyncTestServerHarness.Json(new TokenResponse(access, "refresh-2", SyncTestServerHarness.Peer.DatabaseIncarnation)));
+
+            var content = new StreamContent(new MemoryStream([1, 2, 3]));
+            content.Headers.ContentLength = 4;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+        });
+
+        var result = await service.GetSessionPsstAsync(Guid.NewGuid(), token);
+
+        Assert.IsType<SynchronizationTransferResult<SessionBlobPayload>.Pending>(result);
+    }
+
+    [Fact]
+    public async Task GetSessionPsstAsync_PeerRetirementCancelsAReadAfterHeaders()
+    {
+        var token = TestContext.Current.CancellationToken;
+        var access = SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10));
+        var body = new WaitingBodyStream();
+        var api = CreateApiService(CreateSecureStorage(), (request, _) =>
+        {
+            if (request.RequestUri!.AbsolutePath == SynchronizationProtocol.EndpointPairRefresh)
+                return Task.FromResult(SyncTestServerHarness.Json(new TokenResponse(access, "refresh-2", SyncTestServerHarness.Peer.DatabaseIncarnation)));
+
+            if (request.RequestUri!.AbsolutePath == SynchronizationProtocol.EndpointPairUnpair)
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
+
+            var content = new StreamContent(body);
+            content.Headers.ContentLength = 4;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+        });
+        var peer = await api.GetPeerAsync(Endpoint);
+        var transfer = peer.GetSessionPsstAsync(Guid.NewGuid(), token);
+        await body.Started.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        await api.UnpairAsync("test-device");
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => transfer.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
     }
 
     [Fact]
@@ -574,10 +622,17 @@ public class HttpApiServiceTests : IAsyncDisposable
             if (path == SynchronizationProtocol.EndpointRunStart)
             {
                 var start = await SyncTestServerHarness.ReadJsonAsync<SynchronizationRunStart>(request);
-                Assert.Equal(6, start!.Phases.Length);
+                Assert.Equal(SyncTestServerHarness.TransferPhases, start!.Phases);
                 return SyncTestServerHarness.Json(new SynchronizationRunStarted("current-db"));
             }
-            return path == SynchronizationProtocol.EndpointRunEnd
+            if (path == SynchronizationProtocol.EndpointRunProgress)
+            {
+                Assert.Equal(HttpMethod.Put, request.Method);
+                var json = await request.Content!.ReadAsStringAsync();
+                Assert.Equal(new SynchronizationItemProgress(2, 3, 1, 4),
+                    JsonSerializer.Deserialize<SynchronizationItemProgress>(json, SyncTestServerHarness.CreateServerJsonOptions()));
+            }
+            return path is SynchronizationProtocol.EndpointRunEnd or SynchronizationProtocol.EndpointRunProgress
                 ? new HttpResponseMessage(HttpStatusCode.NoContent)
                 : SyncTestServerHarness.Json(new List<Guid>());
         });
@@ -587,11 +642,12 @@ public class HttpApiServiceTests : IAsyncDisposable
         await peer.BeginRunAsync(run with { DatabaseIncarnation = verified.DatabaseIncarnation }, TestContext.Current.CancellationToken);
         peer.SetRunPhase(SynchronizationPhase.PushingIncompleteSessions);
         await peer.GetIncompleteSessionIdsAsync(TestContext.Current.CancellationToken);
+        await peer.ReportItemProgressAsync(new(2, 3, 1, 4), TestContext.Current.CancellationToken);
         await peer.CompleteRunAsync(TestContext.Current.CancellationToken);
         peer.ClearRun();
 
         Assert.All(seen.Where(value => value.Path == SynchronizationProtocol.EndpointRunStart), value => Assert.Null(value.Run));
-        Assert.All(seen.Where(value => value.Path is SynchronizationProtocol.EndpointSessionIncomplete or SynchronizationProtocol.EndpointRunEnd), value =>
+        Assert.All(seen.Where(value => value.Path is SynchronizationProtocol.EndpointSessionIncomplete or SynchronizationProtocol.EndpointRunProgress or SynchronizationProtocol.EndpointRunEnd), value =>
         {
             Assert.Equal(run.RunId.ToString(), value.Run);
             Assert.Equal(nameof(SynchronizationPhase.PushingIncompleteSessions), value.Phase);
@@ -734,6 +790,18 @@ public class HttpApiServiceTests : IAsyncDisposable
 
         Assert.Equal(wrongSubject || expired ? 0 : 1, sent);
         Assert.Null(api.PairedPeer);
+    }
+
+    private sealed class WaitingBodyStream : MemoryStream
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            Started.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return 0;
+        }
     }
 
     private async Task<ISynchronizationPeer> CreateService(ISecureStorage storage,

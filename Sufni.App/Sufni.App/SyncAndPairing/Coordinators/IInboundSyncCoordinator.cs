@@ -15,7 +15,7 @@ public interface IInboundSyncCoordinator
 {
     IObservable<PeerSyncActivity> Activity { get; }
     Task<SynchronizationRunStarted> BeginRunAsync(string deviceId, SynchronizationRunStart request);
-    Task ObserveRequestAsync(string deviceId, Guid runId, SynchronizationPhase phase);
+    Task ObserveRequestAsync(string deviceId, Guid runId, SynchronizationPhase phase, SynchronizationItemProgress? items = null);
     Task CompleteRunAsync(string deviceId, Guid runId);
     IObservable<PairingChallenge?> PairingPrompt { get; }
     Task<PairingCommandResult> RequestPairingAsync(PairingRequest request);

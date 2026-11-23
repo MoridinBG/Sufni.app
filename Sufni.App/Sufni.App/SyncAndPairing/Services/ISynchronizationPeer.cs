@@ -14,6 +14,7 @@ public interface ISynchronizationPeer
     public Task<PeerIdentity> GetPeerIdentityAsync();
     Task<PeerIdentity> BeginRunAsync(SynchronizationRunStart request, CancellationToken cancellationToken);
     void SetRunPhase(SynchronizationPhase phase);
+    Task ReportItemProgressAsync(SynchronizationItemProgress progress, CancellationToken cancellationToken);
     Task CompleteRunAsync(CancellationToken cancellationToken);
     void ClearRun();
     public Task<SynchronizationData> PullSyncAsync(long since = 0, CancellationToken cancellationToken = default);

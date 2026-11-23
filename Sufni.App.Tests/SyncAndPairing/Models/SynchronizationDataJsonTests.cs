@@ -88,6 +88,29 @@ public class SynchronizationDataJsonTests
     }
 
     [Fact]
+    public void LeverageRatioBike_PushAndPullTransmitOnlyAuthoredCurvePoints()
+    {
+        var data = new SynchronizationData
+        {
+            Bikes = [CreateBike("curve", new RearSuspensionSpec.LeverageRatio(TestSnapshots.LeverageRatioCurve((0, 0), (10, 25))))]
+        };
+        var server = SyncTestServerHarness.CreateServerJsonOptions();
+
+        var push = AppJson.Serialize(data);
+        var received = JsonSerializer.Deserialize<SynchronizationData>(push, server)!;
+        var pull = JsonSerializer.Serialize(received, server);
+        var returned = AppJson.Deserialize<SynchronizationData>(pull)!;
+
+        foreach (var json in new[] { push, pull })
+        {
+            using var document = JsonDocument.Parse(json);
+            var curve = document.RootElement.GetProperty("bike")[0].GetProperty("rear_suspension").GetProperty("leverage_ratio");
+            Assert.Equal("points", Assert.Single(curve.EnumerateObject()).Name);
+        }
+        Assert.Equal(data.Bikes[0].RearSuspension, Assert.Single(returned.Bikes).RearSuspension);
+    }
+
+    [Fact]
     public void SynchronizationData_OmitsLocalContentRevisions_FromBothJsonProfiles()
     {
         var data = new SynchronizationData

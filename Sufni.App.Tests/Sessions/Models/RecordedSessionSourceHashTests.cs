@@ -45,6 +45,16 @@ public class RecordedSessionSourceHashTests
     }
 
     [Fact]
+    public void LiveCaptureWithoutTemperatureData_PreservesItsSourceHash()
+    {
+        const string payload = """{"schema_version":1,"metadata":{"SourceName":"Bike","Version":1,"SampleRate":100,"Timestamp":123,"Duration":1},"front_measurements":[10,20,30],"imu_data":null,"markers":[]}""";
+        const string expected = "23a09548efda743f3165a751aa39311b4a184bfe6502f0947e96f1a6a5f7f7b3";
+
+        Assert.Equal(expected, Hash(payload));
+        Assert.NotEqual(expected, Hash(payload.Replace("[10,20,30]", "[10,20,31]")));
+    }
+
+    [Fact]
     public void LiveCaptureFactory_AssignsContentId_IndependentOfSetupDisplayName()
     {
         var capture = new LiveTelemetryCapture(

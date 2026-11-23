@@ -476,8 +476,8 @@ public class SynchronizationServerService : ISynchronizationServerService
         string deviceId, SynchronizationRunStart request, IInboundSyncCoordinator coordinator)
     {
         if (request.RunId == Guid.Empty || string.IsNullOrWhiteSpace(request.DatabaseIncarnation) ||
-            request.Phases is not { Length: 6 } || request.Phases.Distinct().Count() != 6 ||
-            request.Phases.Any(phase => !Enum.IsDefined(phase) || phase == SynchronizationPhase.ResolvingServer))
+            request.Phases is not { Length: > 0 } ||
+            !request.Phases.SequenceEqual(SynchronizationRunStart.OrderedPhases(request.Phases[0] == SynchronizationPhase.PullingRemoteChanges)))
             return Results.BadRequest();
         return Results.Ok(await coordinator.BeginRunAsync(deviceId, request));
     }
@@ -614,6 +614,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                     !Enum.TryParse<SynchronizationPhase>(http.Request.Headers[SynchronizationProtocol.RunPhaseHeader], out var phase) ||
                     !Enum.IsDefined(phase) || phase == SynchronizationPhase.ResolvingServer)
                     return Results.BadRequest();
+                if (http.Request.Path == SynchronizationProtocol.EndpointRunProgress) return await next(context);
                 await inboundSyncCoordinator.ObserveRequestAsync(
                     http.User.FindFirstValue(ClaimTypes.NameIdentifier)!, runId, phase);
                 return await next(context);
@@ -622,6 +623,15 @@ public class SynchronizationServerService : ISynchronizationServerService
             authorized.MapPost(SynchronizationProtocol.EndpointRunStart,
                 async ([FromBody] SynchronizationRunStart request, ClaimsPrincipal user) =>
                     await BeginSynchronizationRunAsync(user.FindFirstValue(ClaimTypes.NameIdentifier)!, request, inboundSyncCoordinator));
+            authorized.MapPut(SynchronizationProtocol.EndpointRunProgress,
+                async (HttpRequest request, ClaimsPrincipal user, [FromBody] SynchronizationItemProgress items) =>
+                {
+                    var phase = Enum.Parse<SynchronizationPhase>(request.Headers[SynchronizationProtocol.RunPhaseHeader]!);
+                    if (!items.IsValidFor(phase)) return Results.BadRequest();
+                    await inboundSyncCoordinator.ObserveRequestAsync(user.FindFirstValue(ClaimTypes.NameIdentifier)!,
+                        Guid.Parse(request.Headers[SynchronizationProtocol.RunIdHeader]!), phase, items);
+                    return Results.NoContent();
+                });
             authorized.MapPost(SynchronizationProtocol.EndpointRunEnd, async (HttpRequest request, ClaimsPrincipal user) =>
             {
                 await inboundSyncCoordinator.CompleteRunAsync(user.FindFirstValue(ClaimTypes.NameIdentifier)!,

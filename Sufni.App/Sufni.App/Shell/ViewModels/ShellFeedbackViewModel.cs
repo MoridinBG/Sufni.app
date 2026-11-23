@@ -54,9 +54,29 @@ public sealed class ShellFeedbackViewModel : ViewModelBase, IShellActions, IDisp
                                      environment.Capabilities.SupportsStorageProviderImport;
     public bool IsPaired => state.IsPaired;
     public bool SyncInProgress => state.IsRunning;
-    public string SyncProgressText => state.Progress?.Message ?? (SyncInProgress ? "Syncing" : string.Empty);
+    public string SyncProgressText
+    {
+        get
+        {
+            if (state.Progress is not { } progress) return SyncInProgress ? "Syncing" : string.Empty;
+            var inbound = state.Activity == SyncActivity.Inbound;
+            var title = progress.Phase switch
+            {
+                SynchronizationPhase.ResolvingServer => "Finding paired computer",
+                SynchronizationPhase.PullingRemoteChanges => inbound ? "Sending library updates" : "Receiving library updates",
+                SynchronizationPhase.PushingLocalChanges => inbound ? "Receiving library updates" : "Sending library updates",
+                SynchronizationPhase.PlanningTransfers => "Planning transfers",
+                SynchronizationPhase.PushingIncompleteSessionSources => inbound ? "Receiving raw recordings" : "Sending raw recordings",
+                SynchronizationPhase.PullingIncompleteSessionSources => inbound ? "Sending raw recordings" : "Receiving raw recordings",
+                SynchronizationPhase.PushingIncompleteSessions => inbound ? "Receiving processed telemetry" : "Sending processed telemetry",
+                SynchronizationPhase.PullingIncompleteSessions => inbound ? "Sending processed telemetry" : "Receiving processed telemetry",
+                SynchronizationPhase.Verifying => "Checking for missing data",
+                _ => "Syncing"
+            };
+            return progress.Items is { Total: > 0 } items ? $"{title} · {items.Checked}/{items.Total}" : title;
+        }
+    }
     public double SyncProgressValue => state.Progress?.Fraction ?? 0;
-    public bool SyncProgressIsIndeterminate => state.Progress is null || !state.Progress.IsDeterminate;
 
     private void OnSyncStateChanged()
     {
@@ -64,7 +84,6 @@ public sealed class ShellFeedbackViewModel : ViewModelBase, IShellActions, IDisp
         OnPropertyChanged(nameof(SyncInProgress));
         OnPropertyChanged(nameof(SyncProgressText));
         OnPropertyChanged(nameof(SyncProgressValue));
-        OnPropertyChanged(nameof(SyncProgressIsIndeterminate));
     }
 
     private void OnSyncCompleted(object? sender, SyncCompletedEventArgs args) => UiThreadDispatcher.Post(() =>

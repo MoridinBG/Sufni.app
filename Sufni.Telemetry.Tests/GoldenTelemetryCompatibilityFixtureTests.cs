@@ -157,6 +157,28 @@ public class GoldenTelemetryCompatibilityFixtureTests
     }
 
     [Fact]
+    public void CompactImuDecode_AllocatesLessThanTwoFullSampleArrays()
+    {
+        const int count = 100_000;
+        var source = new RawImuData
+        {
+            Segments = [new RawImuSegment { LocationId = 1, Records = [.. new ImuRecord[count]] }]
+        };
+        var token = TestContext.Current.CancellationToken;
+        var bytes = MessagePackSerializer.Serialize(source, cancellationToken: token);
+        var warmup = Convert.FromBase64String(FrozenCompactImuBase64);
+        _ = MessagePackSerializer.Deserialize<RawImuData>(warmup, cancellationToken: token);
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var decoded = MessagePackSerializer.Deserialize<RawImuData>(bytes, cancellationToken: token);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal(count, Assert.Single(decoded.Segments).Records.Length);
+        var sampleBytes = (long)count * System.Runtime.CompilerServices.Unsafe.SizeOf<ImuRecord>();
+        Assert.True(allocated < 2 * sampleBytes, $"Decoding {sampleBytes} bytes of IMU samples allocated {allocated} bytes.");
+    }
+
+    [Fact]
     public void CompactImuFixture_IntegratesWithProcessedTelemetryReader()
     {
         var compact = CreateCompactTelemetry();

@@ -159,7 +159,7 @@ public partial class SyncCoordinator : ISyncCoordinator, IDisposable
         ISynchronizationPeer? peer = null;
         logger.Information("Starting synchronization");
         await uiThreadDispatcher.InvokeAsync(() => SetOperation(SyncActivity.Outbound,
-            new SynchronizationProgressSnapshot(SynchronizationPhase.ResolvingServer, "Finding sync server", 1, 7, true)));
+            SynchronizationProgressSnapshot.Discovering));
         try
         {
             if (pairingClientCoordinator is not null)
@@ -211,20 +211,12 @@ public partial class SyncCoordinator : ISyncCoordinator, IDisposable
         if (shutdown.IsCancellationRequested) return;
         if (value is PeerSyncActivity.Running running)
         {
-            var message = running.Phase switch
-            {
-                SynchronizationPhase.PushingLocalChanges => "Receiving remote changes",
-                SynchronizationPhase.PullingRemoteChanges => "Serving remote changes",
-                SynchronizationPhase.PushingIncompleteSessions => "Receiving session data",
-                SynchronizationPhase.PullingIncompleteSessions => "Serving session data",
-                SynchronizationPhase.PushingIncompleteSessionSources => "Receiving recorded sources",
-                SynchronizationPhase.PullingIncompleteSessionSources => "Serving recorded sources",
-                _ => "Syncing"
-            };
-            SetOperation(SyncActivity.Inbound, new SynchronizationProgressSnapshot(running.Phase, message, running.Step, running.PhaseCount, true));
+            SetOperation(SyncActivity.Inbound, running.Progress);
         }
         else
         {
+            if (value is PeerSyncActivity.Completed && State.Activity == SyncActivity.Inbound)
+                SetOperation(SyncActivity.Inbound, SynchronizationProgressSnapshot.Verified);
             SetOperation(SyncActivity.Idle, null);
             if (value is PeerSyncActivity.Interrupted)
                 SyncFailed?.Invoke(this, new SyncFailedEventArgs(SyncFailureReason.Interrupted));
