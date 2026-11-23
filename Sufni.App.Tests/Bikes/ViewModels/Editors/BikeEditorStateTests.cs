@@ -10,6 +10,33 @@ public class BikeEditorStateTests
     private static BikeDraft Bike() => BikeDraft.From(TestSnapshots.Bike());
 
     [Fact]
+    public void UnfinishedLinksAndMissingStrokeKeepThePhotoAngleButHideTheAxlePath()
+    {
+        var linkage = TestSnapshots.FullSuspensionLinkageSpec(true);
+        var draft = Bike() with { RearSuspension = new RearSuspensionSpec.Linkage(linkage),
+            FrontWheel = new(702, null, null), RearWheel = new(700, null, null), ShockStroke = linkage.ShockStroke,
+            PixelsToMillimeters = 2, HeadAngle = 65, ImageBytes = [1] };
+        using var editor = new BikeEditorStateController(draft, true);
+        editor.Actions.Prepared(draft, new BikeEditorImage(draft.ImageBytesMemory, new Avalonia.Size(500, 50)), true, true, false);
+        var data = new Sufni.Kinematics.CoordinateList([2], [4]);
+        editor.Actions.AnalysisCompleted(editor.Current.Request.Generation,
+            new BikeEditorAnalysisResult.Computed(new BikeAnalysisPresentationData(data, data)));
+        Assert.Equal(new Avalonia.Point(1, 48), Assert.Single(editor.Current.Geometry.RearAxlePath));
+
+        editor.Actions.AddLink();
+        editor.Actions.ShockStroke(null);
+        Assert.Equal(71.6, editor.Current.Geometry.EffectiveHeadAngle);
+        Assert.True(editor.Current.Geometry.IsHeadAngleDerived);
+        Assert.IsType<RearSuspensionSpec.LinkageDraft>(editor.Current.Geometry.Spec);
+        Assert.Empty(editor.Current.Geometry.RearAxlePath);
+        Assert.NotNull(editor.Current.Presentation);
+
+        editor.Actions.Mode(RearSuspensionKind.None);
+        Assert.Null(editor.Current.Presentation);
+        Assert.Equal(65, editor.Current.Geometry.EffectiveHeadAngle);
+    }
+
+    [Fact]
     public void DraftAcceptancePreservesEditsMadeDuringSave()
     {
         var baseline = Bike();
