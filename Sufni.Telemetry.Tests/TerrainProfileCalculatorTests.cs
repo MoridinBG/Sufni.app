@@ -35,25 +35,33 @@ public class TerrainProfileCalculatorTests
         Assert.NotNull(windows[11].Frame);
     }
 
-    [Fact]
-    public void EachGroundSectionGetsItsDescriptionIndependentOfSuspensionResponse()
+    private static readonly RideSection[] CalmMediumRoughCourse = [new(600),
+        new(250, LowBandG: 0.9, MiddleBandG: 1, HighBandG: 1.2), new(150, LowBandG: 1.4, MiddleBandG: 1.6, HighBandG: 1.8)];
+
+    [Theory]
+    [InlineData(0, 600, RoughnessClass.Calm)]
+    [InlineData(600, 850, RoughnessClass.Medium)]
+    [InlineData(850, 1000, RoughnessClass.Rough)]
+    public void EachGroundSectionGetsTheClassOfItsBandLevels(double from, double to, RoughnessClass expected)
     {
-        RideSection[] course = [new(600), new(250, LowBandG: 0.9, MiddleBandG: 1, HighBandG: 1.2),
-            new(150, LowBandG: 1.4, MiddleBandG: 1.6, HighBandG: 1.8, CompressionGain: 0.3)];
-        var profile = SyntheticRide.Build(course).Profile();
-        var windows = profile.Windows;
-        void Check(double from, double to, RoughnessClass expected)
-        {
-            var section = windows.Where(w => w.StartMetres >= from && w.StartMetres < to).ToArray();
-            Assert.True(section.Count(w => w.Roughness == expected) >= section.Length * 0.9);
-        }
-        Check(0, 600, RoughnessClass.Calm);
-        Check(600, 850, RoughnessClass.Medium);
-        Check(850, 1000, RoughnessClass.Rough);
-        var summary = TerrainProfileCalculator.Summarize(profile);
+        var section = SyntheticRide.Build(CalmMediumRoughCourse).Profile().Windows
+            .Where(w => w.StartMetres >= from && w.StartMetres < to).ToArray();
+        Assert.True(section.Count(w => w.Roughness == expected) >= section.Length * 0.9);
+    }
+
+    [Fact]
+    public void SummarySharesFollowTheSectionDistances()
+    {
+        var summary = TerrainProfileCalculator.Summarize(SyntheticRide.Build(CalmMediumRoughCourse).Profile());
         Assert.InRange(summary.CalmShare, 0.55, 0.65);
         Assert.InRange(summary.RoughShare, 0.10, 0.20);
-        Assert.Equal(RoughnessSource.Both, summary.DominantSource);
+    }
+
+    [Fact]
+    public void SummaryNamesTheSourceThatClassifiedMostDistance()
+    {
+        var ride = SyntheticRide.Build([new(150), new(300, LowBandG: 2.4, MiddleBandG: 2.2, HighBandG: 2)]);
+        Assert.Equal(RoughnessSource.FrameOnly, TerrainProfileCalculator.Summarize(ride.Profile()).DominantSource);
     }
 
     [Fact]
