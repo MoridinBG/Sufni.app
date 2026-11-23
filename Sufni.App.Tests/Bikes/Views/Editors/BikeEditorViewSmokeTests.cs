@@ -136,6 +136,42 @@ public class BikeEditorViewSmokeTests : BikeEditorFixture
     }
 
     [AvaloniaFact]
+    public async Task PickingTwoHeadTubePointsNamesThemAndDisablesAThirdAssignment()
+    {
+        ViewTestHelpers.EnsureFluentTheme();
+        var editor = CreateEditor(FullSuspensionSnapshot(frontWheelDiameter: 702, rearWheelDiameter: 700));
+        editor.Linkage.CreateJointCommand.Execute(null);
+        var third = editor.Linkage.JointViewModels[^1];
+        var picker = new JointTypePicker { DataContext = third };
+        await using var mounted = await ViewTestHelpers.MountAsync(picker);
+        var headTube = picker.Items.OfType<ComboBoxItem>().Single(item => Equals(item.Tag, JointType.HeadTube));
+        Assert.True(headTube.IsEnabled);
+
+        editor.Linkage.AddPoint(10, -1);
+        var first = editor.Linkage.JointViewModels[^1];
+        first.Type = JointType.HeadTube;
+        Assert.Equal(JointNames.HeadTube1, first.Name);
+        Assert.False(editor.Frame.IsHeadAngleDerived);
+
+        editor.Linkage.AddPoint(9, -4);
+        var second = editor.Linkage.JointViewModels[^1];
+        picker.DataContext = second;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        picker.SelectedItem = headTube;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.Equal(JointNames.HeadTube2, second.Name);
+        Assert.True(editor.Frame.IsHeadAngleDerived);
+        Assert.Equal(71.6, editor.Frame.HeadAngle);
+
+        picker.DataContext = third;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.False(headTube.IsEnabled);
+        third.Type = JointType.HeadTube;
+        Assert.Equal(JointType.Floating, third.Type);
+        await editor.PrepareCloseAsync();
+    }
+
+    [AvaloniaFact]
     public async Task LinkageGridHonorsJointAndShockEditRules()
     {
         ViewTestHelpers.EnsureFluentTheme();

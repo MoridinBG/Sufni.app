@@ -1,6 +1,7 @@
 <UserControl
     x:Class="Sufni.App.Bikes.DesktopViews.Editors.LinkageControlsDesktopView"
     xmlns="https://github.com/avaloniaui"
+    xmlns:editors="using:Sufni.App.Bikes.Views.Editors"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:vm="using:Sufni.App.Bikes.ViewModels.Editors"
     xmlns:vml="using:Sufni.App.Bikes.ViewModels.LinkageEditing"
@@ -81,11 +82,9 @@
                         </DataGridTemplateColumn.CellTemplate>
                         <DataGridTemplateColumn.CellEditingTemplate>
                             <DataTemplate DataType="vml:JointRowViewModel">
-                                <ComboBox
+                                <editors:JointTypePicker
                                 HorizontalAlignment="Stretch"
-                                IsDropDownOpen="True"
-                                ItemsSource="{Binding PointTypes}"
-                                SelectedItem="{Binding Type}" />
+                                IsDropDownOpen="True" />
                             </DataTemplate>
                         </DataGridTemplateColumn.CellEditingTemplate>
                     </DataGridTemplateColumn>

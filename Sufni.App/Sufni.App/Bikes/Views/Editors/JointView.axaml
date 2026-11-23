@@ -1,7 +1,8 @@
 <UserControl
 x:Class="Sufni.App.Bikes.Views.Editors.JointView"
 xmlns="https://github.com/avaloniaui"
-xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:editors="using:Sufni.App.Bikes.Views.Editors"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:editorVm="using:Sufni.App.Bikes.ViewModels.Editors"
@@ -33,12 +34,10 @@ mc:Ignorable="d">
                     Grid.Column="0"
                     Margin="5"
                     Text="Type" />
-                    <ComboBox
+                    <editors:JointTypePicker
                     Grid.Row="1"
                     Grid.Column="1"
-                    HorizontalAlignment="Stretch"
-                    ItemsSource="{Binding PointTypes}"
-                    SelectedItem="{Binding Type}" />
+                    HorizontalAlignment="Stretch" />
                 </Grid>
             </Flyout>
         </Canvas.ContextFlyout>

@@ -19,6 +19,19 @@ public enum JointEditRule { Modifiable, FixedName, Immutable }
 
 public static class JointEditRules
 {
+    public static string? AvailableHeadTubeName(LinkageDraft draft, LinkageJoint candidate)
+    {
+        if (For(candidate) != JointEditRule.Modifiable) return null;
+        var existing = draft.Joints.Where(joint => joint.Type == JointType.HeadTube).Take(2).ToArray();
+        if (existing.Length == 2) return null;
+        var preferSecond = existing.Length == 1 && existing[0].Name != JointNames.HeadTube2;
+        var preferred = preferSecond ? JointNames.HeadTube2 : JointNames.HeadTube1;
+        var alternate = preferSecond ? JointNames.HeadTube1 : JointNames.HeadTube2;
+        bool Available(string name) => !draft.Joints.Any(joint => joint.Id != candidate.Id && joint.Name == name);
+        if (Available(preferred)) return preferred;
+        return Available(alternate) ? alternate : null;
+    }
+
     public static JointEditRule For(LinkageJoint joint) => joint.Type switch
     {
         JointType.FrontWheel or JointType.RearWheel or JointType.BottomBracket or JointType.HeadTube => JointEditRule.Immutable,

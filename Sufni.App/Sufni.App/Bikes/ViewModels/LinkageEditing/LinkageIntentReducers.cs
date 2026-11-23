@@ -41,7 +41,13 @@ public static class LinkageIntentReducers
         ChangeJoint(draft, id, joint => JointEditRules.For(joint) == JointEditRule.Modifiable ? joint with { Name = name } : joint);
 
     public static LinkageDraft SetType(LinkageDraft draft, int id, JointType? type) =>
-        ChangeJoint(draft, id, joint => JointEditRules.For(joint) != JointEditRule.Immutable ? joint with { Type = type } : joint);
+        ChangeJoint(draft, id, joint =>
+        {
+            if (joint.Type == type || JointEditRules.For(joint) == JointEditRule.Immutable) return joint;
+            if (type != JointType.HeadTube) return joint with { Type = type };
+            var name = JointEditRules.AvailableHeadTubeName(draft, joint);
+            return name is null ? joint : joint with { Name = name, Type = type };
+        });
 
     private static LinkageDraft ChangeJoint(LinkageDraft draft, int id, Func<LinkageJoint, LinkageJoint> change) =>
         draft.Joint(id) is { } joint ? draft with { Joints = draft.Joints.Replace(joint, change(joint)) } : draft;

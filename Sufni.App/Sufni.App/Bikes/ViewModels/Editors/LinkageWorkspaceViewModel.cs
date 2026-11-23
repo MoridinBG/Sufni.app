@@ -94,7 +94,7 @@ public sealed partial class LinkageWorkspaceViewModel : BikeEditorWorkspace
                 joints.Insert(index, row);
             }
             else if (joints[index] != row) joints.Move(joints.IndexOf(row), index);
-            row.Apply(joint, joint.Id == state.Selection);
+            row.Apply(joint, state);
         }
         for (var index = 0; index < draft.Links.Length; index++)
         {

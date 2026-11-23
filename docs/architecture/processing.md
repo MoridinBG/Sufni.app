@@ -328,7 +328,9 @@ Front and rear max travel for the processing pipeline do **not** live on `BikeCh
 ### Photo-derived head angle
 
 Bike snapshots and both processing-fingerprint paths use the angle of the head tube
-relative to the line between wheel contact points. The editor uses screen pixels
+relative to the line between wheel contact points. Both paths select exactly two
+joints of type `HeadTube` regardless of their saved names. The editor names new
+assignments `Head tube 1` and `Head tube 2` and disables a third assignment. The editor uses screen pixels
 and the scale derived from the rear axle, bottom bracket and chainstay. Persisted
 joints use millimetres with Y upward. Their adapter negates Y and uses unit scale
 before calling the same calculation. Missing joints, missing wheel diameters

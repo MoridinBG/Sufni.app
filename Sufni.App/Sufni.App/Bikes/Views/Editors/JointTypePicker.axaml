@@ -1,0 +1,15 @@
+<ComboBox
+    x:Class="Sufni.App.Bikes.Views.Editors.JointTypePicker"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:k="using:Sufni.Kinematics"
+    xmlns:vm="using:Sufni.App.Bikes.ViewModels.LinkageEditing"
+    x:DataType="vm:JointRowViewModel"
+    SelectedValueBinding="{Binding Tag, DataType=ComboBoxItem}"
+    SelectedValue="{Binding Type, Mode=TwoWay}">
+    <ComboBoxItem />
+    <ComboBoxItem Tag="{x:Static k:JointType.Fixed}" Content="{x:Static k:JointType.Fixed}" />
+    <ComboBoxItem Tag="{x:Static k:JointType.Floating}" Content="{x:Static k:JointType.Floating}" />
+    <ComboBoxItem Tag="{x:Static k:JointType.HeadTube}" Content="{x:Static k:JointType.HeadTube}"
+        IsEnabled="{Binding CanAssignHeadTube}" />
+</ComboBox>

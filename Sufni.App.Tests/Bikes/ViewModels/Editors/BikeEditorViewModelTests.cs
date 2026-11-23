@@ -69,34 +69,18 @@ public class BikeEditorViewModelTests : BikeEditorFixture
     }
 
     [AvaloniaFact]
-    public void AdditionalHeadTubeTypedPoint_DoesNotChangeWhichJointsDriveHeadAngle()
+    public void SavedCustomHeadTubeNamesCalculateWithoutRenamingThePoints()
     {
-        var snapshot = FullSuspensionSnapshot(
-            includeHeadTubeJoints: true,
-            frontWheelRimSize: EtrtoRimSize.Inch29,
-            frontWheelTireWidth: 2.4,
-            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
-            rearWheelRimSize: EtrtoRimSize.Inch275,
-            rearWheelTireWidth: 2.5,
-            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
-            imageRotationDegrees: 12.5,
-            updated: 7);
-        var baselineEditor = CreateEditor(snapshot);
-        var affectedEditor = CreateEditor(snapshot);
+        var snapshot = FullSuspensionSnapshot(true, frontWheelDiameter: 702, rearWheelDiameter: 700);
+        var spec = snapshot.Linkage!;
+        var joints = spec.Joints.Select((joint, index) => joint.Type == JointType.HeadTube
+            ? joint with { Name = $"Point{index}" } : joint).ToArray();
+        var editor = CreateEditor(snapshot with { HeadAngle = 62.3,
+            RearSuspension = new RearSuspensionSpec.Linkage(new LinkageSpec(joints, spec.Links, spec.Shock, spec.ShockStroke)) });
 
-        var baselineHeadTube1 = Assert.Single(baselineEditor.Linkage.JointViewModels, joint => joint.Name == JointNames.HeadTube1);
-        var affectedHeadTube1 = Assert.Single(affectedEditor.Linkage.JointViewModels, joint => joint.Name == JointNames.HeadTube1);
-        var extraHeadTube = Assert.Single(affectedEditor.Linkage.JointViewModels, joint => joint.Name == JointNames.ShockEye1);
-
-        var baselineHeadAngle = baselineEditor.Frame.HeadAngle;
-        baselineHeadTube1.Y += 10;
-
-        Assert.NotEqual(baselineHeadAngle, baselineEditor.Frame.HeadAngle);
-
-        extraHeadTube.Type = JointType.HeadTube;
-        affectedHeadTube1.Y += 10;
-
-        Assert.Equal(baselineEditor.Frame.HeadAngle, affectedEditor.Frame.HeadAngle);
+        Assert.True(editor.Frame.IsHeadAngleDerived);
+        Assert.Equal(71.6, editor.Frame.HeadAngle);
+        Assert.Equal(joints.Select(joint => joint.Name), editor.Linkage.JointViewModels.Select(row => row.Name));
     }
 
     [AvaloniaTheory]

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.Bikes.ViewModels.Editors;
@@ -26,7 +25,7 @@ public sealed class JointRowViewModel : ObservableObject
     public double Y { get => joint.Y; set { if (value != Y) actions.Move(Id, X, value); } }
     public string Name { get => joint.Name; set { if (value != Name) actions.Rename(Id, value); } }
     public JointType? Type { get => joint.Type; set { if (value != Type) actions.JointType(Id, value); } }
-    public static IReadOnlyList<JointType?> PointTypes { get; } = [null, JointType.Fixed, JointType.Floating, JointType.HeadTube];
+    public bool CanAssignHeadTube { get; private set; }
     public IBrush Brush => Type switch
     {
         JointType.FrontWheel => Brushes.Cyan, JointType.RearWheel => Brushes.Cyan,
@@ -34,10 +33,11 @@ public sealed class JointRowViewModel : ObservableObject
         JointType.Fixed => Brushes.OrangeRed, _ => Brushes.HotPink
     };
 
-    internal void Apply(LinkageJoint value, bool selected)
+    internal void Apply(LinkageJoint value, BikeEditorState state)
     {
         joint = value;
-        IsSelected = selected;
+        IsSelected = state.Selection == value.Id;
+        CanAssignHeadTube = JointEditRules.AvailableHeadTubeName(state.Inputs.Linkage, value) is not null;
         OnPropertyChanged(string.Empty);
     }
 }
