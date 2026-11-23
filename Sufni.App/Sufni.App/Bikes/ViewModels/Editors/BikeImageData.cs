@@ -1,7 +1,7 @@
 using System.IO;
 using Avalonia.Media.Imaging;
 
-namespace Sufni.App.Bikes.ViewModels.Editors.BikeEditorParts;
+namespace Sufni.App.Bikes.ViewModels.Editors;
 
 internal static class BikeImageData
 {
