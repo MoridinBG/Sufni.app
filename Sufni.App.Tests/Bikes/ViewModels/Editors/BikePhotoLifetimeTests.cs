@@ -50,7 +50,19 @@ public class BikePhotoLifetimeTests : BikeEditorFixture
         Assert.Same(replacement, canvas.Image);
         Assert.False(replacement.Released);
         await editor.PrepareCloseAsync();
-        Assert.True(replacement.Released);
+    }
+
+    [AvaloniaFact]
+    public async Task ClosingReleasesTheShownPhoto()
+    {
+        var shown = new TrackedBitmap();
+        var editor = CreateEditor(FullSuspensionSnapshot(), background: PhotoDecoder(Task.FromResult<Bitmap>(shown)));
+        Assert.Same(shown, editor.Linkage.Canvas.Image);
+
+        await editor.PrepareCloseAsync();
+
+        Assert.True(shown.Released);
+        Assert.Null(editor.Linkage.Canvas.Image);
     }
 
     [AvaloniaFact]
