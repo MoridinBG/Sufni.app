@@ -7,19 +7,19 @@ using Sufni.App.Shared.Views.Plots;
 namespace Sufni.App.Segments.Views;
 
 /// <summary>
-/// Plot of a <see cref="SegmentComparisonRowViewModel"/> data context. It has no
+/// Plot of a <see cref="ISegmentPlotRow"/> data context. It has no
 /// signals workspace, so analysis-range selection and the context menu stay inactive.
 /// </summary>
 public sealed class SegmentComparisonPlotView : SufniTimeSeriesPlotView
 {
-    private SegmentComparisonRowViewModel? row;
+    private ISegmentPlotRow? row;
 
     public SegmentComparisonPlotView()
     {
-        DataContextChanged += (_, _) => BindRow(DataContext as SegmentComparisonRowViewModel);
+        DataContextChanged += (_, _) => BindRow(DataContext as ISegmentPlotRow);
     }
 
-    protected override double? TimelineDurationSeconds => row?.Comparison.SourceDurationSeconds;
+    protected override double? TimelineDurationSeconds => row?.SourceDurationSeconds;
     protected override bool CanLoadPlotData => row is { Series.Count: > 0 };
 
     protected override void CreatePlot()
@@ -36,22 +36,22 @@ public sealed class SegmentComparisonPlotView : SufniTimeSeriesPlotView
         }
     }
 
-    private void BindRow(SegmentComparisonRowViewModel? next)
+    private void BindRow(ISegmentPlotRow? next)
     {
         if (ReferenceEquals(row, next))
         {
             return;
         }
 
-        if (row is not null)
+        if (row is INotifyPropertyChanged previous)
         {
-            row.PropertyChanged -= OnRowPropertyChanged;
+            previous.PropertyChanged -= OnRowPropertyChanged;
         }
 
         row = next;
-        if (row is not null)
+        if (row is INotifyPropertyChanged current)
         {
-            row.PropertyChanged += OnRowPropertyChanged;
+            current.PropertyChanged += OnRowPropertyChanged;
         }
 
         ShowAirtime = row?.ShowAirtime ?? false;
@@ -60,7 +60,7 @@ public sealed class SegmentComparisonPlotView : SufniTimeSeriesPlotView
 
     private void OnRowPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName == nameof(SegmentComparisonRowViewModel.ShowAirtime))
+        if (args.PropertyName == nameof(ISegmentPlotRow.ShowAirtime))
         {
             ShowAirtime = row?.ShowAirtime ?? false;
         }

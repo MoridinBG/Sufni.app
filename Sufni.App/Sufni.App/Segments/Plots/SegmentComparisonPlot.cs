@@ -22,7 +22,7 @@ public sealed class SegmentComparisonPlot(Plot plot, SufniTheme? theme = null)
 {
     private const double ValuePaddingFraction = 0.08;
 
-    public void LoadRow(SegmentComparisonRowViewModel row)
+    public void LoadRow(ISegmentPlotRow row)
     {
         var series = row.Series
             .Select(MapSeries)
@@ -43,7 +43,7 @@ public sealed class SegmentComparisonPlot(Plot plot, SufniTheme? theme = null)
         LoadTimeSeries(new RecordedTimeSeriesData(
             Title: string.Empty,
             EmptyMessage: row.EmptyMessage,
-            DurationSeconds: row.Comparison.SourceDurationSeconds,
+            DurationSeconds: row.SourceDurationSeconds,
             Series: series,
             ValueRange: valueRange,
             InitialRangeOverlays: overlays,
@@ -137,6 +137,7 @@ public sealed class SegmentComparisonPlot(Plot plot, SufniTheme? theme = null)
         SegmentComparisonSeriesRole.FrameImu => ImuPlot.FrameColor,
         SegmentComparisonSeriesRole.ForkImu => FrontColor,
         SegmentComparisonSeriesRole.ShockImu => RearColor,
+        SegmentComparisonSeriesRole.Grade => SufniThemes.SignalSeries.GpsElevation.ToScottPlotColor(),
         _ => SufniThemes.SignalSeries.GpsSpeed.ToScottPlotColor(),
     };
 }

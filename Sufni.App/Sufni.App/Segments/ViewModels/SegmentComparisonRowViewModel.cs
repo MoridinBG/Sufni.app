@@ -13,7 +13,7 @@ namespace Sufni.App.Segments.ViewModels;
 /// One signal of a compared match, shown as a child row of the matching built-in
 /// signal row. Only the travel row of a match with airtimes has an airtime toggle.
 /// </summary>
-public sealed partial class SegmentComparisonRowViewModel : ObservableObject
+public sealed partial class SegmentComparisonRowViewModel : ObservableObject, ISegmentPlotRow
 {
     public const string MatchErrorToolTip = "Average GPS path distance after alignment. Lower is closer.";
 
@@ -89,6 +89,8 @@ public sealed partial class SegmentComparisonRowViewModel : ObservableObject
     public IReadOnlyList<SignalRowAction> HeaderActions { get; }
     public bool InvertValueAxis => Signal == SegmentComparisonSignal.Travel;
 
+    public double SourceDurationSeconds => Comparison.SourceDurationSeconds;
+    public string TitleToolTip => MatchErrorToolTip;
     public string Title => $"{Comparison.Match.SessionName} {SignalName}  match error {Comparison.Match.NormalizedCostMeters:0.0}m";
 
     public string EmptyMessage => $"No matched {SignalName} data";

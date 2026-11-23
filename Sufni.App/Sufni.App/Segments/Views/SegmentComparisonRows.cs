@@ -17,8 +17,8 @@ namespace Sufni.App.Segments.Views;
 /// </summary>
 public static class SegmentComparisonRows
 {
-    public static readonly AttachedProperty<IReadOnlyList<SegmentComparisonRowViewModel>?> RowsProperty =
-        AvaloniaProperty.RegisterAttached<SignalRow, IReadOnlyList<SegmentComparisonRowViewModel>?>(
+    public static readonly AttachedProperty<IReadOnlyList<ISegmentPlotRow>?> RowsProperty =
+        AvaloniaProperty.RegisterAttached<SignalRow, IReadOnlyList<ISegmentPlotRow>?>(
             "Rows",
             typeof(SegmentComparisonRows));
 
@@ -33,10 +33,10 @@ public static class SegmentComparisonRows
         TimelineProperty.Changed.AddClassHandler<SignalRow>((row, _) => UpdateTimeline(row));
     }
 
-    public static void SetRows(SignalRow row, IReadOnlyList<SegmentComparisonRowViewModel>? value) =>
+    public static void SetRows(SignalRow row, IReadOnlyList<ISegmentPlotRow>? value) =>
         row.SetValue(RowsProperty, value);
 
-    public static IReadOnlyList<SegmentComparisonRowViewModel>? GetRows(SignalRow row) =>
+    public static IReadOnlyList<ISegmentPlotRow>? GetRows(SignalRow row) =>
         row.GetValue(RowsProperty);
 
     public static void SetTimeline(SignalRow row, IPlotTimeline? value) =>
@@ -76,11 +76,11 @@ public static class SegmentComparisonRows
         }
     }
 
-    private static SignalRow CreateRow(SegmentComparisonRowViewModel comparisonRow, IPlotTimeline? timeline) =>
+    private static SignalRow CreateRow(ISegmentPlotRow comparisonRow, IPlotTimeline? timeline) =>
         new()
         {
             Title = comparisonRow.Title,
-            TitleToolTip = SegmentComparisonRowViewModel.MatchErrorToolTip,
+            TitleToolTip = comparisonRow.TitleToolTip,
             HeaderActions = comparisonRow.HeaderActions,
             PlotContent = new SegmentComparisonPlotView { DataContext = comparisonRow, Timeline = timeline },
             PlaceholderContent = new SurfacePlaceholderCard { Title = comparisonRow.Title },
