@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Common;
 using Sufni.App.Shared.Models;
 using System;
 using System.Collections.Generic;
@@ -76,7 +77,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
     private readonly Dictionary<Guid, Run> runs = new();
     private long sequence;
     private readonly CancellationTokenSource shutdown = new();
-    private readonly HashSet<Task> activeTasks = [];
+    private readonly RetainedWork retainedWork = new();
 
     public SessionRecomputeEngine(
         ISessionStoreWriter sessionStore,
@@ -136,7 +137,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
             cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, shutdown.Token);
             seq = ++sequence;
             runs[sessionId] = new Run(cts, seq, tcs.Task);
-            activeTasks.Add(tcs.Task);
+            retainedWork.Retain(tcs.Task);
         }
 
         // Run the body off the lock; the TaskCompletionSource is what the map holds
@@ -171,7 +172,6 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
             {
                 lock (stateGate)
                 {
-                    activeTasks.Remove(tcs.Task);
                     if (runs.TryGetValue(sessionId, out var current) && current.Seq == seq)
                     {
                         runs.Remove(sessionId);
@@ -193,25 +193,24 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
             var cancellation = CancellationTokenSource.CreateLinkedTokenSource(shutdown.Token, cancellationToken);
             var task = backgroundTaskRunner.RunAsync(
                 () => RecomputeAllAsync(progress, cancellation.Token), cancellation.Token);
-            activeTasks.Add(task);
-            _ = ReleaseAsync(task, cancellation);
+            retainedWork.Retain(task);
+            _ = DisposeAfterCompletionAsync(task, cancellation);
             return task;
         }
     }
 
-    private async Task ReleaseAsync(Task task, CancellationTokenSource cancellation)
+    private static async Task DisposeAfterCompletionAsync(Task task, CancellationTokenSource cancellation)
     {
         await task.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-        lock (stateGate) activeTasks.Remove(task);
         cancellation.Dispose();
     }
 
     public async Task StopAsync()
     {
         await shutdown.CancelAsync();
-        Task[] tasks;
-        lock (stateGate) tasks = activeTasks.ToArray();
-        await Task.WhenAll(tasks).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        Task drain;
+        lock (stateGate) drain = retainedWork.DrainAsync();
+        await drain.ConfigureAwait(false);
     }
 
     public void Dispose() => shutdown.Dispose();

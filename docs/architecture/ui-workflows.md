@@ -232,8 +232,9 @@ After readiness, `AppStartup` runs and retains the registered `IStartupJob`
 work: the recorded-source retention cleanup. Its stop operation cancels and
 awaits that work. It also waits for structural migrations or a reset to settle.
 
-Recompute requests and bulk recompute accept cancellation. The engine retains
-all outstanding tasks, including displaced runs. `StopAsync` waits for work that
+Recompute requests and bulk recompute accept cancellation. The engine registers each run with `RetainedWork` inside the same lock as its
+shutdown check and run installation. After cancellation it captures the drain
+under that lock and awaits it outside, including displaced runs. `StopAsync` waits for work that
 cannot be interrupted before the provider is disposed. Shutdown also cancels and
 drains the track coordinator's input evaluation and GPS metric tasks. Canceled
 processing cannot install a stale result. Bulk cancellation stops scheduling
@@ -247,7 +248,7 @@ save/discard/cancel policy. Cancel stops the shutdown before work is canceled.
 After the tabs close, the shell:
 
 1. Awaits `StopAsync` on `SessionEditingCoordinator`, `SessionCoordinator`,
-   `VideoCoordinator` and `BikeCoordinator` together. They retain window edits,
+   `VideoCoordinator` and `BikeCoordinator` together. Their `RetainedWork` instances drain the window edits,
    GPS-offset writes, video-alignment writes and damping-cutoff commits respectively.
    Window edits stay retained until their recomputes complete, so recompute remains
    available throughout this drain. These owners accept writes normally; closed

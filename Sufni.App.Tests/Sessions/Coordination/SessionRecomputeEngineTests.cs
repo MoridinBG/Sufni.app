@@ -117,6 +117,17 @@ public class SessionRecomputeEngineTests
     }
 
     [Fact]
+    public async Task StoppedEngineRejectsSingleAndBulkRequests()
+    {
+        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        using var engine = CreateEngine(store);
+        await engine.StopAsync().AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => engine.RequestRecomputeAsync(Guid.NewGuid()));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => engine.RequestRecomputeAllAsync());
+    }
+
+    [Fact]
     public async Task Stop_WaitsForDisplacedProcessingWithoutLettingItCommit()
     {
         var id = Guid.NewGuid();
