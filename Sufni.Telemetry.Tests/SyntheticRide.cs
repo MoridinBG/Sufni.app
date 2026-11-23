@@ -19,6 +19,10 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
     private const double Radians = Math.PI / 180;
     private const int GyroScale = 16;
 
+    public static SyntheticRide TurningDescent(RideRecording recording) =>
+        Build([new(112), new(70, TurnRadius: -26), new(91, TurnRadius: 18), new(49),
+            new(140, TurnRadius: 33), new(77, TurnRadius: -19), new(91), new(63, TurnRadius: -35)], recording);
+
     public static SyntheticRide Build(IReadOnlyList<RideSection>? sections = null, RideRecording? recording = null)
     {
         sections ??= [new(1980, GradeDegrees: 3), new(858, GradeDegrees: 8, LowBandG: 0.9, MiddleBandG: 1, HighBandG: 1.2),
