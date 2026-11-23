@@ -59,16 +59,21 @@ public static partial class TerrainProfileCalculator
         for (var i = 0; i < windows.Count; i++)
         {
             if (BaselineGrade(windows, i) is not { } baseline) continue;
-            windows[i] = windows[i] with { Steepness = baseline < GentleGrade ? SteepnessClass.Gentle :
-                baseline < SteepGrade ? SteepnessClass.Moderate : SteepnessClass.Steep };
+            windows[i] = windows[i] with { Steepness = ClassifyGrade(baseline) };
         }
         return TerrainSteepnessState.Available;
     }
 
+    internal static SteepnessClass ClassifyGrade(double baseline) => baseline < GentleGrade ? SteepnessClass.Gentle :
+        baseline < SteepGrade ? SteepnessClass.Moderate : SteepnessClass.Steep;
+
     /// <summary>Mean downhill grade over up to five adjacent windows, requiring three measured grades.</summary>
-    public static double? BaselineGrade(IReadOnlyList<TerrainWindow> windows, int i)
+    public static double? BaselineGrade(IReadOnlyList<TerrainWindow> windows, int i) =>
+        BaselineGrade(windows, i, static w => w.Grade, static (a, b) => a.EndSeconds == b.StartSeconds);
+
+    internal static double? BaselineGrade<T>(IReadOnlyList<T> windows, int i, Func<T, double?> readGrade, Func<T, T, bool> adjacent)
     {
-        if (windows[i].Grade is not { } grade) return null;
+        if (readGrade(windows[i]) is not { } grade) return null;
         var sum = grade;
         var count = 1;
         for (var direction = -1; direction <= 1; direction += 2)
@@ -78,8 +83,8 @@ public static partial class TerrainProfileCalculator
                 var j = i + direction * offset;
                 if (j < 0 || j >= windows.Count) break;
                 var lower = Math.Min(j, j - direction);
-                if (windows[lower].EndSeconds != windows[lower + 1].StartSeconds) break;
-                if (windows[j].Grade is { } neighbour) { sum += neighbour; count++; }
+                if (!adjacent(windows[lower], windows[lower + 1])) break;
+                if (readGrade(windows[j]) is { } neighbour) { sum += neighbour; count++; }
             }
         }
         return count < 3 ? null : sum / count;

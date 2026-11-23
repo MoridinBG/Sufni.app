@@ -51,6 +51,24 @@ public class TerrainRunComparisonTests
         Assert.All(all.Responses.Values, cell => Assert.Equal(ResponseCellState.TooShort, cell.State));
     }
 
+    [Fact]
+    public void AveragedClassesDetermineMatchedDistanceIncludingUnclassifiedGaps()
+    {
+        var profile = earlier.Value;
+        var alignment = Assert.IsType<TerrainRunAlignment.Aligned>(TerrainRunAlignment.Calculate(profile, profile, SyntheticTrailRuns.Map(profile, profile)));
+        var windows = alignment.Pairs.Take(50).Select((pair, i) =>
+        {
+            var w = profile.Windows[pair.SourceIndex];
+            return new TrailAverageWindow(pair.SourceIndex, w.StartSeconds, w.EndSeconds, 1.7, null, null,
+                i < 40 ? RoughnessClass.Medium : null, null);
+        });
+        var rows = TerrainRunComparison.Compare(profile, profile, alignment, SuspensionResponseModel.FitPair(profile, profile, []),
+            new TrailAverage.Averaged(4, [.. windows]));
+        Assert.Equal(400, rows.Single(r => r.Class == RoughnessClass.Medium).DistanceMetres);
+        Assert.Equal(0, rows.Single(r => r.Class == RoughnessClass.Rough).DistanceMetres);
+        Assert.True(rows.Single(r => r.Class is null).DistanceMetres > 500);
+    }
+
     private static IReadOnlyList<TerrainComparisonRow> Compare(TerrainProfile current)
     {
         var previous = earlier.Value;

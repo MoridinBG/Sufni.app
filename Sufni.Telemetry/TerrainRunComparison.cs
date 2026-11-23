@@ -16,19 +16,26 @@ public static class TerrainRunComparison
     public const double SamePositionSpeedExponent = 0.9;
 
     public static ImmutableArray<TerrainComparisonRow> Compare(TerrainProfile current, TerrainProfile earlier,
-        TerrainRunAlignment.Aligned alignment, SuspensionResponseModel model, CancellationToken token = default)
+        TerrainRunAlignment.Aligned alignment, SuspensionResponseModel model, TrailAverage.Averaged? average = null, CancellationToken token = default)
     {
         var groups = new List<Pair>[4] { [], [], [], [] };
+        var averageClasses = average?.Windows.ToDictionary(w => w.SourceIndex, w => w.Roughness);
         foreach (var indices in alignment.Pairs)
         {
             token.ThrowIfCancellationRequested();
             var pair = new Pair(current.Windows[indices.SourceIndex], earlier.Windows[indices.MatchIndex]);
             groups[3].Add(pair);
-            if ((pair.Current.NormalisedRoughness + pair.Earlier.NormalisedRoughness) / 2 is { } mean)
-                groups[(int)TerrainCalibration.Classify(mean)].Add(pair);
+            var roughness = averageClasses is null
+                ? PairClass(pair)
+                : averageClasses.GetValueOrDefault(indices.SourceIndex);
+            if (roughness.HasValue) groups[(int)roughness.Value].Add(pair);
         }
         return [.. groups.Select((pairs, index) => Describe(pairs, index < 3 ? (RoughnessClass)index : null, model, token))];
     }
+
+    private static RoughnessClass? PairClass(Pair pair) =>
+        (pair.Current.NormalisedRoughness + pair.Earlier.NormalisedRoughness) / 2 is { } mean
+            ? TerrainCalibration.Classify(mean) : null;
 
     private static TerrainComparisonRow Describe(List<Pair> pairs, RoughnessClass? roughness,
         SuspensionResponseModel model, CancellationToken token)

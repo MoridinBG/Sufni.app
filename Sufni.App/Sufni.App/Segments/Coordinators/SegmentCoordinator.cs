@@ -427,7 +427,7 @@ internal sealed class SegmentCoordinator(
                         ? SegmentTerrainUnavailable.NoCommonSensor : SegmentTerrainUnavailable.Unaligned);
                 var baseline = profiles.Where(p => p.Key != match.SessionId && p.Key != source.SessionId).Select(p => p.Value).ToArray();
                 var model = SuspensionResponseModel.FitPair(source.Profile, earlier, baseline, token);
-                return new SegmentTerrainComparison.Compared(TerrainRunComparison.Compare(source.Profile, earlier, aligned, model, token));
+                return new SegmentTerrainComparison.Compared(TerrainRunComparison.Compare(source.Profile, earlier, aligned, model, token: token));
             }, token);
         }
         catch (Exception e) when (!token.IsCancellationRequested)

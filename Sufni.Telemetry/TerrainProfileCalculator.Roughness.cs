@@ -75,7 +75,7 @@ public static partial class TerrainProfileCalculator
 
     private static (RoughnessClass?, RoughnessSource?) Classify(SensorRoughness? frame, SensorRoughness? lowers)
     {
-        var fork = frame != null && lowers?.ClippedShare > TerrainCalibration.ClippedShareLimit ? null : lowers?.Normalised;
+        var fork = TerrainCalibration.LowersClassValue(frame, lowers);
         var (value, source) = (frame?.Normalised, fork) switch
         {
             ({ } a, { } b) => ((a + b) / 2, RoughnessSource.Both),

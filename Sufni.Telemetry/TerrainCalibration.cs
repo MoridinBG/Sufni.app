@@ -18,6 +18,9 @@ public sealed record TerrainCalibration(double CalmBoundary, double RoughBoundar
         _ => null
     };
 
+    internal static double? LowersClassValue(SensorRoughness? frame, SensorRoughness? lowers) =>
+        frame is not null && lowers?.ClippedShare > ClippedShareLimit ? null : lowers?.Normalised;
+
     public static RoughnessClass Classify(double normalised) => normalised < 0 ? RoughnessClass.Calm :
         normalised < 1 ? RoughnessClass.Medium : RoughnessClass.Rough;
 
