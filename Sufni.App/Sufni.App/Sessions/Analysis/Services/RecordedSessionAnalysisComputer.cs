@@ -12,13 +12,13 @@ namespace Sufni.App.Sessions.Analysis.Services;
 
 internal interface IRecordedSessionAnalysisComputer
 {
-    RecordedSessionAnalysisResult Compute(RecordedSessionAnalysisKey key, TelemetryData telemetry);
+    RecordedSessionAnalysisResult Compute(RecordedSessionAnalysisKey key, TelemetryData telemetry, RecordedSessionAnalysisInputs? inputs = null);
 }
 
 internal sealed class RecordedSessionAnalysisComputer(
     ISessionInsightsService sessionInsightsService) : IRecordedSessionAnalysisComputer
 {
-    public RecordedSessionAnalysisResult Compute(RecordedSessionAnalysisKey key, TelemetryData telemetry) =>
+    public RecordedSessionAnalysisResult Compute(RecordedSessionAnalysisKey key, TelemetryData telemetry, RecordedSessionAnalysisInputs? inputs = null) =>
         key.Family switch
         {
             RecordedSessionAnalysisFamily.DampingPercentages => new DampingPercentagesAnalysisResult(
@@ -26,7 +26,7 @@ internal sealed class RecordedSessionAnalysisComputer(
             RecordedSessionAnalysisFamily.SessionInsights => CalculateSessionInsights(key, telemetry),
             RecordedSessionAnalysisFamily.Availability => CalculateAvailability(key, telemetry),
             RecordedSessionAnalysisFamily.SelectionHighlights => CalculateHighlights(key, telemetry),
-            _ => ComputePlot(key, telemetry),
+            _ => ComputePlot(key, telemetry, inputs),
         };
 
     private static AnalysisAvailabilityResult CalculateAvailability(RecordedSessionAnalysisKey key, TelemetryData telemetry)
@@ -68,7 +68,7 @@ internal sealed class RecordedSessionAnalysisComputer(
         }
     }
 
-    internal static RecordedSessionAnalysisResult ComputePlot(RecordedSessionAnalysisKey key, TelemetryData telemetry) =>
+    internal static RecordedSessionAnalysisResult ComputePlot(RecordedSessionAnalysisKey key, TelemetryData telemetry, RecordedSessionAnalysisInputs? inputs = null) =>
         key.Family switch
         {
             RecordedSessionAnalysisFamily.TravelDistribution => CalculateTravelDistribution(key, telemetry),
@@ -80,7 +80,7 @@ internal sealed class RecordedSessionAnalysisComputer(
             RecordedSessionAnalysisFamily.DeepTravelDistribution => CalculateDeepTravelDistribution(key, telemetry),
             RecordedSessionAnalysisFamily.VibrationDistribution => CalculateVibrationDistribution(key, telemetry),
             RecordedSessionAnalysisFamily.ImuDisplayProjection => new ImuDisplayProjectionAnalysisResult(
-                ImuDisplaySignalProcessor.ProcessRecorded(telemetry)),
+                ImuDisplaySignalProcessor.ProcessRecorded(telemetry, inputs?.TrackSamples?.Value)),
             RecordedSessionAnalysisFamily.PositionVelocity => new PositionVelocityAnalysisResult(
                 PositionVelocityTraceBuilder.Build(telemetry, key.AnalysisRange)),
             _ => throw new ArgumentOutOfRangeException(nameof(key), key.Family, null),

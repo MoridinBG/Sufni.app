@@ -99,6 +99,8 @@ Public phases are `Active`, `AwaitingReset` and `Closed`. Disposal is an interna
 terminal lifecycle phase. Only active capture accepts frames, and identity-bearing
 frames must match the accepted session ID.
 
+Live frame pitch and roll use the forward pass of the telemetry quaternion estimator. Contiguous batches carry orientation forward. A break in logical sample indices starts the next segment at its own measured tilt.
+
 Travel and IMU append to raw segment builders before display projection. Invalid
 source validity and missing indices remain gaps. Temperature, GPS, manual markers
 and final status are retained separately. Each accepted capture change advances

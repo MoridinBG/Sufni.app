@@ -265,7 +265,7 @@ public class RecordedSessionAnalysisResultStateTests
 
     private sealed class FailingAnalysisComputer : IRecordedSessionAnalysisComputer
     {
-        public RecordedSessionAnalysisResult Compute(RecordedSessionAnalysisKey key, TelemetryData telemetry) =>
+        public RecordedSessionAnalysisResult Compute(RecordedSessionAnalysisKey key, TelemetryData telemetry, RecordedSessionAnalysisInputs? inputs = null) =>
             throw new InvalidOperationException("calculation diagnostic");
     }
 
@@ -273,7 +273,7 @@ public class RecordedSessionAnalysisResultStateTests
     {
         public int ComputeCount { get; private set; }
 
-        public RecordedSessionAnalysisResult Compute(RecordedSessionAnalysisKey key, TelemetryData telemetry)
+        public RecordedSessionAnalysisResult Compute(RecordedSessionAnalysisKey key, TelemetryData telemetry, RecordedSessionAnalysisInputs? inputs = null)
         {
             ComputeCount++;
             return new DampingPercentagesAnalysisResult(new SessionDampingPercentages(
@@ -295,7 +295,7 @@ public class RecordedSessionAnalysisResultStateTests
 
         public Task Started => started.Task;
 
-        public RecordedSessionAnalysisResult Compute(RecordedSessionAnalysisKey key, TelemetryData telemetry)
+        public RecordedSessionAnalysisResult Compute(RecordedSessionAnalysisKey key, TelemetryData telemetry, RecordedSessionAnalysisInputs? inputs = null)
         {
             started.TrySetResult();
             completion.Task.GetAwaiter().GetResult();

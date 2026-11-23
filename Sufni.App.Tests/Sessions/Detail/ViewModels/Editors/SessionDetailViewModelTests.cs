@@ -37,6 +37,8 @@ using Sufni.App.Video.Stores;
 using Sufni.App.Video.ViewModels;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.Telemetry;
+using Sufni.Telemetry.Tests;
+using Sufni.App.Sessions.Analysis.Services;
 
 namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 
@@ -554,6 +556,46 @@ public class SessionDetailViewModelTests
         Assert.Equal(trackPoints, editor.SignalsWorkspace.TrackPoints);
         Assert.Same(telemetry, editor.SignalsWorkspace.TelemetryData);
         await harness.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
+    public async Task FramePitchUsesOriginalFixesWhenTheyArriveAfterTelemetry()
+    {
+        using var harness = new SessionDetailHarness();
+        var ride = SyntheticRide.Build([new RideSection(800, Speed: 25, GradeDegrees: 10,
+            LowBandG: 0, MiddleBandG: 0, HighBandG: 0)],
+            new RideRecording(Braking: new TelemetryTimeRange(10, 17), FixRate: 3));
+        var timeline = new SessionTrackTimeline(ride.Telemetry.Metadata.Timestamp);
+        var (track, points) = SyntheticRideTracks.FullTrack(ride, timeline);
+        var snapshot = harness.CreateRecordedSession();
+        var editor = harness.CreateRecordedEditor(snapshot, harness.CreateLoadedResult(ride.Telemetry));
+        var pending = new TaskCompletionSource<SessionDetailTrackLoadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        harness.SessionLoader.LoadTrackAsync(snapshot.Id, ride.Telemetry, Arg.Any<IProgress<SessionDetailLoadProgress>>(),
+            Arg.Any<CancellationToken>()).Returns(pending.Task);
+        var load = harness.LoadAsync(editor);
+        await WaitForAsync(() => ReferenceEquals(editor.SignalsWorkspace.TelemetryData, ride.Telemetry));
+        var analysis = editor.SignalsWorkspace.AnalysisResultState;
+        async Task<double> PitchDuringBraking()
+        {
+            var key = analysis.CurrentInputs!.ImuDisplayProjectionKey;
+            await analysis.RequestAsync(key, TestContext.Current.CancellationToken);
+            var result = Assert.IsType<ImuDisplayProjectionAnalysisResult>(analysis.Get(key));
+            var pitch = result.Projection.FramePitchRoll!;
+            return pitch.PitchDegrees.Where((_, i) => pitch.Times[i] >= 12 && pitch.Times[i] < 15).Average();
+        }
+
+        try
+        {
+            Assert.True(Math.Abs(await PitchDuringBraking() + 10) > 5);
+            pending.SetResult(new SessionDetailTrackLoadResult.Loaded(new SessionTrackPresentationData(track.Id, [.. points], [])));
+            await load;
+            Assert.InRange(await PitchDuringBraking(), -12, -8);
+        }
+        finally
+        {
+            pending.TrySetCanceled();
+            await harness.CloseAsync(editor);
+        }
     }
 
     [AvaloniaFact]

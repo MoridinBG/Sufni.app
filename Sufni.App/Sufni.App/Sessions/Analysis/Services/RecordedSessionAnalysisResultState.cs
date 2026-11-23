@@ -101,7 +101,7 @@ internal sealed class RecordedSessionAnalysisResultState(
             work = new InFlightAnalysis();
             inFlight.Add(key, work);
             active.Add(work);
-            _ = ComputeAndPublishAsync(key, telemetry, work);
+            _ = ComputeAndPublishAsync(key, telemetry, CurrentInputs, work);
         }
         return cancellationToken.CanBeCanceled && !work.Completion.Task.IsCompleted
             ? work.Completion.Task.WaitAsync(cancellationToken)
@@ -126,7 +126,7 @@ internal sealed class RecordedSessionAnalysisResultState(
         await Task.WhenAll(active.Select(work => work.Completion.Task));
     }
 
-    private async Task ComputeAndPublishAsync(RecordedSessionAnalysisKey key, TelemetryData telemetry, InFlightAnalysis work)
+    private async Task ComputeAndPublishAsync(RecordedSessionAnalysisKey key, TelemetryData telemetry, RecordedSessionAnalysisInputs inputs, InFlightAnalysis work)
     {
         RecordedSessionAnalysisResultChanged? change = null;
         try
@@ -134,7 +134,7 @@ internal sealed class RecordedSessionAnalysisResultState(
             var result = await backgroundTaskRunner.RunAsync(() =>
             {
                 work.Cancellation.Token.ThrowIfCancellationRequested();
-                return computer.Compute(key, telemetry);
+                return computer.Compute(key, telemetry, inputs);
             }, work.Cancellation.Token).ConfigureAwait(false);
             work.Cancellation.Token.ThrowIfCancellationRequested();
             change = new RecordedSessionAnalysisResultChanged(key, result);
@@ -154,7 +154,7 @@ internal sealed class RecordedSessionAnalysisResultState(
         {
             try
             {
-                if (!disposed && !work.Cancellation.IsCancellationRequested && CurrentInputs is { } inputs && key.Matches(inputs) &&
+                if (!disposed && !work.Cancellation.IsCancellationRequested && CurrentInputs is { } current && key.Matches(current) &&
                     ReferenceEquals(inFlight.GetValueOrDefault(key), work) && change is not null)
                 {
                     if (change.Result is { } result) results[key] = result;

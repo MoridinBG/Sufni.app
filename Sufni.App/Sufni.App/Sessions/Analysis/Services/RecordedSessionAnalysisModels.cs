@@ -39,6 +39,8 @@ public sealed record RecordedSessionAnalysisInputs(
     DampingSpeedCutoffs PlotDampingSpeedCutoffs,
     SessionInsightsTargetProfile SessionInsightsTargetProfile)
 {
+    public long TrackGeneration { get; init; }
+    public Lazy<ImmutableArray<TrackSample>>? TrackSamples { get; init; }
     public TelemetryRangeSelection? FrontSelection { get; init; }
     public TelemetryRangeSelection? RearSelection { get; init; }
     public RecordedSessionAnalysisKey AvailabilityKey => CreateKey(RecordedSessionAnalysisFamily.Availability);
@@ -199,7 +201,7 @@ public sealed record RecordedSessionAnalysisInputs(
                 BalanceDisplacementMode: null,
                 BalanceSpeedMode: null,
                 DampingSpeedCutoffs: DampingSpeedCutoffSet.Default,
-                SessionInsightsTargetProfile: null),
+                SessionInsightsTargetProfile: null) { TrackGeneration = TrackGeneration },
             RecordedSessionAnalysisFamily.PositionVelocity => new RecordedSessionAnalysisKey(
                 family,
                 TelemetryGeneration,
@@ -241,6 +243,7 @@ public sealed record RecordedSessionAnalysisKey(
     DampingSpeedCutoffs DampingSpeedCutoffs,
     SessionInsightsTargetProfile? SessionInsightsTargetProfile)
 {
+    public long TrackGeneration { get; init; }
     public TelemetryRangeSelection? FrontSelection { get; init; }
     public TelemetryRangeSelection? RearSelection { get; init; }
 

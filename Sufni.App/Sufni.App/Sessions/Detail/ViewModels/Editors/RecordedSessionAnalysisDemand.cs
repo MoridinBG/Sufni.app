@@ -1,5 +1,8 @@
 using Sufni.App.Sessions.Analysis.ViewModels.Editors;
 using System;
+using System.Collections.Immutable;
+using Sufni.Telemetry;
+using Sufni.App.Terrain.Services;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Threading;
@@ -25,6 +28,8 @@ internal sealed class RecordedSessionAnalysisDemand : IAsyncDisposable
     private readonly CancellationToken lifetime;
     private RecordedSessionEditorState currentState = RecordedSessionEditorState.CreateInitial();
     private int telemetryGeneration;
+    private long trackGeneration;
+    private Lazy<ImmutableArray<TrackSample>>? trackSamples;
     private bool insightsRequested;
 
     public RecordedSessionAnalysisDemand(IObservable<RecordedSessionEditorIntent> intents, IRecordedSessionAnalysisResultStateFactory factory,
@@ -61,6 +66,14 @@ internal sealed class RecordedSessionAnalysisDemand : IAsyncDisposable
         var previous = currentState;
         currentState = state;
         if (previous.TelemetryData != state.TelemetryData) telemetryGeneration++;
+        if (!ReferenceEquals(previous.FullTrackPoints, state.FullTrackPoints) || previous.TrackTimeline != state.TrackTimeline ||
+            previous.TelemetryData?.Metadata.Duration != state.TelemetryData?.Metadata.Duration)
+        {
+            trackGeneration++;
+            trackSamples = state.FullTrackPoints is { } fixes && state.TrackTimeline is { } timeline &&
+                state.TelemetryData?.Metadata.Duration is { } duration
+                ? new(() => TrackSampleAdapter.FromOriginalFixes(fixes, timeline, duration)) : null;
+        }
         UpdateAnalysisRequests(previous);
     }
 
@@ -76,6 +89,8 @@ internal sealed class RecordedSessionAnalysisDemand : IAsyncDisposable
             currentState.Presentation.PlotDampingSpeedCutoffs,
             currentState.Preferences.Analysis.SessionInsightsTargetProfile)
         {
+            TrackGeneration = trackGeneration,
+            TrackSamples = trackSamples,
             FrontSelection = currentState.AnalysisSelection.ActiveFront,
             RearSelection = currentState.AnalysisSelection.ActiveRear,
         };

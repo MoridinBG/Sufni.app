@@ -27,6 +27,9 @@ internal sealed record RecordedSessionEditorState(
     RecordedSessionEditorPresentationState Presentation,
     AnalysisSelectionState AnalysisSelection)
 {
+    public SessionTrackTimeline? TrackTimeline => TelemetryData is { } telemetry
+        ? SessionTrackTimeline.FromSessionWindow(telemetry.Metadata.Timestamp, Session?.GpsOffsetSeconds ?? 0,
+            Session?.WindowStartSeconds ?? 0) : null;
     public RecordedProcessingDraft? ProcessingDraft { get; init; }
     public TelemetryProcessingOptions ProcessingOptions => ProcessingDraft is { } draft
         ? new TelemetryProcessingOptions(draft.WindowMilliseconds)
