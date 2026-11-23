@@ -91,6 +91,12 @@ Only compressions and rebounds are published in `Strokes` and MessagePack-serial
 
 An idling stroke is marked as an air candidate during stroke categorization when: max travel <= 5mm, duration >= 0.2s, and the next stroke's max velocity >= 500 mm/s (landing impact). The first and last strokes in the recording cannot be tagged as air candidates because the categorization rule requires both a previous and a next stroke. When both suspensions are present, airtimes are confirmed by pairing front and rear candidates whose sample ranges overlap by >= 50%; any remaining unpaired candidate from either side is still confirmed if the average of the two suspensions' mean travel during that idling is <= 4% of the averaged max travel. When only one suspension is present, every air candidate from that suspension becomes an airtime.
 
+### Track motion and terrain signal filters
+
+`TrackSampleAdapter` maps original GPS fixes into the session clock and local ground metres. `TrackMotion` builds a 10 Hz grid inside spans of at least four fixes. A gap longer than five seconds ends a span. Speed belongs to the midpoints between fixes and is low-passed at 0.4 Hz. Distance integrates that speed within each span and includes the straight displacement across a GPS gap. There are no grid samples in the gap.
+
+`SignalFilters` applies a second-order Butterworth low-pass or a band-pass from a second-order prototype. Each continuous input is filtered forward and backward with odd reflection at its ends.
+
 ### Processing Parameters
 
 Stroke and histogram defaults in `Sufni.Telemetry/Parameters.cs`:
