@@ -90,10 +90,18 @@ public class BikeEditorViewSmokeTests : BikeEditorFixture
         await using var mounted = await ViewTestHelpers.MountAsync(view);
         var field = view.FindControl<NumericUpDown>("HeadAngleInput")!;
         Assert.True(field.IsReadOnly);
+        Assert.False(field.ShowButtonSpinner);
+        var calculated = field.Value;
+        var calibratedHint = Assert.IsType<string>(ToolTip.GetTip(field));
 
         editor.Linkage.Chainstay = null;
         await ViewTestHelpers.FlushDispatcherAsync();
         Assert.False(field.IsReadOnly);
+        Assert.True(field.ShowButtonSpinner);
+        Assert.Equal(calculated, field.Value);
+        var manualHint = Assert.IsType<string>(ToolTip.GetTip(field));
+        Assert.False(string.IsNullOrWhiteSpace(manualHint));
+        Assert.NotEqual(calibratedHint, manualHint);
     }
 
     [AvaloniaFact]
