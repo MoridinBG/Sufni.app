@@ -10,7 +10,7 @@ public sealed record RideRecording(
     int SampleRate = 200, double FixRate = 1, bool IrregularFixes = false, double FirstFix = 0, double TrackShift = 0,
     TelemetryTimeRange? FixLoss = null, TelemetryTimeRange? RecordingGap = null, TelemetryTimeRange? Stop = null,
     TelemetryTimeRange? Braking = null, double BrakingAcceleration = 2.94, double MountPitch = 0, double Roll = 0,
-    bool Frame = true, bool Lowers = true, int AccelScale = 4096, int LowersLimit = short.MaxValue,
+    bool Frame = true, bool Lowers = true, int AccelScale = 4096,
     int Seed = 17, double NoiseG = 0, double SurfaceVariation = 0, int? LowersAccelScale = null);
 
 public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<TrackSample> Fixes)
@@ -41,8 +41,8 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
         var phases = Enumerable.Range(0, 3).Select(_ => 2 * Math.PI * random.NextDouble()).ToArray();
         var fixes = ImmutableArray.CreateBuilder<TrackSample>();
         var sensors = new List<Sensor>();
-        if (recording.Frame) sensors.Add(new Sensor(ImuLocation.Frame, recording.AccelScale, short.MaxValue));
-        if (recording.Lowers) sensors.Add(new Sensor(ImuLocation.Fork, recording.LowersAccelScale ?? recording.AccelScale, recording.LowersLimit));
+        if (recording.Frame) sensors.Add(new Sensor(ImuLocation.Frame, recording.AccelScale));
+        if (recording.Lowers) sensors.Add(new Sensor(ImuLocation.Fork, recording.LowersAccelScale ?? recording.AccelScale));
         var front = new Side(rate);
         var rear = new Side(rate);
         var nextFix = recording.FirstFix;
@@ -141,7 +141,7 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
         return Math.Max(0.1, cruise - recording.BrakingAcceleration * reduction);
     }
 
-    private sealed class Sensor(ImuLocation location, int scale, int limit)
+    private sealed class Sensor(ImuLocation location, int scale)
     {
         public ImuMetaEntry Meta { get; } = new((byte)location, scale, GyroScale);
         private readonly List<RawImuSegment> segments = [];
@@ -156,7 +156,7 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
             if (first + samples.Count != tick) Flush();
             if (samples.Count == 0) first = tick;
             sampleRate = rate;
-            short Accel(double v) => (short)Math.Clamp(Math.Round(v * scale), -limit, limit);
+            short Accel(double v) => (short)Math.Clamp(Math.Round(v * scale), -short.MaxValue, short.MaxValue);
             static short Gyro(double v) => (short)Math.Clamp(Math.Round(v * GyroScale), short.MinValue, short.MaxValue);
             samples.Add(new(Accel(ax), Accel(ay), Accel(az), Gyro(gx), Gyro(gy), Gyro(gz)));
         }
