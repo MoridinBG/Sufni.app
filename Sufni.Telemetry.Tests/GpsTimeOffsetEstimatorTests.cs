@@ -10,7 +10,7 @@ public class GpsTimeOffsetEstimatorTests
     [InlineData(2, 3, 20)]
     public void TurnsRecoverTrackDelayOnItsOriginalFixClock(double delay, double rate, double firstFix)
     {
-        var ride = SyntheticRide.TurningDescent(new RideRecording(FixRate: rate, IrregularFixes: rate > 1,
+        var ride = SyntheticRide.TurningRide(new RideRecording(FixRate: rate, IrregularFixes: rate > 1,
             FirstFix: firstFix, TrackShift: delay));
         var result = Assert.IsType<GpsTimeOffsetEstimate.Measured>(GpsTimeOffsetEstimator.Estimate(ride.Telemetry, ride.Fixes));
         Assert.InRange(result.LagSeconds, delay - 0.3, delay + 0.3);
@@ -28,7 +28,7 @@ public class GpsTimeOffsetEstimatorTests
     [Fact]
     public void ForkGyroCannotSupplyAFrameHeading()
     {
-        var ride = SyntheticRide.TurningDescent(new RideRecording(Frame: false));
+        var ride = SyntheticRide.TurningRide(new RideRecording(Frame: false));
         Assert.Equal(new GpsTimeOffsetEstimate.Unavailable(GpsTimeOffsetUnavailableReason.NoFrameGyro),
             GpsTimeOffsetEstimator.Estimate(ride.Telemetry, ride.Fixes));
     }
