@@ -64,14 +64,7 @@ public class RearSuspensionModeSwitchTests : BikeEditorFixture
     [AvaloniaFact]
     public async Task SetRearSuspensionModeCommand_ClearsWheelState_WhenSwitchingFromLinkageToLeverageRatio()
     {
-        var snapshot = FullSuspensionSnapshot(
-            includeHeadTubeJoints: true,
-            frontWheelRimSize: EtrtoRimSize.Inch29,
-            frontWheelTireWidth: 2.4,
-            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
-            rearWheelRimSize: EtrtoRimSize.Inch275,
-            rearWheelTireWidth: 2.5,
-            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5));
+        var snapshot = CalibratedFullSuspensionSnapshot();
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
         var editor = CreateEditor(snapshot);
 

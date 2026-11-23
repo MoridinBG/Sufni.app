@@ -48,24 +48,12 @@ public class BikeEditorViewModelTests : BikeEditorFixture
     [AvaloniaFact]
     public void Construction_UsesPhotoAngle_WhenItDiffersFromManualInput()
     {
-        var snapshot = FullSuspensionSnapshot(
-            includeHeadTubeJoints: true,
-            frontWheelRimSize: EtrtoRimSize.Inch29,
-            frontWheelTireWidth: 2.4,
-            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
-            rearWheelRimSize: EtrtoRimSize.Inch275,
-            rearWheelTireWidth: 2.5,
-            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
-            imageRotationDegrees: 12.5,
-            updated: 7) with
-        {
-            HeadAngle = 79.9,
-        };
+        var calibrated = CalibratedFullSuspensionSnapshot(imageRotationDegrees: 12.5);
 
-        var editor = CreateEditor(snapshot);
+        var editor = CreateEditor(calibrated with { HeadAngle = 79.9 });
 
         Assert.True(editor.Frame.IsHeadAngleDerived);
-        Assert.NotEqual(79.9, editor.Frame.HeadAngle);
+        Assert.Equal(calibrated.HeadAngle, editor.Frame.HeadAngle);
     }
 
     [AvaloniaFact]
@@ -89,10 +77,7 @@ public class BikeEditorViewModelTests : BikeEditorFixture
     [InlineData(double.NaN)]
     public void InvalidChainstay_KeepsLastPhotoAngleForManualEditing(double invalidChainstay)
     {
-        var snapshot = FullSuspensionSnapshot(
-            includeHeadTubeJoints: true,
-            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
-            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5));
+        var snapshot = CalibratedFullSuspensionSnapshot();
         var editor = CreateEditor(snapshot);
         Assert.True(editor.Linkage.PixelsToMillimeters.HasValue);
         var headTube = editor.Linkage.JointViewModels.Single(joint => joint.Name == JointNames.HeadTube1);
@@ -271,16 +256,7 @@ public class BikeEditorViewModelTests : BikeEditorFixture
     [AvaloniaFact]
     public async Task Reset_RestoresAcceptedSnapshot_AndClearsDirtyState()
     {
-        var snapshot = FullSuspensionSnapshot(
-            includeHeadTubeJoints: true,
-            frontWheelRimSize: EtrtoRimSize.Inch29,
-            frontWheelTireWidth: 2.4,
-            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
-            rearWheelRimSize: EtrtoRimSize.Inch275,
-            rearWheelTireWidth: 2.5,
-            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
-            imageRotationDegrees: 12.5,
-            updated: 7);
+        var snapshot = CalibratedFullSuspensionSnapshot(imageRotationDegrees: 12.5);
         var editor = CreateEditor(snapshot);
         editor.Name = "renamed";
         editor.Linkage.Chainstay = 150;

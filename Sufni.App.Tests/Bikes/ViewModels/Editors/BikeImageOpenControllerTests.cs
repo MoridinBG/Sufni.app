@@ -28,10 +28,8 @@ public class BikeImageOpenControllerTests : BikeEditorFixture
     public async Task ReplacingAnUnreadableInitialPhotoRecoversAnEditableDraft()
     {
         var snapshot = FullSuspensionSnapshot(imageRotationDegrees: 12.5);
-        var background = Substitute.For<IBackgroundTaskRunner>();
-        background.RunAsync(Arg.Any<Func<Avalonia.Media.Imaging.Bitmap>>(), Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromException<Avalonia.Media.Imaging.Bitmap>(new IOException()),
-                call => Task.FromResult(call.Arg<Func<Avalonia.Media.Imaging.Bitmap>>()()));
+        var background = PhotoDecoder(Task.FromException<Avalonia.Media.Imaging.Bitmap>(new IOException()),
+            Task.FromResult<Avalonia.Media.Imaging.Bitmap>(new TrackedBitmap()));
         var editor = CreateEditor(snapshot, background: background, storedImage: [0]);
         Assert.Equal(BikeEditorPhase.Unavailable, editor.Phase);
         files.LoadImageAsync(Arg.Any<CancellationToken>())

@@ -14,13 +14,12 @@ public class BikePhotoLifetimeTests : BikeEditorFixture
     public async Task UnloadingDuringDecodeReleasesTheDecodedPhoto()
     {
         var completion = new TaskCompletionSource<Bitmap>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var background = Substitute.For<IBackgroundTaskRunner>();
-        background.RunAsync(Arg.Any<Func<Bitmap>>(), Arg.Any<CancellationToken>()).Returns(completion.Task);
+        var background = PhotoDecoder(completion.Task);
         var editor = CreateEditor(TestSnapshots.Bike(), background: background);
         files.LoadImageAsync(Arg.Any<CancellationToken>()).Returns(new BikeImageLoadResult.Loaded(TestImages.SmallPngBytes(), "photo"));
         var open = editor.Linkage.OpenImageCommand.ExecuteAsync(null);
         editor.UnloadedCommand.Execute(null);
-        var decoded = new ObservableBitmap();
+        var decoded = new TrackedBitmap();
         completion.SetResult(decoded);
         await open.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
@@ -32,11 +31,9 @@ public class BikePhotoLifetimeTests : BikeEditorFixture
     [AvaloniaFact]
     public async Task ReplacingAPhotoReleasesTheOldBitmapBeforeExposingTheNewOne()
     {
-        var first = new ObservableBitmap();
-        var replacement = new ObservableBitmap();
-        var background = Substitute.For<IBackgroundTaskRunner>();
-        background.RunAsync(Arg.Any<Func<Bitmap>>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<Bitmap>(first), Task.FromResult<Bitmap>(replacement));
+        var first = new TrackedBitmap();
+        var replacement = new TrackedBitmap();
+        var background = PhotoDecoder(Task.FromResult<Bitmap>(first), Task.FromResult<Bitmap>(replacement));
         var editor = CreateEditor(FullSuspensionSnapshot(), background: background);
         var canvas = editor.Linkage.Canvas;
         Assert.Same(first, canvas.Image);
@@ -60,31 +57,19 @@ public class BikePhotoLifetimeTests : BikeEditorFixture
     public async Task APhotoDecodedAfterLeavingLinkageModeIsReleased()
     {
         var decode = new TaskCompletionSource<Bitmap>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var background = Substitute.For<IBackgroundTaskRunner>();
-        background.RunAsync(Arg.Any<Func<Bitmap>>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<Bitmap>(new ObservableBitmap()), decode.Task);
+        var background = PhotoDecoder(Task.FromResult<Bitmap>(new TrackedBitmap()), decode.Task);
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
         var editor = CreateEditor(FullSuspensionSnapshot(), background: background);
         files.LoadImageAsync(Arg.Any<CancellationToken>()).Returns(new BikeImageLoadResult.Loaded(TestImages.SmallPngBytes(), "photo"));
         var open = editor.Linkage.OpenImageCommand.ExecuteAsync(null);
         await editor.RearSuspension.SetRearSuspensionModeCommand.ExecuteAsync(RearSuspensionKind.LeverageRatio);
 
-        var decoded = new ObservableBitmap();
+        var decoded = new TrackedBitmap();
         decode.SetResult(decoded);
         await open.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         Assert.True(decoded.Released);
         Assert.Null(editor.Linkage.Canvas.Image);
         await editor.PrepareCloseAsync();
-    }
-
-    private sealed class ObservableBitmap() : Bitmap(new MemoryStream(TestImages.SmallPngBytes()))
-    {
-        public bool Released { get; private set; }
-        public override void Dispose()
-        {
-            Released = true;
-            base.Dispose();
-        }
     }
 }

@@ -1,3 +1,4 @@
+using Avalonia.Media.Imaging;
 using Sufni.App.Shared.Models;
 using Microsoft.Extensions.Time.Testing;
 using System.Reactive;
@@ -50,6 +51,36 @@ public abstract class BikeEditorFixture
     protected static BikeAnalysisPresentationData PresentationData(CoordinateList leverageRatioData) =>
         new(leverageRatioData, new CoordinateList([], []));
 
+
+    /// <summary>A linkage bike whose photo geometry and wheels define the head angle.</summary>
+    protected static BikeSnapshot CalibratedFullSuspensionSnapshot(double imageRotationDegrees = 0) => FullSuspensionSnapshot(
+        includeHeadTubeJoints: true,
+        frontWheelRimSize: EtrtoRimSize.Inch29,
+        frontWheelTireWidth: 2.4,
+        frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+        rearWheelRimSize: EtrtoRimSize.Inch275,
+        rearWheelTireWidth: 2.5,
+        rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+        imageRotationDegrees: imageRotationDegrees);
+
+    /// <summary>A background runner whose photo decodes complete with the given tasks, in order.</summary>
+    protected static IBackgroundTaskRunner PhotoDecoder(Task<Bitmap> first, params Task<Bitmap>[] later)
+    {
+        var background = Substitute.For<IBackgroundTaskRunner>();
+        background.RunAsync(Arg.Any<Func<Bitmap>>(), Arg.Any<CancellationToken>()).Returns(first, later);
+        return background;
+    }
+
+    protected sealed class TrackedBitmap() : Bitmap(new MemoryStream(TestImages.SmallPngBytes()))
+    {
+        public bool Released { get; private set; }
+
+        public override void Dispose()
+        {
+            Released = true;
+            base.Dispose();
+        }
+    }
 
     protected static BikeSnapshot FullSuspensionSnapshot(
         bool includeHeadTubeJoints = false,
