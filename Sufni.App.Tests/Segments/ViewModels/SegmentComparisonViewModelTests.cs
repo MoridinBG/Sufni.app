@@ -312,6 +312,51 @@ public class SegmentComparisonViewModelTests
         Assert.Equal(0, comparison.MatchCount);
     }
 
+    [Fact]
+    public async Task NewMatchRemovesBothTrailRowsBeforeItsResultArrives()
+    {
+        await using var vm = CreateComparison();
+        TwoTrailMatches();
+        TestSegmentComparisons.WithTrailAverage(coordinator);
+        await vm.MatchCommand.ExecuteAsync(null);
+        Assert.Equal(SegmentComparisonSeriesRole.FrameImu, Assert.Single(Assert.Single(vm.RoughnessRows).Series).Role);
+        Assert.Equal(SegmentComparisonSeriesRole.Grade, Assert.Single(Assert.Single(vm.GradeRows).Series).Role);
+
+        var second = new TaskCompletionSource<SegmentMatchResult>();
+        coordinator.MatchAsync(Arg.Any<SegmentMatchSource>(), Arg.Any<CancellationToken>()).Returns(second.Task);
+        var matching = vm.MatchCommand.ExecuteAsync(null);
+        Assert.Empty(vm.RoughnessRows);
+        Assert.Empty(vm.GradeRows);
+        second.SetResult(new SegmentMatchResult.Cancelled());
+        await matching;
+        Assert.Null(vm.TrailAverage);
+    }
+
+    [Fact]
+    public async Task ClearingWhileAverageIsPendingDiscardsItsLateResult()
+    {
+        await using var vm = CreateComparison();
+        TwoTrailMatches();
+        var result = new TaskCompletionSource<SegmentTrailAverage>();
+        CancellationToken token = default;
+        coordinator.BuildTrailAverageAsync(Arg.Any<SegmentTerrainSource>(), Arg.Any<TelemetryTimeRange>(),
+                Arg.Any<IReadOnlyList<SegmentMatch>>(), Arg.Any<CancellationToken>())
+            .Returns(call => { token = call.Arg<CancellationToken>(); return result.Task; });
+        var matching = vm.MatchCommand.ExecuteAsync(null);
+        vm.Clear();
+        Assert.True(token.IsCancellationRequested);
+        result.SetResult(new SegmentTrailAverage.Averaged(new(3, []), [], []));
+        await matching;
+        Assert.Null(vm.TrailAverage);
+    }
+
+    private void TwoTrailMatches()
+    {
+        var profile = TerrainProfiles.Classified(TerrainProfiles.Window(0, RoughnessClass.Calm, RoughnessSource.FrameOnly));
+        sessionState.OnNext(State() with { Terrain = new(Guid.NewGuid(), TerrainProfileKey.From(TestSegmentMatches.Token), profile, TerrainBaselineIdentity.Empty) });
+        MatchReturns(Comparison(TestSegmentMatches.Match(10, 13)), Comparison(TestSegmentMatches.Match(6, 12)));
+    }
+
     private SegmentComparisonViewModel CreateComparison(SegmentTerrainComparison? terrain = null)
     {
         coordinator.LoadComparisonDetailAsync(Arg.Any<SegmentComparison>(), Arg.Any<CancellationToken>())
@@ -339,10 +384,7 @@ public class SegmentComparisonViewModelTests
     private SegmentComparison Comparison(SegmentMatch match) =>
         SegmentComparisonBuilder.Build(match, TestSegmentMatches.Telemetry(), telemetry.Metadata.Duration)!;
 
-    private void MatchReturns(SegmentComparison comparison) =>
-        coordinator.MatchAsync(Arg.Any<SegmentMatchSource>(), Arg.Any<CancellationToken>()).Returns(new SegmentMatchResult.Matched(
-            [comparison.Match],
-            new SegmentComparisonPage([comparison], [])));
+    private void MatchReturns(params SegmentComparison[] comparisons) => TestSegmentComparisons.MatchReturns(coordinator, comparisons);
 
     private void DetailReturns(SegmentComparison comparison) =>
         coordinator.LoadComparisonDetailAsync(comparison, Arg.Any<CancellationToken>())

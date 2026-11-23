@@ -220,6 +220,8 @@ mc:Ignorable="d">
                 <sessionSignals:SignalRow.ChildRows>
                     <sessionSignals:SignalRow RowId="{x:Static sessionPreferences:SignalRowIds.Roughness}"
                         Title="Roughness (g at 7 m/s)"
+                        segmentViews:SegmentComparisonRows.Rows="{Binding SegmentComparison.RoughnessRows}"
+                        segmentViews:SegmentComparisonRows.Timeline="{Binding Timeline}"
                         HeaderActions="{Binding RoughnessHeaderActions}" PresentationState="{Binding RoughnessSignalState}">
                         <sessionSignals:SignalRow.PlotContent>
                             <terrainViews:TerrainSignalPlotView SignalKind="{x:Static terrainPlots:TerrainSignalKind.Roughness}"
@@ -236,6 +238,8 @@ mc:Ignorable="d">
                     </sessionSignals:SignalRow>
                     <sessionSignals:SignalRow RowId="{x:Static sessionPreferences:SignalRowIds.Grade}"
                         Title="Grade (° downhill)"
+                        segmentViews:SegmentComparisonRows.Rows="{Binding SegmentComparison.GradeRows}"
+                        segmentViews:SegmentComparisonRows.Timeline="{Binding Timeline}"
                         HeaderActions="{Binding GradeHeaderActions}" PresentationState="{Binding GradeSignalState}">
                         <sessionSignals:SignalRow.PlotContent>
                             <terrainViews:TerrainSignalPlotView SignalKind="{x:Static terrainPlots:TerrainSignalKind.Grade}"

@@ -10,23 +10,26 @@
     x:DataType="vm:SegmentComparisonViewModel"
     mc:Ignorable="d">
 
-    <CommandBar Background="Transparent">
-        <CommandBar.PrimaryCommands>
-            <CommandBarButton Name="MatchButton" Label="Match" Command="{Binding MatchCommand}">
-                <CommandBarButton.Icon>
-                    <Image Width="18" Height="18" Source="{SvgImage /Assets/fa-magnifying-glass-chart.svg}" />
-                </CommandBarButton.Icon>
-            </CommandBarButton>
-            <CommandBarButton
-                Name="PreviousMatchesButton"
-                Label="Previous matches"
-                Command="{Binding PreviousPageCommand}"
-                IsVisible="{Binding HasMultiplePages}" />
-            <CommandBarButton
-                Name="NextMatchesButton"
-                Label="Next matches"
-                Command="{Binding NextPageCommand}"
-                IsVisible="{Binding HasMultiplePages}" />
-        </CommandBar.PrimaryCommands>
-    </CommandBar>
+    <StackPanel>
+        <CommandBar Background="Transparent">
+            <CommandBar.PrimaryCommands>
+                <CommandBarButton Name="MatchButton" Label="Match" Command="{Binding MatchCommand}">
+                    <CommandBarButton.Icon>
+                        <Image Width="18" Height="18" Source="{SvgImage /Assets/fa-magnifying-glass-chart.svg}" />
+                    </CommandBarButton.Icon>
+                </CommandBarButton>
+                <CommandBarButton
+                    Name="PreviousMatchesButton"
+                    Label="Previous matches"
+                    Command="{Binding PreviousPageCommand}"
+                    IsVisible="{Binding HasMultiplePages}" />
+                <CommandBarButton
+                    Name="NextMatchesButton"
+                    Label="Next matches"
+                    Command="{Binding NextPageCommand}"
+                    IsVisible="{Binding HasMultiplePages}" />
+            </CommandBar.PrimaryCommands>
+        </CommandBar>
+        <TextBlock Margin="4,0" Text="{Binding TrailAverageStatus}" IsVisible="{Binding !!TrailAverageStatus}" TextWrapping="Wrap" />
+    </StackPanel>
 </UserControl>

@@ -39,3 +39,9 @@ Insights measures the whole ride and each roughness class inside the analysis ti
 Ground alignment refines the GPS time map with a shared frame IMU, or a shared lowers IMU when frame data is absent. Each 150 m chunk searches 40 m to either side. At least two chunks must meet coverage and correlation requirements. Only moving windows within 75 m of an accepted centre enter the comparison.
 
 The pair fit excludes both compared rides and requires compatible predictor scales. Rows cover all matched windows and each roughness class with at least 300 m. Pace reports the median and interquartile range. Suspension and transmission compare each ride’s log residual on jointly measured windows. The same-position RMS ratios use the observed speed ratio to the power 0.9 and remain available without a baseline. Repeat limits are 20% for RMS, compression and same-position response, 25% for rebound and 5% for transmission.
+
+## Known-trail average
+
+Each source window receives at most one measurement from each aligned run. Measured frame and lowers levels use geometric means of at least three readings. Grade uses an arithmetic mean and the same contiguous 50 m baseline as a single ride.
+
+Classification requires three eligible readings for each contributing sensor. Each reading uses its own scale calibration. A ride with frame data excludes its lowers class evidence when clipping exceeds 2%. Uncalibrated and clipped readings can still contribute to the measured levels. When both sensors qualify, their mean normalized values carry equal weight. A comparison using the average keeps windows without an averaged class in its all-terrain row only. Average values live for the current Match in the recorded editor.

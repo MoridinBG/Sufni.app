@@ -1,4 +1,5 @@
 using Sufni.App.Terrain.Models;
+using Sufni.App.Shared.Common;
 using Sufni.App.Shared.Models;
 using System;
 using System.Collections.Generic;
@@ -70,8 +71,30 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
     private readonly HashSet<Task> pending = [];
     private readonly CancellationTokenSource shutdown = new();
     private bool disposed;
+    private readonly CancellableOperation matching = new();
+    private readonly CancellableOperation averaging = new();
     private CancellationTokenSource? pageLoad;
     private CancellationTokenSource? analysisLoad;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TrailAverageStatus), nameof(RoughnessRows), nameof(GradeRows))]
+    public partial SegmentTrailAverage? TrailAverage { get; private set; }
+
+    public string? TrailAverageStatus => TrailAverage switch
+    {
+        SegmentTrailAverage.Averaged a => $"Trail average: {a.Measurement.RunCount} runs",
+        SegmentTrailAverage.TooFewRuns => "Trail average needs 3 runs",
+        SegmentTrailAverage.Failed => "Could not prepare the trail average. Run Match to retry.",
+        _ => null
+    };
+
+    public IReadOnlyList<TrailAverageRow> RoughnessRows => AverageRows(grade: false);
+    public IReadOnlyList<TrailAverageRow> GradeRows => AverageRows(grade: true);
+
+    private IReadOnlyList<TrailAverageRow> AverageRows(bool grade) =>
+        TrailAverage is SegmentTrailAverage.Averaged a
+            ? [new(a.Measurement.RunCount, state.Telemetry!.Metadata.Duration, grade ? a.Grade : a.Roughness)]
+            : [];
 
     [ObservableProperty] public partial IReadOnlyList<SegmentComparisonRowViewModel> TravelRows { get; private set; } = [];
     [ObservableProperty] public partial IReadOnlyList<SegmentComparisonRowViewModel> VelocityRows { get; private set; } = [];
@@ -128,10 +151,19 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         MatchCommand.NotifyCanExecuteChanged();
         if (previous.AnalysisRange != next.AnalysisRange ||
             !ReferenceEquals(previous.Telemetry, next.Telemetry) ||
-            previous.TrackTimeline != next.TrackTimeline)
+            previous.TrackTimeline != next.TrackTimeline ||
+            previous.Terrain is { } oldProfile && next.Terrain is { } newProfile && oldProfile.Key != newProfile.Key)
         {
             Clear();
             return;
+        }
+
+        if (previous.Terrain?.Key != next.Terrain?.Key && matches.Count > 0)
+        {
+            averaging.Cancel();
+            TrailAverage = null;
+            if (next.Terrain is { } terrain && next.AnalysisRange is { } range)
+                _ = TrackAsync(AverageAsync(terrain, range, matches));
         }
 
         if (comparedMatch is not null && comparedDetail is not null &&
@@ -148,6 +180,9 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
     /// <summary>Discards the matches and the analysis comparison.</summary>
     public void Clear()
     {
+        matching.Cancel();
+        averaging.Cancel();
+        TrailAverage = null;
         Cancel(ref pageLoad);
         ClearAnalysisComparison();
         matches = [];
@@ -162,6 +197,8 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         disposed = true;
         sessionStateSubscription.Dispose();
         shutdown.Cancel();
+        matching.Dispose();
+        averaging.Dispose();
         Cancel(ref pageLoad);
         Cancel(ref analysisLoad);
     }
@@ -180,7 +217,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         finally { pending.Remove(task); }
     }
 
-    [RelayCommand(CanExecute = nameof(CanMatch))]
+    [RelayCommand(CanExecute = nameof(CanMatch), AllowConcurrentExecutions = true)]
     private Task Match() => TrackAsync(MatchAsync());
 
     private async Task MatchAsync()
@@ -190,8 +227,10 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
             return;
         }
 
-        var result = await segmentCoordinator.MatchAsync(source, shutdown.Token);
-        if (disposed || CreateMatchSource() != source)
+        Clear();
+        var token = matching.Start(shutdown.Token);
+        var result = await segmentCoordinator.MatchAsync(source, token);
+        if (token.IsCancellationRequested || CreateMatchSource() != source)
         {
             return;
         }
@@ -199,11 +238,15 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         switch (result)
         {
             case SegmentMatchResult.Matched matched:
-                Clear();
                 matches = matched.Matches;
                 MatchCount = matches.Count;
                 ShowRows(matched.FirstPage.Comparisons);
                 reportNotification(matches.Count == 1 ? "Found 1 segment match." : $"Found {matches.Count} segment matches.");
+                if (state.Terrain is { } terrain)
+                {
+                    if (matches.Count == 0) TrailAverage = new SegmentTrailAverage.TooFewRuns(1);
+                    else await AverageAsync(terrain, source.Range, matches, token);
+                }
                 break;
             case SegmentMatchResult.NoTrack:
                 reportError(new FailurePresentation("Segment matching needs a selected range with at least two track points."));
@@ -211,6 +254,20 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
             case SegmentMatchResult.Failed failed:
                 reportError(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
+        }
+    }
+
+    private async Task AverageAsync(SegmentTerrainSource terrain, TelemetryTimeRange range,
+        IReadOnlyList<SegmentMatch> candidates, CancellationToken cancellation = default)
+    {
+        var token = averaging.Start(cancellation);
+        var average = await segmentCoordinator.BuildTrailAverageAsync(terrain, range, candidates, token);
+        if (token.IsCancellationRequested || average is SegmentTrailAverage.Cancelled) return;
+        TrailAverage = average;
+        if (average is SegmentTrailAverage.Averaged && comparedMatch is not null && comparedDetail is not null)
+        {
+            AnalysisComparison = null;
+            await BuildAnalysisComparisonAsync(comparedMatch, comparedDetail, zoomTimeline: false);
         }
     }
 
@@ -334,7 +391,8 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         {
             var result = await segmentCoordinator.BuildAnalysisComparisonAsync(
                 comparison, detail, settings.TravelDistributionMode, settings.VelocityAverageMode,
-                settings.DampingSpeedCutoffs, settings.DampingPercentages, settings.Terrain, null, cancellation.Token);
+                settings.DampingSpeedCutoffs, settings.DampingPercentages, settings.Terrain,
+                (TrailAverage as SegmentTrailAverage.Averaged)?.Measurement, cancellation.Token);
             if (cancellation.IsCancellationRequested || !ReferenceEquals(comparedMatch, comparison))
             {
                 return;
