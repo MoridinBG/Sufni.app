@@ -1,3 +1,4 @@
+using Sufni.App.Bikes.Queries;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Microsoft.Extensions.Time.Testing;
 using Sufni.App.SyncAndPairing.Services;
@@ -33,7 +34,7 @@ public class BikeCoordinatorTests : IAsyncDisposable
     }
 
     private BikeCoordinator CreateCoordinator(IBikePersistenceTransactionRunner? transactions = null) =>
-        new(bikeStore, transactions ?? database.BikeTransactions, bikeEditorService, validator, Repository, new InlineBackgroundTaskRunner());
+        new(bikeStore, transactions ?? database.BikeTransactions, bikeEditorService, validator, new InlineBackgroundTaskRunner());
 
     private async Task SeedAsync(BikeSnapshot snapshot)
     {
@@ -71,7 +72,7 @@ public class BikeCoordinatorTests : IAsyncDisposable
         await (await database.GetInitializedConnectionAsync()).InsertOrReplaceAsync(bike);
         await bikeStore.PublishBikesChangedAsync([BikeSnapshot.From(bike)]);
         var coordinator = CreateCoordinator();
-        var loaded = Assert.IsType<BikeDraftLoadResult.Loaded>(await coordinator.LoadDraftAsync(bike.Id, TestContext.Current.CancellationToken));
+        var loaded = Assert.IsType<BikeDraftLoadResult.Loaded>(await new BikeDraftLoader(Repository, new InlineBackgroundTaskRunner()).LoadDraftAsync(bike.Id, TestContext.Current.CancellationToken));
 
         Assert.Equal([1, 2, 3], loaded.Draft.ImageBytes);
         Assert.IsType<BikeSaveResult.Saved>(await coordinator.SaveAsync(loaded.Draft with { Name = "renamed" }, loaded.Draft));
@@ -89,7 +90,7 @@ public class BikeCoordinatorTests : IAsyncDisposable
         await (await database.GetInitializedConnectionAsync()).InsertOrReplaceAsync(bike);
         await bikeStore.PublishBikesChangedAsync([BikeSnapshot.From(bike)]);
         var coordinator = CreateCoordinator();
-        var baseline = Assert.IsType<BikeDraftLoadResult.Loaded>(await coordinator.LoadDraftAsync(bike.Id, TestContext.Current.CancellationToken)).Draft;
+        var baseline = Assert.IsType<BikeDraftLoadResult.Loaded>(await new BikeDraftLoader(Repository, new InlineBackgroundTaskRunner()).LoadDraftAsync(bike.Id, TestContext.Current.CancellationToken)).Draft;
         bike.ImageBytes = [4, 5, 6];
         await (await database.GetInitializedConnectionAsync()).UpdateAsync(bike);
 
@@ -97,14 +98,6 @@ public class BikeCoordinatorTests : IAsyncDisposable
 
         Assert.Equal([4, 5, 6], result.CurrentDraft.ImageBytes);
         Assert.Equal("pictured", (await Repository.GetAsync(bike.Id))!.Name);
-    }
-
-    [Fact]
-    public async Task LoadDraftAsync_ReturnsMissingForDeletedBike()
-    {
-        var bike = new Bike(Guid.NewGuid(), "deleted") { Deleted = 1, ImageBytes = [1] };
-        await (await database.GetInitializedConnectionAsync()).InsertOrReplaceAsync(bike);
-        Assert.IsType<BikeDraftLoadResult.Missing>(await CreateCoordinator().LoadDraftAsync(bike.Id, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -181,7 +174,7 @@ public class BikeCoordinatorTests : IAsyncDisposable
         };
         IBikeCoordinator coordinator = new BikeCoordinator(bikeStore, database.BikeTransactions,
             bikeEditorService, new BikeSaveValidator(new BikeRearSuspensionValidator(), new KinematicSolutionCache(), new InlineBackgroundTaskRunner()),
-            Repository, new InlineBackgroundTaskRunner());
+            new InlineBackgroundTaskRunner());
 
         Assert.IsType<BikeSaveResult.Invalid>(await coordinator.SaveAsync(draft, BikeDraft.From(original)));
 

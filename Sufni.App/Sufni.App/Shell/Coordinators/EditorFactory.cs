@@ -38,6 +38,7 @@ namespace Sufni.App.Shell.Coordinators;
 
 internal sealed class EditorFactory(
     IBikeCoordinator bikeCoordinator,
+    IBikeDraftLoader bikeDraftLoader,
     IBikeDependencyQuery bikeDependencyQuery,
     IBikeStore bikeStore,
     ISetupCoordinator setupCoordinator,
@@ -91,6 +92,7 @@ internal sealed class EditorFactory(
             snapshot,
             isNew,
             bikeCoordinator,
+            bikeDraftLoader,
             bikeDependencyQuery,
             shell,
             dialogService,

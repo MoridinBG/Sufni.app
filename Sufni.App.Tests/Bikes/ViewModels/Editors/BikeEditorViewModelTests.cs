@@ -25,6 +25,7 @@ namespace Sufni.App.Tests.Bikes.ViewModels.Editors;
 [Collection("Ui")]
 public class BikeEditorViewModelTests
 {
+    private readonly IBikeDraftLoader draftLoader = TestCoordinatorSubstitutes.BikeDraftLoader();
     private readonly IBikeCoordinator bikeCoordinator = TestCoordinatorSubstitutes.Bike();
     private readonly IBikeDependencyQuery dependencyQuery = Substitute.For<IBikeDependencyQuery>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
@@ -39,8 +40,8 @@ public class BikeEditorViewModelTests
 
     private BikeEditorViewModel CreateEditor(BikeSnapshot snapshot, bool isNew = false, bool hasPointer = true, IBackgroundTaskRunner? background = null, byte[]? storedImage = null)
     {
-        bikeCoordinator.LoadDraftAsync(snapshot.Id, Arg.Any<CancellationToken>()).Returns(new BikeDraftLoadResult.Loaded(storedImage is null ? DraftFrom(snapshot) : BikeDraft.From(snapshot, storedImage)));
-        var editor = new BikeEditorViewModel(snapshot, isNew, bikeCoordinator, dependencyQuery, shell, dialogService, uiThreadDispatcher, new InputCapabilities(hasPointer, !hasPointer, hasPointer, !hasPointer, CommandModifier.Control), background ?? new InlineBackgroundTaskRunner(), timeProvider: timeProvider);
+        draftLoader.LoadDraftAsync(snapshot.Id, Arg.Any<CancellationToken>()).Returns(new BikeDraftLoadResult.Loaded(storedImage is null ? DraftFrom(snapshot) : BikeDraft.From(snapshot, storedImage)));
+        var editor = new BikeEditorViewModel(snapshot, isNew, bikeCoordinator, draftLoader, dependencyQuery, shell, dialogService, uiThreadDispatcher, new InputCapabilities(hasPointer, !hasPointer, hasPointer, !hasPointer, CommandModifier.Control), background ?? new InlineBackgroundTaskRunner(), timeProvider: timeProvider);
         return editor;
     }
 
@@ -104,7 +105,7 @@ public class BikeEditorViewModelTests
         Assert.False(editor.IsDirty);
         editor.Name = "edited";
         Assert.True(editor.SaveCommand.CanExecute(null));
-        await bikeCoordinator.Received(1).LoadDraftAsync(snapshot.Id, Arg.Any<CancellationToken>());
+        await draftLoader.Received(1).LoadDraftAsync(snapshot.Id, Arg.Any<CancellationToken>());
         await editor.PrepareCloseAsync();
         Assert.Null(editor.ImageCanvas.Image);
     }

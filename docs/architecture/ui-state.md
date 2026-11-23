@@ -318,6 +318,8 @@ a query: `IBikePersistenceTransactionRunner` checks active setup references insi
 the bike delete transaction, and `BikeCoordinator.DeleteAsync` maps a rejection to
 `BikeDeleteResult.InUse`.
 
+`IBikeDraftLoader` reads the full persisted bike draft, including image bytes, on demand. It distinguishes missing rows and read failures.
+
 `ILiveDaqKnownBoardsQuery` derives known board rows from `IBoardStore`, `ISetupStore` and `IBikeStore`. It captures committed snapshots, builds names, calibration and live-session contexts off-thread, and publishes on the UI dispatcher. The latest input replaces a pending computation; disposal cancels observation and suppresses late publication. Boards without setups remain visible. It has no repository dependency. See [Live DAQ Streaming](live-streaming.md).
 
 `BoardStore` is refreshed with the startup/full-refresh batch. Setup save, delete and import transactions return affected board IDs; `SetupCoordinator` reads their authoritative snapshots and publishes them with setup/bike changes in one batch. Desktop inbound sync prepares authoritative board snapshots even for board-only arrivals and publishes removals for missing rows. `ISetupBoardQuery` emits `SetupDetails` rows only after a relevant publication commits, so setup/board batches are observed coherently. Board-only changes update list rows and subsequent editor creation. Its exact-board lookup resolves import selection through `BoardSnapshot.SetupId`; the displayed association uses the lowest board ID if several boards reference one setup. Its change stream also notifies lookup consumers when a second board changes without changing that displayed association.

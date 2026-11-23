@@ -87,12 +87,14 @@ public class BikeEditorViewSmokeTests
         dependencyQuery.IsBikeInUse(Arg.Any<Guid>()).Returns(false);
 
         snapshot ??= CreateSnapshot();
-        bikeCoordinator.LoadDraftAsync(snapshot.Id, Arg.Any<CancellationToken>()).Returns(
+        var draftLoader = TestCoordinatorSubstitutes.BikeDraftLoader();
+        draftLoader.LoadDraftAsync(snapshot.Id, Arg.Any<CancellationToken>()).Returns(
             new BikeDraftLoadResult.Loaded(BikeDraft.From(snapshot, snapshot.HasImage ? TestImages.SmallPngBytes() : [])));
         var editor = new BikeEditorViewModel(
             snapshot,
             isNew: false,
             bikeCoordinator,
+            draftLoader,
             dependencyQuery,
             Substitute.For<IShellCoordinator>(),
             dialogService ?? Substitute.For<IDialogService>(),

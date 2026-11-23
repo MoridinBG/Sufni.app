@@ -50,6 +50,7 @@ internal static class TestEditorFactories
 
         return new EditorFactory(
             TestCoordinatorSubstitutes.Bike(),
+            TestCoordinatorSubstitutes.BikeDraftLoader(),
             Substitute.For<IBikeDependencyQuery>(),
             Substitute.For<IBikeStore>(),
             TestCoordinatorSubstitutes.Setup(),

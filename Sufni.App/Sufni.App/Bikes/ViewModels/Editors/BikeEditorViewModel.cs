@@ -45,6 +45,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     #region Private fields
 
+    private readonly IBikeDraftLoader draftLoader;
     private readonly IBikeCoordinator bikeCoordinator;
     private readonly IBikeDependencyQuery dependencyQuery;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
@@ -187,6 +188,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         BikeSnapshot snapshot,
         bool isNew,
         IBikeCoordinator bikeCoordinator,
+        IBikeDraftLoader draftLoader,
         IBikeDependencyQuery dependencyQuery,
         IShellCoordinator shell,
         IDialogService dialogService,
@@ -197,6 +199,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         BikeDraft? initialDraft = null)
         : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
     {
+        this.draftLoader = draftLoader;
         this.bikeCoordinator = bikeCoordinator;
         this.backgroundTaskRunner = backgroundTaskRunner;
         Id = snapshot.Id;
@@ -236,7 +239,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         {
             if (readStoredDraft)
             {
-                var result = await bikeCoordinator.LoadDraftAsync(draft.Id, token);
+                var result = await draftLoader.LoadDraftAsync(draft.Id, token);
                 if (token.IsCancellationRequested) return;
                 switch (result)
                 {

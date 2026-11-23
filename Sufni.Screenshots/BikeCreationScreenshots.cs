@@ -185,6 +185,7 @@ public class BikeCreationScreenshots
             snapshot,
             isNew,
             bikeCoordinator,
+            TestCoordinatorSubstitutes.BikeDraftLoader(),
             dependencyQuery,
             Substitute.For<IShellCoordinator>(),
             Substitute.For<IDialogService>(),

@@ -20,7 +20,6 @@ internal class BikeCoordinator(
     IBikePersistenceTransactionRunner bikePersistenceTransactions,
     IBikeEditorService bikeEditorService,
     IBikeSaveValidator saveValidator,
-    ISynchronizableRepository<Bike> bikeRepository,
     IBackgroundTaskRunner backgroundTaskRunner)
     : IBikeCoordinator
 {
@@ -33,24 +32,6 @@ internal class BikeCoordinator(
         lock (activeTasksGate) return retainedWork.DrainAsync();
     }
 
-
-    public async Task<BikeDraftLoadResult> LoadDraftAsync(Guid bikeId, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            return await backgroundTaskRunner.RunAsync<BikeDraftLoadResult>(async () =>
-            {
-                var bike = await bikeRepository.GetAsync(bikeId);
-                return bike is null ? new BikeDraftLoadResult.Missing() : new BikeDraftLoadResult.Loaded(BikeDraft.From(bike));
-            }, cancellationToken);
-        }
-        catch (OperationCanceledException) { throw; }
-        catch (Exception exception)
-        {
-            logger.Error(exception, "Bike draft could not be loaded for {BikeId}", bikeId);
-            return new BikeDraftLoadResult.Failed(BikeLoadFailureReason.Read, exception.Message);
-        }
-    }
 
     public Task<BikeEditorAnalysisResult> LoadAnalysisAsync(
         RearSuspensionSpec rearSuspension,

@@ -1,3 +1,4 @@
+using Sufni.App.Bikes.Queries;
 global using Sufni.App.Tests.TestSupport;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Setups.Services;
@@ -31,11 +32,16 @@ namespace Sufni.App.Tests.TestSupport.Doubles;
 
 internal static class TestCoordinatorSubstitutes
 {
+    public static IBikeDraftLoader BikeDraftLoader()
+    {
+        var loader = Substitute.For<IBikeDraftLoader>();
+        loader.LoadDraftAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(new BikeDraftLoadResult.Missing());
+        return loader;
+    }
+
     public static IBikeCoordinator Bike()
     {
         var coordinator = Substitute.For<IBikeCoordinator>();
-
-        coordinator.LoadDraftAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(new BikeDraftLoadResult.Missing());
 
         coordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.NotApplicable()));
