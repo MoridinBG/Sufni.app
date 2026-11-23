@@ -1,5 +1,5 @@
 <UserControl
-x:Class="Sufni.App.Bikes.DesktopViews.Items.BikeImageDesktopView"
+x:Class="Sufni.App.Bikes.DesktopViews.Editors.LinkageCanvasDesktopView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -7,7 +7,7 @@ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:paz="using:Avalonia.Controls.PanAndZoom"
 xmlns:shortcuts="using:Sufni.App.Shell.KeyboardShortcuts"
 xmlns:v="using:Sufni.App.Bikes.Views.Items"
-xmlns:vl="using:Sufni.App.Bikes.Views.LinkageParts"
+xmlns:vl="using:Sufni.App.Bikes.Views.Editors"
 xmlns:vm="using:Sufni.App.Bikes.ViewModels.Editors"
 xmlns:vml="using:Sufni.App.Bikes.ViewModels.LinkageEditing"
 d:DesignHeight="450"
@@ -40,7 +40,7 @@ mc:Ignorable="d">
 
 
         <paz:ZoomBorder.KeyBindings>
-            <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.Items.BikeImageDesktopView, Id=delete-selection}" />
+            <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.Editors.LinkageCanvasDesktopView, Id=delete-selection}" />
         </paz:ZoomBorder.KeyBindings>
 
         <Viewbox>

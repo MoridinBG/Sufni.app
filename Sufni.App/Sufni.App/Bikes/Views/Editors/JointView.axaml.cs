@@ -2,7 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 
 using Sufni.App.Bikes.ViewModels.LinkageEditing;
-namespace Sufni.App.Bikes.Views.LinkageParts;
+namespace Sufni.App.Bikes.Views.Editors;
 
 public partial class JointView : UserControl
 {

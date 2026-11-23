@@ -39,7 +39,7 @@ public class ViewLocator : IDataTemplate
         [typeof(LiveDaqConfigEditorViewModel)] = static () => new global::Sufni.App.LiveDaq.Views.Editors.LiveDaqConfigEditorView(),
         [typeof(SegmentNamePromptViewModel)] = static () => new global::Sufni.App.Segments.Views.SegmentNamePromptView(),
         [typeof(StravaConnectDialogViewModel)] = static () => new global::Sufni.App.Segments.Views.StravaConnectDialogView(),
-        [typeof(JointRowViewModel)] = static () => new global::Sufni.App.Bikes.Views.LinkageParts.JointView(),
+        [typeof(JointRowViewModel)] = static () => new global::Sufni.App.Bikes.Views.Editors.JointView(),
         [typeof(LinearForkSensorConfigurationViewModel)] = static () => new global::Sufni.App.Setups.Views.SensorConfigurations.LinearForkSensorConfigurationView(),
         [typeof(LinearShockSensorConfigurationViewModel)] = static () => new global::Sufni.App.Setups.Views.SensorConfigurations.LinearShockSensorConfigurationView(),
         [typeof(RotationalForkSensorConfigurationViewModel)] = static () => new global::Sufni.App.Setups.Views.SensorConfigurations.RotationalForkSensorConfigurationView(),

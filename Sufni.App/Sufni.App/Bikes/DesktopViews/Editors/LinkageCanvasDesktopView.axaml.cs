@@ -5,11 +5,11 @@ using Sufni.App.Bikes.ViewModels.LinkageEditing;
 using Avalonia.Controls.PanAndZoom;
 
 using Sufni.App.Bikes.ViewModels.Editors;
-namespace Sufni.App.Bikes.DesktopViews.Items;
+namespace Sufni.App.Bikes.DesktopViews.Editors;
 
-public partial class BikeImageDesktopView : UserControl
+public partial class LinkageCanvasDesktopView : UserControl
 {
-    public BikeImageDesktopView()
+    public LinkageCanvasDesktopView()
     {
         InitializeComponent();
 

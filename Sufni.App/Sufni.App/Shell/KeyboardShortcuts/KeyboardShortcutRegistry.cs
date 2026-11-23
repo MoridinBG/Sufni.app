@@ -14,8 +14,8 @@ public sealed class KeyboardShortcutRegistry
     public static class ShortcutConfiguration
     {
         public const string MainWindow = "DesktopViews.MainWindow";
-        public const string BikeImageDesktopView = "DesktopViews.Items.BikeImageDesktopView";
-        public const string BikeImageControlsDesktopView = "DesktopViews.Items.BikeImageControlsDesktopView";
+        public const string LinkageCanvasDesktopView = "DesktopViews.Editors.LinkageCanvasDesktopView";
+        public const string LinkageControlsDesktopView = "DesktopViews.Editors.LinkageControlsDesktopView";
 
         public const string CloseCurrentTab = "close-current-tab";
         public const string RestoreClosedTab = "restore-closed-tab";
@@ -49,11 +49,11 @@ public sealed class KeyboardShortcutRegistry
                         Gesture(Key.OemOpenBrackets, commandModifier | KeyModifiers.Shift),
                     ],
                 },
-                [ShortcutConfiguration.BikeImageDesktopView] = new Dictionary<string, IReadOnlyList<KeyGesture>>
+                [ShortcutConfiguration.LinkageCanvasDesktopView] = new Dictionary<string, IReadOnlyList<KeyGesture>>
                 {
                     [ShortcutConfiguration.DeleteSelection] = [Gesture(Key.Delete, KeyModifiers.None)],
                 },
-                [ShortcutConfiguration.BikeImageControlsDesktopView] = new Dictionary<string, IReadOnlyList<KeyGesture>>
+                [ShortcutConfiguration.LinkageControlsDesktopView] = new Dictionary<string, IReadOnlyList<KeyGesture>>
                 {
                     [ShortcutConfiguration.DeleteSelection] = [Gesture(Key.Delete, KeyModifiers.None)],
                 },
