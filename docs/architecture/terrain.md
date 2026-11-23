@@ -25,3 +25,11 @@ The source label identifies both sensors when both contributed anywhere in the r
 The class filter matches moving windows on both axes. An empty axis admits every class on that axis. `TerrainSelectionQuery` intersects matching windows with the analysis range, joins adjacent intervals, and excludes intervals shorter than the minimum analysis duration. A partial window contributes its mean speed times the covered duration. Chip distances describe the corresponding class inside the analysis range.
 
 The editor analysis demand captures one lazy selection for the profile, scope and range. Workers share that result for statistics, Insights and the availability projection. Plot overlays and banner values follow the accepted result. The filter is local to the open tab.
+
+## Bike response baseline
+
+The baseline identity is the ordered set of current profile keys of other rides on the same bike. The editor observes summary commits throughout the tab lifetime. A changed identity invalidates the previous model. Exact profile reads, log-linear least-squares fitting and response measurements run on the background runner. A superseded fit cannot publish. A baseline read error is local to the response panel.
+
+Each target needs five compatible rides, 1,000 moving windows with positive observations, and independent variation in the log band levels and speed. Front targets prefer the lowers sensor and rear targets the frame. The alternative is used only if the preferred sensor is absent on the evaluated ride or throughout the baseline. Transmission uses the lowers bands to predict the frame level. Each model carries its predictor, coverage and availability.
+
+Insights measures the whole ride and each roughness class inside the analysis time range, independently of the class filter. Boundary-window distance and log residuals are weighted by the covered fraction. Ratios use the geometric mean of observed over predicted response. Classification needs 300 m and uses the bike-baseline repeat thresholds of 30% for suspension response and 10% for transmission.

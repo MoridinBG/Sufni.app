@@ -1,0 +1,39 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="using:Sufni.App.Sessions.Models" x:DataType="models:SessionResponsePanel"
+             x:Class="Sufni.App.Sessions.Insights.Views.Controls.SessionInsightsResponsePanel"
+             IsVisible="{Binding IsVisible, FallbackValue=False}">
+    <UserControl.Styles>
+        <Style Selector="TextBlock.responseValue"><Setter Property="Opacity" Value="0.75" /></Style>
+        <Style Selector="TextBlock.responseValue.finding">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+    </UserControl.Styles>
+    <StackPanel Spacing="6">
+        <TextBlock Text="Terrain response" FontWeight="SemiBold" />
+        <TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
+        <ItemsControl ItemsSource="{Binding Rows}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="models:SessionResponseRow">
+                    <StackPanel Margin="0,6" Spacing="3">
+                        <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Coverage}" FontSize="{StaticResource SufniFontSizeSmall}" />
+                        <ItemsControl ItemsSource="{Binding Cells}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:SessionResponseCell">
+                                    <StackPanel Width="145" Margin="0,2,6,2" ToolTip.Tip="{Binding Detail}">
+                                        <TextBlock Text="{Binding Label}" FontSize="{StaticResource SufniFontSizeSmall}" TextWrapping="Wrap" />
+                                        <TextBlock Classes="responseValue" Classes.finding="{Binding IsFinding}" Text="{Binding Value}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</UserControl>

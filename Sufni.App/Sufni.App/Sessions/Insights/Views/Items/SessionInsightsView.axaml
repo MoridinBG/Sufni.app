@@ -111,6 +111,7 @@ mc:Ignorable="d">
                                 </DataTemplate>
                             </ContentControl.ContentTemplate>
                         </ContentControl>
+                        <controls2:SessionInsightsResponsePanel DataContext="{Binding SessionInsights.Response}" />
                     </StackPanel>
                 </ScrollViewer>
             </controls:PlaceholderOverlayContainer.ReadyContent>

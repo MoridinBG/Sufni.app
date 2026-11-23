@@ -527,3 +527,5 @@ definitions are separate synced store facts.
 The recorded signal and analysis workspaces expose the same tab-owned terrain filter. The six chips report class distance within the current time range. The compact signal header opens them from a Filter button. Analysis pages expose the active classes, selected distance and clear command. Live workspaces have no terrain filter.
 
 Recorded list rows append rough and calm percentages once a current terrain profile has at least 300 classified metres. A steep percentage appears when the profile has steepness shares. A pending, failed or unavailable summary immediately removes that subtitle component.
+
+Recorded Session Insights includes a terrain response panel after vibration. Live Insights hides the panel. Insufficient baselines show available and required coverage. A fitted baseline shows whole-session and per-class rows with sensor-labelled cells. A partially fitted model exposes the available targets. A baseline read failure appears in the panel while the recording’s valid terrain remains available.
