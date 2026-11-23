@@ -28,15 +28,21 @@ public class TrackMotionTests
     }
 
     [Fact]
-    public void LateStartAndGapLimitCoverageButRetainDistanceAcrossTheLoss()
+    public void LateStartHasNoValueBeforeTheFirstFixAndCountsDistanceFromIt()
     {
-        var times = Enumerable.Range(20, 6).Concat(Enumerable.Range(55, 6));
-        var motion = TrackMotion.FromFixes(times.Select(t => new TrackSample(t, t * 7, 0)), 60);
+        var motion = TrackMotion.FromFixes(Enumerable.Range(20, 6).Select(t => new TrackSample(t, t * 7, 0)), 60);
         Assert.Null(motion.At(19.95));
         Assert.Equal(0, motion.At(20)!.Value.Distance);
-        Assert.Null(motion.At(40));
-        Assert.Equal(245, motion.At(55)!.Value.Distance, 6);
-        Assert.Equal(7 * 39.45, motion.At(59.45)!.Value.Distance, 6);
+    }
+
+    [Fact]
+    public void GapHasNoValueButRetainsTheDistanceAcrossTheLoss()
+    {
+        var times = Enumerable.Range(0, 6).Concat(Enumerable.Range(35, 6));
+        var motion = TrackMotion.FromFixes(times.Select(t => new TrackSample(t, t * 7, 0)), 40);
+        Assert.Null(motion.At(20));
+        Assert.Equal(245, motion.At(35)!.Value.Distance, 6);
+        Assert.Equal(7 * 39.45, motion.At(39.45)!.Value.Distance, 6);
     }
 
     [Fact]

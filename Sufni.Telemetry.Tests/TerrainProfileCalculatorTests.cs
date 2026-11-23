@@ -86,7 +86,13 @@ public class TerrainProfileCalculatorTests
         var profile = SyntheticRide.Build([new(200)], new RideRecording(Frame: frame, Lowers: lowers,
             AccelScale: frameScale, LowersAccelScale: forkScale)).Profile();
         Assert.Equal(source, profile.Windows[10].Source);
-        if (!frame) Assert.Equal(TerrainSteepnessState.NoFrameSensor, profile.SteepnessState);
+    }
+
+    [Fact]
+    public void RideWithoutFrameSensorHasNoSteepness()
+    {
+        var profile = SyntheticRide.Build([new(1000)], new RideRecording(Frame: false)).Profile();
+        Assert.Equal(TerrainSteepnessState.NoFrameSensor, profile.SteepnessState);
     }
 
     [Theory]
@@ -160,11 +166,17 @@ public class TerrainProfileCalculatorTests
     }
 
     [Fact]
-    public void UnavailableResultDistinguishesMissingCoverageFromInsufficientMovement()
+    public void RideBelowMovingSpeedIsUnavailableForNoMovement()
     {
         var ride = SyntheticRide.Build([new(100, 2)]);
         Assert.Equal(new TerrainProfileResult.Unavailable(TerrainUnavailableReason.NoMovement),
             TerrainProfileCalculator.Calculate(ride.Telemetry, ride.Fixes));
+    }
+
+    [Fact]
+    public void TrackOutsideTheSessionIsUnavailableForNoTrack()
+    {
+        var ride = SyntheticRide.Build([new(100)]);
         Assert.Equal(new TerrainProfileResult.Unavailable(TerrainUnavailableReason.NoTrack),
             TerrainProfileCalculator.Calculate(ride.Telemetry, ride.Fixes.Select(f => f with { Seconds = f.Seconds + 100 }).ToArray()));
     }
