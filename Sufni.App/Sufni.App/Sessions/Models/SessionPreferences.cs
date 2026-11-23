@@ -39,6 +39,9 @@ public sealed record SessionPreferences
     [JsonPropertyName("layout")]
     public SessionLayoutPreferences Layout { get; init; } = SessionLayoutPreferences.Default;
 
+    [JsonPropertyName("last_gps_offset_track_id")]
+    public Guid? LastGpsOffsetTrackId { get; init; }
+
     public static SessionPreferences Default => new();
 }
 

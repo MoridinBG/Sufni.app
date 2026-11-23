@@ -16,6 +16,22 @@ namespace Sufni.App.Tests.Shell.Services.Preferences;
 public class AppPreferencesTests
 {
     [Fact]
+    public async Task RecordedSessionRemembersOnlyItsLastHandledGpsTrackAfterReopening()
+    {
+        using var directory = new TempDirectory();
+        var path = CreatePreferencesPath(directory);
+        var session = Guid.NewGuid();
+        var last = Guid.NewGuid();
+        var preferences = TestAppPreferences.Load(path);
+        await preferences.Session.UpdateRecordedAsync(session, p => p with { LastGpsOffsetTrackId = Guid.NewGuid() });
+        await preferences.Session.UpdateRecordedAsync(session, p => p with { LastGpsOffsetTrackId = last });
+
+        var reopened = TestAppPreferences.Load(path);
+        Assert.Equal(last, (await reopened.Session.GetRecordedAsync(session)).LastGpsOffsetTrackId);
+        Assert.Null((await reopened.Session.GetRecordedAsync(Guid.NewGuid())).LastGpsOffsetTrackId);
+    }
+
+    [Fact]
     public async Task Initialization_RemovesLegacySyncFields_AfterCapturingCustomLayersForMigration()
     {
         using var directory = new TempDirectory();
