@@ -110,7 +110,8 @@ internal sealed class SessionDetailViewTestContext
             Substitute.For<ISessionEditingCoordinator>(),
             TestSegmentPickers.CreateFactory(dialogService: dialogService),
             TestSegmentComparisons.CreateFactory(),
-            new SessionOperationRunner(), timeProvider: new FakeTimeProvider(), bikeCoordinator: TestCoordinatorSubstitutes.Bike());
+            new SessionOperationRunner(), timeProvider: new FakeTimeProvider(), bikeCoordinator: TestCoordinatorSubstitutes.Bike(),
+            backgroundTaskRunner: new InlineBackgroundTaskRunner());
         editor.SetTabActive(true);
         return editor;
     }

@@ -138,6 +138,7 @@ internal sealed class EditorFactory(
             sessionOperationRunner,
             timeProvider,
             bikeCoordinator,
+            backgroundTaskRunner,
             videoPaneFactory,
             initialTrack: recordedSessionDomainQuery.Get(snapshot.Id)?.SelectedTrack);
 

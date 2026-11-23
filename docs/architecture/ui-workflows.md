@@ -139,6 +139,8 @@ coordinator then clears recorded preferences. It publishes the session, source
 and track removals in one dispatcher-owned `StorePublication` batch. Import and
 live save use the same batch boundary.
 
+The recorded editor owns the GPS offset suggestion for its tab. A new load supersedes an earlier estimate. Only the active tab offers the current result. Applying uses the session coordinator’s alignment command. Apply, decline and dismissal each remember the last handled track ID in the recorded session’s device-local preferences. Returning to a different track can offer a qualifying estimate again.
+
 Recorded editors call `ISessionLoader` directly for staged telemetry and track
 reads. Presentation reaches `ISessionRecomputeEngine` only through
 `SessionCoordinator`:

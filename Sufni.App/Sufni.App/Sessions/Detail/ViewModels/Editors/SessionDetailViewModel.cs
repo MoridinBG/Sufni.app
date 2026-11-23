@@ -60,6 +60,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     private readonly SignalPlotContextActions plotContextActions;
     private readonly RecordedSessionLoadController loadController;
     private readonly SessionStalenessPrompt stalenessPrompt;
+    private readonly GpsOffsetSuggestionPrompt gpsOffsetPrompt;
     private readonly RecordedSessionPreferencesController preferencesController;
     private readonly ISessionCoordinator sessionCoordinator;
     private readonly IRecordedSessionProjection recordedSessionProjection;
@@ -269,6 +270,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         ISessionOperationRunner sessionOperationRunner,
         TimeProvider timeProvider,
         IBikeCoordinator bikeCoordinator,
+        IBackgroundTaskRunner backgroundTaskRunner,
         IVideoPaneFactory? videoPaneFactory = null,
         TrackSnapshot? initialTrack = null)
         : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
@@ -388,6 +390,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
             editorLifetime.Token, value => PublishEditorInput(loadPresentationInput, value), ReportError);
         stalenessPrompt = new SessionStalenessPrompt(editorStateController.State, sessionCoordinator,
             dialogService, uiThreadDispatcher, () => IsDirty, editorLifetime.Token, ReportError, Notify);
+        gpsOffsetPrompt = new GpsOffsetSuggestionPrompt(editorStateController.State, sessionCoordinator, dialogService,
+            backgroundTaskRunner, uiThreadDispatcher, () => IsTabActive, ReportError, editorLifetime.Token);
         preferencesController = new RecordedSessionPreferencesController(Id, editorStateController.State, editorActions, sessionStore,
             sessionPreferences, sessionCoordinator,
             editorLifetime.Token, value => PublishEditorInput(preferenceReplayInput, value), ReportError, Notify);
@@ -561,6 +565,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         DisposeWorkspace(AnalysisWorkspace);
         preferencesController.Dispose();
         stalenessPrompt.Dispose();
+        await gpsOffsetPrompt.DisposeAsync();
         alignmentController.Dispose();
         windowEditController.Dispose();
         plotContextActions.Dispose();
@@ -654,6 +659,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
 
     protected override void OnActivated()
     {
+        gpsOffsetPrompt.Activate();
         if (!IsLoaded)
         {
             return;

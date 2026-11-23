@@ -62,6 +62,7 @@ internal sealed class SessionDetailHarness : IDisposable
         SessionInsightsService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(SessionInsightsResult.Hidden);
     }
 
+    public IBackgroundTaskRunner GpsBackgroundRunner { get; set; } = new InlineBackgroundTaskRunner();
     public IBikeCoordinator BikeCoordinator { get; } = TestCoordinatorSubstitutes.Bike();
     public ISessionCoordinator SessionCoordinator { get; } = TestCoordinatorSubstitutes.Session();
     public ISessionLoader SessionLoader { get; } = TestCoordinatorSubstitutes.SessionLoader();
@@ -189,7 +190,7 @@ internal sealed class SessionDetailHarness : IDisposable
             TestSegmentComparisons.CreateFactory(SegmentCoordinator),
             OperationRunner,
             videoPaneFactory: VideoPaneFactory,
-            timeProvider: new FakeTimeProvider(), bikeCoordinator: BikeCoordinator);
+            timeProvider: new FakeTimeProvider(), bikeCoordinator: BikeCoordinator, backgroundTaskRunner: GpsBackgroundRunner);
         editor.SetTabActive(true);
         return editor;
     }
