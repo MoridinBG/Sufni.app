@@ -4,7 +4,7 @@ using Sufni.App.Bikes.Coordinators;
 namespace Sufni.App.Shell.Coordinators;
 
 /// <summary>Identifies an editor surface without exposing its view model.</summary>
-public abstract record EditorKey
+public closed record EditorKey
 {
     private EditorKey() { }
 

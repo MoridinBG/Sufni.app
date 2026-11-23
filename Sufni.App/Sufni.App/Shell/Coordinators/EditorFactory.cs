@@ -83,8 +83,7 @@ internal sealed class EditorFactory(
             importSessionsCoordinator, setupQuery, uiThreadDispatcher, timeProvider),
         EditorKey.LiveDaq daq => liveDaqStore.Get(daq.IdentityKey) is { } snapshot
             ? CreateLiveDaqDetail(snapshot, sharedStreamRegistry.GetOrCreate(snapshot), shell) : null,
-        EditorKey.LiveSession session => CreateLiveSession(session.IdentityKey, shell),
-        _ => throw new ArgumentOutOfRangeException(nameof(key))
+        EditorKey.LiveSession session => CreateLiveSession(session.IdentityKey, shell)
     };
 
     private BikeEditorViewModel CreateBikeEditor(BikeSnapshot snapshot, bool isNew, IShellCoordinator shell, BikeDraft? initialDraft = null) =>

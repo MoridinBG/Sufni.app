@@ -15,7 +15,7 @@ using Sufni.App.SyncAndPairing.Coordinators;
 
 namespace Sufni.App.Shell.Coordinators;
 
-public abstract record PendingDeleteKey
+public closed record PendingDeleteKey
 {
     private PendingDeleteKey() { }
     public sealed record Bike(Guid Id) : PendingDeleteKey;
@@ -144,8 +144,7 @@ public sealed class PendingDeletes(
                 {
                     BikeDeleteResult.Deleted => (null, new EditorKey.Bike(bike.Id)),
                     BikeDeleteResult.InUse => (new FailurePresentation("Bike is referenced by a setup and cannot be deleted."), null),
-                    BikeDeleteResult.Failed bikeFailure => (FailurePresentation.From(bikeFailure.Reason, bikeFailure.Details), null),
-                    _ => throw new ArgumentOutOfRangeException(nameof(bikeResult))
+                    BikeDeleteResult.Failed bikeFailure => (FailurePresentation.From(bikeFailure.Reason, bikeFailure.Details), null)
                 };
             case PendingDeleteKey.Setup setup:
                 var setupResult = await setups.DeleteAsync(setup.Id);
@@ -153,16 +152,14 @@ public sealed class PendingDeletes(
                 {
                     SetupDeleteResult.InUse => (new FailurePresentation("Setup is referenced by a session and cannot be deleted."), null),
                     SetupDeleteResult.Deleted => (null, new EditorKey.Setup(setup.Id)),
-                    SetupDeleteResult.Failed setupFailure => (FailurePresentation.From(setupFailure.Reason, setupFailure.Details), null),
-                    _ => throw new ArgumentOutOfRangeException(nameof(setupResult))
+                    SetupDeleteResult.Failed setupFailure => (FailurePresentation.From(setupFailure.Reason, setupFailure.Details), null)
                 };
             case PendingDeleteKey.Session session:
                 var sessionResult = await sessions.DeleteAsync(session.Id);
                 return sessionResult switch
                 {
                     SessionDeleteResult.Deleted => (null, new EditorKey.Session(session.Id)),
-                    SessionDeleteResult.Failed failure => (FailurePresentation.From(failure.Reason, failure.Details), null),
-                    _ => throw new ArgumentOutOfRangeException(nameof(sessionResult))
+                    SessionDeleteResult.Failed failure => (FailurePresentation.From(failure.Reason, failure.Details), null)
                 };
             case PendingDeleteKey.PairedDevice device:
                 var result = await pairedDevices.UnpairAsync(device.Id);

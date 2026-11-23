@@ -14,7 +14,7 @@ public interface IAppStartup
     Task<DatabaseResetResult> ResetDatabaseAsync();
 }
 
-public abstract record ShellStartupState
+public closed record ShellStartupState
 {
     private ShellStartupState() { }
     public sealed record Starting : ShellStartupState;
@@ -23,7 +23,7 @@ public abstract record ShellStartupState
     public sealed record RelaunchRequired(string ArchiveDirectory) : ShellStartupState;
 }
 
-public abstract record DatabaseResetResult
+public closed record DatabaseResetResult
 {
     private DatabaseResetResult() { }
     public sealed record Reset(string ArchiveDirectory) : DatabaseResetResult;
