@@ -30,6 +30,7 @@ public sealed record SegmentComparisonSessionState(
     DampingSpeedCutoffs DampingSpeedCutoffs,
     SessionDampingPercentages DampingPercentages)
 {
+    public SegmentTerrainSource? Terrain { get; init; }
     public AnalysisScope Scope { get; init; } = new AnalysisScope.Whole();
 
     public static SegmentComparisonSessionState Empty { get; } = new(
@@ -135,8 +136,9 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
             (previous.TravelDistributionMode != next.TravelDistributionMode ||
              previous.VelocityAverageMode != next.VelocityAverageMode ||
              previous.DampingSpeedCutoffs != next.DampingSpeedCutoffs ||
-             previous.DampingPercentages != next.DampingPercentages))
+             previous.DampingPercentages != next.DampingPercentages || previous.Terrain != next.Terrain))
         {
+            AnalysisComparison = null;
             _ = TrackAsync(BuildAnalysisComparisonAsync(comparedMatch, comparedDetail, zoomTimeline: false));
         }
     }
@@ -330,7 +332,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         {
             var result = await segmentCoordinator.BuildAnalysisComparisonAsync(
                 comparison, detail, settings.TravelDistributionMode, settings.VelocityAverageMode,
-                settings.DampingSpeedCutoffs, settings.DampingPercentages, cancellation.Token);
+                settings.DampingSpeedCutoffs, settings.DampingPercentages, settings.Terrain, cancellation.Token);
             if (cancellation.IsCancellationRequested || !ReferenceEquals(comparedMatch, comparison))
             {
                 return;

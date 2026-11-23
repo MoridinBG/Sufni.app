@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.Services;
 using Sufni.App.Shared.Models;
 using Sufni.App.Shared.Stores;
 using NSubstitute;
@@ -19,7 +20,7 @@ using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.Telemetry;
 namespace Sufni.App.Tests.Segments.Coordinators;
 
-public class SegmentCoordinatorTests
+public partial class SegmentCoordinatorTests
 {
     private readonly ISessionSegmentRepository repository = Substitute.For<ISessionSegmentRepository>();
     private readonly ISessionSegmentStoreWriter segmentStore = Substitute.For<ISessionSegmentStoreWriter>();
@@ -238,7 +239,7 @@ public class SegmentCoordinatorTests
 
         var result = await coordinator.BuildAnalysisComparisonAsync(comparison, detail,
             TravelDistributionMode.ActiveSuspension, VelocityAverageMode.SampleAveraged,
-            DampingSpeedCutoffs.Default, SessionDampingPercentages.Empty, TestContext.Current.CancellationToken);
+            DampingSpeedCutoffs.Default, SessionDampingPercentages.Empty, null, TestContext.Current.CancellationToken);
 
         var failure = Assert.IsType<SegmentAnalysisComparisonResult.Failed>(result);
         Assert.Equal(SegmentComparisonFailureReason.Analysis, failure.Reason);
@@ -364,5 +365,7 @@ public class SegmentCoordinatorTests
         return [];
     }
 
-    private SegmentCoordinator CreateCoordinator(ISessionSegmentStoreWriter? store = null, IBackgroundTaskRunner? runner = null) => new(repository, store ?? segmentStore, sessionStore, matcher, contentReader, operationRunner, runner ?? new InlineBackgroundTaskRunner(), stravaService, sourceStore);
+    private readonly ITerrainProfileRepository terrainProfiles = Substitute.For<ITerrainProfileRepository>();
+
+    private SegmentCoordinator CreateCoordinator(ISessionSegmentStoreWriter? store = null, IBackgroundTaskRunner? runner = null) => new(repository, store ?? segmentStore, sessionStore, matcher, contentReader, operationRunner, runner ?? new InlineBackgroundTaskRunner(), stravaService, sourceStore, terrainProfiles);
 }

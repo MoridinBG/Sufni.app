@@ -104,7 +104,10 @@ public sealed record SegmentAnalysisComparison(
     SegmentComparison Comparison,
     SegmentComparisonDetail Detail,
     IReadOnlyList<SegmentAnalysisOverlay> Overlays,
-    IReadOnlyList<SegmentDampingMetric> Metrics);
+    IReadOnlyList<SegmentDampingMetric> Metrics)
+{
+    public SegmentTerrainComparison Terrain { get; init; } = new SegmentTerrainComparison.Unavailable(SegmentTerrainUnavailable.NoSourceProfile);
+}
 
 public enum SegmentAnalysisPlot
 {

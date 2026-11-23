@@ -314,7 +314,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
                 state.Preferences.Analysis.TravelDistributionMode,
                 state.Preferences.Analysis.VelocityAverageMode,
                 state.Intent.DampingSpeedCutoffs,
-                state.Presentation.DampingPercentages) { Scope = state.Intent.Scope }),
+                state.Presentation.DampingPercentages)
+            {
+                Scope = state.Intent.Scope,
+                Terrain = state.Terrain is RecordedTerrainState.Loaded loaded
+                    ? new(snapshot.Id, loaded.Key, loaded.Profile, loaded.Baseline.Identity) : null
+            }),
             (start, end) => { if (!editorLifetime.IsCancellationRequested) timeline.SetVisibleRange(start, end, this); },
             ReportError,
             Notify, editorActions.BeginSegmentComparison, editorActions.EndSegmentComparison);

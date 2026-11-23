@@ -29,6 +29,7 @@
     <Compile Include="..\Sufni.Telemetry.Tests\GoldenTelemetryCompatibilityFixtures.cs" Link="TestSupport\Fixtures\GoldenTelemetryCompatibilityFixtures.cs" />
     <Compile Include="..\Sufni.Telemetry.Tests\SstTestFiles.cs" Link="TestSupport\Fixtures\SstTestFiles.cs" />
     <Compile Include="..\Sufni.Telemetry.Tests\SyntheticResponseRides.cs" Link="TestSupport\Fixtures\SyntheticResponseRides.cs" />
+    <Compile Include="..\Sufni.Telemetry.Tests\SyntheticTrailRuns.cs" Link="TestSupport\Fixtures\SyntheticTrailRuns.cs" />
     <Compile Include="..\Sufni.Telemetry.Tests\SyntheticRide.cs" Link="TestSupport\Fixtures\SyntheticRide.cs" />
     <Compile Include="..\Sufni.Kinematics.Tests\TestLinkages.cs" Link="TestSupport\Fixtures\TestLinkages.cs" />
   </ItemGroup>

@@ -1,3 +1,5 @@
+using Sufni.App.Terrain.Services;
+using Sufni.App.Terrain.Models;
 using Sufni.App.Shared.Models;
 using System;
 using System.Collections.Generic;
@@ -114,7 +116,7 @@ public interface ISegmentCoordinator
     Task<SegmentAnalysisComparisonResult> BuildAnalysisComparisonAsync(
         SegmentComparison comparison, SegmentComparisonDetail detail,
         TravelDistributionMode travelMode, VelocityAverageMode velocityMode,
-        DampingSpeedCutoffs cutoffs, SessionDampingPercentages currentPercentages,
+        DampingSpeedCutoffs cutoffs, SessionDampingPercentages currentPercentages, SegmentTerrainSource? terrain,
         CancellationToken cancellationToken = default);
 
     Task<StravaConnectionSnapshot> GetStravaConnectionAsync();
@@ -151,7 +153,7 @@ internal sealed class SegmentCoordinator(
     ISessionOperationRunner operationRunner,
     IBackgroundTaskRunner backgroundTaskRunner,
     IStravaSegmentService stravaService,
-    IRecordedSessionSourceStore sourceStore) : ISegmentCoordinator
+    IRecordedSessionSourceStore sourceStore, ITerrainProfileRepository terrainProfiles) : ISegmentCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SegmentCoordinator>();
 
@@ -385,14 +387,16 @@ internal sealed class SegmentCoordinator(
     public async Task<SegmentAnalysisComparisonResult> BuildAnalysisComparisonAsync(
         SegmentComparison comparison, SegmentComparisonDetail detail,
         TravelDistributionMode travelMode, VelocityAverageMode velocityMode,
-        DampingSpeedCutoffs cutoffs, SessionDampingPercentages currentPercentages,
+        DampingSpeedCutoffs cutoffs, SessionDampingPercentages currentPercentages, SegmentTerrainSource? terrain,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            return new SegmentAnalysisComparisonResult.Built(await backgroundTaskRunner.RunAsync(
+            var ordinary = await backgroundTaskRunner.RunAsync(
                 () => SegmentAnalysisComparisonBuilder.Build(comparison, detail, travelMode, velocityMode, cutoffs, currentPercentages),
-                cancellationToken));
+                cancellationToken);
+            var result = await BuildTerrainComparisonAsync(comparison.Match, terrain, cancellationToken);
+            return new SegmentAnalysisComparisonResult.Built(ordinary with { Terrain = result });
         }
         catch (Exception e)
         {
@@ -401,6 +405,40 @@ internal sealed class SegmentCoordinator(
             return new SegmentAnalysisComparisonResult.Failed(SegmentComparisonFailureReason.Analysis, e.Message);
         }
     }
+
+    private async Task<SegmentTerrainComparison> BuildTerrainComparisonAsync(SegmentMatch match, SegmentTerrainSource? source,
+        CancellationToken token)
+    {
+        if (source is null) return new SegmentTerrainComparison.Unavailable(SegmentTerrainUnavailable.NoSourceProfile);
+        try
+        {
+            return await backgroundTaskRunner.RunAsync<SegmentTerrainComparison>(async () =>
+            {
+                var expected = source.Baseline.Profiles.Where(p => p.SessionId != source.SessionId && p.SessionId != match.SessionId)
+                    .ToDictionary(p => p.SessionId, p => p.Key);
+                expected.Add(match.SessionId, TerrainProfileKey.From(match.ContentToken));
+                var profiles = await terrainProfiles.ReadAsync(expected, token).ConfigureAwait(false);
+                token.ThrowIfCancellationRequested();
+                if (!profiles.TryGetValue(match.SessionId, out var earlier))
+                    return new SegmentTerrainComparison.Unavailable(SegmentTerrainUnavailable.NoMatchProfile);
+                var alignment = Align(source.Profile, earlier, match, token);
+                if (alignment is not TerrainRunAlignment.Aligned aligned)
+                    return new SegmentTerrainComparison.Unavailable(alignment is TerrainRunAlignment.NoCommonSensor
+                        ? SegmentTerrainUnavailable.NoCommonSensor : SegmentTerrainUnavailable.Unaligned);
+                var baseline = profiles.Where(p => p.Key != match.SessionId && p.Key != source.SessionId).Select(p => p.Value).ToArray();
+                var model = SuspensionResponseModel.FitPair(source.Profile, earlier, baseline, token);
+                return new SegmentTerrainComparison.Compared(TerrainRunComparison.Compare(source.Profile, earlier, aligned, model, token));
+            }, token);
+        }
+        catch (Exception e) when (!token.IsCancellationRequested)
+        {
+            logger.Error(e, "Terrain comparison failed for {SourceSessionId} and {MatchedSessionId}", source.SessionId, match.SessionId);
+            return new SegmentTerrainComparison.Failed();
+        }
+    }
+
+    private static TerrainRunAlignment Align(TerrainProfile source, TerrainProfile other, SegmentMatch match, CancellationToken token) =>
+        TerrainRunAlignment.Calculate(source, other, match.TimeMap.Select(p => (p.SourceSeconds, p.MatchSeconds)).ToArray(), token);
 
     public Task<StravaConnectionSnapshot> GetStravaConnectionAsync() => stravaService.GetConnectionSnapshotAsync();
 

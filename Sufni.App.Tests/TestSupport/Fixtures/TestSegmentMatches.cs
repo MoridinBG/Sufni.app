@@ -1,4 +1,5 @@
 using Sufni.App.Segments.Models;
+using Sufni.Telemetry.Tests;
 using Sufni.App.Sessions.Models;
 using Sufni.Telemetry;
 
@@ -35,6 +36,12 @@ internal static class TestSegmentMatches
         CandidatePointCount: timeMap.Count,
         TimeMap: timeMap,
         ContentToken: Token);
+
+    public static SegmentMatch OnTrail(TerrainProfile source, TerrainProfile match)
+    {
+        var map = SyntheticTrailRuns.Map(source, match).Select(p => new SegmentTimeMapPoint(p.SourceSeconds, p.MatchSeconds)).ToArray();
+        return Match(map[0].MatchSeconds, map[^1].MatchSeconds, map);
+    }
 
     public static TelemetryData Telemetry()
     {
