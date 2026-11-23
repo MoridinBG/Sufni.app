@@ -69,7 +69,6 @@ public static class GpsTimeOffsetEstimator
         foreach (var span in spans)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (span.Length < 2) continue;
             var start = (int)Math.Round((span[0].Seconds - origin) * Rate);
             var east = SignalFilters.LowPass(span.Select(p => p.East).ToArray(), Rate, CutoffHz);
             var north = SignalFilters.LowPass(span.Select(p => p.North).ToArray(), Rate, CutoffHz);
@@ -94,10 +93,7 @@ public static class GpsTimeOffsetEstimator
                 i = end;
             }
             for (var i = 0; i < span.Length; i++)
-            {
                 if (moving[start + i]) courseRate[start + i] = Math.Clamp(Derivative(heading, i), -MaxCourseRate, MaxCourseRate);
-                else yaw[start + i] = 0;
-            }
         }
         if (moving.Count(m => m) < MinimumMovingCells)
             return new GpsTimeOffsetEstimate.Unavailable(GpsTimeOffsetUnavailableReason.TooLittleMovement);
