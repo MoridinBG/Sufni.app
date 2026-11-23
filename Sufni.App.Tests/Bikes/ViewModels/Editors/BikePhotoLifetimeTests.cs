@@ -55,28 +55,6 @@ public class BikePhotoLifetimeTests : BikeEditorFixture
         Assert.True(replacement.Released);
     }
 
-    [AvaloniaFact]
-    public async Task AnImageRejectedDuringStatePublicationIsReleased()
-    {
-        var replacement = new ObservableBitmap();
-        var background = Substitute.For<IBackgroundTaskRunner>();
-        background.RunAsync(Arg.Any<Func<Bitmap>>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult<Bitmap>(replacement));
-        var editor = CreateEditor(TestSnapshots.Bike(), background: background);
-        files.LoadImageAsync(Arg.Any<CancellationToken>()).Returns(new BikeImageLoadResult.Loaded(TestImages.SmallPngBytes(), "photo"));
-        Task? open = null;
-        editor.Frame.PropertyChanged += OpenOnChange;
-        editor.Frame.ForksStroke = 125;
-        editor.Frame.PropertyChanged -= OpenOnChange;
-        await Assert.IsAssignableFrom<Task>(open).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-
-        Assert.True(replacement.Released);
-        Assert.Null(editor.Linkage.Canvas.Image);
-        await editor.PrepareCloseAsync();
-
-        void OpenOnChange(object? sender, System.ComponentModel.PropertyChangedEventArgs args) =>
-            open ??= editor.Linkage.OpenImageCommand.ExecuteAsync(null);
-    }
-
     private sealed class ObservableBitmap() : Bitmap(new MemoryStream(TestImages.SmallPngBytes()))
     {
         public bool Released { get; private set; }

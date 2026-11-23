@@ -12,6 +12,10 @@ namespace Sufni.App.Bikes.ViewModels.Editors;
 
 public enum BikeEditorPhase { Loading, Ready, Unavailable, Closed }
 
+/// <summary>Why a draft enters the editor; it decides baseline acceptance, failure recovery and analysis timing.</summary>
+public enum BikeDraftLoadKind { Open, Reset, ConflictReload, ImageRecovery }
+
+/// <summary>An image and its pixel size. The instance identifies the image: the canvas shows a bitmap only for the instance in the current state.</summary>
 public sealed class BikeEditorImage(ReadOnlyMemory<byte> bytes, Size size)
 {
     public ReadOnlyMemory<byte> Bytes { get; } = bytes.ToArray();
@@ -34,6 +38,7 @@ public sealed record BikeEditorInputs
     public ImmutableArray<string> ImportErrors { get; init; } = [];
 }
 
+/// <summary>The analysis to run. A completion is accepted only while its generation is current.</summary>
 public sealed record BikeAnalysisRequest(long Generation, RearSuspensionSpec? Spec, bool Debounce, bool Busy);
 public sealed record BikeAnalysisPresentation(RearSuspensionSpec Spec, BikeAnalysisPresentationData Data);
 
@@ -54,10 +59,13 @@ public sealed record BikeEditorState(BikeDraft Baseline, bool IsPersisted)
     public BikeEditorInputs Inputs { get; init; } = new();
     public int? Selection { get; init; }
     public bool OverlayVisible { get; init; }
+    // No analysis runs while the view is detached.
     public bool AnalysisSuspended { get; init; }
     public BikeAnalysisRequest Request { get; init; } = new(0, null, false, false);
     public BikeAnalysisPresentation? Presentation { get; init; }
-    public BikeEditorGeometry Geometry { get; init; } = BikeEditorGeometryDeriver.Derive(new(), Baseline, null);
+    public BikeEditorGeometry Geometry { get; private init; } = BikeEditorGeometryDeriver.Derive(new(), Baseline, null);
+
+    internal BikeEditorState Derive() => this with { Geometry = BikeEditorGeometryDeriver.Derive(Inputs, Baseline, Presentation) };
 
     public BikeDraft Capture(string name) => new(Baseline.Id, name, Geometry.EffectiveHeadAngle, Inputs.ForkStroke,
         Inputs.ShockStroke, Geometry.Spec, Inputs.Mode == RearSuspensionKind.Linkage ? Geometry.Scale ?? Baseline.PixelsToMillimeters : 0,

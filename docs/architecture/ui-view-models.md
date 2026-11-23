@@ -200,8 +200,11 @@ There are five kinds of view model in the presentation layer:
   `LivePagePresentationApplier` owns cancellable/drained page bakes; the editor
   composes `LiveSessionShellMobileWorkspaceViewModel` and the shared sidebar workspace.
   The bike editor holds the name on the tab. Each workspace projects one
-  immutable editor state. Reentrant edits wait until all subscribers receive the
-  current state. The controller rejects stale analysis completions by generation.
+  immutable editor state. Edits and controller intents that arrive during a
+  publication wait until all subscribers receive the current state; controller
+  intents then complete with acceptance. `BikeEditorIntentReducers` holds every
+  intent rule, and the controller derives the geometry of each published state.
+  The controller rejects stale analysis completions by generation.
 
   | Bike editor part | Responsibility |
   | --- | --- |

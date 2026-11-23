@@ -17,7 +17,7 @@ public class BikeEditorLinkageGeometryTests
             PixelsToMillimeters = 2, ImageBytes = [1], HeadAngle = 71.6
         };
         var controller = new BikeEditorStateController(draft, true);
-        controller.Actions.Prepared(draft, new BikeEditorImage(draft.ImageBytesMemory, new Size(200, 50)), true, true, false);
+        controller.Actions.Prepared(draft, new BikeEditorImage(draft.ImageBytesMemory, new Size(200, 50)), BikeDraftLoadKind.Open);
         return controller;
     }
 
@@ -89,7 +89,7 @@ public class BikeEditorLinkageGeometryTests
         var baseline = editor.Current.Baseline with { PixelsToMillimeters = 1,
             RearSuspension = new RearSuspensionSpec.Linkage(new LinkageSpec([.. spec.Joints.Reverse()],
                 [.. spec.Links.Reverse()], spec.Shock, spec.ShockStroke)) };
-        editor.Actions.Saved(baseline);
+        editor.Actions.BaselineAccepted(baseline);
         Assert.False(editor.Current.Geometry.InputsDirty);
 
         var eye = editor.Current.Inputs.Linkage.Joints.Single(joint => joint.Name == JointNames.ShockEye1);

@@ -126,7 +126,7 @@ public sealed partial class BikeEditorViewModel : TabPageViewModelBase
         switch (result)
         {
             case BikeSaveResult.Saved saved:
-                if (!controller.Actions.Saved(BikeDraft.From(saved.Snapshot, draft.ImageBytes))) return;
+                if (!await controller.Actions.BaselineAccepted(BikeDraft.From(saved.Snapshot, draft.ImageBytes))) return;
 
                 EvaluateDirtiness();
 

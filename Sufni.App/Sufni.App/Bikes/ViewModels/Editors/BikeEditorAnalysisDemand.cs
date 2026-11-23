@@ -41,9 +41,7 @@ internal sealed class BikeEditorAnalysisDemand(IRearSuspensionAnalysisQuery quer
             result = new BikeEditorAnalysisResult.Failed(BikeAnalysisFailureReason.Analyze);
         }
 
-        // Cached queries may complete during the request's own state publication.
-        await Task.Yield();
-        if (!token.IsCancellationRequested && actions.AnalysisCompleted(request.Generation, result) &&
+        if (!token.IsCancellationRequested && await actions.AnalysisCompleted(request.Generation, result) &&
             result is BikeEditorAnalysisResult.Failed failed)
             error(FailurePresentation.From(failed.Reason, failed.Details));
     }

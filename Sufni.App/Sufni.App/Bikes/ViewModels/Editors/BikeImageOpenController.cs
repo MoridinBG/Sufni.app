@@ -27,10 +27,10 @@ internal sealed partial class BikeImageOpenController(BikeEditorStateController 
             token.ThrowIfCancellationRequested();
             if (result is BikeImageLoadResult.Failed failed) error(FailurePresentation.From(failed.Reason, failed.Details));
             if (result is BikeImageLoadResult.Loaded loaded)
-                await handoff.DecodeAsync(loaded.ImageBytes, image =>
+                await handoff.DecodeAsync(loaded.ImageBytes, async image =>
                 {
-                    if (previous.Phase != BikeEditorPhase.Unavailable) return controller.Actions.ApplyImage(image);
-                    if (!controller.Actions.Prepared(previous.Baseline, image, false, previous.IsPersisted, true, recovery: true)) return false;
+                    if (previous.Phase != BikeEditorPhase.Unavailable) return await controller.Actions.ApplyImage(image);
+                    if (!await controller.Actions.Prepared(previous.Baseline, image, BikeDraftLoadKind.ImageRecovery)) return false;
                     restoreName(previous.Baseline.Name);
                     return true;
                 }, token);

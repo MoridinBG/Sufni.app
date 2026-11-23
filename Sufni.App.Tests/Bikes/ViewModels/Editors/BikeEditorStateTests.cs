@@ -17,7 +17,7 @@ public class BikeEditorStateTests
             FrontWheel = new(702, null, null), RearWheel = new(700, null, null), ShockStroke = linkage.ShockStroke,
             PixelsToMillimeters = 2, HeadAngle = 65, ImageBytes = [1] };
         using var editor = new BikeEditorStateController(draft, true);
-        editor.Actions.Prepared(draft, new BikeEditorImage(draft.ImageBytesMemory, new Avalonia.Size(500, 50)), true, true, false);
+        editor.Actions.Prepared(draft, new BikeEditorImage(draft.ImageBytesMemory, new Avalonia.Size(500, 50)), BikeDraftLoadKind.Open);
         var data = new Sufni.Kinematics.CoordinateList([2], [4]);
         editor.Actions.AnalysisCompleted(editor.Current.Request.Generation,
             new BikeEditorAnalysisResult.Computed(new BikeAnalysisPresentationData(data, data)));
@@ -41,12 +41,12 @@ public class BikeEditorStateTests
     {
         var baseline = Bike();
         using var editor = new BikeEditorStateController(baseline, true);
-        editor.Actions.Prepared(baseline, null, true, true, false);
+        editor.Actions.Prepared(baseline, null, BikeDraftLoadKind.Open);
         editor.Actions.ForkStroke(125);
         var saved = editor.Current.Capture(baseline.Name);
         editor.Actions.ForkStroke(140);
 
-        editor.Actions.Saved(saved);
+        editor.Actions.BaselineAccepted(saved);
 
         Assert.True(editor.Current.Geometry.InputsDirty);
         Assert.Equal(140, editor.Current.Inputs.ForkStroke);
@@ -59,11 +59,11 @@ public class BikeEditorStateTests
     {
         var baseline = Bike();
         using var editor = new BikeEditorStateController(baseline, true);
-        editor.Actions.Prepared(baseline, null, true, true, false);
+        editor.Actions.Prepared(baseline, null, BikeDraftLoadKind.Open);
         editor.Actions.ForkStroke(125);
         editor.Actions.LoadStarted();
         editor.Actions.ForkStroke(140);
-        editor.Actions.LoadFailed(true);
+        editor.Actions.LoadFailed(BikeDraftLoadKind.Reset);
 
         Assert.Equal(BikeEditorPhase.Ready, editor.Current.Phase);
         Assert.Equal(baseline.RearSuspension, editor.Current.Request.Spec);
@@ -76,7 +76,7 @@ public class BikeEditorStateTests
     {
         var baseline = Bike();
         using var editor = new BikeEditorStateController(baseline, true);
-        editor.Actions.Prepared(baseline, null, true, true, false);
+        editor.Actions.Prepared(baseline, null, BikeDraftLoadKind.Open);
         using var first = editor.States.Subscribe(state =>
         {
             if (state.Inputs.ForkStroke == 130) editor.Actions.ForkStroke(140);
@@ -90,16 +90,16 @@ public class BikeEditorStateTests
     }
 
     [Fact]
-    public void SupersededCompletionCannotDismissPendingAnalysis()
+    public async Task SupersededCompletionCannotDismissPendingAnalysis()
     {
         var baseline = Bike();
         using var editor = new BikeEditorStateController(baseline, true);
-        editor.Actions.Prepared(baseline, null, true, true, false);
+        editor.Actions.Prepared(baseline, null, BikeDraftLoadKind.Open);
         var old = editor.Current.Request.Generation;
         editor.Actions.LoadStarted();
-        editor.Actions.Prepared(baseline, null, false, true, true);
+        editor.Actions.Prepared(baseline, null, BikeDraftLoadKind.Reset);
 
-        Assert.False(editor.Actions.AnalysisCompleted(old, new BikeEditorAnalysisResult.NotApplicable()));
+        Assert.False(await editor.Actions.AnalysisCompleted(old, new BikeEditorAnalysisResult.NotApplicable()));
         Assert.True(editor.Current.Request.Busy);
         editor.Actions.Unloaded();
         Assert.False(editor.Current.Request.Busy);
@@ -112,7 +112,7 @@ public class BikeEditorStateTests
     {
         var baseline = Bike();
         using var editor = new BikeEditorStateController(baseline, false);
-        editor.Actions.Prepared(baseline, null, true, false, false);
+        editor.Actions.Prepared(baseline, null, BikeDraftLoadKind.Open);
         editor.Actions.Mode(RearSuspensionKind.Linkage);
         editor.Actions.WheelRim(true, Sufni.Kinematics.EtrtoRimSize.Inch29);
         editor.Actions.WheelWidth(true, 2.4);
