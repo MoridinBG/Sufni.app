@@ -12,7 +12,8 @@ public sealed record LiveImuDisplayInputSeries(
     IReadOnlyList<double> Times,
     IReadOnlyList<ImuRecord> Records,
     double AccelLsbPerG,
-    double GyroLsbPerDps, ulong? FirstIndex = null);
+    double GyroLsbPerDps,
+    ulong FirstIndex);
 
 public sealed record LiveImuDisplaySeries(
     IReadOnlyDictionary<LiveImuLocation, IReadOnlyList<double>> VibrationTimes,
@@ -98,7 +99,7 @@ public sealed class LiveImuDisplaySignalProcessor
                 sampleRateHz.Equals(sampleRate);
         }
 
-        public LocationProcessResult ProcessBatch(IReadOnlyList<double> times, IReadOnlyList<ImuRecord> records, ulong? firstIndex)
+        public LocationProcessResult ProcessBatch(IReadOnlyList<double> times, IReadOnlyList<ImuRecord> records, ulong firstIndex)
         {
             var count = Math.Min(times.Count, records.Count);
             if (count == 0)
@@ -106,7 +107,7 @@ public sealed class LiveImuDisplaySignalProcessor
                 return LocationProcessResult.Empty;
             }
 
-            if (firstIndex.HasValue && firstIndex != nextIndex) orientation = null;
+            if (firstIndex != nextIndex) orientation = null;
             nextIndex = firstIndex + (ulong)count;
             var outputTimes = new double[count];
             var rms = new double[count];
