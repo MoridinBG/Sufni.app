@@ -18,6 +18,7 @@ public sealed record SegmentTerrainTable(string? Message, ImmutableArray<Segment
 {
     public static ImmutableArray<string> Headers { get; } =
         ["Terrain", "Distance", "Pace · median (Q1–Q3)", .. Enum.GetValues<ResponseTarget>().Select(TerrainResponseText.TargetLabel), "Same position"];
+    public bool HasMessage => Message is not null;
     public bool HasRows => !Rows.IsEmpty;
 
     public static SegmentTerrainTable From(SegmentTerrainComparison terrain) => terrain switch

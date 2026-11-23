@@ -15,7 +15,7 @@
     </UserControl.Styles>
     <StackPanel Spacing="6" Margin="0,6,0,12">
         <TextBlock Text="Same-trail comparison" FontWeight="SemiBold" />
-        <TextBlock Text="{Binding TerrainTable.Message}" IsVisible="{Binding !!TerrainTable.Message}" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding TerrainTable.Message}" IsVisible="{Binding TerrainTable.HasMessage}" TextWrapping="Wrap" />
         <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" IsVisible="{Binding TerrainTable.HasRows}">
             <StackPanel Spacing="6">
                 <ItemsControl Classes="horizontal" ItemsSource="{x:Static vm:SegmentTerrainTable.Headers}">
