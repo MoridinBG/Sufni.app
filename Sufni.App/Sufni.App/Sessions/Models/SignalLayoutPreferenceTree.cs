@@ -15,6 +15,16 @@ internal sealed record SignalLayoutPreferenceRowState(
 // or stale row ids out of saved preferences and guards against cyclic moves.
 internal static class SignalLayoutPreferenceTree
 {
+    public static SignalLayoutPreferences NormalizeRecorded(SignalLayoutPreferences preferences)
+    {
+        var defaults = SignalLayoutPreferences.Default;
+        var terrain = defaults.Rows.Single(row => row.RowId == SignalRowIds.Terrain);
+        return Normalize(preferences, Ids(preferences.Rows).Concat(Ids([terrain])), defaults);
+
+        static IEnumerable<string> Ids(IReadOnlyList<SignalLayoutRowPreferences> rows) =>
+            rows.SelectMany(row => Ids(row.Children).Prepend(row.RowId));
+    }
+
     public static SignalLayoutPreferences Normalize(
         SignalLayoutPreferences? preferences,
         IEnumerable<string> availableRowIds,

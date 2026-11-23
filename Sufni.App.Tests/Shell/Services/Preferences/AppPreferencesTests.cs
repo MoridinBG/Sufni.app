@@ -16,6 +16,32 @@ namespace Sufni.App.Tests.Shell.Services.Preferences;
 public class AppPreferencesTests
 {
     [Fact]
+    public async Task RecordedLayoutAppendsTerrainAndKeepsExistingRowsInTheirSavedOrder()
+    {
+        using var directory = new TempDirectory();
+        var path = CreatePreferencesPath(directory);
+        var id = Guid.NewGuid();
+        await File.WriteAllTextAsync(path, """
+            {"session":{"sessions":{"SESSION":{"signalLayout":{"rows":[
+                {"rowId":"speed","isExpanded":false},{"rowId":"travel"},{"rowId":"imu"}]}}}}}
+            """.Replace("SESSION", id.ToString("D")), TestContext.Current.CancellationToken);
+        var preferences = TestAppPreferences.Load(path);
+        var stored = await preferences.Session.GetRecordedAsync(id);
+        Assert.Equal([SignalRowIds.Speed, SignalRowIds.Travel, SignalRowIds.Imu, SignalRowIds.Terrain],
+            stored.SignalLayout.Rows.Select(row => row.RowId));
+        Assert.False(stored.SignalLayout.Rows[0].IsExpanded);
+        Assert.Equal([SignalRowIds.Roughness, SignalRowIds.Grade], stored.SignalLayout.Rows[^1].Children.Select(row => row.RowId));
+        await preferences.Session.UpdateRecordedAsync(id, current => current with
+        {
+            SignalDisplay = current.SignalDisplay with { Roughness = false }
+        });
+        var reopened = await TestAppPreferences.Load(path).Session.GetRecordedAsync(id);
+        Assert.False(reopened.SignalDisplay.Roughness);
+        Assert.True(reopened.SignalDisplay.Grade);
+        Assert.Equal(stored.SignalLayout, reopened.SignalLayout);
+    }
+
+    [Fact]
     public async Task RecordedSessionRemembersOnlyItsLastHandledGpsTrackAfterReopening()
     {
         using var directory = new TempDirectory();

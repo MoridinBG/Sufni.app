@@ -254,7 +254,10 @@ public sealed record SufniSeriesTheme(
     Color GpsSpeed,
     Color GpsElevation,
     Color GpsQuality,
-    IReadOnlyList<Color> TravelZone);
+    IReadOnlyList<Color> TravelZone,
+    SufniTerrainRamp Terrain);
+
+public sealed record SufniTerrainRamp(Color Low, Color Middle, Color High);
 
 public sealed record SufniTypographyTheme(
     string FontFamilyName,

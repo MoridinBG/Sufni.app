@@ -57,7 +57,10 @@ public sealed record SignalDisplayPreferences(
     [property: JsonPropertyName("speed")] bool Speed = true,
     [property: JsonPropertyName("elevation")] bool Elevation = true,
     [property: JsonPropertyName("speed_smoothing")] PlotSmoothingLevel SpeedSmoothing = PlotSmoothingLevel.Off,
-    [property: JsonPropertyName("elevation_smoothing")] PlotSmoothingLevel ElevationSmoothing = PlotSmoothingLevel.Off);
+    [property: JsonPropertyName("elevation_smoothing")] PlotSmoothingLevel ElevationSmoothing = PlotSmoothingLevel.Off,
+    [property: JsonPropertyName("terrain")] bool Terrain = true,
+    [property: JsonPropertyName("roughness")] bool Roughness = true,
+    [property: JsonPropertyName("grade")] bool Grade = true);
 
 public sealed record AnalysisPreferences(
     [property: JsonPropertyName("travel_distribution_mode")] TravelDistributionMode TravelDistributionMode = TravelDistributionMode.ActiveSuspension,
@@ -121,6 +124,8 @@ public sealed record SignalLayoutPreferences
                 [
                     new SignalLayoutRowPreferences(SignalRowIds.Elevation),
                 ]),
+            new SignalLayoutRowPreferences(SignalRowIds.Terrain, children:
+                [new(SignalRowIds.Roughness), new(SignalRowIds.Grade)]),
         ];
     }
 }
@@ -381,4 +386,7 @@ public static class SignalRowIds
     public const string PitchRoll = "pitch_roll";
     public const string Speed = "speed";
     public const string Elevation = "elevation";
+    public const string Terrain = "terrain";
+    public const string Roughness = "roughness";
+    public const string Grade = "grade";
 }

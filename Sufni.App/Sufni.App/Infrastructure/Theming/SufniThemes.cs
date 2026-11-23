@@ -34,7 +34,8 @@ public static class SufniThemes
         GpsSpeed: C("#FFFFBF"),
         GpsElevation: C("#FFFFBF"),
         GpsQuality: C("#D0D6DA"),
-        TravelZone: TravelZoneRamp);
+        TravelZone: TravelZoneRamp,
+        Terrain: new(C("#2B9B62"), C("#E8C841"), C("#D44243")));
 
     // Typography and spacing are dimensions, not colors, and do not vary by
     // variant — both themes share these, and SufniThemeResourceBridge.PopulateRoot

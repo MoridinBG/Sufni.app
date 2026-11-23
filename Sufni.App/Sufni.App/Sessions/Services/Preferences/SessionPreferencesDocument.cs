@@ -78,6 +78,9 @@ internal sealed class SessionPreferencesDocument
 
 internal sealed class SignalDisplayPreferencesDocument
 {
+    public bool? Terrain { get; set; }
+    public bool? Roughness { get; set; }
+    public bool? Grade { get; set; }
     public bool? Travel { get; set; }
     public bool? Velocity { get; set; }
     public bool? Imu { get; set; }
@@ -94,6 +97,7 @@ internal sealed class SignalDisplayPreferencesDocument
     public SignalDisplayPreferences ToModel()
     {
         return new SignalDisplayPreferences(
+            Terrain: Terrain ?? true, Roughness: Roughness ?? true, Grade: Grade ?? true,
             Travel: Travel ?? true,
             Velocity: Velocity ?? true,
             Imu: Imu ?? true,
@@ -112,6 +116,7 @@ internal sealed class SignalDisplayPreferencesDocument
     {
         return new SignalDisplayPreferencesDocument
         {
+            Terrain = preferences.Terrain, Roughness = preferences.Roughness, Grade = preferences.Grade,
             Travel = preferences.Travel,
             Velocity = preferences.Velocity,
             Imu = preferences.Imu,
@@ -196,7 +201,7 @@ internal sealed class SignalLayoutPreferencesDocument
             .ToArray();
 
         return rows is { Length: > 0 }
-            ? new SignalLayoutPreferences(rows)
+            ? SignalLayoutPreferenceTree.NormalizeRecorded(new SignalLayoutPreferences(rows))
             : SignalLayoutPreferences.Default;
     }
 
