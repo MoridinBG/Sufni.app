@@ -77,7 +77,7 @@ internal sealed class RecordedSessionAnalysisDemand : IAsyncDisposable
                 state.TelemetryData?.Metadata.Duration is { } duration
                 ? new(() => TrackSampleAdapter.FromOriginalFixes(fixes, timeline, duration)) : null;
         }
-        if (previous.Terrain != state.Terrain || previous.Intent.Scope != state.Intent.Scope ||
+        if ((previous.Terrain as RecordedTerrainState.Loaded)?.Key != (state.Terrain as RecordedTerrainState.Loaded)?.Key || previous.Intent.Scope != state.Intent.Scope ||
             previous.Intent.AnalysisRange != state.Intent.AnalysisRange)
         {
             var filter = state.Intent.Scope is AnalysisScope.ClassFilter classes ? classes.Filter : default;
@@ -103,6 +103,8 @@ internal sealed class RecordedSessionAnalysisDemand : IAsyncDisposable
             Scope = currentState.Intent.Scope,
             TerrainProfileKey = (currentState.Terrain as RecordedTerrainState.Loaded)?.Key,
             TerrainSelection = terrainSelection,
+            TerrainProfile = (currentState.Terrain as RecordedTerrainState.Loaded)?.Profile,
+            Baseline = (currentState.Terrain as RecordedTerrainState.Loaded)?.Baseline,
             TrackGeneration = trackGeneration,
             TrackSamples = trackSamples,
             FrontSelection = currentState.AnalysisSelection.ActiveFront,

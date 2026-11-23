@@ -26,7 +26,7 @@ internal sealed class RecordedSessionAnalysisComputer(
         {
             RecordedSessionAnalysisFamily.DampingPercentages => new DampingPercentagesAnalysisResult(
                 CalculateDampingPercentages(key, telemetry, timeSelection)),
-            RecordedSessionAnalysisFamily.SessionInsights => CalculateSessionInsights(key, telemetry, timeSelection),
+            RecordedSessionAnalysisFamily.SessionInsights => CalculateSessionInsights(key, telemetry, timeSelection, inputs),
             RecordedSessionAnalysisFamily.Availability => CalculateAvailability(key, telemetry, timeSelection) with { TerrainSelection = inputs?.TerrainSelection?.Value },
             RecordedSessionAnalysisFamily.SelectionHighlights => CalculateHighlights(key, telemetry, timeSelection),
             _ => ComputePlot(key, telemetry, inputs),
@@ -123,7 +123,7 @@ internal sealed class RecordedSessionAnalysisComputer(
 
     private SessionInsightsAnalysisResult CalculateSessionInsights(
         RecordedSessionAnalysisKey key,
-        TelemetryData telemetry, TelemetryTimeSelection? timeSelection)
+        TelemetryData telemetry, TelemetryTimeSelection? timeSelection, RecordedSessionAnalysisInputs? inputs)
     {
         var request = new SessionInsightsRequest(
             telemetry,
@@ -135,6 +135,8 @@ internal sealed class RecordedSessionAnalysisComputer(
             key.SessionInsightsTargetProfile ?? SessionInsightsTargetProfile.Trail)
         {
             DampingSpeedCutoffs = key.DampingSpeedCutoffs,
+            Terrain = inputs is { TerrainProfile: { } profile, Baseline: { } baseline }
+                ? new(profile, baseline, key.AnalysisRange) : null,
         };
 
         return new SessionInsightsAnalysisResult(sessionInsightsService.Analyze(request));

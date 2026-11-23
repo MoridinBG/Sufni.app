@@ -1,3 +1,4 @@
+using DynamicData;
 using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Queries;
 using Sufni.App.Terrain.Coordinators;
@@ -50,6 +51,7 @@ internal sealed class SessionDetailHarness : IDisposable
 
     public SessionDetailHarness()
     {
+        RecordedSessionProjection.ConnectSessions().Returns(SessionSummaries.Connect());
         SegmentStore = new SessionSegmentStore(publication);
         SessionPreferences.ObserveRecorded(Arg.Any<Guid>()).Returns(recordedPreferences);
         SessionCoordinator.LoadPreferencesAsync(Arg.Any<Guid>())
@@ -73,6 +75,7 @@ internal sealed class SessionDetailHarness : IDisposable
     public ISessionCoordinator SessionCoordinator { get; } = TestCoordinatorSubstitutes.Session();
     public ISessionLoader SessionLoader { get; } = TestCoordinatorSubstitutes.SessionLoader();
     public ISessionStore SessionStore { get; } = Substitute.For<ISessionStore>();
+    public SourceCache<RecordedSessionSummary, Guid> SessionSummaries { get; } = new(s => s.Id);
     public IRecordedSessionProjection RecordedSessionProjection { get; } = Substitute.For<IRecordedSessionProjection>();
     public ISessionInsightsService SessionInsightsService { get; } = Substitute.For<ISessionInsightsService>();
     public IShellCoordinator Shell { get; } = Substitute.For<IShellCoordinator>();
@@ -226,6 +229,7 @@ internal sealed class SessionDetailHarness : IDisposable
     }
     public void Dispose()
     {
+        SessionSummaries.Dispose();
         recordedPreferences.Dispose();
         SegmentStore.Dispose();
         publication.Dispose();

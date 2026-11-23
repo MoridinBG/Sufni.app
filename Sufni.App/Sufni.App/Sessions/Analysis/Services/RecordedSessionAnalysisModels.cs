@@ -44,6 +44,8 @@ public sealed record RecordedSessionAnalysisInputs(
     public AnalysisScope Scope { get; init; } = new AnalysisScope.Whole();
     public TerrainProfileKey? TerrainProfileKey { get; init; }
     public long TrackGeneration { get; init; }
+    public TerrainProfile? TerrainProfile { get; init; }
+    public TerrainBaseline? Baseline { get; init; }
     public Lazy<TerrainSelectionResult>? TerrainSelection { get; init; }
     public Lazy<ImmutableArray<TrackSample>>? TrackSamples { get; init; }
     public TelemetryRangeSelection? FrontSelection { get; init; }
@@ -236,6 +238,7 @@ public sealed record RecordedSessionAnalysisInputs(
         return family == RecordedSessionAnalysisFamily.ImuDisplayProjection ? key : key with
         {
             Scope = Scope,
+            Baseline = family == RecordedSessionAnalysisFamily.SessionInsights ? Baseline : null,
             TerrainProfileKey = Scope is AnalysisScope.ClassFilter || family is RecordedSessionAnalysisFamily.Availability
                 or RecordedSessionAnalysisFamily.SessionInsights ? TerrainProfileKey : null
         };
@@ -256,6 +259,7 @@ public sealed record RecordedSessionAnalysisKey(
     DampingSpeedCutoffs DampingSpeedCutoffs,
     SessionInsightsTargetProfile? SessionInsightsTargetProfile)
 {
+    public TerrainBaseline? Baseline { get; init; }
     public AnalysisScope Scope { get; init; } = new AnalysisScope.Whole();
     public TerrainProfileKey? TerrainProfileKey { get; init; }
     public long TrackGeneration { get; init; }

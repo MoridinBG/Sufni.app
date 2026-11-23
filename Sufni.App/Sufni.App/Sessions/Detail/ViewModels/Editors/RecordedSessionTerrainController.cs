@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
 using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Shared.Common;
 using Sufni.App.Terrain.Coordinators;
 using Sufni.App.Terrain.Models;
@@ -16,7 +17,10 @@ namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 internal closed record RecordedTerrainState
 {
     public sealed record Pending : RecordedTerrainState;
-    public sealed record Loaded(TerrainProfileKey Key, TerrainProfile Profile, TerrainPresentation Presentation) : RecordedTerrainState;
+    public sealed record Loaded(TerrainProfileKey Key, TerrainProfile Profile, TerrainPresentation Presentation) : RecordedTerrainState
+    {
+        public TerrainBaseline Baseline { get; init; } = new TerrainBaseline.NotLoaded(TerrainBaselineIdentity.Empty);
+    }
     public sealed record Unavailable(TerrainAvailabilityReason Reason) : RecordedTerrainState;
     public sealed record Failed : RecordedTerrainState;
 
@@ -28,7 +32,7 @@ internal closed record RecordedTerrainState
     };
 }
 
-internal sealed class RecordedSessionTerrainController : IAsyncDisposable
+internal sealed partial class RecordedSessionTerrainController : IAsyncDisposable
 {
     private readonly IDisposable subscription;
     private readonly CancellableOperation read = new();
@@ -36,7 +40,7 @@ internal sealed class RecordedSessionTerrainController : IAsyncDisposable
 
     public RecordedSessionTerrainController(Guid id, IObservable<RecordedSessionEditorState> states,
         ITerrainProfileRepository repository, ITerrainProfileCoordinator coordinator, IBackgroundTaskRunner background,
-        IUiThreadDispatcher dispatcher, RecordedSessionEditorActions actions, CancellationToken lifetime)
+        IUiThreadDispatcher dispatcher, RecordedSessionEditorActions actions, IRecordedSessionProjection projection, CancellationToken lifetime)
     {
         subscription = states.Select(state => state.Domain?.Terrain).DistinctUntilChanged().Subscribe(status =>
         {
@@ -47,6 +51,8 @@ internal sealed class RecordedSessionTerrainController : IAsyncDisposable
             var next = ReadAsync(current, read.Start(lifetime));
             pending = pending.IsCompleted ? next : Task.WhenAll(pending, next);
         });
+
+        baselineSubscription = ObserveBaseline(id, states, projection, repository, background, dispatcher, actions, lifetime);
 
         async Task ReadAsync(TerrainStatus.Current current, CancellationToken token)
         {
@@ -77,7 +83,10 @@ internal sealed class RecordedSessionTerrainController : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         subscription.Dispose();
+        baselineSubscription.Dispose();
+        planning.Dispose();
+        fitting.Dispose();
         read.Dispose();
-        await pending.ConfigureAwait(false);
+        await Task.WhenAll(pending, baselineTasks).ConfigureAwait(false);
     }
 }

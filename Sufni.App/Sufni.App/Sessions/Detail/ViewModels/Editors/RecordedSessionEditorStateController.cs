@@ -131,15 +131,16 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
     private static RecordedSessionEditorState InvalidateAnalysisResults(RecordedSessionEditorState previous, RecordedSessionEditorState next)
     {
         var scopeChanged = previous.TelemetryData != next.TelemetryData || previous.Intent.AnalysisRange != next.Intent.AnalysisRange ||
-            previous.Intent.Scope != next.Intent.Scope || previous.Intent.Scope is AnalysisScope.ClassFilter && previous.Terrain != next.Terrain;
+            previous.Intent.Scope != next.Intent.Scope || previous.Intent.Scope is AnalysisScope.ClassFilter && (previous.Terrain as RecordedTerrainState.Loaded)?.Key != (next.Terrain as RecordedTerrainState.Loaded)?.Key;
         if (scopeChanged)
             next = ApplySelection(next, next.AnalysisSelection with { HighlightRanges = [] });
-        if (scopeChanged || previous.Terrain != next.Terrain)
+        if (scopeChanged || (previous.Terrain as RecordedTerrainState.Loaded)?.Key != (next.Terrain as RecordedTerrainState.Loaded)?.Key)
             next = next with { Presentation = next.Presentation with { TerrainSelection = null } };
         var dampingChanged = scopeChanged ||
             previous.Preferences.Analysis.VelocityAverageMode != next.Preferences.Analysis.VelocityAverageMode ||
             previous.Intent.DampingSpeedCutoffs != next.Intent.DampingSpeedCutoffs;
-        var insightsChanged = dampingChanged || previous.Preferences.Analysis != next.Preferences.Analysis;
+        var insightsChanged = dampingChanged || previous.Preferences.Analysis != next.Preferences.Analysis ||
+            previous.Terrain != next.Terrain;
         return next with
         {
             Presentation = next.Presentation with
@@ -196,6 +197,8 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         {
             Editor = intent switch
             {
+                RecordedSessionEditorIntent.SetBaseline result when state.Terrain is RecordedTerrainState.Loaded loaded && loaded.Key == result.ProfileKey =>
+                    state with { Terrain = loaded with { Baseline = result.Baseline } },
                 RecordedSessionEditorIntent.SetTerrain result when state.Domain?.Terrain == result.Expected =>
                     state with { Terrain = result.Value },
                 RecordedSessionEditorIntent.PreviewProcessingOption preview => state with

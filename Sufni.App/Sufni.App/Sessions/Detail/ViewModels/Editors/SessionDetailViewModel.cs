@@ -399,7 +399,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         stalenessPrompt = new SessionStalenessPrompt(editorStateController.State, sessionCoordinator,
             dialogService, uiThreadDispatcher, () => IsDirty, editorLifetime.Token, ReportError, Notify);
         terrainController = new(Id, editorStateController.State, terrainProfiles, terrainCoordinator,
-            backgroundTaskRunner, uiThreadDispatcher, editorActions, editorLifetime.Token);
+            backgroundTaskRunner, uiThreadDispatcher, editorActions, recordedSessionProjection, editorLifetime.Token);
         gpsOffsetPrompt = new GpsOffsetSuggestionPrompt(editorStateController.State, sessionCoordinator, dialogService,
             backgroundTaskRunner, uiThreadDispatcher, () => IsTabActive, ReportError, editorLifetime.Token);
         preferencesController = new RecordedSessionPreferencesController(Id, editorStateController.State, editorActions, sessionStore,

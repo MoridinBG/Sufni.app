@@ -18,6 +18,7 @@ internal closed record RecordedSessionEditorIntent
     public sealed record BeginSegmentComparison(Guid MatchedSessionId) : RecordedSessionEditorIntent;
     public sealed record EndSegmentComparison : RecordedSessionEditorIntent;
     public sealed record SetMapTrackColoring(MapTrackColoring Value) : RecordedSessionEditorIntent;
+    public sealed record SetBaseline(TerrainProfileKey ProfileKey, TerrainBaseline Baseline) : RecordedSessionEditorIntent;
     public sealed record SetTerrain(TerrainStatus.Current Expected, RecordedTerrainState Value) : RecordedSessionEditorIntent;
 
     public sealed record PreviewProcessingOption(int WindowMilliseconds) : RecordedSessionEditorIntent;
@@ -169,6 +170,8 @@ internal sealed class RecordedSessionEditorActions : IDisposable
     public void BeginSegmentComparison(Guid id) => Emit(new RecordedSessionEditorIntent.BeginSegmentComparison(id));
     public void EndSegmentComparison() => Emit(new RecordedSessionEditorIntent.EndSegmentComparison());
     public void SetMapTrackColoring(MapTrackColoring value) => Emit(new RecordedSessionEditorIntent.SetMapTrackColoring(value));
+
+    public void SetBaseline(TerrainProfileKey key, TerrainBaseline baseline) => Emit(new RecordedSessionEditorIntent.SetBaseline(key, baseline));
 
     public void SetTerrain(TerrainStatus.Current expected, RecordedTerrainState value) =>
         Emit(new RecordedSessionEditorIntent.SetTerrain(expected, value));
