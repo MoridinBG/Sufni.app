@@ -24,13 +24,9 @@ internal class BikeCoordinator(
     : IBikeCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<BikeCoordinator>();
-    private readonly object activeTasksGate = new();
     private readonly RetainedWork retainedWork = new();
 
-    public Task StopAsync()
-    {
-        lock (activeTasksGate) return retainedWork.DrainAsync();
-    }
+    public Task StopAsync() => retainedWork.DrainAsync();
 
 
     public async Task<BikeImportResult> ImportBikeAsync(CancellationToken cancellationToken = default)
@@ -121,13 +117,8 @@ internal class BikeCoordinator(
         }
     }
 
-    public Task<BikeDampingSpeedCutoffUpdateResult> UpdateDampingSpeedCutoffAsync(Guid bikeId, double expectedCutoffMmPerSecond, SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond)
-    {
-        lock (activeTasksGate)
-        {
-            return retainedWork.Retain(UpdateDampingSpeedCutoffCoreAsync(bikeId, expectedCutoffMmPerSecond, side, circuit, cutoffMmPerSecond));
-        }
-    }
+    public Task<BikeDampingSpeedCutoffUpdateResult> UpdateDampingSpeedCutoffAsync(Guid bikeId, double expectedCutoffMmPerSecond, SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond) =>
+        retainedWork.Retain(UpdateDampingSpeedCutoffCoreAsync(bikeId, expectedCutoffMmPerSecond, side, circuit, cutoffMmPerSecond));
 
     private async Task<BikeDampingSpeedCutoffUpdateResult> UpdateDampingSpeedCutoffCoreAsync(
         Guid bikeId,

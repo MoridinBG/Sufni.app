@@ -69,13 +69,9 @@ internal sealed class VideoCoordinator(
     IUiThreadDispatcher dispatcher) : IVideoCoordinator, IDisposable
 {
     private static readonly ILogger logger = Log.ForContext<VideoCoordinator>();
-    private readonly object activeTasksGate = new();
     private readonly RetainedWork retainedWork = new();
 
-    public Task StopAsync()
-    {
-        lock (activeTasksGate) return retainedWork.DrainAsync();
-    }
+    public Task StopAsync() => retainedWork.DrainAsync();
 
     private readonly IDisposable presenceSubscription = ObservePresence(videoStore, filePresence, dispatcher);
 
@@ -122,13 +118,8 @@ internal sealed class VideoCoordinator(
         }
     }
 
-    public Task<VideoAlignmentResult> ShiftAlignmentAsync(Guid clipId, double deltaSeconds)
-    {
-        lock (activeTasksGate)
-        {
-            return retainedWork.Retain(ShiftAlignmentCoreAsync(clipId, deltaSeconds));
-        }
-    }
+    public Task<VideoAlignmentResult> ShiftAlignmentAsync(Guid clipId, double deltaSeconds) =>
+        retainedWork.Retain(ShiftAlignmentCoreAsync(clipId, deltaSeconds));
 
     private async Task<VideoAlignmentResult> ShiftAlignmentCoreAsync(Guid clipId, double deltaSeconds)
     {

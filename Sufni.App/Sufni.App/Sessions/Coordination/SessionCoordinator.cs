@@ -31,13 +31,9 @@ namespace Sufni.App.Sessions.Coordination;
 internal sealed class SessionCoordinator : ISessionCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SessionCoordinator>();
-    private readonly object activeTasksGate = new();
     private readonly RetainedWork retainedWork = new();
 
-    public Task StopAsync()
-    {
-        lock (activeTasksGate) return retainedWork.DrainAsync();
-    }
+    public Task StopAsync() => retainedWork.DrainAsync();
 
 
     private readonly IUiThreadDispatcher dispatcher;
@@ -181,13 +177,8 @@ internal sealed class SessionCoordinator : ISessionCoordinator
         }
     }
 
-    public Task<GpsOffsetResult> ShiftGpsOffsetAsync(Guid sessionId, double deltaSeconds, CancellationToken cancellationToken = default)
-    {
-        lock (activeTasksGate)
-        {
-            return retainedWork.Retain(ShiftGpsOffsetCoreAsync(sessionId, deltaSeconds, cancellationToken));
-        }
-    }
+    public Task<GpsOffsetResult> ShiftGpsOffsetAsync(Guid sessionId, double deltaSeconds, CancellationToken cancellationToken = default) =>
+        retainedWork.Retain(ShiftGpsOffsetCoreAsync(sessionId, deltaSeconds, cancellationToken));
 
     private async Task<GpsOffsetResult> ShiftGpsOffsetCoreAsync(
         Guid sessionId,

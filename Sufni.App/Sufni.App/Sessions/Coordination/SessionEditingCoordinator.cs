@@ -57,13 +57,9 @@ internal sealed class SessionEditingCoordinator(
     StorePublication publication) : ISessionEditingCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SessionEditingCoordinator>();
-    private readonly object activeTasksGate = new();
     private readonly RetainedWork retainedWork = new();
 
-    public Task StopAsync()
-    {
-        lock (activeTasksGate) return retainedWork.DrainAsync();
-    }
+    public Task StopAsync() => retainedWork.DrainAsync();
 
 
     public Task<SessionEditResult> TrimUntilEndAsync(Guid sessionId, double clickSeconds) =>
@@ -78,13 +74,8 @@ internal sealed class SessionEditingCoordinator(
     public Task<SessionEditResult> SplitAsync(Guid sessionId, double clickSeconds, IProgress<SessionEditProgress>? progress = null) =>
         RunAsync(sessionId, session => transactions.SplitAsync(session, clickSeconds), progress);
 
-    private Task<SessionEditResult> RunAsync(Guid sessionId, Func<SessionSnapshot, Task<SessionEditCommit>> commit, IProgress<SessionEditProgress>? progress = null)
-    {
-        lock (activeTasksGate)
-        {
-            return retainedWork.Retain(RunCoreAsync(sessionId, commit, progress));
-        }
-    }
+    private Task<SessionEditResult> RunAsync(Guid sessionId, Func<SessionSnapshot, Task<SessionEditCommit>> commit, IProgress<SessionEditProgress>? progress = null) =>
+        retainedWork.Retain(RunCoreAsync(sessionId, commit, progress));
 
     private async Task<SessionEditResult> RunCoreAsync(
         Guid sessionId,
