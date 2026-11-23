@@ -40,6 +40,13 @@ public sealed record BikeDraft(
         Id, Name, HeadAngle ?? 0, ForkStroke, ShockStroke, RearSuspension, InitialDampingSpeedCutoffs,
         Chainstay, PixelsToMillimeters, FrontWheel, RearWheel, ImageRotationDegrees, imageBytes.Length > 0, 0);
 
+    internal Bike ToRow(DampingSpeedCutoffs? currentCutoffs)
+    {
+        var row = Bike.FromSnapshot(ToSnapshot(), ImageBytes);
+        row.DampingSpeedCutoffs = currentCutoffs ?? InitialDampingSpeedCutoffs;
+        return row;
+    }
+
     public bool Equals(BikeDraft? other) => ReferenceEquals(this, other) || other is not null &&
         Id == other.Id && Name == other.Name && HeadAngle == other.HeadAngle && ForkStroke == other.ForkStroke &&
         ShockStroke == other.ShockStroke && RearSuspension == other.RearSuspension &&

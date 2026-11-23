@@ -64,7 +64,7 @@ internal class BikeCoordinator(
     public async Task<BikeExportResult> ExportBikeAsync(BikeDraft draft, CancellationToken cancellationToken = default)
     {
         var current = bikeStore.Get(draft.Id);
-        var bike = await backgroundTaskRunner.RunAsync(() => BuildRow(draft, current?.DampingSpeedCutoffs), cancellationToken);
+        var bike = await backgroundTaskRunner.RunAsync(() => draft.ToRow(current?.DampingSpeedCutoffs), cancellationToken);
         logger.Information("Starting bike export for {BikeId}", bike.Id);
 
         var result = await bikeEditorService.ExportBikeAsync(bike, cancellationToken);
@@ -172,13 +172,6 @@ internal class BikeCoordinator(
             logger.Error(e, "Bike delete failed for {BikeId}", bikeId);
             return new BikeDeleteResult.Failed(BikeDeleteFailureReason.Delete, e.Message);
         }
-    }
-
-    private static Bike BuildRow(BikeDraft draft, DampingSpeedCutoffs? currentCutoffs)
-    {
-        var row = Bike.FromSnapshot(draft.ToSnapshot(), draft.ImageBytes);
-        row.DampingSpeedCutoffs = currentCutoffs ?? draft.InitialDampingSpeedCutoffs;
-        return row;
     }
 
 

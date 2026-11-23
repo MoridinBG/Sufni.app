@@ -30,8 +30,7 @@ internal sealed class BikePersistenceTransactionRunner(
                 if (currentDraft != baseline) return new BikeSaveResult.Conflict(currentDraft);
             }
 
-            var row = Bike.FromSnapshot(draft.ToSnapshot(), draft.ImageBytes);
-            row.DampingSpeedCutoffs = current?.DampingSpeedCutoffs ?? draft.InitialDampingSpeedCutoffs;
+            var row = draft.ToRow(current?.DampingSpeedCutoffs);
             SynchronizableRepository<Bike>.PutInTransaction(connection, row, timeProvider.GetUtcNow().ToUnixTimeSeconds(), writer);
             return new BikeSaveResult.Saved(BikeSnapshot.From(row));
         });
