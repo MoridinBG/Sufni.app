@@ -17,7 +17,7 @@ using Sufni.App.Video.Services;
 using Sufni.App.Video.Stores;
 namespace Sufni.App.Video.Coordinators;
 
-public abstract record VideoImportResult
+public closed record VideoImportResult
 {
     private VideoImportResult() { }
 
@@ -29,7 +29,7 @@ public abstract record VideoImportResult
     public sealed record Failed(VideoImportFailureReason Reason, string? Details = null) : VideoImportResult;
 }
 
-public abstract record VideoAlignmentResult
+public closed record VideoAlignmentResult
 {
     private VideoAlignmentResult() { }
 
@@ -115,8 +115,7 @@ internal sealed class VideoCoordinator(
                 VideoFileReadResult.Cancelled => new VideoImportResult.Cancelled(),
                 VideoFileReadResult.Failed failed => new VideoImportResult.Failed(failed.Reason, failed.Details),
                 VideoFileReadResult.Read read => await backgroundTaskRunner.RunAsync(
-                    () => ImportCoreAsync(read, cancellationToken), cancellationToken),
-                _ => throw new InvalidOperationException("Unknown video file result")
+                    () => ImportCoreAsync(read, cancellationToken), cancellationToken)
             };
         }
         catch (OperationCanceledException)

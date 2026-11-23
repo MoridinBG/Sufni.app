@@ -15,7 +15,7 @@ public sealed record VideoMetadata(DateTimeOffset StartUtc, TimeSpan Duration)
     public DateTimeOffset EndUtc => StartUtc + Duration;
 }
 
-public abstract record VideoMetadataReadResult
+public closed record VideoMetadataReadResult
 {
     private VideoMetadataReadResult() { }
 

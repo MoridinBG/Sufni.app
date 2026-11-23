@@ -59,7 +59,7 @@ public sealed class VideoPlaybackFailedEventArgs(VideoPlaybackFailure failure) :
     public VideoPlaybackFailure Failure { get; } = failure;
 }
 
-public abstract record VideoPlaybackSourceState
+public closed record VideoPlaybackSourceState
 {
     private VideoPlaybackSourceState() { }
     public sealed record Loading : VideoPlaybackSourceState;

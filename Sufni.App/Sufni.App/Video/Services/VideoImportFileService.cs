@@ -14,7 +14,7 @@ public interface IVideoImportFileService
     Task<VideoFileReadResult> ReadAsync(CancellationToken cancellationToken = default);
 }
 
-public abstract record VideoFileReadResult
+public closed record VideoFileReadResult
 {
     private VideoFileReadResult() { }
     public sealed record Read(string Name, string Path, VideoMetadata Metadata) : VideoFileReadResult;

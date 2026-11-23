@@ -24,7 +24,7 @@ public sealed class VideoFileAccessLease(string path, IDisposable access) : IDis
     public void Dispose() => access.Dispose();
 }
 
-public abstract record VideoAccessSaveResult
+public closed record VideoAccessSaveResult
 {
     private VideoAccessSaveResult() { }
     public sealed record Saved : VideoAccessSaveResult;
