@@ -163,6 +163,11 @@ There are five kinds of view model in the presentation layer:
   Setup sensor sub-editors expose immutable `SensorDraft`
   inputs without their own saved baselines or JSON serialization. `SetupCoordinator`
   builds the persisted row and sensor JSON after applying shared `SetupSaveRules`.
+  The setup editor owns the Board ID field text and accepts the GUID formats
+  supported by `Guid.TryParse`. Empty or invalid input disables Save.
+  Invalid input reports a field error through `INotifyDataErrorInfo`. Each
+  edit updates dirtiness immediately, so Reset and the close prompt reflect
+  the current Board ID text.
   Imported bikes enter the factory as a validated `BikeDraft` on `EditorKey.NewBike`;
   they do not replace another editor’s draft. Rear-suspension mode changes are
   awaited commands gated by the composed pointer capability; a pending or declined

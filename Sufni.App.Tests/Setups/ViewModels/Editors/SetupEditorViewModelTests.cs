@@ -186,7 +186,100 @@ public class SetupEditorViewModelTests : IDisposable
         Assert.True(editor.SaveCommand.CanExecute(null));
     }
 
+    [Fact]
+    public void SaveCommand_Disabled_WhenBoardIdTextIsNotAGuid()
+    {
+        var bike = TestSnapshots.Bike();
+        bikeStore.Add(bike);
+        var snapshot = TestSnapshots.Setup(bikeId: bike.Id)
+            with
+        { FrontSensorConfigurationJson = LinearForkConfigurationJson };
+        var editor = CreateEditor(snapshot, boardId: Guid.NewGuid());
+        editor.Name = "renamed";
+        Assert.True(editor.SaveCommand.CanExecute(null));
+
+        editor.BoardIdText = "not a board id";
+
+        Assert.False(editor.SaveCommand.CanExecute(null));
+    }
+
+    // ----- Board ID text -----
+
+    [Fact]
+    public async Task TryPrepareClose_PromptsImmediatelyAfterInvalidBoardIdEdit()
+    {
+        var editor = CreateEditor(TestSnapshots.Setup());
+        dialogService.ShowCloseConfirmationAsync(false).Returns(PromptResult.Cancel);
+
+        editor.BoardIdText = "not a board id";
+
+        Assert.False(await editor.TryPrepareCloseAsync());
+        Assert.True(editor.IsDirty);
+        await dialogService.Received(1).ShowCloseConfirmationAsync(false);
+    }
+
+    [Fact]
+    public void BoardIdText_ReportsError_WhenTextIsNotAGuid()
+    {
+        var editor = CreateEditor(TestSnapshots.Setup(), boardId: Guid.NewGuid());
+
+        editor.BoardIdText = "not a board id";
+
+        Assert.Null(editor.BoardId);
+        Assert.True(editor.HasErrors);
+        Assert.NotEmpty(editor.GetErrors(nameof(SetupEditorViewModel.BoardIdText)));
+    }
+
+    [Fact]
+    public void BoardIdText_ClearsBoardIdWithoutError_WhenTextIsEmptied()
+    {
+        var editor = CreateEditor(TestSnapshots.Setup(), boardId: Guid.NewGuid());
+
+        editor.BoardIdText = "";
+
+        Assert.Null(editor.BoardId);
+        Assert.False(editor.HasErrors);
+        Assert.Empty(editor.GetErrors(nameof(SetupEditorViewModel.BoardIdText)));
+    }
+
+    [Fact]
+    public async Task ResetCommand_DiscardsInvalidBoardIdText_WhenSetupHasNoBoard()
+    {
+        var editor = CreateEditor(TestSnapshots.Setup());
+        Assert.False(editor.IsDirty);
+
+        editor.BoardIdText = "not a board id";
+
+        Assert.True(editor.ResetCommand.CanExecute(null));
+        await editor.ResetCommand.ExecuteAsync(null);
+        Assert.False(editor.HasErrors);
+        Assert.False(editor.IsDirty);
+    }
+
     // ----- Save -----
+
+    [Theory]
+    [InlineData("D")]
+    [InlineData("N")]
+    [InlineData("B")]
+    public async Task Save_SubmitsBoardIdParsedFromText(string format)
+    {
+        var bike = TestSnapshots.Bike();
+        bikeStore.Add(bike);
+        var originalBoardId = Guid.NewGuid();
+        var newBoardId = Guid.NewGuid();
+        var snapshot = TestSnapshots.Setup(bikeId: bike.Id)
+            with
+        { FrontSensorConfigurationJson = LinearForkConfigurationJson };
+        var editor = CreateEditor(snapshot, boardId: originalBoardId);
+
+        editor.BoardIdText = newBoardId.ToString(format);
+        await editor.SaveCommand.ExecuteAsync(null);
+
+        await setupCoordinator.Received(1).SaveAsync(
+            Arg.Is<SetupDraft>(draft => draft.BoardId == newBoardId),
+            SetupDraft.From(snapshot, originalBoardId));
+    }
 
     [Fact]
     public async Task Save_HappyPath_RoutesThroughCoordinator_AndUpdatesBaseline()

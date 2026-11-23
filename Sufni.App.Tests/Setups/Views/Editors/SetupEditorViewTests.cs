@@ -99,4 +99,20 @@ public class SetupEditorViewTests
         Assert.Null(forkContent.FindFirstVisual<RotationalForkSensorConfigurationView>());
     }
 
+    [AvaloniaFact]
+    public async Task SetupEditorView_BoardIdTextBox_ShowsTextValidationError_WhenTextIsNotAGuid()
+    {
+        using var context = new SetupEditorViewTestContext();
+        var bike = context.AddBike();
+        await using var mounted = await context.MountMobileAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike));
+        var boardIdTextBox = mounted.View.FindFirstVisual<SetupEditorCommonFields>()!.FindControl<TextBox>("BoardIdTextBox")!;
+
+        boardIdTextBox.Text = "not a board id";
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var errors = DataValidationErrors.GetErrors(boardIdTextBox);
+        Assert.NotNull(errors);
+        Assert.IsType<string>(Assert.Single(errors!));
+    }
+
 }

@@ -2,6 +2,7 @@ using Sufni.App.Shell.ViewModels.Base;
 using Sufni.App.Setups.Services;
 using Sufni.App.Shared.Models;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -28,7 +29,7 @@ namespace Sufni.App.Setups.ViewModels.Editors;
 /// Setup editor with one immutable draft base. Sensor sub-editors expose draft
 /// inputs; the coordinator owns validation, serialization and persistence.
 /// </summary>
-public partial class SetupEditorViewModel : TabPageViewModelBase
+public partial class SetupEditorViewModel : TabPageViewModelBase, INotifyDataErrorInfo
 {
     public Guid Id { get; private set; }
     public bool IsInDatabase { get; private set; }
@@ -41,6 +42,8 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     private readonly IDisposable bikeSubscription;
     private SetupDraft draftBase;
 
+    private const string BoardIdFormatError = "Enter a valid board ID (GUID).";
+
     #endregion Private fields
 
     #region Observable properties
@@ -48,7 +51,9 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    public partial Guid? BoardId { get; set; }
+    public partial string? BoardIdText { get; set; }
+
+    public Guid? BoardId => Guid.TryParse(BoardIdText, out var boardId) ? boardId : null;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
@@ -80,6 +85,12 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     #endregion
 
     #region Property change handlers
+
+    partial void OnBoardIdTextChanged(string? value)
+    {
+        EvaluateDirtiness();
+        ErrorsChanged?.Invoke(this, new DataErrorsChangedEventArgs(nameof(BoardIdText)));
+    }
 
     partial void OnSelectedBikeIdChanged(Guid value) => UpdateSelectedBike();
 
@@ -174,6 +185,17 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
     #endregion
 
+    #region INotifyDataErrorInfo
+
+    public event EventHandler<DataErrorsChangedEventArgs>? ErrorsChanged;
+
+    public bool HasErrors => !string.IsNullOrWhiteSpace(BoardIdText) && BoardId is null;
+
+    public IEnumerable GetErrors(string? propertyName) =>
+        propertyName == nameof(BoardIdText) && HasErrors ? new[] { BoardIdFormatError } : Array.Empty<string>();
+
+    #endregion INotifyDataErrorInfo
+
     #region Private methods
 
     private static IReadOnlyList<JointSpec> JointsFromSnapshot(BikeSnapshot? snapshot) =>
@@ -240,7 +262,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     private SetupDraft CaptureDraft() => new(Id, Name, SelectedBikeId, BoardId,
         ForkSensorConfiguration?.CaptureDraft(), ShockSensorConfiguration?.CaptureDraft());
 
-    protected override void EvaluateDirtiness() => IsDirty = !IsInDatabase || CaptureDraft() != draftBase;
+    protected override void EvaluateDirtiness() => IsDirty = !IsInDatabase || HasErrors || CaptureDraft() != draftBase;
 
     protected override bool CanSave()
     {
@@ -293,7 +315,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     protected override Task ResetImplementation()
     {
         Name = draftBase.Name;
-        BoardId = draftBase.BoardId;
+        BoardIdText = draftBase.BoardId?.ToString();
         SelectedBikeId = draftBase.BikeId;
         ForkSensorConfiguration = SensorConfigurationViewModel.FromDraft(draftBase.FrontSensor);
         ShockSensorConfiguration = SensorConfigurationViewModel.FromDraft(draftBase.RearSensor, JointsFromSnapshot(SelectedBike));
