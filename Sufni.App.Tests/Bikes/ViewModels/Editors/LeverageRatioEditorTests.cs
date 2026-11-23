@@ -24,4 +24,17 @@ public class LeverageRatioEditorTests : BikeEditorFixture
         Assert.False(string.IsNullOrWhiteSpace(failure.Details));
         Assert.DoesNotContain("disk full", failure.Summary);
     }
+
+    [AvaloniaFact]
+    public async Task ImportLeverageRatio_ReplacesTheCurve()
+    {
+        var editor = CreateEditor(TestSnapshots.LeverageRatioBike(TestSnapshots.LeverageRatioCurve((0, 0), (10, 25))));
+        var imported = TestSnapshots.LeverageRatioCurve((0, 0), (30, 75), (60, 150));
+        files.ImportLeverageRatioAsync(Arg.Any<CancellationToken>()).Returns(new LeverageRatioImportResult.Imported(imported));
+
+        await editor.LeverageRatioEditor.ImportLeverageRatioCommand.ExecuteAsync(null);
+
+        Assert.Equal(imported, editor.LeverageRatioEditor.Value);
+        Assert.Empty(editor.ErrorMessages);
+    }
 }
