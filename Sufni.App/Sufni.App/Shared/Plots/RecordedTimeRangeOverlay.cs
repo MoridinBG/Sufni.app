@@ -4,6 +4,7 @@ namespace Sufni.App.Shared.Plots;
 
 public static class RecordedTimeRangeOverlayIds
 {
+    public const string TerrainSelection = "terrain_selection";
     public const string AnalysisRange = "analysis_range";
     public const string PreviewRange = "preview_range";
     public const string Airtime = "airtime";

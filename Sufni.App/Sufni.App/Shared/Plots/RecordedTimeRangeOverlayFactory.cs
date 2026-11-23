@@ -55,6 +55,11 @@ public static class RecordedTimeRangeOverlayFactory
             isVisible);
     }
 
+    public static RecordedTimeRangeOverlaySetRegistration CreateTerrainSelection(TelemetryTimeSelection selection,
+        SufniPlotTheme plotTheme) => new(RecordedTimeRangeOverlayIds.TerrainSelection,
+            new RecordedTimeRangeOverlaySet(selection.Ranges.Select(r => new RecordedTimeRangeOverlay(r.StartSeconds, r.EndSeconds)).ToArray(),
+                new(plotTheme.AnalysisRange.SelectedFill.ToRecordedTimeRangeOverlayColor(), Transparent, 0)), true);
+
     public static RecordedTimeRangeOverlaySetRegistration CreateAnalysisRangeRegistration(
         TelemetryTimeRange range,
         SufniPlotTheme plotTheme)

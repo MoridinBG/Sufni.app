@@ -72,6 +72,15 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         set => SetValue(HideRightAxisProperty, value);
     }
 
+    public static readonly StyledProperty<TelemetryTimeSelection?> TerrainSelectionProperty =
+        AvaloniaProperty.Register<SufniTimeSeriesPlotView, TelemetryTimeSelection?>(nameof(TerrainSelection));
+
+    public TelemetryTimeSelection? TerrainSelection
+    {
+        get => GetValue(TerrainSelectionProperty);
+        set => SetValue(TerrainSelectionProperty, value);
+    }
+
     public static readonly StyledProperty<bool> ShowAirtimeProperty =
         AvaloniaProperty.Register<SufniTimeSeriesPlotView, bool>(nameof(ShowAirtime));
 
@@ -158,6 +167,14 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                 case nameof(HideRightAxis):
                 case nameof(SourceVisibility):
                     RequestReload();
+                    break;
+
+                case nameof(TerrainSelection):
+                    if (plot is { SupportsRangeOverlays: true })
+                    {
+                        ApplyTerrainSelection(plot);
+                        RefreshPlot(PlotInvalidation.Overlay);
+                    }
                     break;
 
                 case nameof(ShowAirtime):
@@ -1057,11 +1074,24 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         if (plot is { SupportsRangeOverlays: true } recordedPlot)
         {
             ApplyAnalysisRange(recordedPlot);
+            ApplyTerrainSelection(recordedPlot);
         }
 
         ApplyAnalysisSelectionRanges(refresh: false);
         ApplyAnalysisSelectionVisibility(refresh: false);
         ApplyAirtimeVisibility(refresh: false);
+    }
+
+    private void ApplyTerrainSelection(TelemetryPlot recordedPlot)
+    {
+        if (TerrainSelection is not { } selected)
+        {
+            recordedPlot.ClearRangeOverlaySet(RecordedTimeRangeOverlayIds.TerrainSelection);
+            return;
+        }
+        var registration = RecordedTimeRangeOverlayFactory.CreateTerrainSelection(selected, CurrentTheme.Plot);
+        recordedPlot.SetRangeOverlaySet(registration.Id, registration.Set);
+        recordedPlot.SetRangeOverlayVisibility(registration.Id, true);
     }
 
     private void ApplyAnalysisRange(TelemetryPlot recordedPlot)
