@@ -1,6 +1,6 @@
 using Sufni.Kinematics;
 
-namespace Sufni.App.Bikes.ViewModels.Editors.BikeEditorParts;
+namespace Sufni.App.Bikes.ViewModels.Editors;
 
 internal static class EtrtoRimSizeDisplayExtensions
 {
