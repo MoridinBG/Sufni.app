@@ -66,6 +66,7 @@ public class BikeEditorStateTests
         editor.Actions.LoadFailed(true);
 
         Assert.Equal(BikeEditorPhase.Ready, editor.Current.Phase);
+        Assert.Equal(baseline.RearSuspension, editor.Current.Request.Spec);
         Assert.Equal(125, editor.Current.Inputs.ForkStroke);
         Assert.True(editor.Current.Geometry.InputsDirty);
     }

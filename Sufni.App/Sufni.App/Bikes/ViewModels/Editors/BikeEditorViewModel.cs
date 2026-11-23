@@ -71,7 +71,7 @@ public sealed partial class BikeEditorViewModel : TabPageViewModelBase
         imageOpen.OpenImageCommand.PropertyChanged += OnCommandChanged;
         SaveCommand.PropertyChanged += OnCommandChanged;
         PropertyChanged += OnEditorChanged;
-        _ = load.Load(baseline, snapshot.HasImage && initialDraft is null, true, false);
+        _ = load.Load(baseline, BikeDraftLoadKind.Open, readStored: snapshot.HasImage && initialDraft is null);
     }
 
     private void OnEditorChanged(object? sender, PropertyChangedEventArgs args)
@@ -140,7 +140,7 @@ public sealed partial class BikeEditorViewModel : TabPageViewModelBase
                     "This bike has been updated from another source. Discard your changes and reload?");
                 if (reload)
                 {
-                    await load.Load(conflict.CurrentDraft, false, true, true, persisted: true);
+                    await load.Load(conflict.CurrentDraft, BikeDraftLoadKind.ConflictReload);
                     NotifyDeleteCommandStateChanged();
                 }
                 break;
@@ -187,7 +187,7 @@ public sealed partial class BikeEditorViewModel : TabPageViewModelBase
 
     protected override async Task ResetImplementation()
     {
-        await load.Load(controller.Current.Baseline, false, false, true);
+        await load.Load(controller.Current.Baseline, BikeDraftLoadKind.Reset);
         await analysisDemand.Pending;
     }
 

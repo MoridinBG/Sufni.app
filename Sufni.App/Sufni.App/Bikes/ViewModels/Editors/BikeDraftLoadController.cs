@@ -9,20 +9,22 @@ using Sufni.App.Shared.Models;
 
 namespace Sufni.App.Bikes.ViewModels.Editors;
 
+internal enum BikeDraftLoadKind { Open, Reset, ConflictReload }
+
 internal sealed class BikeDraftLoadController(BikeEditorStateController controller, IBikeDraftLoader loader,
     BikeBitmapHandoff handoff, Action<FailurePresentation> error, Action<string> notify, Action<string> acceptName) : IDisposable
 {
     private readonly CancellableOperation operation = new();
     public Task Pending { get; private set; } = Task.CompletedTask;
 
-    public Task Load(BikeDraft draft, bool readStored, bool accept, bool busy, bool? persisted = null) =>
-        Pending = LoadAsync(draft, readStored, accept, busy, persisted);
+    public Task Load(BikeDraft draft, BikeDraftLoadKind kind, bool readStored = false) =>
+        Pending = LoadAsync(draft, kind, readStored);
 
-    private async Task LoadAsync(BikeDraft draft, bool readStored, bool accept, bool busy, bool? persisted = null)
+    private async Task LoadAsync(BikeDraft draft, BikeDraftLoadKind kind, bool readStored = false)
     {
         var token = operation.Start();
         var previous = controller.Current;
-        var ready = previous.Phase == BikeEditorPhase.Ready;
+        var replacing = kind != BikeDraftLoadKind.Open;
         if (!controller.Actions.LoadStarted()) return;
         try
         {
@@ -34,18 +36,19 @@ internal sealed class BikeDraftLoadController(BikeEditorStateController controll
                 {
                     case BikeDraftLoadResult.Loaded loaded: draft = loaded.Draft; break;
                     case BikeDraftLoadResult.Missing:
-                        controller.Actions.LoadFailed(ready);
+                        controller.Actions.LoadFailed(replacing);
                         notify("The bike is no longer available.");
                         return;
                     case BikeDraftLoadResult.Failed failed:
-                        controller.Actions.LoadFailed(ready);
+                        controller.Actions.LoadFailed(replacing);
                         error(FailurePresentation.From(failed.Reason, failed.Details));
                         return;
                 }
             }
             bool Prepare(BikeEditorImage? image)
             {
-                if (!controller.Actions.Prepared(draft, image, accept, persisted ?? previous.IsPersisted, busy)) return false;
+                if (!controller.Actions.Prepared(draft, image, kind != BikeDraftLoadKind.Reset,
+                        kind == BikeDraftLoadKind.ConflictReload || previous.IsPersisted, busy: replacing)) return false;
                 acceptName(draft.Name);
                 return true;
             }
@@ -59,7 +62,7 @@ internal sealed class BikeDraftLoadController(BikeEditorStateController controll
         {
             if (token.IsCancellationRequested) return;
             Log.ForContext<BikeDraftLoadController>().Warning(e, "Could not decode bike image for {BikeId}", draft.Id);
-            controller.Actions.LoadFailed(ready, ready ? null : draft);
+            controller.Actions.LoadFailed(replacing, replacing ? null : draft);
             error(FailurePresentation.From(BikeImageFailureReason.Decode));
         }
     }

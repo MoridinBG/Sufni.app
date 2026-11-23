@@ -65,8 +65,13 @@ public sealed class BikeEditorActions
                 Inputs = BikeEditorIntentReducers.Prepare(draft, image, persisted), Selection = null, Presentation = null
             }, true, recovery, busy));
     public bool LoadFailed(bool previouslyReady, BikeDraft? recoveryBase = null) => controller.Deliver(state =>
-        state.Phase != BikeEditorPhase.Loading ? null : state with {
-            Phase = previouslyReady ? BikeEditorPhase.Ready : BikeEditorPhase.Unavailable, Baseline = recoveryBase ?? state.Baseline });
+    {
+        if (state.Phase != BikeEditorPhase.Loading) return null;
+        if (!previouslyReady) return state with { Phase = BikeEditorPhase.Unavailable, Baseline = recoveryBase ?? state.Baseline };
+        var ready = state with { Phase = BikeEditorPhase.Ready };
+        return ready.Presentation?.Spec == ready.Geometry.Spec || ready.AnalysisSuspended ? ready :
+            BikeEditorStateController.Refresh(state, ready, true, false, false);
+    });
     public bool Saved(BikeDraft baseline) => controller.Deliver(state => BikeEditorStateController.Refresh(state,
         state with { Baseline = baseline, IsPersisted = true }, false, false, false));
     public bool ApplyImage(BikeEditorImage image) => controller.Deliver(state =>
