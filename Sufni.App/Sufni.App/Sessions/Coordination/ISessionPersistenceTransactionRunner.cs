@@ -38,7 +38,7 @@ public interface ISessionPersistenceTransactionRunner
     Task<SessionEditCommit> SplitAsync(SessionSnapshot session, double clickSeconds);
 }
 
-public abstract record SessionEditCommit
+public closed record SessionEditCommit
 {
     private SessionEditCommit() { }
 

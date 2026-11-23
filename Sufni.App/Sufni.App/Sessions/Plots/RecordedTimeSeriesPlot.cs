@@ -9,7 +9,7 @@ using Sufni.App.Shared.Plots;
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Sessions.Plots;
 
-public abstract record RecordedTimeSeriesValues;
+public closed record RecordedTimeSeriesValues;
 
 public sealed record SampledValues(double[] Samples, int SampleRate) : RecordedTimeSeriesValues;
 

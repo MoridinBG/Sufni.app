@@ -43,7 +43,7 @@ public sealed record ProcessedTelemetryPayload(
     byte[] Data,
     string? FingerprintJson);
 
-public abstract record RecordedSessionReprocessResult
+public closed record RecordedSessionReprocessResult
 {
     private RecordedSessionReprocessResult() { }
     public sealed record Processed(

@@ -109,7 +109,7 @@ public sealed record SessionDetailData(
     SessionTelemetryPresentationData TelemetryPresentation,
     SessionDetailTrackLoadResult.Failed? TrackFailure = null);
 
-public abstract record SessionDetailLoadResult
+public closed record SessionDetailLoadResult
 {
     private SessionDetailLoadResult() { }
 
@@ -118,7 +118,7 @@ public abstract record SessionDetailLoadResult
     public sealed record Failed(SessionLoadFailureReason Reason, string? Details = null) : SessionDetailLoadResult;
 }
 
-public abstract record SessionDetailTrackLoadResult
+public closed record SessionDetailTrackLoadResult
 {
     private SessionDetailTrackLoadResult() { }
 

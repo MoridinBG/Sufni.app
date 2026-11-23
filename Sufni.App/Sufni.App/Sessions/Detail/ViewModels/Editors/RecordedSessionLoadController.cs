@@ -236,7 +236,6 @@ internal sealed class RecordedSessionLoadController : IDisposable
                         })),
             SessionDetailTrackLoadResult.Failed failed =>
                 new SessionDetailLoadResult.Loaded(initialResult.Data with { TrackFailure = failed }),
-            _ => throw new InvalidOperationException("Unsupported session track load result."),
         };
     }
 

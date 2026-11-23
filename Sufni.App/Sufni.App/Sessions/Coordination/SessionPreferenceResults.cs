@@ -4,14 +4,14 @@ using Sufni.App.Shared.Models;
 
 namespace Sufni.App.Sessions.Coordination;
 
-public abstract record SessionPreferenceLoadResult
+public closed record SessionPreferenceLoadResult
 {
     private SessionPreferenceLoadResult() { }
     public sealed record Loaded(SessionPreferences Preferences) : SessionPreferenceLoadResult;
     public sealed record Failed(SessionEditorFailureReason Reason, string? Details) : SessionPreferenceLoadResult;
 }
 
-public abstract record SessionPreferenceSaveResult
+public closed record SessionPreferenceSaveResult
 {
     private SessionPreferenceSaveResult() { }
     public sealed record Saved : SessionPreferenceSaveResult;

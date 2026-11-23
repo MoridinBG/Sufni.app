@@ -9,7 +9,7 @@ using Sufni.App.Sessions.Store;
 
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
-internal abstract record RecordedSessionEditorIntent
+internal closed record RecordedSessionEditorIntent
 {
     public sealed record PreviewProcessingOption(int WindowMilliseconds) : RecordedSessionEditorIntent;
     public sealed record CommitProcessingOption : RecordedSessionEditorIntent;

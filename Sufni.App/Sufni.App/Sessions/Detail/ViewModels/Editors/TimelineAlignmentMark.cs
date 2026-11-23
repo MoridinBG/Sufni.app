@@ -7,7 +7,7 @@ namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 /// event shows in the aligned source. The second click marks where the same
 /// event shows in the telemetry, and the difference corrects the source offset.
 /// </summary>
-internal abstract record TimelineAlignmentMark(double Seconds)
+internal closed record TimelineAlignmentMark(double Seconds)
 {
     public sealed record GpsTrack(double Seconds) : TimelineAlignmentMark(Seconds);
 

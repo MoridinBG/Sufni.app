@@ -6,7 +6,7 @@ namespace Sufni.App.Sessions.Coordination;
 
 public enum SessionRecomputeChoice { Inspect, ThisSession, AllSessions }
 
-public abstract record SessionStalenessReconciliation
+public closed record SessionStalenessReconciliation
 {
     private SessionStalenessReconciliation() { }
     public sealed record Current : SessionStalenessReconciliation;
@@ -17,7 +17,7 @@ public abstract record SessionStalenessReconciliation
     public sealed record Bulk(SessionRecomputeAllOutcome Outcome) : SessionStalenessReconciliation;
 }
 
-public abstract record SessionRecomputeAllOutcome
+public closed record SessionRecomputeAllOutcome
 {
     private SessionRecomputeAllOutcome() { }
     public sealed record Completed(SessionRecomputeAllResult Result) : SessionRecomputeAllOutcome;

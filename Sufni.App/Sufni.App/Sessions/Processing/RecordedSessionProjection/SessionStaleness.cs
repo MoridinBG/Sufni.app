@@ -6,7 +6,7 @@ namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 /// stale data can be repaired automatically and whether a user-requested
 /// recompute has the required inputs.
 /// </summary>
-public abstract record SessionStaleness
+public closed record SessionStaleness
 {
     public abstract bool IsStale { get; }
     public abstract bool CanRecompute { get; }

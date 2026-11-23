@@ -75,7 +75,7 @@ internal sealed record RecordedSessionLoadedData(
     IReadOnlyList<TrackPoint>? TrackPoints,
     TrackTimeRange? TrackTimelineContext);
 
-internal abstract record RecordedSessionLoadPresentation
+internal closed record RecordedSessionLoadPresentation
 {
     public sealed record Empty(
         SessionSnapshot? Session = null) : RecordedSessionLoadPresentation;

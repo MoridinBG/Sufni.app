@@ -79,7 +79,7 @@ public static class SessionWindowEditPolicy
 public sealed record SessionWindowPatch(string Name, long? Timestamp,
     RecordedSessionDerivationWindow? Window, RecordedSessionDerivationWindow? PreviousWindow);
 
-public abstract record SessionWindowEditPlan
+public closed record SessionWindowEditPlan
 {
     private SessionWindowEditPlan() { }
 

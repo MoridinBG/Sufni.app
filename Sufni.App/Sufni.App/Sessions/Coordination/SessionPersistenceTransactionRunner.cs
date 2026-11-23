@@ -150,8 +150,7 @@ internal sealed class SessionPersistenceTransactionRunner(
             return SessionWindowEditPolicy.Plan(SessionSnapshot.From(row), kind, clickSeconds) switch
             {
                 SessionWindowEditPlan.Rejected rejected => new SessionEditCommit.Rejected(rejected.Message),
-                SessionWindowEditPlan.Planned plan => edit(connection, row, plan, timeProvider.GetUtcNow().ToUnixTimeSeconds(), writer),
-                _ => throw new InvalidOperationException("Unknown session window plan.")
+                SessionWindowEditPlan.Planned plan => edit(connection, row, plan, timeProvider.GetUtcNow().ToUnixTimeSeconds(), writer)
             };
         });
     }

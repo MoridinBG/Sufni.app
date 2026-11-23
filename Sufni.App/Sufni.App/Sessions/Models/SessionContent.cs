@@ -47,7 +47,7 @@ public sealed record SessionContentSnapshot(
     TelemetryData? ProcessedTelemetry,
     IReadOnlyList<TrackPoint>? Track);
 
-public abstract record SessionContentSnapshotResult
+public closed record SessionContentSnapshotResult
 {
     private SessionContentSnapshotResult()
     {

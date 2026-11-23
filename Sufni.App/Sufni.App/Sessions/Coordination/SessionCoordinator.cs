@@ -312,7 +312,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
 
 }
 
-public abstract record SessionSaveResult
+public closed record SessionSaveResult
 {
     private SessionSaveResult() { }
 
@@ -327,7 +327,7 @@ public abstract record SessionSaveResult
 /// It distinguishes successful recompute, displacement by a newer explicit
 /// request, unrecomputable current state, and failure.
 /// </summary>
-public abstract record SessionRecomputeResult
+public closed record SessionRecomputeResult
 {
     private SessionRecomputeResult() { }
 
@@ -362,14 +362,14 @@ public sealed record SessionRecomputeAllResult(
 /// </summary>
 public sealed record SessionRecomputeAllProgress(int Completed, int Total);
 
-public abstract record SessionDeleteResult
+public closed record SessionDeleteResult
 {
     private SessionDeleteResult() { }
     public sealed record Deleted : SessionDeleteResult;
     public sealed record Failed(SessionDeleteFailureReason Reason, string? Details = null) : SessionDeleteResult;
 }
 
-public abstract record GpsOffsetResult
+public closed record GpsOffsetResult
 {
     private GpsOffsetResult() { }
     public sealed record Applied : GpsOffsetResult;

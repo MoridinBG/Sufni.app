@@ -94,7 +94,7 @@ public sealed record SessionProcessedWriteGuard(string? Fingerprint, long Revisi
         new(session.ProcessingFingerprintJson, session.ProcessedTelemetryRevision, pendingSwapFingerprint);
 }
 
-public abstract record SessionImportCommitResult(Session? Session, RecordedSessionSourceSnapshot Source)
+public closed record SessionImportCommitResult(Session? Session, RecordedSessionSourceSnapshot Source)
 {
     public sealed record Inserted(Session? Session, RecordedSessionSourceSnapshot Source) : SessionImportCommitResult(Session, Source);
     public sealed record Exists(Session? Session, RecordedSessionSourceSnapshot Source) : SessionImportCommitResult(Session, Source);

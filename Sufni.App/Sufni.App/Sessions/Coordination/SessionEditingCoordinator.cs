@@ -32,7 +32,7 @@ public interface ISessionEditingCoordinator
 /// <summary>A split has published its new session; recomputation is still owned by the command.</summary>
 public sealed record SessionEditProgress(Guid CreatedSessionId);
 
-public abstract record SessionEditResult
+public closed record SessionEditResult
 {
     private SessionEditResult() { }
 

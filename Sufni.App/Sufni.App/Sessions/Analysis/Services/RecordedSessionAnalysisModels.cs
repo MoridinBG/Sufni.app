@@ -248,7 +248,7 @@ public sealed record RecordedSessionAnalysisKey(
         this == inputs.CreateKey(Family, SuspensionType, BalanceType, ImuLocation);
 }
 
-public abstract record RecordedSessionAnalysisResult;
+public closed record RecordedSessionAnalysisResult;
 
 public sealed record DampingPercentagesAnalysisResult(
     SessionDampingPercentages Percentages) : RecordedSessionAnalysisResult;
