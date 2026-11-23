@@ -885,12 +885,64 @@ public partial class LiveCaptureCoordinatorTests
         var published = WaitForSignalBatchAsync(coordinator.SignalBatches,
             b => b.FramePitchDegrees.Count > 0, TimeSpan.FromSeconds(5));
         frames.OnNext(batch with { Batch = batch.Batch with { SampleCount = (ushort)count }, Records = records });
-        await signals.Pipeline.PitchRollAppended.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        signals.Flush();
+        await signals.FlushPitchRollAsync();
 
         var values = (await published).FramePitchDegrees;
         Assert.InRange(values[0], initialPitch - 0.15, initialPitch + 0.15);
         Assert.InRange(values[^1], initialPitch + pitchChange - 0.15, initialPitch + pitchChange + 0.15);
+    }
+
+    [Fact]
+    public async Task LiveFramePitchCarriesOrientationAcrossContiguousImuBatches()
+    {
+        const double pitchRate = -10;
+        const double attitudeTimeConstant = 4;
+        var pitch = await PublishTwoLevelImuBatchesTurningNoseDownAsync(pitchRate, gapTicks: 0);
+
+        var secondStart = pitch.Count / 2;
+        var seconds = secondStart / sessionHeader.AcceptedImuHz;
+        var expected = pitchRate * attitudeTimeConstant * (1 - Math.Exp(-seconds / attitudeTimeConstant));
+        Assert.InRange(pitch[secondStart], expected - 0.3, expected + 0.3);
+    }
+
+    [Fact]
+    public async Task LiveFramePitchRestartsFromTheAccelerometerAfterAnImuIndexGap()
+    {
+        var pitch = await PublishTwoLevelImuBatchesTurningNoseDownAsync(-10, gapTicks: 50);
+
+        Assert.InRange(pitch[pitch.Count / 2], -0.15, 0.15);
+    }
+
+    // The accelerometer reads level while the gyro turns, so only a carried orientation leaves level.
+    private async Task<IReadOnlyList<double>> PublishTwoLevelImuBatchesTurningNoseDownAsync(double pitchRate, int gapTicks)
+    {
+        var signals = new LiveSignalPipelineFixture();
+        await using var coordinator = CreateCoordinator(signalPipeline: signals.Pipeline, sendOptions: false);
+        await coordinator.AttachAsync(TestContext.Current.CancellationToken);
+        await signals.WaitForStartAsync();
+        var count = (int)sessionHeader.AcceptedImuHz + 1;
+        var calibration = sessionHeader.ImuCalibrationScales;
+        var record = PitchedImuRecord.At(0, calibration.FrameAccelLsbPerG, pitchRate, calibration.FrameGyroLsbPerDps);
+        var first = CreateImuBatchFrame();
+        first = first with { Batch = first.Batch with { SampleCount = (ushort)count }, Records = Enumerable.Repeat(record, count).ToArray() };
+        var secondIndex = (ulong)(count + gapTicks);
+        var second = first with
+        {
+            Batch = first.Batch with
+            {
+                StreamSequence = 2, FirstIndex = secondIndex,
+                FirstMonotonicUs = first.Batch.FirstMonotonicUs + secondIndex * sessionHeader.ImuPeriodUs,
+            },
+        };
+        var published = WaitForSignalBatchAsync(coordinator.SignalBatches,
+            b => b.FramePitchDegrees.Count == 2 * count, TimeSpan.FromSeconds(5));
+
+        frames.OnNext(first);
+        frames.OnNext(second);
+        await signals.Pipeline.WaitForPitchRollAppendAsync();
+        await signals.FlushPitchRollAsync();
+
+        return (await published).FramePitchDegrees;
     }
 
     [Fact]

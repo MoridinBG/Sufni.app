@@ -29,4 +29,10 @@ internal sealed class LiveSignalPipelineFixture
         await Pipeline.WaitForImuAppendAsync();
         Flush();
     }
+
+    public async Task FlushPitchRollAsync()
+    {
+        await Pipeline.WaitForPitchRollAppendAsync();
+        Flush();
+    }
 }

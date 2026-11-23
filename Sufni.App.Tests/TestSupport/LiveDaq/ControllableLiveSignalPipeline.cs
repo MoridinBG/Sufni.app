@@ -11,9 +11,9 @@ internal sealed class ControllableLiveSignalPipeline(bool blockFirstTravel = tru
     private readonly TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Channel<bool> imuAppends = Channel.CreateUnbounded<bool>();
     private readonly Channel<bool> travelAppends = Channel.CreateUnbounded<bool>();
+    private readonly Channel<bool> pitchRollAppends = Channel.CreateUnbounded<bool>();
     private int shouldBlock = blockFirstTravel ? 1 : 0;
 
-    public TaskCompletionSource PitchRollAppended { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public TaskCompletionSource AppendStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public Action? OnReset { get; set; }
 
@@ -26,6 +26,9 @@ internal sealed class ControllableLiveSignalPipeline(bool blockFirstTravel = tru
 
     public async Task WaitForImuAppendAsync() =>
         await imuAppends.Reader.ReadAsync(TestContext.Current.CancellationToken).AsTask().AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+    public async Task WaitForPitchRollAppendAsync() =>
+        await pitchRollAppends.Reader.ReadAsync(TestContext.Current.CancellationToken).AsTask().AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
     public void AppendTravelSamples(long epoch, ReadOnlySpan<double> times, ReadOnlySpan<double> frontTravel, ReadOnlySpan<double> rearTravel)
     {
@@ -54,7 +57,7 @@ internal sealed class ControllableLiveSignalPipeline(bool blockFirstTravel = tru
     public void AppendFramePitchRollSamples(long epoch, ReadOnlySpan<double> times, ReadOnlySpan<double> pitchDegrees, ReadOnlySpan<double> rollDegrees)
     {
         inner?.AppendFramePitchRollSamples(epoch, times, pitchDegrees, rollDegrees);
-        PitchRollAppended.TrySetResult();
+        pitchRollAppends.Writer.TryWrite(true);
     }
 
 
