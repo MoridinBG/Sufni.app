@@ -178,7 +178,7 @@ public sealed partial class InboundSyncCoordinator(
                         return InboundSourceApplyResult.InvalidPayload;
                     }
                 }
-                catch (Exception exception) when (exception is System.Text.Json.JsonException or ZstdSharp.ZstdException)
+                catch (Exception exception) when (exception is System.Text.Json.JsonException or System.IO.InvalidDataException)
                 {
                     logger.Warning(exception, "Recorded source payload is invalid for {SessionId}", payload.SessionId);
                     return InboundSourceApplyResult.InvalidPayload;

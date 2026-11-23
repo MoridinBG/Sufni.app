@@ -80,6 +80,18 @@ public class InboundSyncCoordinatorTests
     }
 
     [Fact]
+    public async Task ApplySourceAsync_MalformedImportedPayloadLeavesSourceMissing()
+    {
+        await using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());
+        var payload = SyncTestServerHarness.ToPayload(SyncTestServerHarness.CreateRecordedSource()) with { Payload = [1, 2, 3] };
+
+        Assert.Equal(InboundSourceApplyResult.InvalidPayload, await fixture.CreateCoordinator().ApplySourceAsync(payload));
+
+        Assert.Null(await fixture.Database.GetRecordedSessionSourceAsync(payload.SessionId));
+        Assert.Null(fixture.Sources.Get(payload.SessionId));
+    }
+
+    [Fact]
     public async Task ApplySourceAsync_PersistenceFailureDoesNotPublishUncommittedSource()
     {
         await using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());

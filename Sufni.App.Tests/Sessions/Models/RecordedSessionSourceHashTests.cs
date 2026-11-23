@@ -1,9 +1,9 @@
+using System.IO.Compression;
 using System.Text;
 using Sufni.Telemetry;
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
-using ZstdSharp;
 
 namespace Sufni.App.Tests.Sessions.Models;
 
@@ -17,8 +17,9 @@ public class RecordedSessionSourceHashTests
         using var renamedFile = new TelemetryFileSource("renamed.SST", bytes);
         var first = RecordedSessionSourceFactory.CreateImportedSst(firstFile);
         var renamed = RecordedSessionSourceFactory.CreateImportedSst(renamedFile);
-        using var compressor = new Compressor(15);
-        var otherCompression = compressor.Wrap(bytes).ToArray();
+        var otherCompression = new byte[ZstandardEncoder.GetMaxCompressedLength(bytes.Length)];
+        Assert.True(ZstandardEncoder.TryCompress(bytes, otherCompression, out var written, quality: 15, windowLog2: 0));
+        otherCompression = otherCompression[..written];
 
         Assert.Equal("039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81", first.SourceHash);
         Assert.Equal(first.SourceHash, renamed.SourceHash);

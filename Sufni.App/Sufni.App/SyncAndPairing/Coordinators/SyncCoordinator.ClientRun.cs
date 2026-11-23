@@ -239,7 +239,7 @@ public partial class SyncCoordinator
                             return;
                         }
                     }
-                    catch (Exception exception) when (exception is System.Text.Json.JsonException or ZstdSharp.ZstdException)
+                    catch (Exception exception) when (exception is System.Text.Json.JsonException or System.IO.InvalidDataException)
                     {
                         logger.Warning(exception, "Skipped invalid recorded source payload for {SessionId}", source.SessionId);
                         pending.Add(new(id, SynchronizationTransferKind.RecordedSource, SynchronizationDirection.Pull));
