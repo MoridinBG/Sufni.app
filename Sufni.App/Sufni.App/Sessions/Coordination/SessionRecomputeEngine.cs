@@ -148,25 +148,25 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
 
         async Task DriveAsync()
         {
+            SessionRecomputeResult result;
             try
             {
                 // Start this run immediately. The displaced run may still be inside
                 // the synchronous telemetry pipeline, but it is no longer current
                 // and will no-op at guard (i) before persistence.
-                var result = await backgroundTaskRunner.RunAsync(
+                result = await backgroundTaskRunner.RunAsync(
                     () => RecomputeAsync(sessionId, seq, cts.Token), cts.Token).ConfigureAwait(false);
-                tcs.SetResult(result);
             }
             catch (OperationCanceledException)
             {
                 // A newer explicit request cancelled this run mid-flight. Map to
                 // Superseded rather than letting OCE escape to VM/list callers.
-                tcs.SetResult(new SessionRecomputeResult.Superseded());
+                result = new SessionRecomputeResult.Superseded();
             }
             catch (Exception e)
             {
                 logger.Error(e, "Recorded session recompute failed for {SessionId}", sessionId);
-                tcs.SetResult(new SessionRecomputeResult.Failed(SessionRecomputeFailureReason.Recompute, e.Message));
+                result = new SessionRecomputeResult.Failed(SessionRecomputeFailureReason.Recompute, e.Message);
             }
             finally
             {
@@ -180,6 +180,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
 
                 cts.Dispose();
             }
+            tcs.SetResult(result);
         }
     }
 
