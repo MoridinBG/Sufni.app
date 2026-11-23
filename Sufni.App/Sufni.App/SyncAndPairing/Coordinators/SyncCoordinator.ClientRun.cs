@@ -151,7 +151,7 @@ public partial class SyncCoordinator
     }
 
     // Downloads a processed BLOB and commits it only when its fingerprint matches.
-    // A 404 (null), fingerprint mismatch, or network error leaves the pull cursor
+    // A 404, fingerprint mismatch, or network error leaves the pull cursor
     // behind so the transient swap is re-derived from the same metadata delta.
     private async Task<bool> TryDownloadAndCommitAsync(ISynchronizationPeer httpApiService,
         Guid id,
@@ -169,20 +169,27 @@ public partial class SyncCoordinator
         if (expectedRow is null) return false;
         var expected = SessionSnapshot.From(expectedRow);
         var transfer = await httpApiService.GetSessionPsstAsync(id, cancellationToken: cancellationToken);
-        if (transfer.Status == SynchronizationTransferStatus.Pending) return false;
-        if (transfer.Payload is null) return true;
-        var payload = transfer.Payload;
-
-        if (!StringComparer.Ordinal.Equals(payload.Fingerprint, targetFingerprint))
+        return transfer switch
         {
-            logger.Verbose(
-                "Skipped session {SessionId}: downloaded fingerprint does not match the target",
-                id);
-            return false;
-        }
+            SynchronizationTransferResult<SessionBlobPayload>.Pending => false,
+            SynchronizationTransferResult<SessionBlobPayload>.Ignored => true,
+            SynchronizationTransferResult<SessionBlobPayload>.Received(var payload) =>
+                await CommitPayloadAsync(payload)
+        };
 
-        return await sessionSyncApplier.ApplyDownloadedAsync(
-            expected, payload, targetFingerprint, targetGeneration) is SessionDataApplyResult.Applied or SessionDataApplyResult.Ignored;
+        async Task<bool> CommitPayloadAsync(SessionBlobPayload payload)
+        {
+            if (!StringComparer.Ordinal.Equals(payload.Fingerprint, targetFingerprint))
+            {
+                logger.Verbose(
+                    "Skipped session {SessionId}: downloaded fingerprint does not match the target",
+                    id);
+                return false;
+            }
+
+            return await sessionSyncApplier.ApplyDownloadedAsync(
+                expected, payload, targetFingerprint, targetGeneration) is SessionDataApplyResult.Applied or SessionDataApplyResult.Ignored;
+        }
     }
 
     private async Task PushIncompleteSessionSources(ISynchronizationPeer httpApiService, ConcurrentBag<SynchronizationPendingTransfer> pending, CancellationToken cancellationToken)
@@ -213,7 +220,6 @@ public partial class SyncCoordinator
     private async Task PullIncompleteSessionSources(ISynchronizationPeer httpApiService, ConcurrentBag<SynchronizationPendingTransfer> pending, CancellationToken cancellationToken)
     {
         var incompleteSourceIds = await recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync();
-        var downloadedCount = 0;
         var committedSources = new ConcurrentBag<RecordedSessionSourceSnapshot>();
 
         try
@@ -221,35 +227,15 @@ public partial class SyncCoordinator
             await Parallel.ForEachAsync(incompleteSourceIds, new ParallelOptions { MaxDegreeOfParallelism = SyncTransferDop, CancellationToken = cancellationToken }, async (id, _) =>
             {
                 var transfer = await httpApiService.GetRecordedSessionSourceAsync(id, cancellationToken: cancellationToken);
-                if (transfer.Status == SynchronizationTransferStatus.Pending)
+                var complete = transfer switch
                 {
+                    SynchronizationTransferResult<RecordedSessionSourcePayload>.Pending => false,
+                    SynchronizationTransferResult<RecordedSessionSourcePayload>.Ignored => true,
+                    SynchronizationTransferResult<RecordedSessionSourcePayload>.Received(var source) =>
+                        await StoreVerifiedSourceAsync(source)
+                };
+                if (!complete)
                     pending.Add(new(id, SynchronizationTransferKind.RecordedSource, SynchronizationDirection.Pull));
-                    return;
-                }
-                if (transfer.Payload is { } source)
-                {
-                    try
-                    {
-                        if (!RecordedSessionSourceHash.Matches(source))
-                        {
-                            logger.Warning(
-                                "Skipped recorded source {SessionId}: source hash does not match its payload",
-                                source.SessionId);
-                            pending.Add(new(id, SynchronizationTransferKind.RecordedSource, SynchronizationDirection.Pull));
-                            return;
-                        }
-                    }
-                    catch (Exception exception) when (exception is System.Text.Json.JsonException or System.IO.InvalidDataException)
-                    {
-                        logger.Warning(exception, "Skipped invalid recorded source payload for {SessionId}", source.SessionId);
-                        pending.Add(new(id, SynchronizationTransferKind.RecordedSource, SynchronizationDirection.Pull));
-                        return;
-                    }
-
-                    var stored = await recordedSessionSourceRepository.PutRecordedSessionSourceAsync(FromPayload(source));
-                    committedSources.Add(stored);
-                    Interlocked.Increment(ref downloadedCount);
-                }
             });
         }
         finally
@@ -262,8 +248,29 @@ public partial class SyncCoordinator
 
         logger.Verbose(
             "Pulled {DownloadedCount} incomplete recorded sources out of {IncompleteSourceCount} local placeholders",
-            downloadedCount,
+            committedSources.Count,
             incompleteSourceIds.Count);
+
+        async Task<bool> StoreVerifiedSourceAsync(RecordedSessionSourcePayload source)
+        {
+            try
+            {
+                if (!RecordedSessionSourceHash.Matches(source))
+                {
+                    logger.Warning("Skipped recorded source {SessionId}: source hash does not match its payload", source.SessionId);
+                    return false;
+                }
+            }
+            catch (Exception exception) when (exception is System.Text.Json.JsonException or System.IO.InvalidDataException)
+            {
+                logger.Warning(exception, "Skipped invalid recorded source payload for {SessionId}", source.SessionId);
+                return false;
+            }
+
+            var stored = await recordedSessionSourceRepository.PutRecordedSessionSourceAsync(FromPayload(source));
+            committedSources.Add(stored);
+            return true;
+        }
     }
 
     private async Task<SynchronizationRunResult> VerifyLocalCompleteness(ConcurrentBag<SynchronizationPendingTransfer> pending)

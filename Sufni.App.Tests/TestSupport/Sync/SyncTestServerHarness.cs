@@ -49,9 +49,9 @@ internal sealed class SyncTestServerHarness : IDisposable
             .Returns(call => Peer with { DatabaseIncarnation = call.Arg<SynchronizationRunStart>().DatabaseIncarnation });
         SyncDataStore.GetSequenceUpperBoundAsync(SynchronizationDirection.Push).Returns(9);
         HttpApiService.GetSessionPsstAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(new SynchronizationTransferResult<SessionBlobPayload>(null, SynchronizationTransferStatus.Pending));
+            .Returns(new SynchronizationTransferResult<SessionBlobPayload>.Pending());
         HttpApiService.GetRecordedSessionSourceAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(new SynchronizationTransferResult<RecordedSessionSourcePayload>(null, SynchronizationTransferStatus.Pending));
+            .Returns(new SynchronizationTransferResult<RecordedSessionSourcePayload>.Pending());
         HttpApiService.GetIncompleteSessionIdsAsync(Arg.Any<CancellationToken>()).Returns([]);
         SessionRepository.GetIncompleteSessionIdsAsync().Returns([]);
         SessionRepository.GetIncompleteSessionIdsWithFingerprintAsync().Returns([]);

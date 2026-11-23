@@ -63,6 +63,8 @@
     <PackageVersion Include="SourceGear.sqlite3" Version="3.53.4" />
     <!-- Test-only packages used by Sufni.App.Tests / Sufni.Telemetry.Tests -->
     <PackageVersion Include="coverlet.collector" Version="10.1.0" />
+    <PackageVersion Include="MSTest.TestAdapter" Version="4.5.1" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="2.5.1" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageVersion Include="xunit.v3" Version="3.2.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />

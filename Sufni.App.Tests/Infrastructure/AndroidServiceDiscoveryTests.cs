@@ -10,7 +10,7 @@ public class AndroidServiceDiscoveryTests
     {
         var inner = new TestServiceDiscovery();
         var multicastLock = new TestMulticastLock();
-        var sut = new AndroidServiceDiscovery(inner, new TestMulticastLockFactory(() => multicastLock));
+        var sut = new AndroidServiceDiscovery(inner, new TestMulticastLockFactory(() => multicastLock), new TestPermission(true));
 
         sut.StartBrowse("_gosst._tcp");
         sut.StartBrowse("_ignored._tcp");
@@ -36,7 +36,7 @@ public class AndroidServiceDiscoveryTests
         var locks = new Queue<TestMulticastLock>([firstLock, secondLock]);
         var sut = new AndroidServiceDiscovery(
             inner,
-            new TestMulticastLockFactory(() => locks.Dequeue()));
+            new TestMulticastLockFactory(() => locks.Dequeue()), new TestPermission(true));
 
         Assert.Throws<InvalidOperationException>(() => sut.StartBrowse("_gosst._tcp"));
         Assert.Equal(1, firstLock.ReleaseCount);
@@ -63,7 +63,7 @@ public class AndroidServiceDiscoveryTests
         var locks = new Queue<TestMulticastLock>([firstLock, secondLock]);
         var sut = new AndroidServiceDiscovery(
             inner,
-            new TestMulticastLockFactory(() => locks.Dequeue()));
+            new TestMulticastLockFactory(() => locks.Dequeue()), new TestPermission(true));
 
         sut.StartBrowse("_gosst._tcp");
         Assert.Throws<InvalidOperationException>(() => sut.StopBrowse());
@@ -88,7 +88,7 @@ public class AndroidServiceDiscoveryTests
         {
             AcquireException = new InvalidOperationException("lock failed"),
         };
-        var sut = new AndroidServiceDiscovery(inner, new TestMulticastLockFactory(() => multicastLock));
+        var sut = new AndroidServiceDiscovery(inner, new TestMulticastLockFactory(() => multicastLock), new TestPermission(true));
 
         sut.StartBrowse("_gosst._tcp");
         sut.StopBrowse();
@@ -104,7 +104,7 @@ public class AndroidServiceDiscoveryTests
     public void MissingLock_StillStartsBrowse()
     {
         var inner = new TestServiceDiscovery();
-        var sut = new AndroidServiceDiscovery(inner, new TestMulticastLockFactory(() => null));
+        var sut = new AndroidServiceDiscovery(inner, new TestMulticastLockFactory(() => null), new TestPermission(true));
 
         sut.StartBrowse("_gosst._tcp");
         sut.StopBrowse();
@@ -121,13 +121,59 @@ public class AndroidServiceDiscoveryTests
         {
             ReleaseException = new InvalidOperationException("release failed"),
         };
-        var sut = new AndroidServiceDiscovery(inner, new TestMulticastLockFactory(() => multicastLock));
+        var sut = new AndroidServiceDiscovery(inner, new TestMulticastLockFactory(() => multicastLock), new TestPermission(true));
 
         sut.StartBrowse("_gosst._tcp");
         sut.StopBrowse();
 
         Assert.Equal(1, multicastLock.ReleaseCount);
         Assert.Equal(1, multicastLock.DisposeCount);
+    }
+
+    [Fact]
+    public void ActiveBrowse_TracksPermissionWithoutDuplicatingTheBrowser()
+    {
+        var permission = new TestPermission(false);
+        var inner = new TestServiceDiscovery();
+        var sut = new AndroidServiceDiscovery(inner, new TestMulticastLockFactory(() => new TestMulticastLock()), permission);
+
+        sut.StartBrowse("_sufni._tcp");
+        Assert.Empty(inner.StartedTypes);
+        permission.SetGranted(true);
+        permission.SetGranted(true);
+        Assert.Equal(["_sufni._tcp"], inner.StartedTypes);
+        permission.SetGranted(false);
+        Assert.Equal(1, inner.StopCount);
+        permission.SetGranted(true);
+        Assert.Equal(["_sufni._tcp", "_sufni._tcp"], inner.StartedTypes);
+        sut.StopBrowse();
+    }
+
+    [Fact]
+    public void BrowseClosedDuringPermissionPrompt_IgnoresSubsequentGrant()
+    {
+        var permission = new TestPermission(false);
+        var inner = new TestServiceDiscovery();
+        var sut = new AndroidServiceDiscovery(inner, new TestMulticastLockFactory(() => new TestMulticastLock()), permission);
+
+        sut.StartBrowse("_sstsync._tcp");
+        sut.StopBrowse();
+        permission.SetGranted(true);
+
+        Assert.Empty(inner.StartedTypes);
+        Assert.Equal(0, inner.StopCount);
+    }
+
+    private sealed class TestPermission(bool granted) : IAndroidLocalNetworkPermission
+    {
+        public bool IsGranted { get; private set; } = granted;
+        public event Action? Changed;
+
+        public void SetGranted(bool value)
+        {
+            IsGranted = value;
+            Changed?.Invoke();
+        }
     }
 
     private sealed class TestMulticastLockFactory(

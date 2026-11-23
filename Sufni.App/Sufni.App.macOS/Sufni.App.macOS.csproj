@@ -7,7 +7,7 @@
     One for Windows with net11.0-windows TFM, one for MacOS with net11.0-macos and one with net11.0 TFM
     for Linux.-->
     <TargetFramework>net11.0-macos</TargetFramework>
-    <SupportedOSPlatformVersion>27.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion>26.0</SupportedOSPlatformVersion>
     <RuntimeIdentifier>osx-arm64</RuntimeIdentifier>
     <Nullable>enable</Nullable>
     <AvaloniaAccessUnstablePrivateApis>true</AvaloniaAccessUnstablePrivateApis>

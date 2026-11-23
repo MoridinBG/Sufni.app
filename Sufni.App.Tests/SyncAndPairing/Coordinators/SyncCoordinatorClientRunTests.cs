@@ -250,7 +250,7 @@ public class SyncCoordinatorClientRunTests : IDisposable
             .Returns(SyncTestServerHarness.ApplyResult(new SessionBlobSwap(sessionId, """{"target":true}""", new SessionProcessedGeneration(80))));
         sessionRepository.GetSessionAsync(sessionId).Returns(new Session(sessionId, "current", "", null));
         // The peer does not yet hold the target BLOB, so the swap cannot commit.
-        httpApiService.GetSessionPsstAsync(sessionId, Arg.Any<CancellationToken>()).Returns(new SynchronizationTransferResult<SessionBlobPayload>(null, SynchronizationTransferStatus.Pending));
+        httpApiService.GetSessionPsstAsync(sessionId, Arg.Any<CancellationToken>()).Returns(new SynchronizationTransferResult<SessionBlobPayload>.Pending());
 
         var result = await CreateCoordinator().RunSyncAsync();
 
@@ -287,7 +287,7 @@ public class SyncCoordinatorClientRunTests : IDisposable
         httpApiService.GetSessionPsstAsync(id, Arg.Any<CancellationToken>()).Returns(_ =>
         {
             current = new Session(id, "ride", "notes", null) { ProcessingFingerprintJson = "newer", ProcessedTelemetryRevision = 2 };
-            return new SynchronizationTransferResult<SessionBlobPayload>(new SessionBlobPayload("target", [1, 2, 3]), SynchronizationTransferStatus.Completed);
+            return new SynchronizationTransferResult<SessionBlobPayload>.Received(new SessionBlobPayload("target", [1, 2, 3]));
         });
         harness.SessionSyncApplier.ApplyDownloadedAsync(Arg.Any<SessionSnapshot>(), Arg.Any<SessionBlobPayload>(), "target", new SessionProcessedGeneration(80))
             .Returns(SessionDataApplyResult.Pending);
@@ -318,7 +318,7 @@ public class SyncCoordinatorClientRunTests : IDisposable
                 sessionId,
                 target,
                 targetGeneration)));
-        httpApiService.GetSessionPsstAsync(sessionId, Arg.Any<CancellationToken>()).Returns(new SynchronizationTransferResult<SessionBlobPayload>(new SessionBlobPayload(target, [1, 2, 3]), SynchronizationTransferStatus.Completed));
+        httpApiService.GetSessionPsstAsync(sessionId, Arg.Any<CancellationToken>()).Returns(new SynchronizationTransferResult<SessionBlobPayload>.Received(new SessionBlobPayload(target, [1, 2, 3])));
         sessionRepository.GetSessionAsync(sessionId).Returns(new Session(sessionId, "current", "", null));
         harness.SessionSyncApplier.ApplyDownloadedAsync(Arg.Any<SessionSnapshot>(), Arg.Any<SessionBlobPayload>(), target, targetGeneration)
             .Returns(outcome);
@@ -359,7 +359,7 @@ public class SyncCoordinatorClientRunTests : IDisposable
             fillRequested.TrySetResult();
             return fillDownload.Task;
         });
-        httpApiService.GetSessionPsstAsync(swapId, Arg.Any<CancellationToken>()).Returns(new SynchronizationTransferResult<SessionBlobPayload>(new SessionBlobPayload(swapTarget, [1, 2, 3]), SynchronizationTransferStatus.Completed));
+        httpApiService.GetSessionPsstAsync(swapId, Arg.Any<CancellationToken>()).Returns(new SynchronizationTransferResult<SessionBlobPayload>.Received(new SessionBlobPayload(swapTarget, [1, 2, 3])));
         sessionRepository.GetSessionAsync(fillId).Returns(new Session(fillId, "fill", "", null));
         sessionRepository.GetSessionAsync(swapId).Returns(new Session(swapId, "swap", "", null));
 
@@ -378,7 +378,7 @@ public class SyncCoordinatorClientRunTests : IDisposable
         await fillRequested.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         await httpApiService.DidNotReceive().GetSessionPsstAsync(swapId, Arg.Any<CancellationToken>());
 
-        fillDownload.SetResult(new SynchronizationTransferResult<SessionBlobPayload>(new SessionBlobPayload(fillFingerprint, [4, 5, 6]), SynchronizationTransferStatus.Completed));
+        fillDownload.SetResult(new SynchronizationTransferResult<SessionBlobPayload>.Received(new SessionBlobPayload(fillFingerprint, [4, 5, 6])));
         await commitStarted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         try
         {
@@ -502,7 +502,7 @@ public class SyncCoordinatorClientRunTests : IDisposable
         syncDataStore.GetSynchronizationDataAsync(SynchronizationDirection.Push, 5, Arg.Any<long>()).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5, Arg.Any<CancellationToken>()).Returns(new SynchronizationData { UpperBound = 12 });
         recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([source.SessionId]);
-        httpApiService.GetRecordedSessionSourceAsync(source.SessionId, Arg.Any<CancellationToken>()).Returns(new SynchronizationTransferResult<RecordedSessionSourcePayload>(transfer, SynchronizationTransferStatus.Completed));
+        httpApiService.GetRecordedSessionSourceAsync(source.SessionId, Arg.Any<CancellationToken>()).Returns(new SynchronizationTransferResult<RecordedSessionSourcePayload>.Received(transfer));
         var storedSnapshot = RecordedSessionSourceSnapshot.From(source);
         if (outcome == PulledRecordedSourceOutcome.ExistingSource)
         {
@@ -565,8 +565,8 @@ public class SyncCoordinatorClientRunTests : IDisposable
         syncDataStore.GetSynchronizationDataAsync(SynchronizationDirection.Push, 5, Arg.Any<long>()).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5, Arg.Any<CancellationToken>()).Returns(new SynchronizationData { UpperBound = 12 });
         recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([first.SessionId, second.SessionId]);
-        httpApiService.GetRecordedSessionSourceAsync(first.SessionId, Arg.Any<CancellationToken>()).Returns(new SynchronizationTransferResult<RecordedSessionSourcePayload>(firstTransfer, SynchronizationTransferStatus.Completed));
-        httpApiService.GetRecordedSessionSourceAsync(second.SessionId, Arg.Any<CancellationToken>()).Returns(new SynchronizationTransferResult<RecordedSessionSourcePayload>(secondTransfer, SynchronizationTransferStatus.Completed));
+        httpApiService.GetRecordedSessionSourceAsync(first.SessionId, Arg.Any<CancellationToken>()).Returns(new SynchronizationTransferResult<RecordedSessionSourcePayload>.Received(firstTransfer));
+        httpApiService.GetRecordedSessionSourceAsync(second.SessionId, Arg.Any<CancellationToken>()).Returns(new SynchronizationTransferResult<RecordedSessionSourcePayload>.Received(secondTransfer));
 
         var publications = new List<(string? First, string? Second)>();
         using var observation = sourceStore.Connect().Where(changes => changes.Count > 0).Subscribe(_ =>
@@ -609,7 +609,7 @@ public class SyncCoordinatorClientRunTests : IDisposable
         var committed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([first.SessionId, second]);
         httpApiService.GetRecordedSessionSourceAsync(first.SessionId, Arg.Any<CancellationToken>())
-            .Returns(new SynchronizationTransferResult<RecordedSessionSourcePayload>(SyncTestServerHarness.ToPayload(first), SynchronizationTransferStatus.Completed));
+            .Returns(new SynchronizationTransferResult<RecordedSessionSourcePayload>.Received(SyncTestServerHarness.ToPayload(first)));
         httpApiService.GetRecordedSessionSourceAsync(second, Arg.Any<CancellationToken>()).Returns(call =>
             new TaskCompletionSource<SynchronizationTransferResult<RecordedSessionSourcePayload>>().Task.WaitAsync(call.Arg<CancellationToken>()));
         recordedSessionSourceRepository.PutRecordedSessionSourceAsync(Arg.Any<RecordedSessionSource>()).Returns(async call =>

@@ -16,14 +16,22 @@ internal interface IAndroidMulticastLockFactory
     IAndroidMulticastLock? Create();
 }
 
+internal interface IAndroidLocalNetworkPermission
+{
+    bool IsGranted { get; }
+    event Action? Changed;
+}
+
 internal sealed class AndroidServiceDiscovery(
     IServiceDiscovery inner,
-    IAndroidMulticastLockFactory multicastLockFactory) : IServiceDiscovery
+    IAndroidMulticastLockFactory multicastLockFactory,
+    IAndroidLocalNetworkPermission permission) : IServiceDiscovery
 {
     private static readonly ILogger logger = Log.ForContext<AndroidServiceDiscovery>();
 
     private readonly object gate = new();
     private IAndroidMulticastLock? multicastLock;
+    private string? requestedType;
     private bool browseStarted;
 
     public event EventHandler<ServiceAnnouncementEventArgs>? ServiceAdded
@@ -42,11 +50,52 @@ internal sealed class AndroidServiceDiscovery(
     {
         lock (gate)
         {
-            if (browseStarted)
+            if (requestedType is not null) return;
+            requestedType = type;
+            permission.Changed += OnPermissionChanged;
+            try
             {
-                return;
+                UpdateBrowse();
             }
+            catch
+            {
+                permission.Changed -= OnPermissionChanged;
+                requestedType = null;
+                throw;
+            }
+        }
+    }
 
+    public void StopBrowse()
+    {
+        lock (gate)
+        {
+            permission.Changed -= OnPermissionChanged;
+            requestedType = null;
+            UpdateBrowse();
+        }
+    }
+
+    private void OnPermissionChanged()
+    {
+        lock (gate)
+        {
+            try
+            {
+                UpdateBrowse();
+            }
+            catch (Exception ex)
+            {
+                logger.Warning(ex, "Could not update Android discovery for {ServiceType} after local network permission changed", requestedType);
+            }
+        }
+    }
+
+    private void UpdateBrowse()
+    {
+        if (requestedType is { } type && permission.IsGranted)
+        {
+            if (browseStarted) return;
             AcquireMulticastLock();
             try
             {
@@ -59,17 +108,8 @@ internal sealed class AndroidServiceDiscovery(
                 throw;
             }
         }
-    }
-
-    public void StopBrowse()
-    {
-        lock (gate)
+        else if (browseStarted)
         {
-            if (!browseStarted)
-            {
-                return;
-            }
-
             try
             {
                 inner.StopBrowse();

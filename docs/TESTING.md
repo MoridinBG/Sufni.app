@@ -351,3 +351,32 @@ Before finishing a change, ask:
 - Did I keep the test data and setup readable?
 
 If the answer is yes across that set, the test is usually shaped correctly for this repository.
+
+## Mobile device smoke tests
+
+The SDK device-test projects under `Sufni.DeviceTests/` use Microsoft.Testing.Platform and the mobile workloads’ MSTest adapter. Run them individually from the repository root. The host suites keep their existing runner. Each device installs a separate test application.
+
+For Android, use an API 37 or newer device on the same multicast-capable LAN as a Mac. Advertise a test service on the Mac while the test runs.
+
+```sh
+dns-sd -R "Sufni smoke" _sufnismoke._tcp local. 5555
+```
+
+In another terminal, select the device shown by `adb devices`. The instrumentation grants the test package local-network access and waits for a real mDNS announcement through the production Android discovery adapter. Stop the advertisement after the test.
+
+```sh
+DOTNET_TEST_RUNNER=Microsoft.Testing.Platform dotnet test --project Sufni.DeviceTests/Android/Sufni.Android.DeviceTests.csproj --device <android-serial>
+```
+
+To check the shipping activity’s prompt, open Sufni with Nearby devices access unset. Deny the request and continue offline. Enable access in app settings and return to a discovery screen with a DAQ or sync hub on the LAN. The device should appear without restarting Sufni.
+
+For iOS, pair and unlock the iPhone. The test imports a golden SST through the source factory and session repository, reopens the temporary database, and verifies the source hash, decompressed bytes and parser version. Build the test app with a development profile that covers its application ID. Set `iphone_udid` to the phone's UDID from `xcrun devicectl list devices`.
+
+```sh
+dotnet build Sufni.DeviceTests/iOS/Sufni.iOS.DeviceTests.csproj -c Debug -r ios-arm64
+xcrun devicectl device install app --device "$iphone_udid" \
+  Sufni.DeviceTests/iOS/bin/Debug/net11.0-ios/ios-arm64/Sufni.iOS.DeviceTests.app
+xcrun devicectl device process launch --device "$iphone_udid" --console com.sghctoma.sufni.devicetests
+```
+
+The on-device test runner prints its pass count, exit code and TRX path. On SDK 11.0.100 the `dotnet test --device` invocation installed the signed app on the physical iPhone but the host launcher returned MT1029 before the test ran. Launching the installed app with `devicectl` ran the test and produced its TRX.

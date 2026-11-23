@@ -63,10 +63,16 @@ public class HttpApiServiceTests : IAsyncDisposable
         Assert.Equal(expected, await service.PatchRecordedSessionSourceAsync(source, token));
         var blob = await service.GetSessionPsstAsync(source.SessionId, token);
         var recording = await service.GetRecordedSessionSourceAsync(source.SessionId, token);
-        Assert.Equal(expected, blob.Status);
-        Assert.Equal(expected, recording.Status);
-        Assert.Null(blob.Payload);
-        Assert.Null(recording.Payload);
+        if (status == HttpStatusCode.NoContent)
+        {
+            Assert.IsType<SynchronizationTransferResult<SessionBlobPayload>.Ignored>(blob);
+            Assert.IsType<SynchronizationTransferResult<RecordedSessionSourcePayload>.Ignored>(recording);
+        }
+        else
+        {
+            Assert.IsType<SynchronizationTransferResult<SessionBlobPayload>.Pending>(blob);
+            Assert.IsType<SynchronizationTransferResult<RecordedSessionSourcePayload>.Pending>(recording);
+        }
     }
 
     [Theory]
@@ -99,8 +105,7 @@ public class HttpApiServiceTests : IAsyncDisposable
 
         var result = await service.GetRecordedSessionSourceAsync(Guid.NewGuid(), TestContext.Current.CancellationToken);
 
-        Assert.Equal(SynchronizationTransferStatus.Pending, result.Status);
-        Assert.Null(result.Payload);
+        Assert.IsType<SynchronizationTransferResult<RecordedSessionSourcePayload>.Pending>(result);
     }
 
     [Fact]
@@ -210,10 +215,10 @@ public class HttpApiServiceTests : IAsyncDisposable
             });
         });
 
-        var transfer = (await service.GetSessionPsstAsync(sessionId)).Payload;
+        var result = await service.GetSessionPsstAsync(sessionId);
 
-        Assert.NotNull(transfer);
-        Assert.Equal("fp-1", transfer!.Fingerprint);
+        var transfer = Assert.IsType<SynchronizationTransferResult<SessionBlobPayload>.Received>(result).Payload;
+        Assert.Equal("fp-1", transfer.Fingerprint);
         Assert.Equal([1, 2, 3], transfer.Data);
     }
 
@@ -274,10 +279,10 @@ public class HttpApiServiceTests : IAsyncDisposable
             });
         });
 
-        var source = (await service.GetRecordedSessionSourceAsync(sessionId)).Payload;
+        var result = await service.GetRecordedSessionSourceAsync(sessionId);
 
-        Assert.NotNull(source);
-        Assert.Equal(sessionId, source!.SessionId);
+        var source = Assert.IsType<SynchronizationTransferResult<RecordedSessionSourcePayload>.Received>(result).Payload;
+        Assert.Equal(sessionId, source.SessionId);
         Assert.Equal(RecordedSessionSourceKind.ImportedSst, source.SourceKind);
         Assert.Equal("ride data.sst", source.SourceName);
         Assert.Equal(4, source.SchemaVersion);

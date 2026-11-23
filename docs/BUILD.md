@@ -50,7 +50,7 @@ desktop layer where appropriate:
 
 ## macOS
 
-The macOS project defaults to the Apple Silicon `osx-arm64` runtime so a
+The deployment minimum is macOS Tahoe 26.0 for both Intel and Apple Silicon. The macOS project defaults to the Apple Silicon `osx-arm64` runtime so a
 normal build produces one architecture instead of invoking universal-bundle
 `lipo` assembly.
 

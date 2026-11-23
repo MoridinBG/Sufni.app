@@ -620,8 +620,7 @@ internal sealed class StravaSegmentService : IStravaSegmentService, IAsyncDispos
     private static async Task<T?> ReadJsonAsync<T>(HttpContent content, CancellationToken cancellationToken)
     {
         await using var stream = await content.ReadAsStreamAsync(cancellationToken);
-        var typeInfo = (System.Text.Json.Serialization.Metadata.JsonTypeInfo<T>)
-            StravaJsonContext.Default.GetTypeInfo(typeof(T))!;
+        var typeInfo = StravaJsonContext.Default.Options.GetTypeInfo<T>();
         return await JsonSerializer.DeserializeAsync(stream, typeInfo, cancellationToken);
     }
 

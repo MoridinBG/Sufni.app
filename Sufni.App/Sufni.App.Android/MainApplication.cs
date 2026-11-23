@@ -13,6 +13,8 @@ namespace Sufni.App.Android;
 public sealed class MainApplication(nint javaReference, JniHandleOwnership transfer)
     : AvaloniaAndroidApplication<Avalonia.Application>(javaReference, transfer)
 {
+    internal AndroidLocalNetworkPermission LocalNetworkPermission { get; } = new();
+
     protected override AppBuilder CreateAppBuilder()
     {
         var paths = new AppPaths(Path.Combine(
@@ -39,11 +41,11 @@ public sealed class MainApplication(nint javaReference, JniHandleOwnership trans
                     services,
                     static () => new AndroidSecureStorage(),
                     static () => new AndroidFriendlyNameProvider(),
-                    static role => new AndroidServiceDiscovery(
+                    role => new AndroidServiceDiscovery(
                         new SocketServiceDiscovery(role == "daq"
                             ? ServiceDiscoveryResolution.AnnouncedAddresses
                             : ServiceDiscoveryResolution.ReachableTcpEndpoint),
-                        new AndroidMulticastLockFactory()),
+                        new AndroidMulticastLockFactory(), LocalNetworkPermission),
                     static () => new AndroidHapticFeedback(() => MainActivity.CurrentWindow));
             },
             paths);

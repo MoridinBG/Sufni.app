@@ -110,6 +110,8 @@ Mobile heads register capabilities and services that desktop heads generally do 
 
 Mobile heads call `MobileAppBootstrapper.RegisterMobileSync(...)` inside the platform registration delegate created by `MainApplication.CreateAppBuilder` (Android) or `AppDelegate.CreateAppBuilder` (iOS). The bootstrapper also registers `IHttpApiService`.
 
+On Android 17 and later the foreground activity requests Nearby devices access for local networking. Both discovery adapters wait for the OS grant before acquiring their multicast locks and starting socket browsing. A closed browse stays closed if permission arrives later. After denial the user can continue offline or grant access in app settings.
+
 ## DI Composition
 
 Each head passes a typed `PlatformRoot` into the Avalonia application factory.

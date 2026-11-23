@@ -1,5 +1,6 @@
 <Project>
   <PropertyGroup>
+    <WarningsAsErrors>$(WarningsAsErrors);CS8509</WarningsAsErrors>
     <LangVersion>15.0</LangVersion>
   </PropertyGroup>
 </Project>

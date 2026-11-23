@@ -426,7 +426,7 @@ internal sealed class SynchronizationPeer : ISynchronizationPeer, IDisposable
     }
 
     public Task<SynchronizationTransferResult<SessionBlobPayload>> GetSessionPsstAsync(Guid id, CancellationToken cancellationToken = default) =>
-        TransferAsync(id, async () =>
+        TransferAsync<SynchronizationTransferResult<SessionBlobPayload>>(id, async () =>
     {
         await EnsureTokenFreshAsync();
         cancellationToken.ThrowIfCancellationRequested();
@@ -437,11 +437,11 @@ internal sealed class SynchronizationPeer : ISynchronizationPeer, IDisposable
             route,
             () => SendRequestAsync(HttpMethod.Get, route, cancellationToken: cancellationToken));
         if (response.StatusCode == HttpStatusCode.NoContent)
-            return new SynchronizationTransferResult<SessionBlobPayload>(null, SynchronizationTransferStatus.Completed);
+            return new SynchronizationTransferResult<SessionBlobPayload>.Ignored();
         if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Conflict)
         {
             logger.Verbose("Session data was not found on the server for {SessionId}", id);
-            return new SynchronizationTransferResult<SessionBlobPayload>(null, SynchronizationTransferStatus.Pending);
+            return new SynchronizationTransferResult<SessionBlobPayload>.Pending();
         }
         response.EnsureSuccessStatusCode();
         var data = await response.Content.ReadAsByteArrayAsync(cancellationToken);
@@ -449,10 +449,10 @@ internal sealed class SynchronizationPeer : ISynchronizationPeer, IDisposable
             GetResponseHeader(response, SynchronizationProtocol.FingerprintHeader),
             data);
 
-        logger.Verbose("Downloaded {ByteCount} bytes of session data for {SessionId}", transfer?.Data.Length ?? 0, id);
+        logger.Verbose("Downloaded {ByteCount} bytes of session data for {SessionId}", transfer.Data.Length, id);
 
-        return new SynchronizationTransferResult<SessionBlobPayload>(transfer, SynchronizationTransferStatus.Completed);
-    }, new SynchronizationTransferResult<SessionBlobPayload>(null, SynchronizationTransferStatus.Pending), cancellationToken);
+        return new SynchronizationTransferResult<SessionBlobPayload>.Received(transfer);
+    }, new SynchronizationTransferResult<SessionBlobPayload>.Pending(), cancellationToken);
 
     public Task<SynchronizationTransferStatus> PatchSessionPsstAsync(Guid id, byte[] data, string? fingerprint, CancellationToken cancellationToken = default) =>
         TransferAsync(id, async () =>
@@ -502,7 +502,7 @@ internal sealed class SynchronizationPeer : ISynchronizationPeer, IDisposable
     }
 
     public Task<SynchronizationTransferResult<RecordedSessionSourcePayload>> GetRecordedSessionSourceAsync(Guid id, CancellationToken cancellationToken = default) =>
-        TransferAsync(id, async () =>
+        TransferAsync<SynchronizationTransferResult<RecordedSessionSourcePayload>>(id, async () =>
     {
         await EnsureTokenFreshAsync();
         cancellationToken.ThrowIfCancellationRequested();
@@ -513,11 +513,11 @@ internal sealed class SynchronizationPeer : ISynchronizationPeer, IDisposable
             route,
             () => SendRequestAsync(HttpMethod.Get, route, cancellationToken: cancellationToken));
         if (response.StatusCode == HttpStatusCode.NoContent)
-            return new SynchronizationTransferResult<RecordedSessionSourcePayload>(null, SynchronizationTransferStatus.Completed);
+            return new SynchronizationTransferResult<RecordedSessionSourcePayload>.Ignored();
         if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Conflict)
         {
             logger.Verbose("Recorded source was not found on the server for {SessionId}", id);
-            return new SynchronizationTransferResult<RecordedSessionSourcePayload>(null, SynchronizationTransferStatus.Pending);
+            return new SynchronizationTransferResult<RecordedSessionSourcePayload>.Pending();
         }
 
         response.EnsureSuccessStatusCode();
@@ -552,10 +552,10 @@ internal sealed class SynchronizationPeer : ISynchronizationPeer, IDisposable
         logger.Verbose(
             "Downloaded recorded source for {SessionId} with {ByteCount} bytes",
             id,
-            source?.Payload.Length ?? 0);
+            source.Payload.Length);
 
-        return new SynchronizationTransferResult<RecordedSessionSourcePayload>(source, SynchronizationTransferStatus.Completed);
-    }, new SynchronizationTransferResult<RecordedSessionSourcePayload>(null, SynchronizationTransferStatus.Pending), cancellationToken);
+        return new SynchronizationTransferResult<RecordedSessionSourcePayload>.Received(source);
+    }, new SynchronizationTransferResult<RecordedSessionSourcePayload>.Pending(), cancellationToken);
 
     public Task<SynchronizationTransferStatus> PatchRecordedSessionSourceAsync(RecordedSessionSourcePayload source, CancellationToken cancellationToken = default) =>
         TransferAsync(source.SessionId, async () =>

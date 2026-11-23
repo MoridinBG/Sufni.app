@@ -367,7 +367,7 @@ so callers must pattern-match on known cases instead of relying on bool
 flags, `null`, or magic strings. This convention applies to both
 coordinator and service contracts when the caller's next step differs by
 outcome. Switch expressions over a closed hierarchy need no fallback arm:
-the compiler reports CS8509 when a consumer misses a case. Switch
+the build treats CS8509 as an error when a consumer misses a case. Switch
 statements are not checked for exhaustiveness, so they keep their
 `default` arm.
 
