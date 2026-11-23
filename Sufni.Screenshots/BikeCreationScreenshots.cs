@@ -20,7 +20,7 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using NSubstitute;
 using Sufni.App.Bikes.Coordinators;
-using Sufni.App.Bikes.DesktopViews.Items;
+using Sufni.App.Bikes.DesktopViews.Editors;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Queries;
 using Sufni.App.Bikes.Services;
@@ -147,7 +147,7 @@ public class BikeCreationScreenshots
 
     private static async Task CaptureControlsPanel(BikeEditorViewModel vm, string filename, bool light)
     {
-        var view = new BikeImageControlsDesktopView { DataContext = vm };
+        var view = new BikeEditorControlsDesktopView { DataContext = vm };
         var window = new Window
         {
             RequestedThemeVariant = light ? ThemeVariant.Light : ThemeVariant.Dark,

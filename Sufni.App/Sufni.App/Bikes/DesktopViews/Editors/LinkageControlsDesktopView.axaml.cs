@@ -1,11 +1,11 @@
 using Avalonia.Controls;
 
 using Sufni.App.Bikes.ViewModels.LinkageEditing;
-namespace Sufni.App.Bikes.DesktopViews.Items;
+namespace Sufni.App.Bikes.DesktopViews.Editors;
 
-public partial class BikeImageControlsDesktopView : UserControl
+public partial class LinkageControlsDesktopView : UserControl
 {
-    public BikeImageControlsDesktopView()
+    public LinkageControlsDesktopView()
     {
         InitializeComponent();
     }
@@ -18,7 +18,7 @@ public partial class BikeImageControlsDesktopView : UserControl
             e.Cancel = true;
         }
 
-        if (e.Row.DataContext is JointRowViewModel { EditRule: JointEditRule.FixedName } && e.Column.DisplayIndex == 0)
+        if (e.Row.DataContext is JointRowViewModel { EditRule: JointEditRule.FixedName } && sender is DataGrid grid && e.Column == grid.Columns[0])
         {
             e.Cancel = true;
         }
