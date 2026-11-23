@@ -1493,19 +1493,70 @@ public class TelemetryDataTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TravelSpectrumSeparatesChangesOfMeanAcrossASelectionOrRecordingGap(bool recordingGap)
+    {
+        const int rate = 50;
+        var wave = Enumerable.Range(0, 20 * rate).Select(i => Math.Sin(2 * Math.PI * 3 * i / rate)).ToArray();
+        var low = wave.Select(y => 20 + y);
+        var high = wave.Select(y => 80 + y);
+        var telemetry = CreateTelemetry([.. low, .. recordingGap ? Array.Empty<double>() : new double[rate], .. high], 100, rate);
+        TelemetryTimeSelection? selection = new([new(0, 20), new(21, 41)]);
+        if (recordingGap)
+        {
+            telemetry = telemetry with { Front = telemetry.Front with { HasGaps = true, Segments =
+                [new() { FirstDenseIndex = 0, StartSeconds = 0, SampleCount = wave.Length },
+                 new() { FirstDenseIndex = wave.Length, StartSeconds = 21, SampleCount = wave.Length }] } };
+            selection = null;
+        }
+        var spectrum = Assert.IsType<TravelFrequencyResult.Computed>(
+            TelemetryStatistics.CalculateTravelFrequencyHistogram(telemetry, SuspensionType.Front, selection));
+        var peak = spectrum.Power.IndexOf(spectrum.Power.Max());
+        Assert.Equal(3, spectrum.Frequencies[peak]);
+        Assert.Equal(2 * Math.Pow(wave.Length / 2d, 2), spectrum.Power[peak], 6);
+        Assert.All(spectrum.Power.TakeWhile((_, i) => spectrum.Frequencies[i] < 1), power => Assert.InRange(power, 0, 1e-17));
+    }
+
+    [Fact]
+    public void OneThirtySecondIntervalRetainsSingleTransformPower()
+    {
+        const int rate = 50;
+        const int count = 30 * rate;
+        var travel = Enumerable.Range(0, count).Select(i => 25 + 2 * Math.Sin(2 * Math.PI * 3 * i / rate)).ToArray();
+        var data = CreateTelemetry(travel, 100, rate);
+        var spectrum = Assert.IsType<TravelFrequencyResult.Computed>(
+            TelemetryStatistics.CalculateTravelFrequencyHistogram(data, SuspensionType.Front, new TelemetryTimeRange(0, 30)));
+        var peak = spectrum.Power.IndexOf(spectrum.Power.Max());
+        Assert.Equal(3, spectrum.Frequencies[peak]);
+        Assert.Equal((double)count * count, spectrum.Power[peak], 5);
+    }
+
+    [Fact]
+    public void TravelSpectrumDistinguishesEmptyShortAndUsableIntervals()
+    {
+        var telemetry = CreateTelemetry(new double[1000], 100, 50);
+        TravelFrequencyResult Analyze(params TelemetryTimeRange[] ranges) =>
+            TelemetryStatistics.CalculateTravelFrequencyHistogram(telemetry, SuspensionType.Front, new TelemetryTimeSelection(ranges));
+        Assert.IsType<TravelFrequencyResult.NoData>(Analyze());
+        Assert.IsType<TravelFrequencyResult.InsufficientContinuousData>(Analyze(new(0, 1), new(3, 4), new(6, 7)));
+        Assert.IsType<TravelFrequencyResult.Computed>(Analyze(new(0, 1), new(3, 8)));
+    }
+
+    [Theory]
     [InlineData(50)]
     [InlineData(1000)]
     public void CalculateTravelFrequencyHistogram_UsesSameFrequencyResolutionAcrossSampleRates(int sampleRate)
     {
         var telemetry = CreateTelemetry(
-            travel: Enumerable.Range(0, sampleRate).Select(index => Math.Sin(index * 0.1)).ToArray(),
+            travel: Enumerable.Range(0, sampleRate * 2).Select(index => Math.Sin(index * 0.1)).ToArray(),
             maxTravel: 100,
             sampleRate: sampleRate);
 
-        var histogram = TelemetryStatistics.CalculateTravelFrequencyHistogram(telemetry, SuspensionType.Front);
+        var histogram = Assert.IsType<TravelFrequencyResult.Computed>(TelemetryStatistics.CalculateTravelFrequencyHistogram(telemetry, SuspensionType.Front));
 
-        Assert.True(histogram.Bins.Count > 2);
-        Assert.Equal(0.05, histogram.Bins[1] - histogram.Bins[0], precision: 6);
+        Assert.True(histogram.Frequencies.Length > 2);
+        Assert.Equal(0.05, histogram.Frequencies[1] - histogram.Frequencies[0], precision: 6);
     }
 
     private static RawTelemetryData CreateSegmentedRaw(params RawCountSegment[] frontSegments) => new()

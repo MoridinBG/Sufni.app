@@ -86,12 +86,12 @@ public class TelemetryDataRegressionOutputTests
     }
 
     [Fact]
-    public void TravelFrequencyHistograms_MatchAcceptedV4Output()
+    public void SubsecondV4RecordingDoesNotProduceATravelSpectrum()
     {
-        AssertClose(DecodedBaseline.FrontTravelFrequencyHistogram,
-            TelemetryStatistics.CalculateTravelFrequencyHistogram(Result, SuspensionType.Front).Values);
-        AssertClose(DecodedBaseline.RearTravelFrequencyHistogram,
-            TelemetryStatistics.CalculateTravelFrequencyHistogram(Result, SuspensionType.Rear).Values);
+        Assert.IsType<TravelFrequencyResult.InsufficientContinuousData>(
+            TelemetryStatistics.CalculateTravelFrequencyHistogram(Result, SuspensionType.Front));
+        Assert.IsType<TravelFrequencyResult.InsufficientContinuousData>(
+            TelemetryStatistics.CalculateTravelFrequencyHistogram(Result, SuspensionType.Rear));
     }
 
     [Fact]

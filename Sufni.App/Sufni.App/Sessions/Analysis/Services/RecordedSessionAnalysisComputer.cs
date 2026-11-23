@@ -159,12 +159,7 @@ internal sealed class RecordedSessionAnalysisComputer(
         TelemetryData telemetry)
     {
         var side = RequireSuspensionType(key);
-        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetry, side, key.AnalysisRange);
-        return new TravelFrequencyDistributionAnalysisResult(
-            hasStrokeData
-                ? TelemetryStatistics.CalculateTravelFrequencyHistogram(telemetry, side, key.AnalysisRange)
-                : new HistogramData([], []),
-            hasStrokeData);
+        return new(TelemetryStatistics.CalculateTravelFrequencyHistogram(telemetry, side, key.AnalysisRange));
     }
 
     internal static VelocityDistributionAnalysisResult CalculateVelocityDistribution(

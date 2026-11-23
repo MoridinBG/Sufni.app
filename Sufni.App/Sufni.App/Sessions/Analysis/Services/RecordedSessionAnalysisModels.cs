@@ -265,9 +265,7 @@ public sealed record TravelDistributionAnalysisResult(
     double? MaxTravel,
     bool HasStrokeData) : RecordedSessionAnalysisResult;
 
-public sealed record TravelFrequencyDistributionAnalysisResult(
-    HistogramData Histogram,
-    bool HasStrokeData) : RecordedSessionAnalysisResult;
+public sealed record TravelFrequencyDistributionAnalysisResult(TravelFrequencyResult Spectrum) : RecordedSessionAnalysisResult;
 
 public sealed record VelocityDistributionAnalysisResult(
     StackedHistogramData Histogram,

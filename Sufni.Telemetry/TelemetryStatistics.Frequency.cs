@@ -1,66 +1,49 @@
+using System.Collections.Immutable;
 using System.Numerics;
 using System.Numerics.Tensors;
 using MathNet.Numerics.IntegralTransforms;
 
 namespace Sufni.Telemetry;
 
+public closed record TravelFrequencyResult
+{
+    public sealed record Computed(ImmutableArray<double> Frequencies, ImmutableArray<double> Power) : TravelFrequencyResult;
+    public sealed record NoData : TravelFrequencyResult;
+    public sealed record InsufficientContinuousData : TravelFrequencyResult;
+}
+
 public static partial class TelemetryStatistics
 {
-    private const int MinimumFrequencyResolutionDurationMilliseconds = 20_000;
+    private const int MinimumFrequencyResolutionSeconds = 20;
+    private const int MinimumSpectrumIntervalSeconds = 2;
 
-    public static HistogramData CalculateTravelFrequencyHistogram(
-        TelemetryData telemetryData,
-        SuspensionType type,
-        TelemetryTimeSelection? range = null)
+    public static TravelFrequencyResult CalculateTravelFrequencyHistogram(
+        TelemetryData telemetryData, SuspensionType type, TelemetryTimeSelection? range = null)
     {
         var suspension = GetSuspension(telemetryData, type);
-        var travelSamples = GetTravelSamples(telemetryData, suspension, range);
-        if (travelSamples.Length < 2 || telemetryData.Metadata.SampleRate <= 0)
+        var rate = telemetryData.Metadata.SampleRate;
+        if (rate <= 0 || suspension.Travel.IsDefaultOrEmpty) return new TravelFrequencyResult.NoData();
+        var intervals = SuspensionSampleInterval.Select(suspension.Segments, suspension.Travel.Length, rate, range);
+        if (intervals.Count == 0) return new TravelFrequencyResult.NoData();
+        intervals.RemoveAll(interval => interval.Count < (long)MinimumSpectrumIntervalSeconds * rate);
+        if (intervals.Count == 0) return new TravelFrequencyResult.InsufficientContinuousData();
+
+        var count = Math.Max(checked(MinimumFrequencyResolutionSeconds * rate), intervals.Max(i => i.Count));
+        var bins = Math.Min(count / 2 + 1, (int)(10L * count / rate + 1));
+        var power = new double[bins];
+        var signal = new Complex[count];
+        foreach (var interval in intervals)
         {
-            return new HistogramData([], []);
+            var samples = suspension.Travel.AsSpan(interval.Start, interval.Count);
+            var mean = TensorPrimitives.Sum<double>(samples) / samples.Length;
+            for (var i = 0; i < samples.Length; i++) signal[i] = new Complex(samples[i] - mean, 0);
+            Array.Clear(signal, samples.Length, count - samples.Length);
+            Fourier.Forward(signal, FourierOptions.Matlab);
+            for (var i = 0; i < bins; i++)
+                power[i] += signal[i].Magnitude * signal[i].Magnitude;
         }
 
-        var mean = TensorPrimitives.Sum<double>(travelSamples.AsSpan()) / travelSamples.Length;
-
-        var minimumCount = Math.Max(
-            2,
-            (int)Math.Ceiling(MinimumFrequencyResolutionDurationMilliseconds / 1000.0 * telemetryData.Metadata.SampleRate));
-        var count = Math.Max(minimumCount, travelSamples.Length);
-        var complexSignal = new Complex[count];
-
-        for (var index = 0; index < travelSamples.Length; index++)
-        {
-            complexSignal[index] = new Complex(travelSamples[index] - mean, 0);
-        }
-
-        for (var index = travelSamples.Length; index < count; index++)
-        {
-            complexSignal[index] = Complex.Zero;
-        }
-
-        Fourier.Forward(complexSignal, FourierOptions.Matlab);
-
-        var halfCount = count / 2 + 1;
-        var tick = 1.0 / telemetryData.Metadata.SampleRate;
-        var retainedCapacity = (int)Math.Min(
-            halfCount,
-            Math.Floor(10 * count * tick) + 1);
-        var frequencies = new List<double>(retainedCapacity);
-        var spectrum = new List<double>(retainedCapacity);
-
-        for (var index = 0; index < halfCount; index++)
-        {
-            var frequency = index / (count * tick);
-            if (frequency > 10)
-            {
-                break;
-            }
-
-            frequencies.Add(frequency);
-            var value = complexSignal[index];
-            spectrum.Add(value.Magnitude * value.Magnitude);
-        }
-
-        return new HistogramData(frequencies, spectrum);
+        return new TravelFrequencyResult.Computed(
+            [.. Enumerable.Range(0, bins).Select(i => (double)i * rate / count)], [.. power]);
     }
 }

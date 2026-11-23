@@ -49,8 +49,7 @@ public class AnalysisPlotViewTests
         state.Publish(
             key,
             new TravelFrequencyDistributionAnalysisResult(
-                TelemetryStatistics.CalculateTravelFrequencyHistogram(telemetry, SuspensionType.Front),
-                HasStrokeData: true));
+                TelemetryStatistics.CalculateTravelFrequencyHistogram(telemetry, SuspensionType.Front)));
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Empty(GetBars(PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot));

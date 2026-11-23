@@ -14,36 +14,30 @@ public class TravelFrequencyDistributionPlot(Plot plot, SuspensionType type, Suf
 {
     public void LoadAnalysisData(TravelFrequencyDistributionAnalysisResult data)
     {
-        if (!data.HasStrokeData)
-        {
-            return;
-        }
-
         ResetTelemetryReadouts();
 
         SetTitle(AnalysisPlotTitles.TravelFrequencyDistribution(type));
         SetAxisLabels("Frequency (Hz)", "Power (dB)");
         Plot.Layout.Fixed(CreateAnalysisPlotPadding());
 
-        var histogram = data.Histogram;
-        if (histogram.Bins.Count == 0 || histogram.Values.Count == 0)
+        if (data.Spectrum is not TravelFrequencyResult.Computed histogram)
         {
             Plot.Axes.SetLimits(0, 1, 0, 1);
-            AddLabel("No frequency data", 0.5, 0.5, 0, 0, Alignment.MiddleCenter);
+            AddLabel(data.Spectrum is TravelFrequencyResult.InsufficientContinuousData ? "Not enough continuous data" : "No frequency data", 0.5, 0.5, 0, 0, Alignment.MiddleCenter);
             return;
         }
         var color = type == SuspensionType.Front ? FrontColor : RearColor;
-        var bars = histogram.Values.Index().Select(item =>
+        var bars = histogram.Power.Index().Select(item =>
             {
                 var bar = new Bar
                 {
-                    Position = histogram.Bins[item.Index],
+                    Position = histogram.Frequencies[item.Index],
                     Value = item.Item,
                     FillColor = color.WithOpacity(),
                     LineColor = color,
                     LineWidth = 1.5f,
                     Orientation = Orientation.Vertical,
-                    Size = 4.9 / histogram.Bins.Count
+                    Size = 4.9 / histogram.Frequencies.Length
                 };
                 var powerDb = item.Item > 0 ? 20 * Math.Log10(item.Item) : double.NaN;
                 var powerLine = double.IsFinite(powerDb)
@@ -52,7 +46,7 @@ public class TravelFrequencyDistributionPlot(Plot plot, SuspensionType type, Suf
 
                 AddBarReadout(
                     bar,
-                    $"Frequency: {FormatReadoutValue(histogram.Bins[item.Index], "Hz", "0.##")}",
+                    $"Frequency: {FormatReadoutValue(histogram.Frequencies[item.Index], "Hz", "0.##")}",
                     powerLine);
 
                 return bar;
@@ -62,14 +56,14 @@ public class TravelFrequencyDistributionPlot(Plot plot, SuspensionType type, Suf
         Plot.Add.Bars(bars);
 
         // Set axis initial range and limits
-        var min = histogram.Values.Min();
-        var max = histogram.Values.Max();
-        Plot.Axes.SetLimits(left: 0.0, right: 800.0 / histogram.Bins.Count * 3.0, bottom: min, top: max);
+        var min = histogram.Power.Min();
+        var max = histogram.Power.Max();
+        Plot.Axes.SetLimits(left: 0.0, right: 800.0 / histogram.Frequencies.Length * 3.0, bottom: min, top: max);
         Plot.Axes.Rules.Add(new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Left,
             0.0, 10.0, min, max, PlotZoomFractions.Analysis));
 
         // Add autoscaler that restores the original ranges
-        Plot.Axes.AutoScaler = new FixedAutoScaler(minX: 0.0, maxX: 800.0 / histogram.Bins.Count * 3.0);
+        Plot.Axes.AutoScaler = new FixedAutoScaler(minX: 0.0, maxX: 800.0 / histogram.Frequencies.Length * 3.0);
 
         // Generate 4 tick for the power axis, and display its 20*log10 value
         var tickSpacing = (max - min) / 3;
