@@ -1,6 +1,8 @@
 using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.MapsAndTracks.Models;
 using System;
+using System.Collections.Generic;
+using Sufni.App.Terrain.Queries;
 using Sufni.Telemetry;
 
 using Sufni.App.Bikes.Stores;
@@ -37,7 +39,7 @@ public sealed class RecordedSessionDomainQuery(
                 sourceStore.Get(session.RecordingSourceSessionId),
                 fingerprintService,
                 setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id),
-                SessionTrackSelection.Select(trackStore.GetAll(), session.Timestamp, session.DurationSeconds, session.GpsOffsetSeconds, session.WindowStartSeconds));
+                trackStore.GetAll());
     }
 }
 
@@ -50,13 +52,14 @@ internal static class RecordedSessionDomainSnapshotFactory
         RecordedSessionSourceSnapshot? source,
         IProcessingFingerprintService fingerprintService,
         string? dependencyHash,
-        TrackSnapshot? selectedTrack = null)
+        IReadOnlyList<TrackSnapshot> tracks)
     {
         var effectiveDependencyHash = setup is null || bike is null
             ? null
             : dependencyHash ?? ProcessingDependencyHash.Compute(setup, bike);
         var evaluation = fingerprintService.EvaluateState(session, setup, bike, source, effectiveDependencyHash);
 
+        var terrain = SessionTerrainStatusQuery.Evaluate(session, tracks, out var selectedTrack);
         return new RecordedSessionDomainSnapshot(
             session,
             setup,
@@ -66,6 +69,6 @@ internal static class RecordedSessionDomainSnapshotFactory
             source,
             evaluation.Staleness,
             effectiveDependencyHash,
-            selectedTrack);
+            selectedTrack) { Terrain = terrain.Status };
     }
 }

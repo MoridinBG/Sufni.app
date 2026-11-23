@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.Telemetry;
+using Sufni.App.MapsAndTracks.Stores;
+using Sufni.App.Sessions.Store;
+using System.Text.Json.Serialization;
 
 namespace Sufni.App.Sessions.Models;
 
@@ -19,6 +22,17 @@ public readonly record struct SessionContentToken(
     int TrackProjectionVersion = GpsTrackPointProjection.ProjectionVersion,
     double WindowOriginFraction = 0)
 {
+    public static SessionContentToken Create(SessionSnapshot session, IReadOnlyList<TrackSnapshot> tracks,
+        out TrackSnapshot? selected)
+    {
+        selected = SessionTrackSelection.Select(tracks, session.Timestamp, session.DurationSeconds,
+            session.GpsOffsetSeconds, session.WindowStartSeconds);
+        return new(session.ProcessedTelemetryRevision, selected?.Id, selected?.PointsRevision, session.Timestamp,
+            session.DurationSeconds, SessionTrackTimeline.NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
+            WindowOriginFraction: SessionTrackTimeline.FractionalOrigin(session.WindowStartSeconds));
+    }
+
+    [JsonIgnore]
     public SessionTrackKey? TrackKey => FullTrackId is { } id && FullTrackPointsRevision is { } revision &&
         Timestamp is { } timestamp && DurationSeconds is { } duration
         ? new SessionTrackKey(id, revision, timestamp, duration, GpsOffsetSeconds, TrackProjectionVersion, WindowOriginFraction)

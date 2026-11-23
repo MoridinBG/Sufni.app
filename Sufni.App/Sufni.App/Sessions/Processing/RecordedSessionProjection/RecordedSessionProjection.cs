@@ -262,7 +262,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
             {
                 var domain = RecordedSessionDomainSnapshotFactory.Create(
                     input.Session, input.Setup, input.Bike, input.Source, fingerprintService, input.DependencyHash,
-                    SessionTrackSelection.Select(input.Tracks, input.Session.Timestamp, input.Session.DurationSeconds, input.Session.GpsOffsetSeconds, input.Session.WindowStartSeconds));
+                    input.Tracks);
                 var video = SessionVideoSelection.ForWindow(input.Clips, input.Source?.SourceHash,
                     new SessionTrackTimeline(0, OwnerOriginSeconds: input.Session.WindowStartSeconds), input.Session.DurationSeconds)
                     .MaxBy(clip => clip.Added);
@@ -294,7 +294,8 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                             updater.AddOrUpdate(new RecordedSessionSummary(
                                 session.Id, session.Updated, session.Name, session.Description,
                                 session.Timestamp, session.HasProcessedData, domain.Staleness,
-                                session.DurationSeconds, session.DistanceMeters, session.AscentMeters, session.DescentMeters, video));
+                                session.DurationSeconds, session.DistanceMeters, session.AscentMeters, session.DescentMeters, video,
+                                domain.Setup?.BikeId) { Terrain = domain.Terrain });
                         }
                     })).GetAwaiter().GetResult();
                     foreach (var (_, domain, _) in current)

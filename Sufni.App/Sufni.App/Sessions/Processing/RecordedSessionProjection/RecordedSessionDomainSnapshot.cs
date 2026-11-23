@@ -2,6 +2,7 @@ using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
+using Sufni.App.Terrain.Models;
 namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
 /// <summary>
@@ -18,4 +19,8 @@ public sealed record RecordedSessionDomainSnapshot(
     RecordedSessionSourceSnapshot? Source,
     SessionStaleness Staleness,
     string? DependencyHash = null,
-    TrackSnapshot? SelectedTrack = null);
+    TrackSnapshot? SelectedTrack = null)
+{
+    public TerrainStatus Terrain { get; init; } = Session.HasProcessedData
+        ? new TerrainStatus.Pending() : new TerrainStatus.Unavailable(TerrainAvailabilityReason.NoTelemetry);
+}

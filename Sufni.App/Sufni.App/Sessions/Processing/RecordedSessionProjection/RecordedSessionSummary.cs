@@ -1,6 +1,7 @@
 using Sufni.App.Video.Stores;
 using System;
 
+using Sufni.App.Terrain.Models;
 namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
 /// <summary>
@@ -21,4 +22,9 @@ public sealed record RecordedSessionSummary(
     double? DistanceMeters = null,
     double? AscentMeters = null,
     double? DescentMeters = null,
-    SessionVideoSnapshot? LatestVideo = null);
+    SessionVideoSnapshot? LatestVideo = null,
+    Guid? BikeId = null)
+{
+    public TerrainStatus Terrain { get; init; } = HasProcessedData
+        ? new TerrainStatus.Pending() : new TerrainStatus.Unavailable(TerrainAvailabilityReason.NoTelemetry);
+}

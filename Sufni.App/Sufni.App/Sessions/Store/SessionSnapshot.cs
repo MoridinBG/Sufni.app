@@ -1,4 +1,5 @@
 using Sufni.Telemetry;
+using Sufni.App.Terrain.Models;
 using System;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
@@ -45,7 +46,10 @@ public sealed record SessionSnapshot(
     double? PreviousWindowStartSeconds = null,
     double? PreviousWindowEndSeconds = null,
     int? VelocityFilterWindowMilliseconds = null,
-    GpsMetricsKey? GpsMetricsKey = null)
+    GpsMetricsKey? GpsMetricsKey = null,
+    TerrainProfileKey? TerrainProfileKey = null,
+    TerrainOutcome? TerrainOutcome = null,
+    TerrainSummary? TerrainSummary = null)
 {
     public RecordedSessionDerivationWindow? DerivationWindow => SourceSessionId is { } sourceSessionId
         ? new RecordedSessionDerivationWindow(sourceSessionId, WindowStartSeconds, WindowEndSeconds)
@@ -89,7 +93,10 @@ public sealed record SessionSnapshot(
         session.PreviousWindowStartSeconds,
         session.PreviousWindowEndSeconds,
         session.VelocityFilterWindowMilliseconds,
-        session.GpsMetricsKey);
+        session.GpsMetricsKey,
+        session.TerrainProfileKey,
+        session.TerrainOutcome,
+        session.TerrainSummary);
 }
 
 public static class SessionSnapshotExtensions

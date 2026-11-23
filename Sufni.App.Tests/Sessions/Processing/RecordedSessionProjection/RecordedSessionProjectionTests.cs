@@ -8,6 +8,9 @@ using Sufni.App.Tests.TestSupport.Async;
 using Sufni.App.Tests.TestSupport.Doubles;
 using System.Reactive.Linq;
 using DynamicData;
+using Sufni.App.Terrain.Models;
+using Sufni.App.Terrain.Queries;
+using Sufni.Telemetry;
 using NSubstitute;
 using Sufni.App.Shared.Stores;
 
@@ -24,6 +27,31 @@ namespace Sufni.App.Tests.Sessions.Processing.RecordedSessionProjection;
 
 public class RecordedSessionProjectionTests
 {
+    [Fact]
+    public async Task OffsetEditExpiresTheListFingerprintAndTheEditorTerrain()
+    {
+        var scheduler = new ManualUiThreadDispatcher();
+        using var stores = new StoreFixtures();
+        var fingerprints = new ProcessingFingerprintService();
+        using var projection = stores.CreateProjection(fingerprints, scheduler);
+        var context = CreateCurrentContext(fingerprints);
+        var key = SessionTerrainStatusQuery.Evaluate(context.Session, []).Key;
+        var session = context.Session with { TerrainProfileKey = key, TerrainOutcome = TerrainOutcome.Computed,
+            TerrainSummary = new TerrainSummary(20, 0.5, 0, 0.5, null, null, null, RoughnessSource.Both) };
+        using var observation = projection.ConnectSessions().Bind(out var summaries).Subscribe();
+        var domains = new List<RecordedSessionDomainSnapshot>();
+        using var watch = projection.WatchSession(session.Id).Subscribe(domains.Add);
+        await stores.AddAsync(context with { Session = session });
+        await scheduler.DrainAsync();
+        Assert.IsType<TerrainStatus.Current>(Assert.Single(summaries).Terrain);
+        Assert.Equal(context.Bike.Id, summaries[0].BikeId);
+
+        await stores.Sessions.PublishSessionsChangedAsync([session with { GpsOffsetSeconds = 1 }]);
+        await scheduler.DrainAsync();
+        Assert.IsType<TerrainStatus.Pending>(Assert.Single(summaries).Terrain);
+        Assert.IsType<TerrainStatus.Pending>(domains[^1].Terrain);
+    }
+
     [Fact]
     public async Task ConnectSessions_ProjectsLocalClipsIntoRemoteSplitWindow_AndRetainsThemAfterParentRemoval()
     {

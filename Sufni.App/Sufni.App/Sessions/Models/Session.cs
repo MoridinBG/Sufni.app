@@ -1,6 +1,8 @@
 using System;
 using System.Text.Json.Serialization;
 using SQLite;
+using Sufni.Telemetry;
+using Sufni.App.Terrain.Models;
 using Sufni.App.MapsAndTracks.Models;
 
 using Sufni.App.SyncAndPairing.Models;
@@ -48,6 +50,15 @@ public class Session : Synchronizable
 
     [JsonIgnore, Ignore]
     public GpsMetricsKey? GpsMetricsKey { get; set; }
+
+    [JsonIgnore, Ignore]
+    public TerrainProfileKey? TerrainProfileKey { get; set; }
+
+    [JsonIgnore, Ignore]
+    public TerrainOutcome? TerrainOutcome { get; set; }
+
+    [JsonIgnore, Ignore]
+    public TerrainSummary? TerrainSummary { get; set; }
 
     [JsonIgnore, Ignore]
     public double? DistanceMeters { get; set; }

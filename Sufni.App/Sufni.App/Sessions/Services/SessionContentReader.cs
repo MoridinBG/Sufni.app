@@ -10,6 +10,7 @@ using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Store;
 namespace Sufni.App.Sessions.Services;
 
 /// <summary>
@@ -44,7 +45,7 @@ internal sealed class SessionContentReader(
 
         var tracks = trackStore.GetAll();
         return sessions.Select(session => new SessionCatalogItem(session.Id, session.Name, session.Timestamp,
-            session.DurationSeconds, CreateContentToken(session, tracks))).ToArray();
+            session.DurationSeconds, SessionContentToken.Create(SessionSnapshot.From(session), tracks, out _))).ToArray();
     }
 
     public async Task<SessionCatalogItem?> GetSessionAsync(
@@ -60,7 +61,7 @@ internal sealed class SessionContentReader(
         }
 
         return new SessionCatalogItem(session.Id, session.Name, session.Timestamp, session.DurationSeconds,
-            CreateContentToken(session, trackStore.GetAll()));
+            SessionContentToken.Create(SessionSnapshot.From(session), trackStore.GetAll(), out _));
     }
 
     public async Task<SessionContentSnapshotResult> GetExactSnapshotAsync(
@@ -82,7 +83,7 @@ internal sealed class SessionContentReader(
             return new SessionContentSnapshotResult.Missing();
         }
 
-        var currentToken = CreateContentToken(session, trackStore.GetAll());
+        var currentToken = SessionContentToken.Create(SessionSnapshot.From(session), trackStore.GetAll(), out _);
         if (currentToken != expectedToken)
         {
             return new SessionContentSnapshotResult.Stale();
@@ -122,7 +123,7 @@ internal sealed class SessionContentReader(
             return new SessionContentSnapshotResult.Missing();
         }
 
-        if (CreateContentToken(revalidatedSession, trackStore.GetAll()) != expectedToken)
+        if (SessionContentToken.Create(SessionSnapshot.From(revalidatedSession), trackStore.GetAll(), out _) != expectedToken)
         {
             return new SessionContentSnapshotResult.Stale();
         }
@@ -143,16 +144,8 @@ internal sealed class SessionContentReader(
             return new SessionContentSnapshotResult.Missing();
         }
 
-        return CreateContentToken(currentSession, trackStore.GetAll()) == expectedToken
+        return SessionContentToken.Create(SessionSnapshot.From(currentSession), trackStore.GetAll(), out _) == expectedToken
             ? new SessionContentSnapshotResult.Missing()
             : new SessionContentSnapshotResult.Stale();
-    }
-
-    private static SessionContentToken CreateContentToken(Session session, IReadOnlyList<TrackSnapshot> tracks)
-    {
-        var selected = SessionTrackSelection.Select(tracks, session.Timestamp, session.DurationSeconds, session.GpsOffsetSeconds, session.WindowStartSeconds);
-        return new SessionContentToken(session.ProcessedTelemetryRevision, selected?.Id, selected?.PointsRevision,
-            session.Timestamp, session.DurationSeconds, SessionTrackTimeline.NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
-            WindowOriginFraction: SessionTrackTimeline.FractionalOrigin(session.WindowStartSeconds));
     }
 }
