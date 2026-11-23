@@ -12,9 +12,6 @@ namespace Sufni.App.Bikes.ViewModels.Editors;
 
 public static class BikeEditorGeometryDeriver
 {
-    public static double? PhotoHeadAngle(RearSuspensionKind mode, bool hasImage, HeadAngleGeometry geometry) =>
-        mode == RearSuspensionKind.Linkage && hasImage ? BikeGeometry.HeadAngle(geometry) : null;
-
     public static double? Scale(BikeEditorInputs inputs)
     {
         var joints = inputs.Linkage.Joints;
@@ -30,8 +27,9 @@ public static class BikeEditorGeometryDeriver
         var front = joints.FirstOrDefault(j => j.Type == JointType.FrontWheel);
         var rear = joints.FirstOrDefault(j => j.Type == JointType.RearWheel);
         var (first, second) = BikeGeometry.HeadTubePair(joints, joint => joint.Type);
-        var photoAngle = PhotoHeadAngle(inputs.Mode, inputs.Image is not null, new(
-            first, second, front, rear, inputs.FrontWheel?.DiameterMm, inputs.RearWheel?.DiameterMm, scale));
+        var photoAngle = inputs.Mode == RearSuspensionKind.Linkage && inputs.Image is not null
+            ? BikeGeometry.HeadAngle(new(first, second, front, rear, inputs.FrontWheel?.DiameterMm, inputs.RearWheel?.DiameterMm, scale))
+            : null;
         var angle = photoAngle ?? inputs.ManualHeadAngle;
         var height = inputs.Image?.Size.Height;
         RearSuspensionSpec spec = inputs.Mode switch
