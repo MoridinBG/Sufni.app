@@ -162,7 +162,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         {
             averaging.Cancel();
             TrailAverage = null;
-            if (next.Terrain is { } terrain && next.AnalysisRange is { } range)
+            if (!MatchCommand.IsRunning && next.Terrain is { } terrain && next.AnalysisRange is { } range)
                 _ = TrackAsync(AverageAsync(terrain, range, matches));
         }
 
@@ -227,8 +227,15 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
             return;
         }
 
-        Clear();
         var token = matching.Start(shutdown.Token);
+        averaging.Cancel();
+        var hadAverage = TrailAverage is SegmentTrailAverage.Averaged;
+        TrailAverage = null;
+        if (hadAverage && comparedMatch is not null && comparedDetail is not null)
+        {
+            AnalysisComparison = null;
+            _ = TrackAsync(BuildAnalysisComparisonAsync(comparedMatch, comparedDetail, zoomTimeline: false));
+        }
         var result = await segmentCoordinator.MatchAsync(source, token);
         if (token.IsCancellationRequested || CreateMatchSource() != source)
         {
@@ -238,6 +245,9 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         switch (result)
         {
             case SegmentMatchResult.Matched matched:
+                Cancel(ref pageLoad);
+                ClearAnalysisComparison();
+                SetPageIndex(0);
                 matches = matched.Matches;
                 MatchCount = matches.Count;
                 ShowRows(matched.FirstPage.Comparisons);

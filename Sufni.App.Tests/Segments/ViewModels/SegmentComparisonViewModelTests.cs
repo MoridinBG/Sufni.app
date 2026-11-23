@@ -327,9 +327,11 @@ public class SegmentComparisonViewModelTests
         var matching = vm.MatchCommand.ExecuteAsync(null);
         Assert.Empty(vm.RoughnessRows);
         Assert.Empty(vm.GradeRows);
+        Assert.Equal(2, vm.TravelRows.Count);
         second.SetResult(new SegmentMatchResult.Cancelled());
         await matching;
         Assert.Null(vm.TrailAverage);
+        Assert.Equal(2, vm.TravelRows.Count);
     }
 
     [Fact]
