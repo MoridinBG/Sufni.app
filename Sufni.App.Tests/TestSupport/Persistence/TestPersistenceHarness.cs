@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using SQLite;
+using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Shared.Stores;
 using Sufni.App.Tests.TestSupport.Async;
 using Sufni.Telemetry;
@@ -83,6 +84,8 @@ internal sealed class TestPersistenceHarness : IAsyncDisposable
     public ISessionVideoRepository SessionVideoRepository => new SessionVideoRepository(context, VideoPresence);
 
     public ISessionSegmentRepository SessionSegmentRepository => new SessionSegmentRepository(context, timeProvider, localDeviceIdentity);
+
+    public IBikePersistenceTransactionRunner BikeTransactions => new BikePersistenceTransactionRunner(context, timeProvider, localDeviceIdentity);
 
     public ISessionPersistenceTransactionRunner SessionTransactions => new SessionPersistenceTransactionRunner(context, timeProvider, localDeviceIdentity);
 

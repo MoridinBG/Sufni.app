@@ -2,11 +2,17 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Sufni.App.Bikes.Models;
+using Sufni.Telemetry;
+
 namespace Sufni.App.Bikes.Coordinators;
 
-/// <summary>Deletes a bike only when no active setup references it, in one transaction.</summary>
+/// <summary>Commits bike writes with their conflict and dependency checks.</summary>
 public interface IBikePersistenceTransactionRunner
 {
+    Task<BikeSaveResult> SaveAsync(BikeDraft draft, BikeDraft? baseline);
+    Task<BikeDampingSpeedCutoffUpdateResult> UpdateCutoffAsync(Guid id, double expected,
+        SuspensionType side, DampingSpeedCircuit circuit, double value);
     Task<BikeDeletePersistenceResult> DeleteBikeAsync(Guid bikeId, CancellationToken cancellationToken = default);
 }
 

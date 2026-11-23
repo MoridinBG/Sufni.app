@@ -136,20 +136,7 @@ internal class BikeCoordinator(
 
         try
         {
-            var result = await backgroundTaskRunner.RunAsync<BikeSaveResult>(async () =>
-            {
-                var current = await bikeRepository.GetAsync(draft.Id);
-                if (draftBase is not null && current is null) return new BikeSaveResult.Missing();
-                if (current is not null && (draftBase is null || BikeDraft.From(current) != draftBase))
-                {
-                    logger.Warning("Bike save conflict for {BikeId}", draft.Id);
-                    return new BikeSaveResult.Conflict(BikeDraft.From(current));
-                }
-
-                var row = BuildRow(draft, current?.DampingSpeedCutoffs);
-                await bikeRepository.PutAsync(row);
-                return new BikeSaveResult.Saved(BikeSnapshot.From(row));
-            });
+            var result = await bikePersistenceTransactions.SaveAsync(draft, draftBase);
             if (result is BikeSaveResult.Saved saved)
             {
                 await bikeStore.PublishBikesChangedAsync([saved.Snapshot]);
@@ -187,19 +174,8 @@ internal class BikeCoordinator(
 
         try
         {
-            var result = await backgroundTaskRunner.RunAsync<BikeDampingSpeedCutoffUpdateResult>(async () =>
-            {
-                var current = await bikeRepository.GetAsync(bikeId);
-                if (current is null) return new BikeDampingSpeedCutoffUpdateResult.Missing();
-                if (current.DampingSpeedCutoffs.Get(side, circuit) != expectedCutoffMmPerSecond)
-                    return new BikeDampingSpeedCutoffUpdateResult.Conflict(BikeSnapshot.From(current));
-
-                var bike = Bike.FromSnapshot(BikeSnapshot.From(current), current.ImageBytes);
-                bike.DampingSpeedCutoffs = bike.DampingSpeedCutoffs.With(side, circuit,
-                    DampingCutoffEditing.RoundDragValue(cutoffMmPerSecond));
-                await bikeRepository.PutAsync(bike);
-                return new BikeDampingSpeedCutoffUpdateResult.Saved(BikeSnapshot.From(bike));
-            });
+            var result = await bikePersistenceTransactions.UpdateCutoffAsync(
+                bikeId, expectedCutoffMmPerSecond, side, circuit, cutoffMmPerSecond);
             if (result is BikeDampingSpeedCutoffUpdateResult.Saved saved)
             {
                 await bikeStore.PublishBikesChangedAsync([saved.Snapshot]);
