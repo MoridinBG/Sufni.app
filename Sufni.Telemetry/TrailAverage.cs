@@ -38,12 +38,14 @@ public closed record TrailAverage(int RunCount)
         }
         for (var i = 0; i < windows.Count; i++)
         {
-            var baseline = TerrainProfileCalculator.BaselineGrade(windows, i, static w => w.Grade,
-                static (a, b) => a.EndSeconds == b.StartSeconds);
+            var baseline = BaselineGrade(windows, i);
             if (baseline.HasValue) windows[i] = windows[i] with { Steepness = TerrainProfileCalculator.ClassifyGrade(baseline.Value) };
         }
         return new Averaged(count, [.. windows]);
     }
+
+    public static double? BaselineGrade(IReadOnlyList<TrailAverageWindow> windows, int index) =>
+        TerrainProfileCalculator.BaselineGrade(windows, index, static w => w.Grade, static (a, b) => a.EndSeconds == b.StartSeconds);
 
     private struct Mean
     {

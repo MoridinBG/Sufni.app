@@ -93,6 +93,7 @@ public enum SegmentComparisonSeriesRole
     FrameImu,
     ForkImu,
     ShockImu,
+    Grade,
     Speed,
 }
 
