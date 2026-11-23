@@ -4,7 +4,7 @@ using Sufni.Kinematics;
 
 namespace Sufni.App.Bikes.Models;
 
-internal readonly record struct HeadAngleGeometry(
+public readonly record struct HeadAngleGeometry(
     IPoint? HeadTube1, IPoint? HeadTube2, IPoint? FrontWheel, IPoint? RearWheel,
     double? FrontDiameter, double? RearDiameter, double? Scale);
 
