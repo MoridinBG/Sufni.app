@@ -325,12 +325,21 @@ coordinator and returns no analysis presentation data.
 
 Front and rear max travel for the processing pipeline do **not** live on `BikeCharacteristics`. Front max travel is computed inside the front sensor configuration itself (e.g., `LinearForkSensorConfiguration.MaxTravel = bike.ForkStroke * sin(headAngle)` — see [Sensor Calibration](#sensor-calibration)). Rear max travel is produced by `RearTravelCalibrationBuilder` from either the linkage solve (`ShockStrokeToWheelTravelDataset.Y[^1]`) or the leverage-ratio curve (`LeverageRatioSpec.WheelTravelAt(maxShockStroke)`).
 
+### Photo-derived head angle
+
+Bike snapshots and both processing-fingerprint paths use the angle of the head tube
+relative to the line between wheel contact points. The persisted linkage uses
+millimetres with Y upward. Its adapter negates Y and uses unit scale before
+calling the screen-coordinate calculation. Missing joints, missing wheel diameters
+or degenerate geometry select the stored angle. Front sensor calibration receives
+this effective angle through the snapshot.
+
 ### Utilities
 
-- **`CoordinateRotation`** — 2D point rotation about an arbitrary centre, plus rotated-rectangle bounding-box computation, used by the bike image canvas and the linkage editor
+- **`CoordinateRotation`** — single-point 2D rotation about an arbitrary centre, plus rotated-rectangle bounding-box computation, used by the bike image canvas and the linkage editor
 - **`GroundCalculator`** — computes rotation angle to level ground contact points given wheel positions and radii
 - **`EtrtoRimSize`** — ETRTO standard rim sizes (507/559/584/622mm) with tire diameter calculation
-- **`GeometryUtils`** — distance and angle calculations using dot product, with float clamping to avoid NaN from precision errors
+- **`GeometryUtils`** — distance and angle calculations over read-only `IPoint` inputs using dot product, with float clamping to avoid NaN from precision errors
 
 ---
 

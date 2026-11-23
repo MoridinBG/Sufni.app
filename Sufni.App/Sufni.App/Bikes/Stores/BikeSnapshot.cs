@@ -110,7 +110,7 @@ public sealed record BikeSnapshot(
     public static BikeSnapshot From(Bike bike) => new(
         bike.Id,
         bike.Name,
-        bike.HeadAngle,
+        BikeGeometry.EffectiveHeadAngle(bike.HeadAngle, bike.RearSuspension, bike.FrontWheelDiameterMm, bike.RearWheelDiameterMm),
         bike.ForkStroke,
         bike.ShockStroke,
         bike.RearSuspension,

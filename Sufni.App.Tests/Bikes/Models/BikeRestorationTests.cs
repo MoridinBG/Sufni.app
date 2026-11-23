@@ -38,6 +38,31 @@ public class BikeRestorationTests
         Assert.Null(source.Chainstay);
     }
 
+    [Theory]
+    [InlineData(null, 702d, 700d, 71.6)]
+    [InlineData(JointNames.HeadTube1, 702d, 700d, 65)]
+    [InlineData(JointNames.HeadTube2, 702d, 700d, 65)]
+    [InlineData(JointNames.FrontWheel, 702d, 700d, 65)]
+    [InlineData(JointNames.RearWheel, 702d, 700d, 65)]
+    [InlineData(null, null, 700d, 65)]
+    [InlineData(null, 702d, null, 65)]
+    public void SnapshotUsesPhotoAngleWhenAllGeometryIsAvailable(
+        string? omittedJoint, double? frontDiameter, double? rearDiameter, double expected)
+    {
+        var spec = TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
+        var bike = new Bike(Guid.NewGuid(), "bike")
+        {
+            HeadAngle = 65,
+            RearSuspension = new RearSuspensionSpec.Linkage(new LinkageSpec(
+                spec.Joints.Where(joint => joint.Name != omittedJoint).ToArray(),
+                spec.Links, spec.Shock, spec.ShockStroke)),
+            FrontWheelDiameterMm = frontDiameter,
+            RearWheelDiameterMm = rearDiameter,
+        };
+
+        Assert.Equal(expected, BikeSnapshot.From(bike).HeadAngle);
+    }
+
     private static LinkageSpec LinkageWithChainstay(double chainstay)
     {
 

@@ -72,7 +72,7 @@ public static class GeometryUtils
         var cos = Math.Clamp(dot / (magnitudeGround * magnitudeHeadTube), -1.0, 1.0);
         var angle = Math.Acos(cos) * 180.0 / Math.PI;
 
-        return Math.Round(180.0 - angle, 1);
+        return double.IsFinite(angle) ? Math.Round(180.0 - angle, 1) : null;
     }
 
     public static double CalculateAngleAtPoint(double centralX, double centralY,
