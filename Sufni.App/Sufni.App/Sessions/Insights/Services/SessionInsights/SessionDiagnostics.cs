@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -68,7 +69,10 @@ internal static class SessionDiagnostics
             calculateVibration);
         AddVibrationFindings(telemetryData, frontVibration, rearVibration, findings);
 
-        return new SessionDiagnosticsReport(front, rear, frontVibration, rearVibration, findings);
+        return new SessionDiagnosticsReport(front, rear, frontVibration, rearVibration, findings)
+        {
+            Response = DescribeResponse(context.Request.Terrain)
+        };
     }
 
     public static ProfileReferences GetProfileReferences(SessionInsightsTargetProfile profile)
@@ -82,6 +86,16 @@ internal static class SessionDiagnostics
             _ => new ProfileReferences(new SpeedBand(1500, 2200), new SpeedBand(2200, 4000)),
         };
     }
+
+    private static TerrainResponseDiagnostics? DescribeResponse(SessionTerrainInput? input) => input?.Baseline switch
+    {
+        TerrainBaseline.Fitted fit => new(SessionResponseState.Reported, fit.Model.Sessions, fit.Model.Windows, false,
+            TerrainResponse.Describe(input.Profile, fit.Model, input.AnalysisRange)),
+        TerrainBaseline.Insufficient limited => new(SessionResponseState.InsufficientBaseline, limited.Model.Sessions,
+            limited.Model.Windows, limited.Model.Fits.Values.Any(f => f is ResponseFit.Unavailable { Reason: ResponseFitIssue.InsufficientVariation }), []),
+        TerrainBaseline.Failed => new(SessionResponseState.BaselineError, 0, 0, false, []),
+        _ => null
+    };
 
     private static void AddDataQualityFindings(
         TelemetryData telemetryData,

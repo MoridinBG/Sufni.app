@@ -124,6 +124,7 @@ public sealed record SessionInsightsRequest(
     BalanceSpeedMode BalanceSpeedMode,
     SessionInsightsTargetProfile TargetProfile)
 {
+    public SessionTerrainInput? Terrain { get; init; }
     public DampingSpeedCutoffs DampingSpeedCutoffs { get; init; } = DampingSpeedCutoffs.Default;
 }
 
@@ -152,6 +153,8 @@ public sealed record SessionInsightsResult(
     public bool HasDataQualityFindings => DataQualityFindings.Count > 0;
 
     public bool HasNextStep => NextStep is not null;
+
+    public SessionResponsePanel Response { get; init; } = SessionResponsePanel.Hidden;
 
     public bool HasVibration => Vibration is not null;
 }

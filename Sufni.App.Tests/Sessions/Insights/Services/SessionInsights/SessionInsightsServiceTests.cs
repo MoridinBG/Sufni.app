@@ -1,3 +1,6 @@
+using System.Collections.Immutable;
+using Sufni.App.Terrain.Models;
+using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Bikes.Models;
 using Sufni.Telemetry;
 using Sufni.App.Shared.Common;
@@ -10,6 +13,32 @@ namespace Sufni.App.Tests.Sessions.Insights.Services.SessionInsights;
 public class SessionInsightsServiceTests
 {
     private readonly SessionInsightsService service = new();
+
+    [Fact]
+    public void ResponsePanelUsesCoveredDistanceAndComparesRatiosAgainstRepeatThresholds()
+    {
+        var model = new SuspensionResponseModel(Enum.GetValues<ResponseTarget>().ToImmutableDictionary(target => target,
+            target => (ResponseFit)new ResponseFit.Fitted(ImuLocation.Frame, 6, 1200, [Math.Log(100), 0, 0, 0, 0])), 6, 1200);
+        var profile = TerrainProfiles.Classified(Enumerable.Range(0, 81).Select(i =>
+            TerrainProfiles.Window(i, i < 20 ? RoughnessClass.Calm : i < 50 ? RoughnessClass.Medium : RoughnessClass.Rough, RoughnessSource.Both)
+                with { Front = new(i < 50 ? 115 : 140, 150, 105) }).ToArray());
+        var input = new SessionTerrainInput(profile, new TerrainBaseline.Fitted(TerrainBaselineIdentity.Empty, model), null);
+        var request = CreateRequest(CreateTelemetry(front: BuildSide(), rear: BuildSide()), terrain: input);
+        var panel = service.Analyze(request).Response;
+        Assert.Equal(SessionResponseState.Reported, panel.State);
+        Assert.Equal(ResponseCellState.TooShort, Rms(RoughnessClass.Calm).State);
+        Assert.Equal(ResponseCellState.WithinRepeatRange, Rms(RoughnessClass.Medium).State);
+        Assert.Equal(ResponseCellState.Finding, Rms(RoughnessClass.Rough).State);
+        Assert.Equal(1.4, Rms(RoughnessClass.Rough).Ratio!.Value, 8);
+        panel = service.Analyze(request with { Selection = new TelemetryTimeSelection([new(0, 1)]),
+            Terrain = input with { AnalysisRange = new(49.5, 80.5) } }).Response;
+        var whole = panel.Rows.Single(r => r.Measurement.Class is null).Measurement;
+        Assert.Equal(310, whole.DistanceMetres);
+        Assert.Equal(Math.Exp((0.5 * Math.Log(1.15) + 30.5 * Math.Log(1.4)) / 31), Rms(null).Ratio!.Value, 8);
+
+        ResponseCell Rms(RoughnessClass? type) => panel.Rows.Single(r => r.Measurement.Class == type)
+            .Cells.Single(c => c.Measurement.Target == ResponseTarget.FrontRms).Measurement;
+    }
 
     [Fact]
     public void Analyze_ReturnsHidden_WhenTelemetryIsMissing()

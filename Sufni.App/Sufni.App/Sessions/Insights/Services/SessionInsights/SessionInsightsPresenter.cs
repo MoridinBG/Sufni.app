@@ -31,8 +31,15 @@ internal static class SessionInsightsPresenter
             displayFindings)
         {
             NextStep = BuildNextStep(presented),
+            Response = PresentResponse(report.Response),
         };
     }
+
+    private static SessionResponsePanel PresentResponse(TerrainResponseDiagnostics? response) => response is null
+        ? SessionResponsePanel.Hidden : new(response.State, SessionInsightsTextCatalog.ResponseDescription(response),
+            response.Sessions, response.Windows, [.. response.Rows.Select(row => new SessionResponseRow(
+                row.Class?.ToString() ?? "Whole session", SessionInsightsTextCatalog.ResponseCoverage(row), row,
+                [.. row.Cells.Select(SessionInsightsTextCatalog.ResponseCell)]))]);
 
     private const string SagTitle = "Sag & travel use";
     private const string ForkTitle = "Fork";

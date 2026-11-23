@@ -13,7 +13,7 @@ namespace Sufni.App.Sessions.Insights.Services.SessionInsights;
 /// label/format/source-mode mapping. Text moved verbatim from the previous
 /// inline interpolations in <c>SessionInsightsService</c>.
 /// </summary>
-internal static class SessionInsightsTextCatalog
+internal static partial class SessionInsightsTextCatalog
 {
     public static string GetTitle(DiagnosticFinding finding, AnalysisContext context)
     {

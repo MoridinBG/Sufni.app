@@ -84,4 +84,10 @@ internal sealed record SessionDiagnosticsReport(
     SideSnapshot? Rear,
     VibrationStats? FrontVibration,
     VibrationStats? RearVibration,
-    IReadOnlyList<DiagnosticFinding> Findings);
+    IReadOnlyList<DiagnosticFinding> Findings)
+{
+    public TerrainResponseDiagnostics? Response { get; init; }
+}
+
+internal sealed record TerrainResponseDiagnostics(SessionResponseState State, int Sessions, int Windows,
+    bool LacksVariation, System.Collections.Immutable.ImmutableArray<TerrainResponseRow> Rows);
