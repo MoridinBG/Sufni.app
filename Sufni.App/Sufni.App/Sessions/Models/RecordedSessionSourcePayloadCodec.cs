@@ -11,15 +11,16 @@ namespace Sufni.App.Sessions.Models;
 /// </summary>
 public static class RecordedSessionSourcePayloadCodec
 {
+    private const int ImportedSstCompressionLevel = 3;
+    private const int AutomaticWindowLog2 = 0;
+
     public static byte[] CompressImportedSst(byte[] sstBytes) =>
         CompressImportedSst((ReadOnlyMemory<byte>)sstBytes);
 
-    // One-shot compression writes the content size into the frame header;
-    // earlier app versions on paired devices need it to decode the payload.
     public static byte[] CompressImportedSst(ReadOnlyMemory<byte> sstBytes)
     {
         var payload = new byte[ZstandardEncoder.GetMaxCompressedLength(sstBytes.Length)];
-        if (!ZstandardEncoder.TryCompress(sstBytes.Span, payload, out var written))
+        if (!ZstandardEncoder.TryCompress(sstBytes.Span, payload, out var written, ImportedSstCompressionLevel, AutomaticWindowLog2))
             throw new InvalidOperationException("Zstandard compression exceeded its maximum compressed length.");
 
         Array.Resize(ref payload, written);
