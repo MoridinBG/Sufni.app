@@ -50,8 +50,8 @@ public class RecordedTerrainTests
         Assert.Equal(0.6, presentation.Coverage.FrameOnlyShare);
         Assert.Equal(jointlyRecorded ? 0.4 : 0, presentation.Coverage.JointShare);
         Assert.Equal(jointlyRecorded, presentation.Coverage.LowersClipped);
-        Assert.Equal(4.5, presentation.Signals[^2].MidSeconds);
-        Assert.Equal(Math.Asin(0.1) * 180 / Math.PI, presentation.Signals[^2].GradeDegrees!.Value, 8);
+        Assert.Equal(4.5, presentation.Grade[^1].Seconds[^2]);
+        Assert.Equal(Math.Asin(0.1) * 180 / Math.PI, presentation.Grade[^1].Values[^2], 8);
         await h.CloseAsync(editor);
     }
 
