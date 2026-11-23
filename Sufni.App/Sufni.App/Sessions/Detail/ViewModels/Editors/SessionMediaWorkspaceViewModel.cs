@@ -64,6 +64,8 @@ internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessio
         currentState = state;
         if (MapViewModel is { } map)
         {
+            if (previous is null || previous.Terrain != state.Terrain || previous.Preferences.MapTrackColoring != state.Preferences.MapTrackColoring)
+                map.ApplyTerrain(state.Preferences.MapTrackColoring, (state.Terrain as RecordedTerrainState.Loaded)?.Presentation);
             if (previous is null || previous.FullTrackPoints != state.FullTrackPoints)
                 map.FullTrackPoints = ToTrackPointList(state.FullTrackPoints);
             if (previous is null || previous.TrackPoints != state.TrackPoints)

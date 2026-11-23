@@ -1,6 +1,8 @@
+using Sufni.App.Terrain.Models;
 using Sufni.App.Shared.Models;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Reactive.Disposables;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -19,6 +21,39 @@ public partial class MapViewModel : ViewModelBase, IDisposable
     private readonly IMapLayerCoordinator coordinator;
     private TileLayerState? layerState;
     private readonly CompositeDisposable subscriptions = new();
+
+    private readonly Action<MapTrackColoring>? selectColoring;
+    private TerrainPresentation? terrain;
+    private MapTrackColoring coloring;
+
+    public static IReadOnlyList<MapTrackColoring> Colorings { get; } = Enum.GetValues<MapTrackColoring>();
+    public bool SupportsTerrainColoring => selectColoring is not null;
+    public bool HasTerrain => terrain is not null;
+
+    public MapTrackColoring TrackColoring
+    {
+        get => coloring;
+        set { if (HasTerrain && value != coloring) selectColoring?.Invoke(value); }
+    }
+
+    public ImmutableArray<TerrainClassRun> TerrainRuns => coloring switch
+    {
+        MapTrackColoring.Roughness when terrain is not null => terrain.RoughnessRuns,
+        MapTrackColoring.Steepness when terrain is not null => terrain.SteepnessRuns,
+        _ => []
+    };
+
+    internal void ApplyTerrain(MapTrackColoring selected, TerrainPresentation? presentation)
+    {
+        if (coloring == selected && ReferenceEquals(terrain, presentation)) return;
+        var hadTerrain = HasTerrain;
+        var previous = coloring;
+        terrain = presentation;
+        coloring = selected;
+        if (hadTerrain != HasTerrain) OnPropertyChanged(nameof(HasTerrain));
+        if (previous != selected) OnPropertyChanged(nameof(TrackColoring));
+        OnPropertyChanged(nameof(TerrainRuns));
+    }
 
     public IMapGeometryFactory GeometryFactory { get; }
 
@@ -44,10 +79,11 @@ public partial class MapViewModel : ViewModelBase, IDisposable
         IDialogService dialogService,
         IMapGeometryFactory geometryFactory,
         IUiThreadDispatcher uiThreadDispatcher,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider, Action<MapTrackColoring>? selectColoring = null)
         : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
         GeometryFactory = geometryFactory;
+        this.selectColoring = selectColoring;
         this.coordinator = coordinator;
         this.dialogService = dialogService;
 

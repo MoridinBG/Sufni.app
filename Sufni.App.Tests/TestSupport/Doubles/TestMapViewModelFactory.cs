@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.Models;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 
@@ -14,10 +15,10 @@ namespace Sufni.App.Tests.TestSupport.Doubles;
 /// </summary>
 public sealed class TestMapViewModelFactory(ITileLayerService tileLayerService) : IMapViewModelFactory
 {
-    public MapViewModel Create() => new(
+    public MapViewModel Create(System.Action<MapTrackColoring>? selectColoring = null) => new(
         tileLayerService,
         Substitute.For<IMapLayerCoordinator>(),
         Substitute.For<IDialogService>(),
         new MapGeometryFactory(new InlineBackgroundTaskRunner()),
-        new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
+        new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider(), selectColoring: selectColoring);
 }

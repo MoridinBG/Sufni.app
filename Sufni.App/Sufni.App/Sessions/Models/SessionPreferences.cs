@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.Models;
 using Sufni.App.Shared.Plots;
 using Sufni.App.Infrastructure;
 using System;
@@ -38,6 +39,9 @@ public sealed record SessionPreferences
 
     [JsonPropertyName("layout")]
     public SessionLayoutPreferences Layout { get; init; } = SessionLayoutPreferences.Default;
+
+    [JsonPropertyName("map_track_coloring")]
+    public MapTrackColoring MapTrackColoring { get; init; }
 
     [JsonPropertyName("last_gps_offset_track_id")]
     public Guid? LastGpsOffsetTrackId { get; init; }

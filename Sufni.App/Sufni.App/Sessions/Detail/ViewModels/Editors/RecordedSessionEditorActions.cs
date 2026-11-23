@@ -12,6 +12,7 @@ namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
 internal closed record RecordedSessionEditorIntent
 {
+    public sealed record SetMapTrackColoring(MapTrackColoring Value) : RecordedSessionEditorIntent;
     public sealed record SetTerrain(TerrainStatus.Current Expected, RecordedTerrainState Value) : RecordedSessionEditorIntent;
 
     public sealed record PreviewProcessingOption(int WindowMilliseconds) : RecordedSessionEditorIntent;
@@ -156,6 +157,8 @@ internal sealed class RecordedSessionEditorActions : IDisposable
         ArgumentNullException.ThrowIfNull(preferences);
         Emit(new RecordedSessionEditorIntent.SetLayoutPreferences(preferences));
     }
+
+    public void SetMapTrackColoring(MapTrackColoring value) => Emit(new RecordedSessionEditorIntent.SetMapTrackColoring(value));
 
     public void SetTerrain(TerrainStatus.Current expected, RecordedTerrainState value) =>
         Emit(new RecordedSessionEditorIntent.SetTerrain(expected, value));

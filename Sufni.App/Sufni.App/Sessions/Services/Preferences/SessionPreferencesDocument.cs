@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -48,6 +49,7 @@ internal sealed class SessionPreferencesDocument
     public SignalLayoutPreferencesDocument? SignalLayout { get; set; }
     public SignalLayoutPreferencesDocument? Graph { get; set; }
     public SessionLayoutPreferencesDocument? Layout { get; set; }
+    public MapTrackColoring MapTrackColoring { get; set; }
     public Guid? LastGpsOffsetTrackId { get; set; }
 
     public SessionPreferences ToModel()
@@ -56,7 +58,7 @@ internal sealed class SessionPreferencesDocument
             signalDisplay: SignalDisplay?.ToModel() ?? Plots?.ToModel() ?? new SignalDisplayPreferences(),
             analysis: Analysis?.ToModel() ?? Statistics?.ToModel() ?? new AnalysisPreferences(),
             signalLayout: SignalLayout?.ToModel() ?? Graph?.ToModel() ?? SignalLayoutPreferences.Default,
-            layout: Layout?.ToModel() ?? SessionLayoutPreferences.Default) { LastGpsOffsetTrackId = LastGpsOffsetTrackId };
+            layout: Layout?.ToModel() ?? SessionLayoutPreferences.Default) { LastGpsOffsetTrackId = LastGpsOffsetTrackId, MapTrackColoring = MapTrackColoring };
     }
 
     public static SessionPreferencesDocument FromModel(SessionPreferences preferences)
@@ -72,6 +74,7 @@ internal sealed class SessionPreferencesDocument
             SignalLayout = signalLayout,
             Layout = SessionLayoutPreferencesDocument.FromModel(preferences.Layout),
             LastGpsOffsetTrackId = preferences.LastGpsOffsetTrackId,
+            MapTrackColoring = preferences.MapTrackColoring,
         };
     }
 }

@@ -36,6 +36,7 @@ internal static class RecordedSessionEditorIntentReducers
                 {
                     Analysis = current.Analysis with { SessionInsightsTargetProfile = set.Profile },
                 },
+            RecordedSessionEditorIntent.SetMapTrackColoring set => current => current with { MapTrackColoring = set.Value },
             RecordedSessionEditorIntent.SetSignalDisplayPreferences set =>
                 current => current with { SignalDisplay = set.Preferences },
             RecordedSessionEditorIntent.SetSignalLayoutPreferences set =>

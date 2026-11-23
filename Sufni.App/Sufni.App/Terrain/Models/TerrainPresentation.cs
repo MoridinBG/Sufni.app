@@ -4,6 +4,8 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Terrain.Models;
 
+public enum MapTrackColoring { Plain, Roughness, Steepness }
+
 public enum TerrainLevel { Low, Middle, High }
 
 public readonly record struct TerrainClassRun(double StartSeconds, double EndSeconds, TerrainLevel Level);

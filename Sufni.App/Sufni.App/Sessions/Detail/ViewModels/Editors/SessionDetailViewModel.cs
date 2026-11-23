@@ -356,7 +356,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         SignalsWorkspace = new RecordedSessionSignalsWorkspaceViewModel(
             editorStateController.State, analysisDemand.ResultState, sourceVisibility, timeline,
             editorActions, segmentPicker, segmentComparison, plotContextActions);
-        mapViewModel = mapViewModelFactory.Create();
+        mapViewModel = mapViewModelFactory.Create(editorActions.SetMapTrackColoring);
         MediaWorkspace = new SessionMediaWorkspaceViewModel(
             editorStateController.State, mapViewModel, timeline, videoPane, segmentComparison);
         var dampingCutoffWorkflow = new DampingCutoffWorkflow(

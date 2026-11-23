@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.Models;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Coordinators;
@@ -12,7 +13,7 @@ namespace Sufni.App.MapsAndTracks.ViewModels;
 /// </summary>
 public interface IMapViewModelFactory
 {
-    MapViewModel Create();
+    MapViewModel Create(System.Action<MapTrackColoring>? selectColoring = null);
 }
 
 internal sealed class MapViewModelFactory(
@@ -23,5 +24,5 @@ internal sealed class MapViewModelFactory(
     IUiThreadDispatcher uiThreadDispatcher,
     System.TimeProvider timeProvider) : IMapViewModelFactory
 {
-    public MapViewModel Create() => new(tileLayerService, coordinator, dialogService, geometryFactory, uiThreadDispatcher, timeProvider: timeProvider);
+    public MapViewModel Create(System.Action<MapTrackColoring>? selectColoring = null) => new(tileLayerService, coordinator, dialogService, geometryFactory, uiThreadDispatcher, timeProvider: timeProvider, selectColoring: selectColoring);
 }

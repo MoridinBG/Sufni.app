@@ -79,8 +79,16 @@ public class RecordedTerrainTests
         Assert.True(editor.SignalsWorkspace.RoughnessSignalState.IsReady);
         Assert.True(editor.SignalsWorkspace.GradeSignalState.IsHidden);
 
+        var map = editor.MediaWorkspace.MapViewModel!;
+        Assert.True(map.HasTerrain);
+        map.TrackColoring = MapTrackColoring.Roughness;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.Equal(MapTrackColoring.Roughness, map.TrackColoring);
+
         changes.OnNext(domain with { Terrain = new TerrainStatus.Failed() });
         await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.False(map.HasTerrain);
+        Assert.Empty(map.TerrainRuns);
         Assert.Equal(SurfaceStateKind.Error, editor.SignalsWorkspace.TerrainSignalState.Kind);
         Assert.True(editor.SignalsWorkspace.RoughnessSignalState.IsHidden);
         changes.OnNext(domain with { Terrain = new TerrainStatus.Unavailable(TerrainAvailabilityReason.NoTrack) });

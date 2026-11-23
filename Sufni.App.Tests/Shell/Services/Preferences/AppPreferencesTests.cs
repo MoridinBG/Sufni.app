@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.Models;
 using Sufni.App.Shell.Services.Preferences;
 using Sufni.App.Shared.Plots;
 using Microsoft.Extensions.Time.Testing;
@@ -15,6 +16,19 @@ namespace Sufni.App.Tests.Shell.Services.Preferences;
 
 public class AppPreferencesTests
 {
+    [Fact]
+    public async Task MapColoringRoundTripsForOnlyTheEditedSession()
+    {
+        using var directory = new TempDirectory();
+        var path = CreatePreferencesPath(directory);
+        var session = Guid.NewGuid();
+        await TestAppPreferences.Load(path).Session.UpdateRecordedAsync(session,
+            p => p with { MapTrackColoring = MapTrackColoring.Steepness });
+        var reopened = TestAppPreferences.Load(path);
+        Assert.Equal(MapTrackColoring.Steepness, (await reopened.Session.GetRecordedAsync(session)).MapTrackColoring);
+        Assert.Equal(MapTrackColoring.Plain, (await reopened.Session.GetRecordedAsync(Guid.NewGuid())).MapTrackColoring);
+    }
+
     [Fact]
     public async Task RecordedLayoutAppendsTerrainAndKeepsExistingRowsInTheirSavedOrder()
     {
