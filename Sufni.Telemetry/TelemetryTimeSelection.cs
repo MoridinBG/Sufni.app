@@ -23,17 +23,19 @@ public sealed record TelemetryTimeSelection
     public static implicit operator TelemetryTimeSelection?(TelemetryTimeRange? range) =>
         range is { } value ? new([value]) : null;
 
-    public bool Contains(double seconds)
+    public bool Contains(double seconds) => CoversSamples(seconds, seconds);
+
+    internal bool CoversSamples(double first, double last)
     {
         var lo = 0;
         var hi = Ranges.Length;
         while (lo < hi)
         {
             var mid = lo + (hi - lo) / 2;
-            if (Ranges[mid].EndSeconds <= seconds) lo = mid + 1;
+            if (Ranges[mid].EndSeconds <= first) lo = mid + 1;
             else hi = mid;
         }
-        return lo < Ranges.Length && Ranges[lo].StartSeconds <= seconds;
+        return lo < Ranges.Length && Ranges[lo].StartSeconds <= first && last < Ranges[lo].EndSeconds;
     }
 
     public bool Equals(TelemetryTimeSelection? other) => other is not null && Ranges.AsSpan().SequenceEqual(other.Ranges.AsSpan());

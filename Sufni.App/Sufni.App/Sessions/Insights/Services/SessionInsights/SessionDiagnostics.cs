@@ -31,7 +31,7 @@ internal static class SessionDiagnostics
     internal static SessionDiagnosticsReport Run(
         TelemetryData telemetryData,
         AnalysisContext context,
-        Func<TelemetryData, ImuLocation, SuspensionType, TelemetryTimeRange?, VibrationStats?> calculateVibration)
+        Func<TelemetryData, ImuLocation, SuspensionType, TelemetryTimeSelection?, VibrationStats?> calculateVibration)
     {
         var findings = new List<DiagnosticFinding>();
 
@@ -533,7 +533,7 @@ internal static class SessionDiagnostics
         ImuLocation imuLocation,
         SuspensionType suspensionType,
         TelemetryTimeRange? range,
-        Func<TelemetryData, ImuLocation, SuspensionType, TelemetryTimeRange?, VibrationStats?> calculateVibration)
+        Func<TelemetryData, ImuLocation, SuspensionType, TelemetryTimeSelection?, VibrationStats?> calculateVibration)
     {
         return side?.HasStrokeData == true && TelemetryStatistics.HasVibrationData(telemetryData, imuLocation)
             ? calculateVibration(telemetryData, imuLocation, suspensionType, range)

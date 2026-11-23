@@ -727,7 +727,8 @@ public static partial class TelemetryStatistics
         var count = 0.0;
         foreach (var stroke in strokes)
         {
-            if (range is null)
+            if (range is null || range.CoversSamples(StrokeStartSeconds(stroke, sampleRate),
+                    StrokeEndSeconds(stroke, sampleRate)))
             {
                 sum += stroke.Stat.SumVelocity;
                 count += stroke.Stat.Count;

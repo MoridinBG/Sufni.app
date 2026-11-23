@@ -203,7 +203,8 @@ public static partial class TelemetryStatistics
 
         foreach (var stroke in GetIncludedCompressions(telemetryData, suspension, range).Concat(GetIncludedRebounds(telemetryData, suspension, range)))
         {
-            if (range is null)
+            if (range is null || range.CoversSamples(StrokeStartSeconds(stroke, telemetryData.Metadata.SampleRate),
+                    StrokeEndSeconds(stroke, telemetryData.Metadata.SampleRate)))
             {
                 sum += stroke.Stat.SumTravel;
                 count += stroke.Stat.Count;
