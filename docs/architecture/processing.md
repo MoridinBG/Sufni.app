@@ -95,7 +95,7 @@ An idling stroke is marked as an air candidate during stroke categorization when
 
 ### Track motion and terrain signal filters
 
-`TrackSampleAdapter` maps original GPS fixes into the session clock and local ground metres. `TrackMotion` builds a 10 Hz grid inside spans of at least four fixes. A gap longer than five seconds ends a span. Speed belongs to the midpoints between fixes and is low-passed at 0.4 Hz. Distance integrates that speed within each span and includes the straight displacement across a GPS gap. There are no grid samples in the gap.
+`TrackSampleAdapter` maps original GPS fixes into the session clock and local ground metres. `TrackMotion` builds a 10 Hz grid inside spans of at least four fixes. A gap longer than five seconds ends a span. Speed belongs to the midpoints between fixes and is low-passed at 0.4 Hz. The filtered speed is clamped at zero, so distance never decreases where the filter undershoots at a stop. Distance integrates that speed within each span and includes the straight displacement across a GPS gap. Before a gap, distance extends from the last grid sample to the last fix at the last grid speed. There are no grid samples in the gap.
 
 `SignalFilters` applies a second-order Butterworth low-pass or a band-pass from a second-order prototype. Each continuous input is filtered forward and backward with odd reflection at its ends.
 
