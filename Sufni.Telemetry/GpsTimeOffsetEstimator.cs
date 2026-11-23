@@ -22,7 +22,6 @@ public static class GpsTimeOffsetEstimator
 {
     private const int Rate = TrackMotion.GridRate;
     private const int MaxLag = 15 * Rate;
-    private const int MinimumSeconds = 30;
     private const int MinimumMovingCells = 300;
     private const int MinimumCommonCells = 200;
     private const double CutoffHz = 0.25;
@@ -100,7 +99,7 @@ public static class GpsTimeOffsetEstimator
                 else yaw[start + i] = 0;
             }
         }
-        if (length < MinimumSeconds * Rate || moving.Count(m => m) < MinimumMovingCells)
+        if (moving.Count(m => m) < MinimumMovingCells)
             return new GpsTimeOffsetEstimate.Unavailable(GpsTimeOffsetUnavailableReason.TooLittleMovement);
 
         var scores = new double[2 * MaxLag + 1];
