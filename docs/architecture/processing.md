@@ -329,10 +329,10 @@ Front and rear max travel for the processing pipeline do **not** live on `BikeCh
 
 Bike snapshots and both processing-fingerprint paths use the angle of the head tube
 relative to the line between wheel contact points. The persisted linkage uses
-millimetres with Y upward. Its adapter negates Y and uses unit scale before
+millimetres with Y upward. Editor joints use screen pixels and the scale derived from the rear axle, bottom bracket and chainstay. Persisted joints use millimetres. Their adapter negates Y and uses unit scale before
 calling the screen-coordinate calculation. Missing joints, missing wheel diameters
 or degenerate geometry select the stored angle. Front sensor calibration receives
-this effective angle through the snapshot.
+this effective angle through the snapshot. In the editor the calculated field is read-only. Losing the head-tube or ground reference leaves the last calculated angle available for manual editing.
 
 ### Utilities
 
@@ -411,4 +411,4 @@ Other rules: header is required and matched case-insensitively, BOM is stripped,
 - `Parsed(LeverageRatioSpec Value)` — the points were valid; the wrapped `LeverageRatioSpec` (`Sufni.Kinematics/LeverageRatio/LeverageRatioSpec.cs`) exposes `MaxShockStroke`, `MaxWheelTravel`, and `WheelTravelAt(shockStroke)` for downstream consumers.
 - `Invalid(IReadOnlyList<LeverageRatioParseError> Errors)` — one error per offending line; each error carries an optional 1-based line number plus a human-readable message.
 
-The parser is wired into the bike editor flow: `BikeEditorService.ImportLeverageRatioAsync(...)` (`Sufni.App/Sufni.App/Bikes/Services/BikeEditorService.cs`) opens the CSV picker, runs `LeverageRatioCsvParser.Parse` on a background task, and surfaces the result to `LeverageRatioEditorViewModel.ApplyImportResult` as a `LeverageRatioImportResult` (`Imported` / `Invalid` / `Failed` / `Canceled`). The imported curve is what `RearTravelCalibrationBuilder` later reads from `BikeSnapshot.RearSuspension` when building the rear calibration closure.
+The parser is wired into the bike editor flow: `BikeEditorService.ImportLeverageRatioAsync(...)` (`Sufni.App/Sufni.App/Bikes/Services/BikeEditorService.cs`) opens the CSV picker, runs `LeverageRatioCsvParser.Parse` on a background task, and returns a `LeverageRatioImportResult` to the leverage-ratio workspace (`Imported` / `Invalid` / `Failed` / `Canceled`). The imported curve is what `RearTravelCalibrationBuilder` later reads from `BikeSnapshot.RearSuspension` when building the rear calibration closure.

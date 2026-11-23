@@ -47,7 +47,7 @@ class holds the role that matches its responsibility, whatever its name.
 | --- | --- | --- |
 | Store | Persisted stores and the runtime-only `LiveDaqStore` | Owns shared read state for one entity family. Publishes prepared snapshots and removals through its writer interface. Does not persist or load repository data. |
 | Coordinator | The `*Coordinator` classes, `SessionRecomputeEngine`, `SessionSyncApplier`, `SynchronizationApplier`, `AppDataRefresher` and `RecordedSessionSourceRetentionCleanup` | Owns a workflow with side effects or long-lived event subscriptions. Persists through services. Only coordinators hold store writers, and they publish only after the persistence commit. |
-| Query | The `*Query` classes, `IRecordedSessionProjection`, `IProcessingDependencyHashIndex` and `ISessionLoader` | Derives an answer or a joined projection from facts that stores and services own. Does not own a shared collection. |
+| Query | The `*Query` classes (including `IRearSuspensionAnalysisQuery`), `IBikeDraftLoader`, `IRecordedSessionProjection`, `IProcessingDependencyHashIndex` and `ISessionLoader` | Derives an answer or a joined projection from facts that stores and services own. Does not own a shared collection. |
 | View model | Shell, page, list, row and editor view models | Owns screen state, command flow and binding-friendly projection. |
 | Service | Repositories, transaction runners, readers, file and platform services, factories | Reaches the world. Transaction runners commit cross-aggregate SQL and do not publish. |
 

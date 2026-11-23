@@ -178,7 +178,7 @@ builder to have `.UseSkia()` and `UseHeadlessDrawing = false`.
 
 Pick the view that best represents the workflow. Options:
 
-- A **desktop-only subview** such as `BikeImageControlsDesktopView` for a
+- A **desktop-only subview** such as `BikeEditorControlsDesktopView` for a
   form-heavy editing panel.
 - A **mobile view** such as `BikeEditorView` for a read-only summary
   layout.
@@ -389,24 +389,25 @@ with a `TaskCompletionSource<T>`:
 [AvaloniaFact]
 public async Task Step_ShowsLoadingState()
 {
-    var tcs = new TaskCompletionSource<BikeEditorAnalysisResult>();
-
-    var coordinator = TestCoordinatorSubstitutes.Bike();
-    coordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
-        .Returns(tcs.Task); // never completes during the test
-
-    var vm = new BikeEditorViewModel(snapshot, isNew: false, coordinator, /* ... */);
-
-    var view = new BikeImageControlsDesktopView { DataContext = vm };
+    var analysis = TestCoordinatorSubstitutes.BikeAnalysis();
+    var snapshot = TestSnapshots.LeverageRatioBike(TestSnapshots.LeverageRatioCurve((0, 0), (10, 25)));
+    var vm = new BikeEditorViewModel(snapshot, false, TestCoordinatorSubstitutes.Bike(),
+        TestCoordinatorSubstitutes.BikeDraftLoader(), analysis, TestCoordinatorSubstitutes.BikeFiles(),
+        Substitute.For<IBikeDependencyQuery>(), Substitute.For<IShellCoordinator>(), Substitute.For<IDialogService>(),
+        new InlineUiThreadDispatcher(), TestAppEnvironment.Create(UiLayoutProfile.Workspace).Input,
+        new InlineBackgroundTaskRunner(), new FakeTimeProvider());
+    var view = new BikeEditorControlsDesktopView { DataContext = vm };
     var window = ShowAndFlush(view);
+    var completion = new TaskCompletionSource<BikeEditorAnalysisResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+    analysis.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>()).Returns(completion.Task);
+    vm.Name += " edited";
+    var reset = vm.ResetCommand.ExecuteAsync(null);
+    await FlushAsync();
 
-    // The view model is now waiting for analysis — IsPlotBusy should be true.
-    // Capture the loading/busy state.
     window.CaptureRenderedFrame()!.Save(Path.Combine(OutputDir, "loading.png"));
-
-    // Complete the operation so cleanup runs.
-    tcs.SetResult(new BikeEditorAnalysisResult.NotApplicable());
-
+    completion.SetResult(new BikeEditorAnalysisResult.NotApplicable());
+    await reset;
+    await vm.PrepareCloseAsync();
     window.Close();
     await FlushAsync();
 }
