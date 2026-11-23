@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Numerics;
 
 namespace Sufni.Telemetry;
@@ -53,11 +54,11 @@ public static class GpsTimeOffsetEstimator
                 var time = segment.FirstMonotonicDeltaUs / 1e6 + (double)i / imu.SampleRate;
                 var record = segment[i];
                 rotation = FrameAttitudeEstimator.Advance(rotation, record, 1d / imu.SampleRate, meta.AccelLsbPerG, meta.GyroLsbPerDps);
-                while (spanIndex < spans.Length && time > spans[spanIndex][^1].Seconds) spanIndex++;
+                while (spanIndex < spans.Length && CellInSpan(spans[spanIndex], time) >= spans[spanIndex].Length) spanIndex++;
                 if (spanIndex == spans.Length) break;
-                var first = spans[spanIndex][0].Seconds;
-                if (time < first) continue;
-                var cell = (int)Math.Round((first - origin) * Rate) + (int)Math.Floor((time - first) * Rate);
+                var index = CellInSpan(spans[spanIndex], time);
+                if (index < 0) continue;
+                var cell = (int)Math.Round((spans[spanIndex][0].Seconds - origin) * Rate) + index;
                 yaw[cell] += Vector3.Dot(new Vector3(record.Gx, record.Gy, record.Gz), FrameAttitudeEstimator.Read(rotation.Value).Up) / meta.GyroLsbPerDps;
                 samples[cell]++;
             }
@@ -118,6 +119,10 @@ public static class GpsTimeOffsetEstimator
         }
         return new GpsTimeOffsetEstimate.Measured((best - MaxLag + offset) / Rate, scores[best]);
     }
+
+    // A cell is centred on its grid time, so its mean yaw rate has no lag against the course rate.
+    private static int CellInSpan(ImmutableArray<TrackMotionSample> span, double time) =>
+        (int)Math.Floor((time - span[0].Seconds) * Rate + 0.5);
 
     private static double Derivative(double[] values, int i)
     {
