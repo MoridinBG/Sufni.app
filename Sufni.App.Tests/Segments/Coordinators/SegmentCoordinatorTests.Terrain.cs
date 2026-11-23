@@ -57,6 +57,16 @@ public partial class SegmentCoordinatorTests
     }
 
     [Fact]
+    public async Task RidesWithDisjointImusKeepTheirDampingComparison()
+    {
+        var (source, match) = TerrainComparisonInputs(0, SyntheticTrailRuns.Record(8, lowers: false),
+            SyntheticTrailRuns.Record(8, frame: false));
+        var result = await CompareTerrain(source, match);
+        Assert.Equal(SegmentTerrainUnavailable.NoCommonSensor, Assert.IsType<SegmentTerrainComparison.Unavailable>(result.Terrain).Reason);
+        Assert.NotEmpty(result.Metrics);
+    }
+
+    [Fact]
     public async Task ProfileReadFailureKeepsOrdinaryAnalysisAndReportsTerrainError()
     {
         var (source, match) = TerrainComparisonInputs(0);
@@ -116,10 +126,11 @@ public partial class SegmentCoordinatorTests
         }
     }
 
-    private (SegmentTerrainSource Source, SegmentMatch Match) TerrainComparisonInputs(int baselineCount)
+    private (SegmentTerrainSource Source, SegmentMatch Match) TerrainComparisonInputs(int baselineCount,
+        TerrainProfile? current = null, TerrainProfile? earlier = null)
     {
-        var current = currentRide.Value;
-        var earlier = earlierRide.Value;
+        current ??= currentRide.Value;
+        earlier ??= earlierRide.Value;
         var match = TestSegmentMatches.OnTrail(current, earlier);
         var key = TerrainProfileKey.From(match.ContentToken);
         cachedProfiles[match.SessionId] = (key, earlier);
