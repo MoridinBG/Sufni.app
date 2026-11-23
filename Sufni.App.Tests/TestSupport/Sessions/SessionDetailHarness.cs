@@ -1,3 +1,5 @@
+using Sufni.App.Terrain.Models;
+using Sufni.App.Terrain.Queries;
 using Sufni.App.Terrain.Coordinators;
 using Sufni.App.Terrain.Services;
 using Sufni.App.Sessions.Services.Preferences;
@@ -95,6 +97,18 @@ internal sealed class SessionDetailHarness : IDisposable
         null,
         null,
         staleness ?? new SessionStaleness.Current());
+
+    public RecordedSessionDomainSnapshot WithTerrain(SessionSnapshot session, TerrainProfile profile)
+    {
+        var key = SessionTerrainStatusQuery.Evaluate(session, []).Key;
+        TerrainProfiles.ReadAsync(Arg.Is<IReadOnlyDictionary<Guid, TerrainProfileKey>>(keys =>
+                keys.ContainsKey(session.Id) && keys[session.Id] == key), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<Guid, TerrainProfile> { [session.Id] = profile });
+        return DomainFromSnapshot(session) with
+        {
+            Terrain = new TerrainStatus.Current(key, TerrainProfileCalculator.Summarize(profile))
+        };
+    }
 
     public SessionSnapshot CreateRecordedSession(
         string name = "Recorded Session 01",

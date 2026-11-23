@@ -37,6 +37,7 @@ public sealed class SignalRow : UserControl
     private readonly Grid headerContentGrid;
     private readonly TextBlock chevronText;
     private readonly TextBlock titleText;
+    private readonly ContentControl headerAccessory = new();
     private readonly SignalRowActionsPresenter headerActionsPresenter;
     private readonly Grid expandedGrid;
     private readonly PlaceholderOverlayContainer plotHost;
@@ -63,6 +64,11 @@ public sealed class SignalRow : UserControl
 
     public static readonly StyledProperty<object?> TitleToolTipProperty =
         AvaloniaProperty.Register<SignalRow, object?>(nameof(TitleToolTip));
+
+    public static readonly StyledProperty<Control?> HeaderAccessoryProperty =
+        AvaloniaProperty.Register<SignalRow, Control?>(nameof(HeaderAccessory));
+
+    public Control? HeaderAccessory { get => GetValue(HeaderAccessoryProperty); set => SetValue(HeaderAccessoryProperty, value); }
 
     public static readonly StyledProperty<string?> RowIdProperty =
         AvaloniaProperty.Register<SignalRow, string?>(nameof(RowId));
@@ -279,16 +285,19 @@ public sealed class SignalRow : UserControl
                 new ColumnDefinition(GridLength.Auto),
                 new ColumnDefinition(GridLength.Star),
                 new ColumnDefinition(GridLength.Auto),
+                new ColumnDefinition(GridLength.Auto),
             },
             Children =
             {
                 chevronText,
                 titleText,
+                headerAccessory,
                 headerActionsPresenter,
             },
         };
         Grid.SetColumn(titleText, 1);
-        Grid.SetColumn(headerActionsPresenter, 2);
+        Grid.SetColumn(headerAccessory, 2);
+        Grid.SetColumn(headerActionsPresenter, 3);
 
         headerButton = new Button
         {
@@ -374,7 +383,7 @@ public sealed class SignalRow : UserControl
                 e.Property == PresentationStateProperty ||
                 e.Property == PlotContentProperty ||
                 e.Property == PlaceholderContentProperty ||
-                e.Property == HeaderActionsProperty ||
+                e.Property == HeaderActionsProperty || e.Property == HeaderAccessoryProperty ||
                 e.Property == IsExpandedProperty ||
                 e.Property == HeaderHeightProperty ||
                 e.Property == CollapsedHeaderHeightProperty ||
@@ -698,6 +707,8 @@ public sealed class SignalRow : UserControl
         titleText.Text = Title;
         ToolTip.SetTip(titleText, TitleToolTip);
         headerActionsPresenter.Actions = HeaderActions;
+        headerAccessory.Content = HeaderAccessory;
+        headerAccessory.IsVisible = HeaderAccessory is not null;
         chevronText.Text = IsExpanded ? "-" : "+";
         chevronText.Margin = new Thickness(TitleLeftInset, 0, 0, 0);
         headerButton.Height = IsExpanded ? HeaderHeight : CollapsedHeaderHeight;
@@ -927,16 +938,13 @@ public sealed class SignalRow : UserControl
 
     private bool IsPointerOverHeaderActions(PointerEventArgs args)
     {
-        if (!headerActionsPresenter.IsVisible)
-        {
-            return false;
-        }
+        return Contains(headerActionsPresenter) || Contains(headerAccessory);
 
-        var point = args.GetPosition(headerActionsPresenter);
-        return point.X >= 0 &&
-               point.Y >= 0 &&
-               point.X <= headerActionsPresenter.Bounds.Width &&
-               point.Y <= headerActionsPresenter.Bounds.Height;
+        bool Contains(Control control)
+        {
+            var point = args.GetPosition(control);
+            return control.IsVisible && new Rect(control.Bounds.Size).Contains(point);
+        }
     }
 
     private bool IsWithinHeaderBounds(Point point)

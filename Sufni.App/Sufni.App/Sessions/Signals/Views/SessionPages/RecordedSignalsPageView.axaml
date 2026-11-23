@@ -32,7 +32,7 @@ mc:Ignorable="d">
             </Grid>
 
             <Grid MinHeight="{Binding #PageScrollViewer.Bounds.Height}">
-                <controls3:RecordedSignalRowsView
+                <controls3:RecordedSignalRowsView CompactTerrainFilter="True"
                 Margin="-8,0,-8,0"
                 DataContext="{Binding Workspace}"
                 HideRightAxis="True"

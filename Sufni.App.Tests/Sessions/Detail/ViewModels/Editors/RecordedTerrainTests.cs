@@ -1,3 +1,7 @@
+using Sufni.App.Segments.Models;
+using Sufni.App.Segments.Services;
+using Sufni.App.Segments.Coordinators;
+using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.Telemetry.Tests;
 using Sufni.App.Tests.TestSupport.Fixtures;
@@ -26,13 +30,7 @@ public class RecordedTerrainTests
             new(140, LowBandG: 1.5, MiddleBandG: 1.6, HighBandG: 1.8)]);
         var profile = Assert.IsType<TerrainProfileResult.Computed>(TerrainProfileCalculator.Calculate(ride.Telemetry, ride.Fixes)).Profile;
         var session = h.CreateRecordedSession();
-        var key = SessionTerrainStatusQuery.Evaluate(session, []).Key;
-        var domain = SessionDetailHarness.DomainFromSnapshot(session) with
-        {
-            Terrain = new TerrainStatus.Current(key, TerrainProfileCalculator.Summarize(profile))
-        };
-        h.TerrainProfiles.ReadAsync(Arg.Any<IReadOnlyDictionary<Guid, TerrainProfileKey>>(), Arg.Any<CancellationToken>())
-            .Returns(new Dictionary<Guid, TerrainProfile> { [session.Id] = profile });
+        var domain = h.WithTerrain(session, profile);
         var editor = h.CreateRecordedEditor(session, h.CreateLoadedResult(ride.Telemetry), Observable.Return(domain));
         await h.LoadAsync(editor);
         var filter = editor.SignalsWorkspace.TerrainFilter!;
@@ -59,6 +57,48 @@ public class RecordedTerrainTests
         }
     }
 
+    [AvaloniaFact]
+    public async Task ClassFilterAndComparisonReplaceEachOtherAndNewTelemetryClearsTheFilter()
+    {
+        using var h = new SessionDetailHarness();
+        var session = h.CreateRecordedSession();
+        var telemetry = TestSegmentMatches.Telemetry();
+        var profile = TerrainProfiles.Classified(TerrainProfiles.Window(2, RoughnessClass.Rough, RoughnessSource.Both));
+        var domain = h.WithTerrain(session, profile);
+        using var changes = new BehaviorSubject<RecordedSessionDomainSnapshot>(domain);
+        var editor = h.CreateRecordedEditor(session, h.CreateLoadedResult(telemetry,
+            trackPoints: [new(1000, 0, 0, null), new(1030, 200, 50, null)]), changes);
+        await h.LoadAsync(editor);
+        var signals = editor.SignalsWorkspace;
+        signals.SetAnalysisRange(2, 5);
+        var filter = signals.TerrainFilter!;
+        var chip = filter.Roughness[(int)RoughnessClass.Rough];
+        chip.Toggle.Execute(null);
+        Assert.True(filter.IsActive);
+        var compared = SegmentComparisonBuilder.Build(TestSegmentMatches.Match(10, 13), telemetry, 30)!;
+        h.SegmentCoordinator.MatchAsync(Arg.Any<SegmentMatchSource>(), Arg.Any<CancellationToken>())
+            .Returns(new SegmentMatchResult.Matched([compared.Match], new SegmentComparisonPage([compared], [])));
+        h.SegmentCoordinator.LoadComparisonDetailAsync(compared, Arg.Any<CancellationToken>())
+            .Returns(new SegmentComparisonDetailResult.Loaded(SegmentComparisonBuilder.BuildDetail(telemetry, [])));
+        var comparisons = signals.SegmentComparison;
+        await comparisons.MatchCommand.ExecuteAsync(null);
+        var row = Assert.Single(comparisons.TravelRows);
+        await ((IAsyncRelayCommand)row.HeaderActions.Single(a => a.Command is IAsyncRelayCommand).Command!).ExecuteAsync(null);
+        Assert.True(comparisons.HasAnalysisComparison);
+        Assert.False(filter.IsActive);
+        chip.Toggle.Execute(null);
+        Assert.False(comparisons.HasAnalysisComparison);
+        comparisons.ClearAnalysisComparisonCommand.Execute(null);
+        Assert.True(filter.IsActive);
+        var replacement = session with { ProcessedTelemetryRevision = session.ProcessedTelemetryRevision + 1 };
+        h.ConfigureLoad(replacement, h.CreateLoadedResult());
+        changes.OnNext(SessionDetailHarness.DomainFromSnapshot(replacement));
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.False(filter.IsActive);
+        Assert.False(chip.IsChecked);
+        await h.CloseAsync(editor);
+    }
+
     [AvaloniaTheory]
     [InlineData(false)]
     [InlineData(true)]
@@ -66,7 +106,6 @@ public class RecordedTerrainTests
     {
         using var h = new SessionDetailHarness();
         var session = h.CreateRecordedSession();
-        var key = SessionTerrainStatusQuery.Evaluate(session, []).Key;
         var first = jointlyRecorded ? RoughnessSource.Both : RoughnessSource.LowersOnly;
         var window = TerrainProfiles.Window(0, RoughnessClass.Calm, first);
         var clipped = TerrainProfiles.Window(3, RoughnessClass.Rough, RoughnessSource.FrameOnly) with
@@ -77,12 +116,7 @@ public class RecordedTerrainTests
             TerrainProfiles.Window(2, RoughnessClass.Rough, first) with { Moving = false, Grade = null }, clipped,
             TerrainProfiles.Window(4, RoughnessClass.Rough, RoughnessSource.FrameOnly),
             TerrainProfiles.Window(5, RoughnessClass.Rough, RoughnessSource.FrameOnly, 0.3));
-        var domain = SessionDetailHarness.DomainFromSnapshot(session) with
-        {
-            Terrain = new TerrainStatus.Current(key, TerrainProfileCalculator.Summarize(profile))
-        };
-        h.TerrainProfiles.ReadAsync(Arg.Any<IReadOnlyDictionary<Guid, TerrainProfileKey>>(), Arg.Any<CancellationToken>())
-            .Returns(new Dictionary<Guid, TerrainProfile> { [session.Id] = profile });
+        var domain = h.WithTerrain(session, profile);
         var editor = h.CreateRecordedEditor(session, projectionChanges: Observable.Return(domain));
         await h.LoadAsync(editor);
         var presentation = Assert.IsType<TerrainPresentation>(editor.SignalsWorkspace.TerrainPresentation);

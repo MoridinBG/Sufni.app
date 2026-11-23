@@ -2,6 +2,7 @@
 x:Class="Sufni.App.Sessions.Analysis.DesktopViews.Items.SessionAnalysisDesktopView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:terrainViews="using:Sufni.App.Terrain.Views"
     xmlns:segmentViews="clr-namespace:Sufni.App.Segments.Views"
 xmlns:converters="clr-namespace:Sufni.App.Shared.Views.Converters"
 xmlns:controls="clr-namespace:Sufni.App.Sessions.Analysis.Views.Controls"
@@ -60,6 +61,7 @@ mc:Ignorable="d">
             ClipToBounds="True"
             Spacing="16">
                 <segmentViews:SegmentAnalysisComparisonBannerView DataContext="{Binding SegmentComparison}" />
+                <terrainViews:TerrainClassFilterBannerView DataContext="{Binding TerrainFilter}" />
 
                 <ItemsControl Name="AnalysisContentHost">
                     <ItemsControl.ItemsPanel>

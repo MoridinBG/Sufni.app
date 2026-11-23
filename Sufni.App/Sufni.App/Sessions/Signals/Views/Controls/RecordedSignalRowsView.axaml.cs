@@ -5,6 +5,11 @@ namespace Sufni.App.Sessions.Signals.Views.Controls;
 
 public partial class RecordedSignalRowsView : UserControl
 {
+    public static readonly StyledProperty<bool> CompactTerrainFilterProperty =
+        AvaloniaProperty.Register<RecordedSignalRowsView, bool>(nameof(CompactTerrainFilter));
+
+    public bool CompactTerrainFilter { get => GetValue(CompactTerrainFilterProperty); set => SetValue(CompactTerrainFilterProperty, value); }
+
     public static readonly StyledProperty<bool> HideRightAxisProperty =
         AvaloniaProperty.Register<RecordedSignalRowsView, bool>(nameof(HideRightAxis));
 
