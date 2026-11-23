@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.Coordinators;
 using System;
 using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Video.Coordinators;
@@ -34,6 +35,7 @@ public sealed class AppShutdown(
     ISessionCoordinator sessions,
     IVideoCoordinator videos,
     IBikeCoordinator bikes,
+    ITerrainProfileCoordinator terrain,
     ISynchronizationServerService? server = null) : IAppShutdown
 {
     private Task<bool>? request;
@@ -68,7 +70,7 @@ public sealed class AppShutdown(
         }
 
         await Task.WhenAll(sessionEdits.StopAsync(), sessions.StopAsync(), videos.StopAsync(), bikes.StopAsync());
-        await Task.WhenAll(startup.StopAsync(), imports.StopAsync(), sync.StopAsync(), recompute.StopAsync(), tracks.StopAsync());
+        await Task.WhenAll(startup.StopAsync(), imports.StopAsync(), sync.StopAsync(), recompute.StopAsync(), tracks.StopAsync(), terrain.StopAsync());
         await pendingDeletes.FinalizeAllAsync();
         if (server is not null) await backgroundTaskRunner.RunAsync(server.StopAsync);
         await disposeServices();

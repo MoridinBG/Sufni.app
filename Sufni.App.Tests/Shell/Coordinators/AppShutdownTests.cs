@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.Coordinators;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Video.Coordinators;
@@ -46,7 +47,7 @@ public class AppShutdownTests
         });
         var shutdown = new AppShutdown(workspace, Substitute.For<IAppStartup>(), TestCoordinatorSubstitutes.ImportSessions(),
             TestCoordinatorSubstitutes.Sync(), recompute, pendingDeletes, new InlineBackgroundTaskRunner(),
-            TestCoordinatorSubstitutes.Track(), edits, sessions, videos, bikes);
+            TestCoordinatorSubstitutes.Track(), edits, sessions, videos, bikes, Substitute.For<ITerrainProfileCoordinator>());
         var disposed = false;
         var run = shutdown.RequestAsync(() =>
         {
@@ -191,5 +192,5 @@ public class AppShutdownTests
         new(workspace, Substitute.For<IAppStartup>(), imports, TestCoordinatorSubstitutes.Sync(),
             Substitute.For<ISessionRecomputeEngine>(), pending, new InlineBackgroundTaskRunner(), tracks ?? TestCoordinatorSubstitutes.Track(),
             Substitute.For<ISessionEditingCoordinator>(), TestCoordinatorSubstitutes.Session(),
-            Substitute.For<IVideoCoordinator>(), TestCoordinatorSubstitutes.Bike(), server);
+            Substitute.For<IVideoCoordinator>(), TestCoordinatorSubstitutes.Bike(), Substitute.For<ITerrainProfileCoordinator>(), server);
 }

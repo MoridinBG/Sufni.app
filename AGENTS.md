@@ -73,7 +73,7 @@ The projects that matter most:
 - `Sufni.App/Sufni.App/` — main Avalonia application. Most UI and business
   logic lives here, organized **domain-slice-first** (top-level folders are
   slices — `Bikes/`, `Setups/`, `Sessions/`, `LiveDaq/`, `Acquisition/`,
-  `SyncAndPairing/`, `MapsAndTracks/`, `Video/`, `Segments/`, `Shell/`,
+  `SyncAndPairing/`, `MapsAndTracks/`, `Terrain/`, `Video/`, `Segments/`, `Shell/`,
   `Shared/`, `Infrastructure/` — with the technical layers nested inside each
   slice).
 - `Sufni.App/Sufni.App.Desktop/` — desktop-only layer for sync server,

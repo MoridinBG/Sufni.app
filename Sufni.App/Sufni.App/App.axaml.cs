@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.Coordinators;
 using Sufni.App.Shell.Services.Preferences;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
@@ -152,6 +153,7 @@ public partial class App : Application
         _ = shellRoot.StartAsync(() =>
         {
             _ = Services.GetRequiredService<ITrackCoordinator>();
+            _ = Services.GetRequiredService<ITerrainProfileCoordinator>();
             _ = Services.GetRequiredService<ISyncCoordinator>();
             return Services.GetRequiredService<MainPagesViewModel>();
         });

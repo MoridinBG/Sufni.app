@@ -10,6 +10,7 @@ erDiagram
     session ||--o| session_recording_source : "session_id"
     session ||--o| session_blob_swap_request : "session_id"
     session ||--o| session_gps_metrics : "session_id"
+    session ||--o| session_terrain_profile : "session_id"
     setup }o--|| bike : "bike_id"
     board ||--o| setup : "setup_id"
 
@@ -54,6 +55,14 @@ erDiagram
         real distance_meters
         real ascent_meters
         real descent_meters
+    }
+
+    session_terrain_profile {
+        text session_id PK
+        text terrain_profile_key
+        int terrain_outcome
+        text terrain_summary
+        blob profile
     }
 
     session_recording_source {
@@ -334,6 +343,8 @@ The repository has no `TelemetryData` read. Consumers fetch the raw blob and des
 
 `ITrackRepository.TryCommitGpsMetricsAsync` accepts a key and prepared GPS values. Its transaction selects the current full track with the common overlap rule. It compares the complete current key before it inserts or updates `session_gps_metrics`. A changed window, selected track or deleted session rejects the write. Metric writes never change `session.updated`. The table is not synchronized.
 
+The named `session-terrain-profile` migration adds a device-local table keyed by session ID. Session metadata joins its key, outcome and summary. The terrain repository checks the complete content key against the active session and track catalog in the write transaction. Exact reads fetch a profile BLOB only for a computed result with the requested key. [Terrain profiles](terrain.md)
+
 `ITrackRepository.GetTrackSnapshotsAsync` loads active metadata without point JSON and optionally filters IDs in chunks of 500. Full-track display calls `GetTrackPayloadMetadataAsync(trackId)` and then `GetTrackPayloadAsync(trackId, pointsRevision)`. The second returns no value when that revision is unavailable. `DeleteIfUnselectedAsync` checks every active session against the current track catalog with `SessionTrackSelection`. It deletes only an unselected candidate, in the same transaction. The session-delete transaction runs the same check after it deletes its session. Session-to-track association is derived, never persisted.
 
 `IRecordedSessionSourceRepository` owns recorded-source rows:
@@ -390,6 +401,7 @@ On database initialization, the `Cleanup()` pass permanently removes:
 
 - `Synchronizable` rows with `Deleted` older than 1 day
 - `session_gps_metrics` rows whose session row no longer exists
+- `session_terrain_profile` rows without an active session
 - `paired_device` rows whose `Expires` precedes the injected clock's UTC time
 
 `RecordedSessionSourceRetentionCleanup` runs recorded-source orphan cleanup after initialization, outside the schema cleanup pass. It calls `DeleteOrphanedRecordedSessionSourcesAsync()`, which keeps every source row that a live session references. It publishes the removed ids to the recorded-source store. A split or trimmed session therefore keeps its source row after the original owner session is purged.

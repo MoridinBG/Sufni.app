@@ -1,3 +1,5 @@
+using Sufni.App.Terrain.Services;
+using Sufni.App.Terrain.Coordinators;
 using Sufni.App.LiveDaq.Coordinators.Capture;
 using Sufni.App.Sessions.Services.Preferences;
 using Sufni.App.Shell.Services.Preferences;
@@ -117,6 +119,8 @@ public static class AppComposition
         services.AddSingleton<IPairedDeviceRepository, PairedDeviceRepository>();
         services.AddSingleton<IRecordedSessionSourceRepository, RecordedSessionSourceRepository>();
         services.AddSingleton<IGpxTrackReader, GpxTrackReader>();
+        services.AddSingleton<ITerrainProfileRepository, TerrainProfileRepository>();
+        services.AddSingleton<ITerrainProfileCoordinator, TerrainProfileCoordinator>();
         services.AddSingleton<ITrackRepository, TrackRepository>();
         services.AddSingleton<ISessionTrackReader, SessionTrackReader>();
         services.AddSingleton<IFullTrackPointReader, FullTrackPointReader>();
