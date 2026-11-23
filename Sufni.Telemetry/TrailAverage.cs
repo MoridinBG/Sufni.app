@@ -70,7 +70,7 @@ public closed record TrailAverage(int RunCount)
             if (window.Frame is { } frame) logFrame.Add(Math.Log(frame.SpeedRemoved));
             if (window.Lowers is { } lowers) logLowers.Add(Math.Log(lowers.SpeedRemoved));
             normalisedFrame.Add(window.Frame?.Normalised);
-            normalisedLowers.Add(TerrainCalibration.LowersClassValue(window.Frame, window.Lowers));
+            normalisedLowers.Add(TerrainProfileCalculator.LowersClassValue(window.Frame, window.Lowers));
             grade.Add(window.Grade);
         }
 

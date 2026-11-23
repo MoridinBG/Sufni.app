@@ -3,7 +3,12 @@ namespace Sufni.Telemetry;
 public static partial class TerrainProfileCalculator
 {
     public const int AlgorithmVersion = 1;
+    public const double ClippedShareLimit = 0.02;
     private const int MinimumImuRate = 200;
+    private const double ReferenceSpeed = 7;
+    private const double FrameSpeedExponent = 0.7;
+    private const double LowersSpeedExponent = 0.9;
+    private const int FullScaleCount = 32760;
 
     public static TerrainProfileResult Calculate(TelemetryData telemetry, IReadOnlyList<TrackSample> fixes,
         CancellationToken cancellationToken = default)
@@ -37,6 +42,9 @@ public static partial class TerrainProfileCalculator
         return new TerrainProfileResult.Computed(new([.. windows], frameSeries, lowersSeries, roughState, steepness,
             frame?.AccelLsbPerG, lowers?.AccelLsbPerG));
     }
+
+    internal static double? LowersClassValue(SensorRoughness? frame, SensorRoughness? lowers) =>
+        frame is not null && lowers?.ClippedShare > ClippedShareLimit ? null : lowers?.Normalised;
 
     public static TerrainSummary Summarize(TerrainProfile profile)
     {

@@ -13,7 +13,7 @@ public static partial class TerrainProfileCalculator
         var matching = ImmutableArray.CreateBuilder<TerrainMatchSample>();
         var frame = meta.LocationId == (byte)ImuLocation.Frame;
         var calibration = TerrainCalibration.For((ImuLocation)meta.LocationId, meta.AccelLsbPerG);
-        var exponent = frame ? TerrainCalibration.FrameSpeedExponent : TerrainCalibration.LowersSpeedExponent;
+        var exponent = frame ? FrameSpeedExponent : LowersSpeedExponent;
         foreach (var segment in imu.SampleSegments)
         {
             if (segment.LocationId != meta.LocationId || segment.Count == 0) continue;
@@ -23,7 +23,7 @@ public static partial class TerrainProfileCalculator
             {
                 var s = segment[i];
                 var peak = Math.Max(Math.Abs((int)s.Ax), Math.Max(Math.Abs((int)s.Ay), Math.Abs((int)s.Az)));
-                clipped[i + 1] = clipped[i] + (peak >= TerrainCalibration.FullScaleCount ? 1 : 0);
+                clipped[i + 1] = clipped[i] + (peak >= FullScaleCount ? 1 : 0);
             }
             var levels = new double[Bands.Length, windows.Count];
             for (var band = 0; band < Bands.Length; band++)
@@ -38,7 +38,7 @@ public static partial class TerrainProfileCalculator
                     levels[band, i] = Rms(a, b);
                     if (band == Bands.Length - 1)
                     {
-                        var scaled = levels[0, i] * Math.Pow(TerrainCalibration.ReferenceSpeed / w.MeanSpeed, exponent);
+                        var scaled = levels[0, i] * Math.Pow(ReferenceSpeed / w.MeanSpeed, exponent);
                         var measured = new SensorRoughness(levels[0, i], levels[1, i], levels[2, i], levels[3, i],
                             scaled, calibration?.Normalise(scaled), (double)(clipped[b] - clipped[a]) / (b - a));
                         windows[i] = frame ? w with { Frame = measured } : w with { Lowers = measured };
@@ -75,7 +75,7 @@ public static partial class TerrainProfileCalculator
 
     private static (RoughnessClass?, RoughnessSource?) Classify(SensorRoughness? frame, SensorRoughness? lowers)
     {
-        var fork = TerrainCalibration.LowersClassValue(frame, lowers);
+        var fork = LowersClassValue(frame, lowers);
         var (value, source) = (frame?.Normalised, fork) switch
         {
             ({ } a, { } b) => ((a + b) / 2, RoughnessSource.Both),

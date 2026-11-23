@@ -39,7 +39,7 @@ internal static partial class RecordedSessionPresentationDeriver
                 case RoughnessSource.Both: joint++; break;
                 case RoughnessSource.FrameOnly:
                     frameOnly++;
-                    clipped |= window.Lowers?.ClippedShare > TerrainCalibration.ClippedShareLimit;
+                    clipped |= window.Lowers?.ClippedShare > TerrainProfileCalculator.ClippedShareLimit;
                     lowersMissing |= window.Lowers is null;
                     lowersUncalibrated |= window.Lowers is { Normalised: null };
                     break;
