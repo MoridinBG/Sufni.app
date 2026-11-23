@@ -81,6 +81,22 @@ public class BikeEditorViewSmokeTests : BikeEditorFixture
     }
 
     [AvaloniaFact]
+    public async Task FrameFieldsRoundDisplayedValuesWithoutEditingTheDraft()
+    {
+        ViewTestHelpers.EnsureFluentTheme();
+        ViewTestHelpers.EnsureViewTestResources();
+        var snapshot = TestSnapshots.Bike() with { HeadAngle = 62.2987 };
+        var editor = CreateEditor(snapshot);
+        var view = new BikeFrameFieldsDesktopView { DataContext = editor.Frame };
+        await using var mounted = await ViewTestHelpers.MountAsync(view);
+        var field = view.FindControl<NumericUpDown>("HeadAngleInput")!;
+
+        Assert.Equal(62.3m, decimal.Parse(field.Text!, field.NumberFormat));
+        Assert.Equal(snapshot.HeadAngle, editor.Frame.HeadAngle);
+        Assert.False(editor.IsDirty);
+    }
+
+    [AvaloniaFact]
     public async Task HeadAngleFieldBecomesEditableWhenPhotoCalibrationIsRemoved()
     {
         ViewTestHelpers.EnsureFluentTheme();

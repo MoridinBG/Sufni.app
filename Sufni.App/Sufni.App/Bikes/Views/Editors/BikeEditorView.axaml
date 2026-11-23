@@ -59,7 +59,7 @@ mc:Ignorable="d">
         Grid.Row="5"
         Grid.Column="2"
         Margin="0,0,0,5"
-        Text="{Binding Linkage.Chainstay, StringFormat={}{0:0}}"
+        Text="{Binding Linkage.Chainstay, StringFormat={}{0:0.##}}"
         TextAlignment="Right" />
 
         <!--  Front wheel (only if configured)  -->

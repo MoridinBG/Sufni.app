@@ -10,14 +10,14 @@
         Text="Head angle (°)" />
         <TextBlock Grid.Column="1" Grid.Row="0"
         Margin="0,0,0,5"
-        Text="{Binding HeadAngle}"
+        Text="{Binding HeadAngle, StringFormat={}{0:0.##}}"
         TextAlignment="Right" />
         <TextBlock Grid.Column="0" Grid.Row="1"
         Margin="0,0,0,5"
         Text="Fork stroke (mm)" />
         <TextBlock Grid.Column="1" Grid.Row="1"
         Margin="0,0,0,5"
-        Text="{Binding ForksStroke}"
+        Text="{Binding ForksStroke, StringFormat={}{0:0.##}}"
         TextAlignment="Right" />
         <TextBlock Grid.Column="0" Grid.Row="2"
         Name="ShockStrokeLabel"
@@ -28,7 +28,7 @@
         Name="ShockStrokeValueTextBlock"
         Margin="0,0,0,5"
         IsVisible="{Binding HasRearSuspension}"
-        Text="{Binding ShockStroke}"
+        Text="{Binding ShockStroke, StringFormat={}{0:0.##}}"
         TextAlignment="Right" />
     </Grid>
 </UserControl>

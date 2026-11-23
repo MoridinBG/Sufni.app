@@ -16,6 +16,7 @@
         ToolTip.Tip="{Binding HeadAngleHint}"
         ShowButtonSpinner="{Binding !IsHeadAngleDerived}"
         IsReadOnly="{Binding IsHeadAngleDerived}"
+        FormatString="0.##"
         Value="{Binding HeadAngle}" />
         <TextBlock Grid.Column="0" Grid.Row="1"
         Margin="0,0,0,5"
@@ -24,6 +25,7 @@
         Margin="0,0,0,5"
         Maximum="300"
         Minimum="0"
+        FormatString="0.##"
         Value="{Binding ForksStroke}" />
         <TextBlock Grid.Column="0" Grid.Row="2"
         Name="ShockStrokeLabel"
@@ -36,6 +38,7 @@
         IsVisible="{Binding HasRearSuspension}"
         Maximum="1000"
         Minimum="0"
+        FormatString="0.##"
         Value="{Binding ShockStroke}" />
     </Grid>
 </UserControl>
