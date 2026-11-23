@@ -31,7 +31,7 @@ public sealed record SynchronizationProgressSnapshot(
 
 public enum SyncActivity { Idle, Pairing, Outbound, Inbound, Stopped }
 
-public abstract record SynchronizationRunResult
+public closed record SynchronizationRunResult
 {
     private SynchronizationRunResult() { }
 

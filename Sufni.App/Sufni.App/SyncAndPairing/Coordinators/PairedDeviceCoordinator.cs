@@ -48,7 +48,7 @@ public sealed class PairedDeviceCoordinator : IPairedDeviceCoordinator
 
 }
 
-public abstract record PairedDeviceUnpairResult
+public closed record PairedDeviceUnpairResult
 {
     private PairedDeviceUnpairResult() { }
 

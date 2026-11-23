@@ -3,14 +3,14 @@ using Sufni.App.Segments.Coordinators;
 
 namespace Sufni.App.Segments.Models;
 
-public abstract record SegmentComparisonPageResult
+public closed record SegmentComparisonPageResult
 {
     private SegmentComparisonPageResult() { }
     public sealed record Loaded(SegmentComparisonPage Page) : SegmentComparisonPageResult;
     public sealed record Failed(SegmentComparisonFailureReason Reason, string? Details) : SegmentComparisonPageResult;
 }
 
-public abstract record SegmentComparisonDetailResult
+public closed record SegmentComparisonDetailResult
 {
     private SegmentComparisonDetailResult() { }
     public sealed record Loaded(SegmentComparisonDetail Detail) : SegmentComparisonDetailResult;
@@ -18,7 +18,7 @@ public abstract record SegmentComparisonDetailResult
     public sealed record Failed(SegmentComparisonFailureReason Reason, string? Details) : SegmentComparisonDetailResult;
 }
 
-public abstract record SegmentAnalysisComparisonResult
+public closed record SegmentAnalysisComparisonResult
 {
     private SegmentAnalysisComparisonResult() { }
     public sealed record Built(SegmentAnalysisComparison Comparison) : SegmentAnalysisComparisonResult;

@@ -640,7 +640,7 @@ internal sealed class StravaSegmentService : IStravaSegmentService, IAsyncDispos
                 (long)Math.Round(sessionDurationSeconds * 1000, MidpointRounding.AwayFromZero));
     }
 
-    private abstract record AccessTokenResult
+    private closed record AccessTokenResult
     {
         private AccessTokenResult() { }
 

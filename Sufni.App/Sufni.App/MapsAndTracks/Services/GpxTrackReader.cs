@@ -19,7 +19,7 @@ public interface IGpxTrackReader
     Task<GpxTrackReadResult> ReadAsync(PickedFile file, CancellationToken cancellationToken = default);
 }
 
-public abstract record GpxTrackReadResult
+public closed record GpxTrackReadResult
 {
     private GpxTrackReadResult() { }
     public sealed record Read(IReadOnlyList<TrackPoint> Points) : GpxTrackReadResult;

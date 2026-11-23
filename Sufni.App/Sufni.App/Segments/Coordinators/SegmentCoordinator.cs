@@ -19,7 +19,7 @@ using Sufni.App.Sessions.Store;
 using Sufni.Telemetry;
 namespace Sufni.App.Segments.Coordinators;
 
-public abstract record SegmentChangeResult
+public closed record SegmentChangeResult
 {
     private SegmentChangeResult() { }
 
@@ -42,7 +42,7 @@ public sealed record SegmentMatchSource(
     TrackTimeRange TrackTimeline,
     double DurationSeconds);
 
-public abstract record SegmentMatchResult
+public closed record SegmentMatchResult
 {
     private SegmentMatchResult() { }
 

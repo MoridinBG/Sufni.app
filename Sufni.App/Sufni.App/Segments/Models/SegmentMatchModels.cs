@@ -52,7 +52,7 @@ public sealed record SegmentDtwMatchOptions(
         MaxDegreeOfParallelism: Environment.ProcessorCount);
 }
 
-public abstract record SegmentMatchProgress
+public closed record SegmentMatchProgress
 {
     public sealed record LoadingSessions : SegmentMatchProgress;
 

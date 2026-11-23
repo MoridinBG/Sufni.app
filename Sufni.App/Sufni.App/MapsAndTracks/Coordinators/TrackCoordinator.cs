@@ -338,7 +338,7 @@ public class TrackCoordinator : ITrackCoordinator, IDisposable
     }
 }
 
-public abstract record GpxImportResult
+public closed record GpxImportResult
 {
     private GpxImportResult() { }
     public sealed record Canceled : GpxImportResult;

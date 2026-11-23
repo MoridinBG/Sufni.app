@@ -14,7 +14,7 @@ internal static class MapViewportController
 {
     public readonly record struct ViewportBounds(double MinX, double MaxX, double MinY, double MaxY);
 
-    public abstract record RangeFit;
+    public closed record RangeFit;
 
     /// <summary>Point-like window: center on it, clamping the resolution.</summary>
     public sealed record CenterFit(double X, double Y, double MaxResolution) : RangeFit;

@@ -14,7 +14,7 @@ public sealed record StravaConnectRequest(
     string? ClientSecret,
     string? RedirectUrl);
 
-public abstract record StravaConnectResult
+public closed record StravaConnectResult
 {
     private StravaConnectResult() { }
 
@@ -25,7 +25,7 @@ public abstract record StravaConnectResult
     public sealed record Failed(StravaConnectFailureReason Reason, string? Details = null) : StravaConnectResult;
 }
 
-public abstract record StravaSegmentFetchResult
+public closed record StravaSegmentFetchResult
 {
     private StravaSegmentFetchResult() { }
 

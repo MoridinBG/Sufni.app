@@ -27,7 +27,7 @@ public interface IPairingClientCoordinator
     Task<UnpairResult> UnpairAsync();
 }
 
-public abstract record RequestPairingResult
+public closed record RequestPairingResult
 {
     private RequestPairingResult() { }
     public sealed record Sent : RequestPairingResult;
@@ -35,7 +35,7 @@ public abstract record RequestPairingResult
     public sealed record Failed(PairingFailureReason Reason, string? Details = null) : RequestPairingResult;
 }
 
-public abstract record ConfirmPairingResult
+public closed record ConfirmPairingResult
 {
     private ConfirmPairingResult() { }
     public sealed record Paired : ConfirmPairingResult;
@@ -43,7 +43,7 @@ public abstract record ConfirmPairingResult
     public sealed record Failed(PairingFailureReason Reason, string? Details = null) : ConfirmPairingResult;
 }
 
-public abstract record UnpairResult
+public closed record UnpairResult
 {
     private UnpairResult() { }
     public sealed record Unpaired : UnpairResult;

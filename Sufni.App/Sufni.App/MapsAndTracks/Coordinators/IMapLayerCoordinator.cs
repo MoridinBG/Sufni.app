@@ -11,7 +11,7 @@ public interface IMapLayerCoordinator
     Task<MapLayerWriteResult> SelectAsync(Guid layerId);
 }
 
-public abstract record MapLayerWriteResult
+public closed record MapLayerWriteResult
 {
     private MapLayerWriteResult() { }
     public sealed record Saved : MapLayerWriteResult;

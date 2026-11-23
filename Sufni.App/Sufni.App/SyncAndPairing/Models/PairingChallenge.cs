@@ -6,7 +6,7 @@ public sealed record PairingChallenge(string DeviceId, string? DisplayName, stri
 
 public enum PairingCommandResult { Applied, Rejected, Failed }
 
-public abstract record PairingTokenResult
+public closed record PairingTokenResult
 {
     private PairingTokenResult() { }
     public sealed record Issued(TokenResponse Tokens) : PairingTokenResult;

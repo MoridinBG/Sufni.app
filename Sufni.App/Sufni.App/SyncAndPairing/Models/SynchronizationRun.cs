@@ -13,7 +13,7 @@ public sealed record SynchronizationRunStarted(
     [property: JsonPropertyName("db_incarnation")] string DatabaseIncarnation);
 
 /// <summary>The latest peer run observed by the hub.</summary>
-public abstract record PeerSyncActivity
+public closed record PeerSyncActivity
 {
     private PeerSyncActivity() { }
     public sealed record Idle : PeerSyncActivity;
