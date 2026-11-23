@@ -28,6 +28,10 @@
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
+                <ComboBox Name="TrackColoringComboBox"
+                          IsVisible="{Binding SupportsTerrainColoring}" IsEnabled="{Binding HasTerrain}"
+                          ItemsSource="{x:Static vm:MapViewModel.Colorings}" SelectedItem="{Binding TrackColoring, Mode=TwoWay}"
+                          ToolTip.Tip="Track colouring" AutomationProperties.Name="Track colouring" />
                 <Button Name="AddCustomTileButton" 
                         Content="+" 
                         Foreground="{DynamicResource SufniMapOverlayText}"

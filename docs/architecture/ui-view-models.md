@@ -248,6 +248,7 @@ There are five kinds of view model in the presentation layer:
   | Part | Presentation responsibility |
   | --- | --- |
   | `RecordedSessionAnalysisDemand` | Owns the analysis result state, semantic keys, invalidation, requests and result publication. The reducer explicitly prepares analysis before publishing each distinct state; presentation subscription order does not establish this dependency. Insights visibility is a `Func<int, bool>` over the page collection, evaluated with the selected index from the received state; page membership changes call `OnPagesChanged`. Insights demand remains after leaving the page. |
+  | `RecordedSessionTerrainController` | Follows terrain status, prioritizes pending sessions and loads the current profile for the editor. Closing the tab cancels and drains its reads. |
   | `RecordedSessionLoadController` | Owns two-stage loading, progress, supersession and processed-telemetry retention. |
   | `SessionStalenessPrompt` | Owns prompt visibility, deduplication by required fingerprint pair, unavailable-input feedback, and single/bulk recompute choices. |
   | `RecordedSessionPreferencesController` | Owns the persisted preference baseline and pending local edits, derives effective preferences, forwards commits and retains pending writes. Processing completions return to the reducer with their captured draft. |

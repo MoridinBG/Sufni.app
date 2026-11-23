@@ -334,3 +334,7 @@ returns the same domain snapshot shape that `IRecordedSessionProjection`
 publishes. The `SessionRecomputeEngine` uses it for the staleness gate
 before loading the raw source and a still-current guard before
 committing recomputed data.
+
+## Recorded terrain state
+
+The session domain publishes the current terrain status. The recorded editor reducer owns the tab’s pending, loaded, unavailable or failed presentation. A loaded result carries the expected profile key. A map-colouring intent updates the device-local session preference through the existing editor preference writer.

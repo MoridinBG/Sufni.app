@@ -1,3 +1,7 @@
+using System.Collections.Immutable;
+using Sufni.App.Infrastructure.Theming;
+using Sufni.App.Terrain.Models;
+using Sufni.App.Terrain.Plots;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,7 +26,8 @@ public interface IMapGeometryFactory
 public sealed record MapGeometryInput(
     IReadOnlyList<TrackPoint> FullTrack,
     IReadOnlyList<TrackPoint> SessionTrack,
-    MatchedTrackOverlay? MatchedTrack);
+    MatchedTrackOverlay? MatchedTrack,
+    ImmutableArray<TerrainClassRun> TerrainRuns = default, double TerrainOriginSeconds = 0);
 
 public sealed record MapGeometrySnapshot(
     MapGeometryInput Input,
@@ -41,16 +46,84 @@ internal sealed class MapGeometryFactory(IBackgroundTaskRunner background) : IMa
     public Task<MapGeometrySnapshot> BuildAsync(MapGeometryInput input, MapGeometrySnapshot? previous, CancellationToken cancellationToken) =>
         background.RunAsync(() => new MapGeometrySnapshot(input,
             ReferenceEquals(input.FullTrack, previous?.Input.FullTrack) ? previous.FullTrack : BuildTrack(input.FullTrack, false),
-            ReferenceEquals(input.SessionTrack, previous?.Input.SessionTrack) ? previous.SessionTrack : BuildTrack(input.SessionTrack, true),
+            previous is not null && ReferenceEquals(input.SessionTrack, previous.Input.SessionTrack) &&
+                input.TerrainRuns == previous.Input.TerrainRuns && input.TerrainOriginSeconds == previous.Input.TerrainOriginSeconds
+                ? previous.SessionTrack : BuildTrack(input.SessionTrack, true, input.TerrainRuns, input.TerrainOriginSeconds),
             ReferenceEquals(input.MatchedTrack, previous?.Input.MatchedTrack) && previous is not null
                 ? previous.MatchedFeatures : BuildMatched(input.MatchedTrack)), cancellationToken);
 
-    private static RenderedTrackGeometry BuildTrack(IReadOnlyList<TrackPoint> points, bool buildTimeIndex)
+    private static RenderedTrackGeometry BuildTrack(IReadOnlyList<TrackPoint> points, bool buildTimeIndex,
+        ImmutableArray<TerrainClassRun> runs = default, double origin = 0)
     {
-        var coordinates = points.Select(point => new Coordinate(point.X, point.Y)).ToArray();
-        IFeature[] lines = coordinates.Length < 2 ? [] : [new GeometryFeature { Geometry = new LineString(coordinates) }];
+        IReadOnlyList<IFeature> lines = points.Count < 2 ? [] : buildTimeIndex
+            ? SessionLines(points, runs, origin)
+            : [new GeometryFeature { Geometry = new LineString(points.Select(p => new Coordinate(p.X, p.Y)).ToArray()) }];
         IFeature[] markers = points.Count == 0 ? [] : [CreateMarker(points[0], "#229954"), CreateMarker(points[^1], "#E74C3C")];
         return new(points, lines, markers, buildTimeIndex ? new TrackPointTimeIndex(points) : null);
+    }
+
+    private static IReadOnlyList<IFeature> SessionLines(IReadOnlyList<TrackPoint> points,
+        ImmutableArray<TerrainClassRun> runs, double origin)
+    {
+        if (runs.IsDefaultOrEmpty)
+            return [SessionLine(points.Select(p => new Coordinate(p.X, p.Y)).ToArray(), null)];
+        var features = new List<IFeature>();
+        var line = new List<Coordinate> { new(points[0].X, points[0].Y) };
+        using var changes = Boundaries().GetEnumerator();
+        var hasChange = changes.MoveNext();
+        TerrainLevel? level = null;
+        for (var i = 1; i < points.Count; i++)
+        {
+            var a = points[i - 1];
+            var b = points[i];
+            while (hasChange && changes.Current.Time <= b.Time)
+            {
+                var (time, next) = changes.Current;
+                if (time > a.Time)
+                {
+                    var t = (time - a.Time) / (b.Time - a.Time);
+                    var border = new Coordinate(a.X + t * (b.X - a.X), a.Y + t * (b.Y - a.Y));
+                    line.Add(border);
+                    FinishLine();
+                    line.Add(border);
+                }
+                level = next;
+                hasChange = changes.MoveNext();
+            }
+            if (line[^1].X != b.X || line[^1].Y != b.Y) line.Add(new(b.X, b.Y));
+        }
+        FinishLine();
+        return features;
+
+        IEnumerable<(double Time, TerrainLevel? Level)> Boundaries()
+        {
+            for (var i = 0; !runs.IsDefault && i < runs.Length; i++)
+            {
+                var run = runs[i];
+                yield return (origin + run.StartSeconds, run.Level);
+                if (i + 1 == runs.Length || runs[i + 1].StartSeconds != run.EndSeconds)
+                    yield return (origin + run.EndSeconds, null);
+            }
+        }
+
+        void FinishLine()
+        {
+            if (line.Count >= 2) features.Add(SessionLine(line.ToArray(), level));
+            line.Clear();
+        }
+    }
+
+    private static GeometryFeature SessionLine(Coordinate[] coordinates, TerrainLevel? level)
+    {
+        var color = Color.FromString("#9e0142");
+        if (level is { } band)
+        {
+            var c = SufniThemes.SignalSeries.Terrain.ColorFor(band);
+            color = new(c.R, c.G, c.B, c.A);
+        }
+        var feature = new GeometryFeature { Geometry = new LineString(coordinates) };
+        feature.Styles.Add(new VectorStyle { Line = new Pen(color, 5) });
+        return feature;
     }
 
     private static IReadOnlyList<IFeature> BuildMatched(MatchedTrackOverlay? matched)

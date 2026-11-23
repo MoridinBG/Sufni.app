@@ -260,7 +260,8 @@ public partial class MapView : UserControl
         }
         else if (e.PropertyName == nameof(MapViewModel.FullTrackPoints)
                  || e.PropertyName == nameof(MapViewModel.SessionTrackPoints)
-                 || e.PropertyName == nameof(MapViewModel.TimelineContext))
+                 || e.PropertyName == nameof(MapViewModel.TimelineContext)
+                 || e.PropertyName == nameof(MapViewModel.TerrainRuns))
         {
             Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
             {
@@ -286,7 +287,8 @@ public partial class MapView : UserControl
     {
         if (mapControl is null || ViewModel is not { } viewModel) return;
         var input = new MapGeometryInput(viewModel.FullTrackPoints is { } full ? full : Array.Empty<TrackPoint>(),
-            viewModel.SessionTrackPoints is { } session ? session : Array.Empty<TrackPoint>(), MatchedTrack);
+            viewModel.SessionTrackPoints is { } session ? session : Array.Empty<TrackPoint>(), MatchedTrack, viewModel.TerrainRuns,
+            viewModel.TimelineContext?.OriginSeconds ?? 0);
         if (input == requestedGeometry)
         {
             if (geometry?.Input == input) ApplyGeometry(geometry);
@@ -683,7 +685,6 @@ public partial class MapView : UserControl
 
     private MemoryLayer CreateSessionTrackLayer()
     {
-        var style = new VectorStyle { Line = new Pen(Color.FromString("#9e0142"), 5) };
-        return new MemoryLayer { Name = "Session Track", Style = style };
+        return new MemoryLayer { Name = "Session Track", Style = null };
     }
 }

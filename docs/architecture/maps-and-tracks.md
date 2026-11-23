@@ -209,10 +209,12 @@ map disposal unsubscribes layers and aborts fetches but does not dispose layers;
 `MapView` explicitly removes and disposes them. Tile replacement also disposes the
 removed tile layer.
 
-The code-behind builds a fixed layer stack on each attach: a tile layer (replaced when `SelectedLayer` changes), a "Full Track" `MemoryLayer` (light green polyline), a "Session Track" `MemoryLayer` (red polyline, drawn thicker), a "Start/End Marker" layer (filled circles), and a writable position-marker layer that the timeline cursor moves along the session track. When `MapViewModel.FullTrackPoints` / `SessionTrackPoints` or the comparison changes,
+The code-behind builds a fixed layer stack on each attach: a tile layer (replaced when `SelectedLayer` changes), a "Full Track" `MemoryLayer` (light green polyline), a "Session Track" `MemoryLayer` (thicker polyline, plain or coloured by terrain class), a "Start/End Marker" layer (filled circles), and a writable position-marker layer that the timeline cursor moves along the session track. When `MapViewModel.FullTrackPoints` / `SessionTrackPoints` or the comparison or terrain colouring changes,
 the view captures a `MapGeometryInput` and requests `IMapGeometryFactory` on the
 background runner. The returned snapshot contains line/marker features and a
 `TrackPointTimeIndex`; unchanged point-list references reuse prior geometry.
+Recorded maps offer Plain, Roughness and Steepness beside the tile provider. The editor owns the saved choice. The selector becomes available with a loaded terrain profile. Geometry uses the strip’s timed runs and the aligned track origin. A colour change interpolates one shared border point, and unclassified sections retain the plain line style.
+
 Only the current attached request applies its result on the UI thread. Cursor and
 viewport changes consume the prepared index without building geometry. A failed
 preparation logs once at the view boundary and shows fixed feedback with separate
