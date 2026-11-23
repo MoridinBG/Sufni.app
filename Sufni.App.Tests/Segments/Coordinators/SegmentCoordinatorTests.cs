@@ -239,7 +239,7 @@ public partial class SegmentCoordinatorTests
 
         var result = await coordinator.BuildAnalysisComparisonAsync(comparison, detail,
             TravelDistributionMode.ActiveSuspension, VelocityAverageMode.SampleAveraged,
-            DampingSpeedCutoffs.Default, SessionDampingPercentages.Empty, null, TestContext.Current.CancellationToken);
+            DampingSpeedCutoffs.Default, SessionDampingPercentages.Empty, null, null, TestContext.Current.CancellationToken);
 
         var failure = Assert.IsType<SegmentAnalysisComparisonResult.Failed>(result);
         Assert.Equal(SegmentComparisonFailureReason.Analysis, failure.Reason);
@@ -367,5 +367,5 @@ public partial class SegmentCoordinatorTests
 
     private readonly ITerrainProfileRepository terrainProfiles = Substitute.For<ITerrainProfileRepository>();
 
-    private SegmentCoordinator CreateCoordinator(ISessionSegmentStoreWriter? store = null, IBackgroundTaskRunner? runner = null) => new(repository, store ?? segmentStore, sessionStore, matcher, contentReader, operationRunner, runner ?? new InlineBackgroundTaskRunner(), stravaService, sourceStore, terrainProfiles);
+    private ISegmentCoordinator CreateCoordinator(ISessionSegmentStoreWriter? store = null, IBackgroundTaskRunner? runner = null) => new SegmentCoordinator(repository, store ?? segmentStore, sessionStore, matcher, contentReader, operationRunner, runner ?? new InlineBackgroundTaskRunner(), stravaService, sourceStore, terrainProfiles);
 }

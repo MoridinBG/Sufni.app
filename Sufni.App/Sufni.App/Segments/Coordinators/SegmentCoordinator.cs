@@ -116,8 +116,11 @@ public interface ISegmentCoordinator
     Task<SegmentAnalysisComparisonResult> BuildAnalysisComparisonAsync(
         SegmentComparison comparison, SegmentComparisonDetail detail,
         TravelDistributionMode travelMode, VelocityAverageMode velocityMode,
-        DampingSpeedCutoffs cutoffs, SessionDampingPercentages currentPercentages, SegmentTerrainSource? terrain,
+        DampingSpeedCutoffs cutoffs, SessionDampingPercentages currentPercentages, SegmentTerrainSource? terrain, TrailAverage.Averaged? average,
         CancellationToken cancellationToken = default);
+
+    Task<SegmentTrailAverage> BuildTrailAverageAsync(SegmentTerrainSource source, TelemetryTimeRange range,
+        IReadOnlyList<SegmentMatch> matches, CancellationToken cancellationToken);
 
     Task<StravaConnectionSnapshot> GetStravaConnectionAsync();
 
@@ -387,7 +390,7 @@ internal sealed class SegmentCoordinator(
     public async Task<SegmentAnalysisComparisonResult> BuildAnalysisComparisonAsync(
         SegmentComparison comparison, SegmentComparisonDetail detail,
         TravelDistributionMode travelMode, VelocityAverageMode velocityMode,
-        DampingSpeedCutoffs cutoffs, SessionDampingPercentages currentPercentages, SegmentTerrainSource? terrain,
+        DampingSpeedCutoffs cutoffs, SessionDampingPercentages currentPercentages, SegmentTerrainSource? terrain, TrailAverage.Averaged? average,
         CancellationToken cancellationToken = default)
     {
         try
@@ -395,7 +398,7 @@ internal sealed class SegmentCoordinator(
             var ordinary = await backgroundTaskRunner.RunAsync(
                 () => SegmentAnalysisComparisonBuilder.Build(comparison, detail, travelMode, velocityMode, cutoffs, currentPercentages),
                 cancellationToken);
-            var result = await BuildTerrainComparisonAsync(comparison.Match, terrain, cancellationToken);
+            var result = await BuildTerrainComparisonAsync(comparison.Match, terrain, average, cancellationToken);
             return new SegmentAnalysisComparisonResult.Built(ordinary with { Terrain = result });
         }
         catch (Exception e)
@@ -407,7 +410,7 @@ internal sealed class SegmentCoordinator(
     }
 
     private async Task<SegmentTerrainComparison> BuildTerrainComparisonAsync(SegmentMatch match, SegmentTerrainSource? source,
-        CancellationToken token)
+        TrailAverage.Averaged? average, CancellationToken token)
     {
         if (source is null) return new SegmentTerrainComparison.Unavailable(SegmentTerrainUnavailable.NoSourceProfile);
         try
@@ -427,7 +430,7 @@ internal sealed class SegmentCoordinator(
                         ? SegmentTerrainUnavailable.NoCommonSensor : SegmentTerrainUnavailable.Unaligned);
                 var baseline = profiles.Where(p => p.Key != match.SessionId && p.Key != source.SessionId).Select(p => p.Value).ToArray();
                 var model = SuspensionResponseModel.FitPair(source.Profile, earlier, baseline, token);
-                return new SegmentTerrainComparison.Compared(TerrainRunComparison.Compare(source.Profile, earlier, aligned, model, token: token));
+                return new SegmentTerrainComparison.Compared(TerrainRunComparison.Compare(source.Profile, earlier, aligned, model, average, token), average?.RunCount);
             }, token);
         }
         catch (Exception e) when (!token.IsCancellationRequested)
@@ -439,6 +442,41 @@ internal sealed class SegmentCoordinator(
 
     private static TerrainRunAlignment Align(TerrainProfile source, TerrainProfile other, SegmentMatch match, CancellationToken token) =>
         TerrainRunAlignment.Calculate(source, other, match.TimeMap.Select(p => (p.SourceSeconds, p.MatchSeconds)).ToArray(), token);
+
+    public async Task<SegmentTrailAverage> BuildTrailAverageAsync(SegmentTerrainSource source, TelemetryTimeRange range,
+        IReadOnlyList<SegmentMatch> matches, CancellationToken cancellationToken)
+    {
+        using var operation = operationRunner.Start(source.SessionId, "averaging trail terrain");
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(operation.CancellationToken, cancellationToken);
+        var token = lifetime.Token;
+        try
+        {
+            var result = await backgroundTaskRunner.RunAsync(async () =>
+            {
+                var expected = matches.ToDictionary(m => m.SessionId, m => TerrainProfileKey.From(m.ContentToken));
+                var profiles = await terrainProfiles.ReadAsync(expected, token).ConfigureAwait(false);
+                var aligned = new List<AlignedTerrainRun>();
+                foreach (var match in matches)
+                {
+                    token.ThrowIfCancellationRequested();
+                    if (profiles.TryGetValue(match.SessionId, out var profile) &&
+                        Align(source.Profile, profile, match, token) is TerrainRunAlignment.Aligned alignment)
+                        aligned.Add(new(profile, alignment));
+                }
+                return SegmentTrailAverage.Present(TrailAverage.Calculate(source.Profile, range, aligned, token));
+            }, token);
+            return operation.IsCurrent && !token.IsCancellationRequested ? result : new SegmentTrailAverage.Cancelled();
+        }
+        catch (Exception) when (token.IsCancellationRequested)
+        {
+            return new SegmentTrailAverage.Cancelled();
+        }
+        catch (Exception e) when (!token.IsCancellationRequested)
+        {
+            logger.Error(e, "Trail averaging failed for {SourceSessionId}", source.SessionId);
+            return new SegmentTrailAverage.Failed();
+        }
+    }
 
     public Task<StravaConnectionSnapshot> GetStravaConnectionAsync() => stravaService.GetConnectionSnapshotAsync();
 

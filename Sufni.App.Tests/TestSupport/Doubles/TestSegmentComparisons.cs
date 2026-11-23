@@ -27,7 +27,7 @@ internal static class TestSegmentComparisons
     {
         coordinator.BuildAnalysisComparisonAsync(Arg.Any<SegmentComparison>(), Arg.Any<SegmentComparisonDetail>(),
                 Arg.Any<TravelDistributionMode>(), Arg.Any<VelocityAverageMode>(), Arg.Any<DampingSpeedCutoffs>(),
-                Arg.Any<SessionDampingPercentages>(), Arg.Any<SegmentTerrainSource?>(), Arg.Any<CancellationToken>())
+                Arg.Any<SessionDampingPercentages>(), Arg.Any<SegmentTerrainSource?>(), Arg.Any<TrailAverage.Averaged?>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
                 var comparison = SegmentAnalysisComparisonBuilder.Build(call.Arg<SegmentComparison>(), call.Arg<SegmentComparisonDetail>(),

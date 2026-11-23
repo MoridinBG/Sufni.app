@@ -334,7 +334,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         {
             var result = await segmentCoordinator.BuildAnalysisComparisonAsync(
                 comparison, detail, settings.TravelDistributionMode, settings.VelocityAverageMode,
-                settings.DampingSpeedCutoffs, settings.DampingPercentages, settings.Terrain, cancellation.Token);
+                settings.DampingSpeedCutoffs, settings.DampingPercentages, settings.Terrain, null, cancellation.Token);
             if (cancellation.IsCancellationRequested || !ReferenceEquals(comparedMatch, comparison))
             {
                 return;

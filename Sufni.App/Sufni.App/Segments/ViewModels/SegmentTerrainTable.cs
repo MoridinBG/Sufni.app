@@ -22,7 +22,7 @@ public sealed record SegmentTerrainTable(string? Message, ImmutableArray<Segment
 
     public static SegmentTerrainTable From(SegmentTerrainComparison terrain) => terrain switch
     {
-        SegmentTerrainComparison.Compared compared => new(null, [.. compared.Rows.Select(Row)]),
+        SegmentTerrainComparison.Compared compared => new(compared.AverageRunCount is { } n ? $"Classes from the average of {n} runs" : null, [.. compared.Rows.Select(Row)]),
         SegmentTerrainComparison.Unavailable unavailable => new(unavailable.Reason switch
         {
             SegmentTerrainUnavailable.NoSourceProfile => "This ride has no current terrain profile.",

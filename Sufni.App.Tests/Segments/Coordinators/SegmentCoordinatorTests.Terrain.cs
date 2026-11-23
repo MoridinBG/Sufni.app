@@ -68,6 +68,54 @@ public partial class SegmentCoordinatorTests
         Assert.NotEmpty(result.Metrics);
     }
 
+    [Fact]
+    public async Task TrailAverageCountsOnlyMatchesWithCurrentAlignedProfiles()
+    {
+        var (source, first) = TerrainComparisonInputs(0);
+        var repeated = SyntheticTrailRuns.Record(8, recordingSeed: 40);
+        var second = TestSegmentMatches.OnTrail(source.Profile, repeated);
+        cachedProfiles[second.SessionId] = (source.Key, repeated);
+        var unrelated = SyntheticTrailRuns.Record(81, variedGround: false);
+        var third = TestSegmentMatches.OnTrail(source.Profile, unrelated);
+        cachedProfiles[third.SessionId] = (source.Key, unrelated);
+
+        var average = Assert.IsType<SegmentTrailAverage.Averaged>(await CreateCoordinator().BuildTrailAverageAsync(
+            source, new(0, source.Profile.Windows[^1].EndSeconds), [first, second, third], TestContext.Current.CancellationToken));
+        Assert.Equal(3, average.Measurement.RunCount);
+        Assert.Contains(average.Roughness, s => s.Role == SegmentComparisonSeriesRole.FrameImu && s.Runs is { Count: > 0 });
+        Assert.Contains(average.Grade, s => s.Role == SegmentComparisonSeriesRole.Grade && s.Runs is { Count: > 0 });
+    }
+
+    [Fact]
+    public async Task MissingMatchProfileCannotSupplyThirdRun()
+    {
+        var (source, first) = TerrainComparisonInputs(0);
+        var absent = TestSegmentMatches.OnTrail(source.Profile, earlierRide.Value);
+        var result = await CreateCoordinator().BuildTrailAverageAsync(source, new(0, source.Profile.Windows[^1].EndSeconds),
+            [first, absent], TestContext.Current.CancellationToken);
+        Assert.Equal(2, Assert.IsType<SegmentTrailAverage.TooFewRuns>(result).RunCount);
+    }
+
+    [Fact]
+    public async Task CancellingSessionOperationDuringProfileReadCancelsTheAverage()
+    {
+        var (source, match) = TerrainComparisonInputs(0);
+        var reading = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        terrainProfiles.ReadAsync(Arg.Any<IReadOnlyDictionary<Guid, TerrainProfileKey>>(), Arg.Any<CancellationToken>())
+            .Returns(call => ReadUntilCancelled(call.Arg<CancellationToken>()));
+        var work = CreateCoordinator().BuildTrailAverageAsync(source, new(0, 10), [match], TestContext.Current.CancellationToken);
+        await reading.Task;
+        operationRunner.Cancel(source.SessionId);
+        Assert.IsType<SegmentTrailAverage.Cancelled>(await work);
+
+        async Task<IReadOnlyDictionary<Guid, TerrainProfile>> ReadUntilCancelled(CancellationToken token)
+        {
+            reading.SetResult();
+            await Task.Delay(Timeout.Infinite, token);
+            return new Dictionary<Guid, TerrainProfile>();
+        }
+    }
+
     private (SegmentTerrainSource Source, SegmentMatch Match) TerrainComparisonInputs(int baselineCount)
     {
         var current = currentRide.Value;
@@ -96,7 +144,7 @@ public partial class SegmentCoordinatorTests
         var comparison = SegmentComparisonBuilder.Build(match, telemetry, telemetry.Metadata.Duration)!;
         var result = await CreateCoordinator().BuildAnalysisComparisonAsync(comparison,
             SegmentComparisonBuilder.BuildDetail(telemetry, null), TravelDistributionMode.ActiveSuspension,
-            VelocityAverageMode.SampleAveraged, DampingSpeedCutoffs.Default, SessionDampingPercentages.Empty, source,
+            VelocityAverageMode.SampleAveraged, DampingSpeedCutoffs.Default, SessionDampingPercentages.Empty, source, null,
             TestContext.Current.CancellationToken);
         return Assert.IsType<SegmentAnalysisComparisonResult.Built>(result).Comparison;
     }
