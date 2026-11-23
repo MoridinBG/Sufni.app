@@ -700,6 +700,18 @@ public class TelemetryDataTests
         Assert.DoesNotContain(100.0, histogram.Bins);
     }
 
+    [Theory]
+    [InlineData(6, 80)]
+    [InlineData(1, 50)]
+    public void DynamicSagPoolsBothSelectedIntervals(int firstSecond, double expectedMillimetres)
+    {
+        var data = CreateTelemetry([.. Enumerable.Repeat(20d, 50), .. Enumerable.Repeat(80d, 50)], 100, 10);
+        var intervals = new TelemetryTimeSelection([new(firstSecond, firstSecond + 1), new(8, 9)]);
+        var stats = TelemetryStatistics.CalculateTravelStatistics(data, SuspensionType.Front,
+            new TravelStatisticsOptions(intervals, TravelDistributionMode.DynamicSag));
+        Assert.Equal(expectedMillimetres, stats.Average);
+    }
+
     [Fact]
     public void DisjointSelectionPoolsSamplesFromLongStrokesAndCountsTheirWholePeaks()
     {

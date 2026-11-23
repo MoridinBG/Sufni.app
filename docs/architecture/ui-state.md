@@ -338,3 +338,5 @@ committing recomputed data.
 ## Recorded terrain state
 
 The session domain publishes the current terrain status. The recorded editor reducer owns the tab’s pending, loaded, unavailable or failed presentation. A loaded result carries the expected profile key. A map-colouring intent updates the device-local session preference through the existing editor preference writer.
+
+The recorded analysis scope belongs to the editor reducer. Whole session, terrain class filter and comparison with a matched session are exclusive cases. A telemetry replacement resets the scope. Losing the current terrain profile also releases a class filter.

@@ -101,3 +101,5 @@ The Match command compares the GPS points of the selected analysis range with th
 - **Presentation.** The analysis pages show `SegmentAnalysisComparisonBannerView`. The travel and velocity distribution plots draw the overlays (see [plot-rendering.md](plot-rendering.md#concrete-plots)), and the damping view shows the deltas. The media workspace passes the matched track to the map (see [maps-and-tracks.md](maps-and-tracks.md)).
 
 Matching, comparison-page reads, detail reads and analysis preparation return typed failures with `SegmentComparisonFailureReason` and optional diagnostics. The coordinator that catches the failure logs it once. The editor shows a fixed summary and separate details. Missing or changed detail content returns `Unavailable`. Cancellation and superseded results publish no failure.
+
+The recorded editor owns the analysis scope. Starting a comparison requests the matched-session scope before the detail read. When that scope changes, the comparison view model cancels its detail read and releases the previous comparison rows. A class selection and a comparison therefore cannot both control the analysis.
