@@ -5,7 +5,7 @@ using Sufni.App.Bikes.ViewModels.Editors;
 
 namespace Sufni.App.Tests.Bikes.ViewModels.Editors;
 
-public class BikeEditorStateTests
+public class BikeEditorStateControllerTests
 {
     private static BikeDraft Bike() => BikeDraft.From(TestSnapshots.Bike());
 

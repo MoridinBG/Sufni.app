@@ -1,29 +1,16 @@
-using Sufni.App.Shared.Models;
-using Microsoft.Extensions.Time.Testing;
-using System.Reactive;
-using System.Reactive.Linq;
 using Avalonia.Headless.XUnit;
-using Sufni.App.Tests.TestSupport.Async;
 using NSubstitute;
-using NSubstitute.ExceptionExtensions;
-using Sufni.Kinematics;
-
-using Sufni.App.Bikes.Coordinators;
-using Sufni.App.Bikes.Queries;
-using Sufni.App.Bikes.Services;
-using Sufni.App.Bikes.Stores;
-using Sufni.App.Bikes.ViewModels.Editors;
-using Sufni.App.Infrastructure;
-using Sufni.App.Shell.Coordinators;
 using Sufni.App.Bikes.Models;
-using Sufni.App.Bikes.ViewModels.LinkageEditing;
-using Sufni.App.Tests.TestSupport.Doubles;
+using Sufni.App.Bikes.Services;
+using Sufni.App.Shared.Models;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Harness;
+using Sufni.Kinematics;
+
 namespace Sufni.App.Tests.Bikes.ViewModels.Editors;
 
 [Collection("Ui")]
-public class BikeEditorAnalysisDemandTests : BikeEditorFixture
+public class BikeEditorAnalysisTests : BikeEditorFixture
 {
     [AvaloniaFact]
     public async Task Analysis_DiscardsCompletionForSupersededSpec()
