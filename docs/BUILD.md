@@ -6,6 +6,7 @@ All commands are run from the repository root (`Sufni.App/`).
 
 - .NET SDK 11.0.1xx. `global.json` pins 11.0.100 and rolls forward to the
   latest patch of that band, which the platform workloads match.
+  `Directory.Build.props` sets C# 15 (`LangVersion` 15.0) for every project.
 - Platform workloads: `dotnet workload install macos ios android` on
   macOS, `dotnet workload install android` on Linux/Windows. Not needed
   for Linux/Windows desktop builds.
