@@ -29,9 +29,9 @@ public static class BikeEditorGeometryDeriver
         var joints = inputs.Linkage.Joints;
         var front = joints.FirstOrDefault(j => j.Type == JointType.FrontWheel);
         var rear = joints.FirstOrDefault(j => j.Type == JointType.RearWheel);
+        var (first, second) = BikeGeometry.HeadTubePair(joints, joint => joint.Type);
         var photoAngle = PhotoHeadAngle(inputs.Mode, inputs.Image is not null, new(
-            joints.FirstOrDefault(j => j.Name == JointNames.HeadTube1), joints.FirstOrDefault(j => j.Name == JointNames.HeadTube2),
-            front, rear, inputs.FrontWheel?.DiameterMm, inputs.RearWheel?.DiameterMm, scale));
+            first, second, front, rear, inputs.FrontWheel?.DiameterMm, inputs.RearWheel?.DiameterMm, scale));
         var angle = photoAngle ?? inputs.ManualHeadAngle;
         var height = inputs.Image?.Size.Height;
         RearSuspensionSpec spec = inputs.Mode switch

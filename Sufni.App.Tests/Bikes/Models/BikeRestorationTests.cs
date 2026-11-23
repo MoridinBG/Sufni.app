@@ -63,6 +63,21 @@ public class BikeRestorationTests
         Assert.Equal(expected, BikeSnapshot.From(bike).HeadAngle);
     }
 
+    [Theory]
+    [InlineData(false, 71.6)]
+    [InlineData(true, 65)]
+    public void SnapshotUsesExactlyTwoTypedHeadTubePointsRegardlessOfTheirNames(bool extraPoint, double expected)
+    {
+        var source = TestSnapshots.FullSuspensionLinkageSpec(true);
+        var joints = source.Joints.Select((joint, i) => joint.Type == JointType.HeadTube
+            ? joint with { Name = $"Point{i}" } : joint).ToList();
+        if (extraPoint) joints.Add(new JointSpec("Extra", JointType.HeadTube, 5, 6));
+        var bike = new Bike(Guid.NewGuid(), "linkage") { HeadAngle = 65, FrontWheelDiameterMm = 702, RearWheelDiameterMm = 700,
+            RearSuspension = new RearSuspensionSpec.Linkage(new LinkageSpec(joints, source.Links, source.Shock, source.ShockStroke)) };
+
+        Assert.Equal(expected, BikeSnapshot.From(bike).HeadAngle);
+    }
+
     private static LinkageSpec LinkageWithChainstay(double chainstay)
     {
 
