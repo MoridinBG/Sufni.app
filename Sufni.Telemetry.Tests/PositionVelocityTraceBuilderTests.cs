@@ -77,7 +77,7 @@ public class PositionVelocityTraceBuilderTests
     }
 
     [Fact]
-    public void Build_AnalysisRangeClipsPartialStrokesAndSkipsOutsideStrokes()
+    public void Build_ClipsSelectedStrokesAndExcludesStrokesStartingOutside()
     {
         var telemetry = CreateTelemetry(
             sampleRate: 10,
@@ -89,6 +89,7 @@ public class PositionVelocityTraceBuilderTests
                 [
                     new Stroke { Start = 0, End = 1 },
                     new Stroke { Start = 0, End = 7 },
+                    new Stroke { Start = 2, End = 7 },
                     new Stroke { Start = 6, End = 7 }
                 ],
                 rebounds: []),
@@ -104,6 +105,19 @@ public class PositionVelocityTraceBuilderTests
     }
 
     [Fact]
+    public void OneSelectedStrokeHasSeparateTracesOnEitherSideOfAnExcludedInterval()
+    {
+        var telemetry = CreateTelemetry(sampleRate: 10, front: CreateSuspension(100,
+            [0, 10, 20, 30, 40, 50, 60, 70], [0, 100, 200, 300, 400, 500, 600, 700],
+            [new Stroke { Start = 1, End = 7 }], [new Stroke { Start = 0, End = 6 }]), rear: CreateMissingSuspension());
+        var selected = new TelemetryTimeSelection([new(0.1, 0.3), new(0.5, 0.7)]);
+        var front = PositionVelocityTraceBuilder.Build(telemetry, selected).Front!;
+        Assert.Collection(front.Strokes,
+            first => Assert.Equal([100, 200], first.VelocityMmPerSecond),
+            second => Assert.Equal([500, 600], second.VelocityMmPerSecond));
+    }
+
+    [Fact]
     public void Build_SegmentedAnalysisRangeUsesSegmentDenseOffset()
     {
         var telemetry = CreateTelemetry(
@@ -112,7 +126,7 @@ public class PositionVelocityTraceBuilderTests
                 maxTravel: 100,
                 travel: [0, 10, 20, 70, 80, 90],
                 velocity: [0, 100, 200, 700, 800, 900],
-                compressions: [new Stroke { Start = 0, End = 5 }],
+                compressions: [new Stroke { Start = 3, End = 5 }],
                 rebounds: [],
                 segments:
                 [

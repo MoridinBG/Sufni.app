@@ -2,7 +2,7 @@ namespace Sufni.Telemetry;
 
 /// <summary>
 /// Wheel position (% of max travel) against velocity (mm/s) for the compression and rebound
-/// strokes of each side. Strokes are clipped to the analysis range.
+/// strokes of each side. Selected strokes contribute their in-range samples.
 /// </summary>
 public sealed record PositionVelocityTraceSet(
     PositionVelocitySideTrace? Front,
@@ -36,7 +36,7 @@ public static class PositionVelocityTraceBuilder
 
     public static PositionVelocityTraceSet Build(
         TelemetryData telemetry,
-        TelemetryTimeRange? analysisRange)
+        TelemetryTimeSelection? analysisRange)
     {
         ArgumentNullException.ThrowIfNull(telemetry);
 
@@ -66,7 +66,7 @@ public static class PositionVelocityTraceBuilder
     private static IReadOnlyList<PositionVelocityStrokeTrace>? BuildSide(
         Suspension? suspension,
         int sampleRate,
-        TelemetryTimeRange? analysisRange)
+        TelemetryTimeSelection? analysisRange)
     {
         if (suspension is null ||
             !suspension.Present ||
@@ -92,7 +92,7 @@ public static class PositionVelocityTraceBuilder
             return null;
         }
 
-        var sampleRanges = BuildSampleRanges(
+        var sampleRanges = SuspensionSampleInterval.Select(
             suspension.Segments,
             pairedCount,
             sampleRate,
@@ -107,7 +107,7 @@ public static class PositionVelocityTraceBuilder
             travel,
             velocity,
             pairedCount,
-            sampleRanges);
+            sampleRanges, analysisRange is not null);
         if (strokePlans.Count == 0)
         {
             return null;
@@ -131,114 +131,17 @@ public static class PositionVelocityTraceBuilder
             .ToArray();
     }
 
-    private static IReadOnlyList<SampleRange> BuildSampleRanges(
-        IReadOnlyList<ProcessedSuspensionSegment> segments,
-        int pairedCount,
-        int sampleRate,
-        TelemetryTimeRange? analysisRange)
-    {
-        if (segments.Count == 0)
-        {
-            return TryGetLegacySampleRange(
-                pairedCount,
-                sampleRate,
-                analysisRange,
-                out var startIndex,
-                out var endExclusive)
-                ? [new SampleRange(startIndex, endExclusive)]
-                : [];
-        }
-
-        if (analysisRange is not null && sampleRate <= 0)
-        {
-            return [];
-        }
-
-        var ranges = new List<SampleRange>(segments.Count);
-        foreach (var segment in segments)
-        {
-            if (segment.FirstDenseIndex < 0 ||
-                segment.SampleCount <= 0 ||
-                !double.IsFinite(segment.StartSeconds) ||
-                segment.FirstDenseIndex >= pairedCount)
-            {
-                continue;
-            }
-
-            var availableSampleCount = Math.Min(
-                segment.SampleCount,
-                pairedCount - segment.FirstDenseIndex);
-            var localStartIndex = 0;
-            var localEndExclusive = availableSampleCount;
-            if (analysisRange is { } range)
-            {
-                var segmentEndSeconds =
-                    segment.StartSeconds + availableSampleCount / (double)sampleRate;
-                var selectedStartSeconds = Math.Max(range.StartSeconds, segment.StartSeconds);
-                var selectedEndSeconds = Math.Min(range.EndSeconds, segmentEndSeconds);
-                if (selectedEndSeconds <= selectedStartSeconds)
-                {
-                    continue;
-                }
-
-                localStartIndex = (int)Math.Floor(
-                    (selectedStartSeconds - segment.StartSeconds) * sampleRate);
-                localEndExclusive = (int)Math.Ceiling(
-                    (selectedEndSeconds - segment.StartSeconds) * sampleRate);
-                localStartIndex = Math.Clamp(localStartIndex, 0, availableSampleCount);
-                localEndExclusive = Math.Clamp(localEndExclusive, 0, availableSampleCount);
-            }
-
-            if (localEndExclusive <= localStartIndex + 1)
-            {
-                continue;
-            }
-
-            ranges.Add(new SampleRange(
-                segment.FirstDenseIndex + localStartIndex,
-                segment.FirstDenseIndex + localEndExclusive));
-        }
-
-        return ranges;
-    }
-
-    private static bool TryGetLegacySampleRange(
-        int pairedCount,
-        int sampleRate,
-        TelemetryTimeRange? analysisRange,
-        out int startIndex,
-        out int endExclusive)
-    {
-        startIndex = 0;
-        endExclusive = pairedCount;
-
-        if (analysisRange is null)
-        {
-            return true;
-        }
-
-        if (sampleRate <= 0)
-        {
-            return false;
-        }
-
-        startIndex = (int)Math.Floor(analysisRange.Value.StartSeconds * sampleRate);
-        endExclusive = (int)Math.Ceiling(analysisRange.Value.EndSeconds * sampleRate);
-        startIndex = Math.Clamp(startIndex, 0, pairedCount);
-        endExclusive = Math.Clamp(endExclusive, 0, pairedCount);
-        return endExclusive > startIndex + 1;
-    }
-
     private static List<StrokeBuildPlan> BuildStrokePlans(
         IReadOnlyList<Stroke> strokes,
         IReadOnlyList<double> travel,
         IReadOnlyList<double> velocity,
         int pairedCount,
-        IReadOnlyList<SampleRange> sampleRanges)
+        IReadOnlyList<SuspensionSampleInterval> sampleRanges, bool requireSelectedStart)
     {
         var plans = new List<StrokeBuildPlan>();
         foreach (var stroke in strokes)
         {
+            if (requireSelectedStart && !sampleRanges.Any(r => stroke.Start >= r.Start && stroke.Start < r.EndExclusive)) continue;
             foreach (var sampleRange in sampleRanges)
             {
                 var strokeStart = Math.Max(stroke.Start, sampleRange.Start);
@@ -407,10 +310,6 @@ public static class PositionVelocityTraceBuilder
     {
         return strokes?.SelectMany(stroke => stroke.VelocityMmPerSecond) ?? [];
     }
-
-    private readonly record struct SampleRange(
-        int Start,
-        int EndExclusive);
 
     private readonly record struct StrokeBuildPlan(
         int Start,
