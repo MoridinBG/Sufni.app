@@ -16,14 +16,14 @@ public class TrackMotionTests
     [Fact]
     public void IrregularFixesPreserveSpeedAndDistance()
     {
-        double[] times = [0, .. Enumerable.Range(1, 179).Select(i => i / 3d + 0.04 * Math.Sin(i)), 60];
-        var irregular = TrackMotion.FromFixes(times.Select(Fix), 60);
-        var regular = TrackMotion.FromFixes(Enumerable.Range(0, 61).Select(i => Fix(i)), 60);
-        foreach (var motion in new[] { regular, irregular })
+        RideSection[] course = [new(210, 7), new(330, 11)];
+        foreach (var clock in new[] { new RideRecording(), new RideRecording(FixRate: 3, IrregularFixes: true) })
         {
+            var ride = SyntheticRide.Build(course, clock);
+            var motion = TrackMotion.FromFixes(ride.Fixes, ride.Telemetry.Metadata.Duration);
             Assert.InRange(motion.At(25)!.Value.Speed, 6.7, 7.3);
             Assert.InRange(motion.At(35)!.Value.Speed, 10.7, 11.3);
-            Assert.InRange(motion.At(60)!.Value.Distance, 540 * 0.99, 540 * 1.01);
+            Assert.InRange(motion.At(59)!.Value.Distance, 529 * 0.99, 529 * 1.01);
         }
     }
 
