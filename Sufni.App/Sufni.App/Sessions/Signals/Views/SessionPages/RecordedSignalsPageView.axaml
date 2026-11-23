@@ -50,6 +50,9 @@ mc:Ignorable="d">
                             <Binding Path="!Workspace.PitchRollSignalState.ReservesLayout" />
                             <Binding Path="!Workspace.SpeedSignalState.ReservesLayout" />
                             <Binding Path="!Workspace.ElevationSignalState.ReservesLayout" />
+                            <Binding Path="!Workspace.TerrainSignalState.ReservesLayout" />
+                            <Binding Path="!Workspace.RoughnessSignalState.ReservesLayout" />
+                            <Binding Path="!Workspace.GradeSignalState.ReservesLayout" />
                         </MultiBinding>
                     </controls:SurfacePlaceholderCard.IsVisible>
                 </controls:SurfacePlaceholderCard>

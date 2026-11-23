@@ -8,7 +8,7 @@ using System;
 
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
-/// <summary>Projects the current signal state into the twelve plot-header toggles.</summary>
+/// <summary>Projects the current signal state into the plot-header toggles.</summary>
 internal sealed class SignalRowActionsController
 {
     private readonly List<(SignalRowAction Action, Func<RecordedSignalPresentationState, bool> IsChecked, bool Airtime)> bindings = [];
@@ -19,6 +19,10 @@ internal sealed class SignalRowActionsController
     public IReadOnlyList<SignalRowAction> PitchRollHeaderActions { get; }
     public IReadOnlyList<SignalRowAction> SpeedHeaderActions { get; }
     public IReadOnlyList<SignalRowAction> ElevationHeaderActions { get; }
+
+    public IReadOnlyList<SignalRowAction> TerrainHeaderActions { get; }
+    public IReadOnlyList<SignalRowAction> RoughnessHeaderActions { get; }
+    public IReadOnlyList<SignalRowAction> GradeHeaderActions { get; }
 
     public SignalRowActionsController(Func<RecordedSignalPresentationState> getSignals, RecordedSessionEditorActions actions)
     {
@@ -51,6 +55,24 @@ internal sealed class SignalRowActionsController
         [
             Create("elevation_airtime", true, state => state.ShowElevationAirtime, (state, value) => state with { ShowElevationAirtime = value }),
             Create("elevation_analysis_selection", false, state => state.ShowElevationAnalysisSelection, (state, value) => state with { ShowElevationAnalysisSelection = value }),
+        ];
+
+        TerrainHeaderActions =
+        [
+            Create("terrain_airtime", true, state => state.ShowTerrainAirtime, (state, value) => state with { ShowTerrainAirtime = value }),
+            Create("terrain_analysis_selection", false, state => state.ShowTerrainAnalysisSelection, (state, value) => state with { ShowTerrainAnalysisSelection = value }),
+        ];
+
+        RoughnessHeaderActions =
+        [
+            Create("roughness_airtime", true, state => state.ShowRoughnessAirtime, (state, value) => state with { ShowRoughnessAirtime = value }),
+            Create("roughness_analysis_selection", false, state => state.ShowRoughnessAnalysisSelection, (state, value) => state with { ShowRoughnessAnalysisSelection = value }),
+        ];
+
+        GradeHeaderActions =
+        [
+            Create("grade_airtime", true, state => state.ShowGradeAirtime, (state, value) => state with { ShowGradeAirtime = value }),
+            Create("grade_analysis_selection", false, state => state.ShowGradeAnalysisSelection, (state, value) => state with { ShowGradeAnalysisSelection = value }),
         ];
 
         SignalRowAction Create(string id, bool airtime, Func<RecordedSignalPresentationState, bool> read,

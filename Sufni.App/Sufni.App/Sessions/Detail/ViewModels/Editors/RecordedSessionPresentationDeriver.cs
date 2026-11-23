@@ -26,9 +26,14 @@ internal static partial class RecordedSessionPresentationDeriver
                 loaded.Profile.RoughnessState == TerrainRoughnessState.NoSensor ? hidden : ready,
                 loaded.Profile.SteepnessState == TerrainSteepnessState.Available ? ready : hidden)
         };
+        var display = state.Preferences.SignalDisplay;
         return state with { Presentation = state.Presentation with
         {
-            Signals = signals with { Terrain = strip, Roughness = roughness, Grade = grade },
+            Signals = signals with
+            {
+                Terrain = strip.ApplyPlotSelection(display.Terrain), Roughness = roughness.ApplyPlotSelection(display.Roughness),
+                Grade = grade.ApplyPlotSelection(display.Grade)
+            },
             SignalAvailability = state.Presentation.SignalAvailability with
             {
                 Terrain = strip.ReservesLayout, Roughness = roughness.ReservesLayout, Grade = grade.ReservesLayout

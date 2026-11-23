@@ -111,6 +111,9 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
     public bool ShowSpeedAirtime => currentState.Presentation.Signals.ShowSpeedAirtime;
 
     public bool ShowElevationAirtime => currentState.Presentation.Signals.ShowElevationAirtime;
+    public bool ShowTerrainAirtime => currentState.Presentation.Signals.ShowTerrainAirtime;
+    public bool ShowRoughnessAirtime => currentState.Presentation.Signals.ShowRoughnessAirtime;
+    public bool ShowGradeAirtime => currentState.Presentation.Signals.ShowGradeAirtime;
 
     public IReadOnlyList<TelemetryHighlightRange> AnalysisSelectionHighlightRanges =>
         currentState.AnalysisSelection.HighlightRanges;
@@ -128,6 +131,9 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
     public bool ShowSpeedAnalysisSelection => currentState.Presentation.Signals.ShowSpeedAnalysisSelection;
 
     public bool ShowElevationAnalysisSelection => currentState.Presentation.Signals.ShowElevationAnalysisSelection;
+    public bool ShowTerrainAnalysisSelection => currentState.Presentation.Signals.ShowTerrainAnalysisSelection;
+    public bool ShowRoughnessAnalysisSelection => currentState.Presentation.Signals.ShowRoughnessAnalysisSelection;
+    public bool ShowGradeAnalysisSelection => currentState.Presentation.Signals.ShowGradeAnalysisSelection;
 
     public IReadOnlyList<SignalRowAction> TravelHeaderActions => signalRowActions.TravelHeaderActions;
 
@@ -140,6 +146,9 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
     public IReadOnlyList<SignalRowAction> SpeedHeaderActions => signalRowActions.SpeedHeaderActions;
 
     public IReadOnlyList<SignalRowAction> ElevationHeaderActions => signalRowActions.ElevationHeaderActions;
+    public IReadOnlyList<SignalRowAction> TerrainHeaderActions => signalRowActions.TerrainHeaderActions;
+    public IReadOnlyList<SignalRowAction> RoughnessHeaderActions => signalRowActions.RoughnessHeaderActions;
+    public IReadOnlyList<SignalRowAction> GradeHeaderActions => signalRowActions.GradeHeaderActions;
 
     public void SetAnalysisRange(double startSeconds, double endSeconds)
     {
@@ -191,6 +200,9 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
         NotifyChanged(previous.Presentation.Signals.ShowPitchRollAirtime, state.Presentation.Signals.ShowPitchRollAirtime, nameof(ShowPitchRollAirtime));
         NotifyChanged(previous.Presentation.Signals.ShowSpeedAirtime, state.Presentation.Signals.ShowSpeedAirtime, nameof(ShowSpeedAirtime));
         NotifyChanged(previous.Presentation.Signals.ShowElevationAirtime, state.Presentation.Signals.ShowElevationAirtime, nameof(ShowElevationAirtime));
+        NotifyChanged(previous.Presentation.Signals.ShowTerrainAirtime, state.Presentation.Signals.ShowTerrainAirtime, nameof(ShowTerrainAirtime));
+        NotifyChanged(previous.Presentation.Signals.ShowRoughnessAirtime, state.Presentation.Signals.ShowRoughnessAirtime, nameof(ShowRoughnessAirtime));
+        NotifyChanged(previous.Presentation.Signals.ShowGradeAirtime, state.Presentation.Signals.ShowGradeAirtime, nameof(ShowGradeAirtime));
         if (NotifyChanged(previous.AnalysisSelection.HighlightRanges, state.AnalysisSelection.HighlightRanges, nameof(AnalysisSelectionHighlightRanges)))
         {
             OnPropertyChanged(nameof(HasAnalysisSelection));
@@ -202,6 +214,9 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
         NotifyChanged(previous.Presentation.Signals.ShowPitchRollAnalysisSelection, state.Presentation.Signals.ShowPitchRollAnalysisSelection, nameof(ShowPitchRollAnalysisSelection));
         NotifyChanged(previous.Presentation.Signals.ShowSpeedAnalysisSelection, state.Presentation.Signals.ShowSpeedAnalysisSelection, nameof(ShowSpeedAnalysisSelection));
         NotifyChanged(previous.Presentation.Signals.ShowElevationAnalysisSelection, state.Presentation.Signals.ShowElevationAnalysisSelection, nameof(ShowElevationAnalysisSelection));
+        NotifyChanged(previous.Presentation.Signals.ShowTerrainAnalysisSelection, state.Presentation.Signals.ShowTerrainAnalysisSelection, nameof(ShowTerrainAnalysisSelection));
+        NotifyChanged(previous.Presentation.Signals.ShowRoughnessAnalysisSelection, state.Presentation.Signals.ShowRoughnessAnalysisSelection, nameof(ShowRoughnessAnalysisSelection));
+        NotifyChanged(previous.Presentation.Signals.ShowGradeAnalysisSelection, state.Presentation.Signals.ShowGradeAnalysisSelection, nameof(ShowGradeAnalysisSelection));
     }
     private bool NotifyChanged<T>(T previous, T current, string propertyName)
     {

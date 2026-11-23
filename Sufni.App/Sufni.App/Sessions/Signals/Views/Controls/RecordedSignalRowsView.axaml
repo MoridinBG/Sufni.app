@@ -1,4 +1,6 @@
 <UserControl
+    xmlns:terrainViews="using:Sufni.App.Terrain.Views"
+    xmlns:terrainPlots="using:Sufni.App.Terrain.Plots"
     xmlns:recordedImuPlots="using:Sufni.App.Sessions.Plots.Views.Plots"
     xmlns:sessionPreferences="using:Sufni.App.Sessions.Models"
     xmlns:sessionSignals="using:Sufni.App.Sessions.Signals.Views.Controls"
@@ -193,6 +195,56 @@ mc:Ignorable="d">
                         </sessionSignals:SignalRow.PlotContent>
                         <sessionSignals:SignalRow.PlaceholderContent>
                             <overlays:SurfacePlaceholderCard Title="Elevation" />
+                        </sessionSignals:SignalRow.PlaceholderContent>
+                    </sessionSignals:SignalRow>
+                </sessionSignals:SignalRow.ChildRows>
+            </sessionSignals:SignalRow>
+            <sessionSignals:SignalRow RowId="{x:Static sessionPreferences:SignalRowIds.Terrain}"
+                Title="{Binding TerrainPresentation.StripTitle, TargetNullValue=Terrain, FallbackValue=Terrain}" FixedPlotHeight="64" TitleToolTip="{Binding TerrainPresentation.Coverage.Description}"
+                HeaderActions="{Binding TerrainHeaderActions}" PresentationState="{Binding TerrainSignalState}">
+                <sessionSignals:SignalRow.PlotContent>
+                    <terrainViews:TerrainClassStripPlotView
+                        SignalRowId="{x:Static sessionPreferences:SignalRowIds.Terrain}"
+                        Terrain="{Binding TerrainPresentation}" Telemetry="{Binding TelemetryData}"
+                        Timeline="{Binding Timeline}" SignalsWorkspace="{Binding}" AnalysisRange="{Binding AnalysisRange}"
+                        HideRightAxis="{Binding #Root.HideRightAxis}" ShowAirtime="{Binding ShowTerrainAirtime}"
+                        ShowAnalysisSelection="{Binding ShowTerrainAnalysisSelection}"
+                        AnalysisSelectionHighlightRanges="{Binding AnalysisSelectionHighlightRanges}" />
+                </sessionSignals:SignalRow.PlotContent>
+                <sessionSignals:SignalRow.PlaceholderContent>
+                    <overlays:SurfacePlaceholderCard Title="Terrain" />
+                </sessionSignals:SignalRow.PlaceholderContent>
+                <sessionSignals:SignalRow.ChildRows>
+                    <sessionSignals:SignalRow RowId="{x:Static sessionPreferences:SignalRowIds.Roughness}"
+                        Title="Roughness (g at 7 m/s)"
+                        HeaderActions="{Binding RoughnessHeaderActions}" PresentationState="{Binding RoughnessSignalState}">
+                        <sessionSignals:SignalRow.PlotContent>
+                            <terrainViews:TerrainSignalPlotView SignalKind="{x:Static terrainPlots:TerrainSignalKind.Roughness}"
+                                SignalRowId="{x:Static sessionPreferences:SignalRowIds.Roughness}"
+                                Terrain="{Binding TerrainPresentation}" Telemetry="{Binding TelemetryData}"
+                                Timeline="{Binding Timeline}" SignalsWorkspace="{Binding}" AnalysisRange="{Binding AnalysisRange}"
+                                HideRightAxis="{Binding #Root.HideRightAxis}" ShowAirtime="{Binding ShowRoughnessAirtime}"
+                                ShowAnalysisSelection="{Binding ShowRoughnessAnalysisSelection}"
+                                AnalysisSelectionHighlightRanges="{Binding AnalysisSelectionHighlightRanges}" />
+                        </sessionSignals:SignalRow.PlotContent>
+                        <sessionSignals:SignalRow.PlaceholderContent>
+                            <overlays:SurfacePlaceholderCard Title="Roughness" />
+                        </sessionSignals:SignalRow.PlaceholderContent>
+                    </sessionSignals:SignalRow>
+                    <sessionSignals:SignalRow RowId="{x:Static sessionPreferences:SignalRowIds.Grade}"
+                        Title="Grade (° downhill)"
+                        HeaderActions="{Binding GradeHeaderActions}" PresentationState="{Binding GradeSignalState}">
+                        <sessionSignals:SignalRow.PlotContent>
+                            <terrainViews:TerrainSignalPlotView SignalKind="{x:Static terrainPlots:TerrainSignalKind.Grade}"
+                                SignalRowId="{x:Static sessionPreferences:SignalRowIds.Grade}"
+                                Terrain="{Binding TerrainPresentation}" Telemetry="{Binding TelemetryData}"
+                                Timeline="{Binding Timeline}" SignalsWorkspace="{Binding}" AnalysisRange="{Binding AnalysisRange}"
+                                HideRightAxis="{Binding #Root.HideRightAxis}" ShowAirtime="{Binding ShowGradeAirtime}"
+                                ShowAnalysisSelection="{Binding ShowGradeAnalysisSelection}"
+                                AnalysisSelectionHighlightRanges="{Binding AnalysisSelectionHighlightRanges}" />
+                        </sessionSignals:SignalRow.PlotContent>
+                        <sessionSignals:SignalRow.PlaceholderContent>
+                            <overlays:SurfacePlaceholderCard Title="Grade" />
                         </sessionSignals:SignalRow.PlaceholderContent>
                     </sessionSignals:SignalRow>
                 </sessionSignals:SignalRow.ChildRows>

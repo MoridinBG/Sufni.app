@@ -145,6 +145,9 @@ internal sealed class SignalPlotContextActions : IDisposable
             [SignalRowIds.PitchRoll] = AppendContextMenuActions(baseActions, SignalRowIds.PitchRoll, actions),
             [SignalRowIds.Speed] = AppendContextMenuActions(baseActions, SignalRowIds.Speed, actions),
             [SignalRowIds.Elevation] = AppendContextMenuActions(baseActions, SignalRowIds.Elevation, actions),
+            [SignalRowIds.Terrain] = AppendContextMenuActions(baseActions, SignalRowIds.Terrain, actions),
+            [SignalRowIds.Roughness] = AppendContextMenuActions(baseActions, SignalRowIds.Roughness, actions),
+            [SignalRowIds.Grade] = AppendContextMenuActions(baseActions, SignalRowIds.Grade, actions),
         };
     }
 
@@ -167,7 +170,7 @@ internal sealed class SignalPlotContextActions : IDisposable
                    SignalRowIds.Imu or
                    SignalRowIds.PitchRoll or
                    SignalRowIds.Speed or
-                   SignalRowIds.Elevation;
+                   SignalRowIds.Elevation or SignalRowIds.Terrain or SignalRowIds.Roughness or SignalRowIds.Grade;
     }
 
     private bool CanSetAnalysisRangeFromPlotContext(TelemetryPlotContextMenuContext? context)

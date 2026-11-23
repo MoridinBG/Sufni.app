@@ -94,7 +94,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             .Scan(new Reduction(initial, 0, AnalysisRangeIntentState.Empty), static (current, update) =>
             {
                 var next = update(current);
-                if (next.Editor.Terrain != current.Editor.Terrain ||
+                if (next.Editor.Terrain != current.Editor.Terrain || next.Editor.Preferences.SignalDisplay != current.Editor.Preferences.SignalDisplay ||
                     next.Editor.Presentation.Signals != current.Editor.Presentation.Signals ||
                     next.Editor.Presentation.SignalAvailability != current.Editor.Presentation.SignalAvailability)
                     next = next with { Editor = RecordedSessionPresentationDeriver.WithTerrainPresentation(next.Editor) };
@@ -441,12 +441,18 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             ShowPitchRollAirtime = explicitState.ShowPitchRollAirtime,
             ShowSpeedAirtime = explicitState.ShowSpeedAirtime,
             ShowElevationAirtime = explicitState.ShowElevationAirtime,
+            ShowTerrainAirtime = explicitState.ShowTerrainAirtime,
+            ShowRoughnessAirtime = explicitState.ShowRoughnessAirtime,
+            ShowGradeAirtime = explicitState.ShowGradeAirtime,
             ShowAnalysisSelection = explicitState.ShowAnalysisSelection,
             ShowVelocityAnalysisSelection = explicitState.ShowVelocityAnalysisSelection,
             ShowImuAnalysisSelection = explicitState.ShowImuAnalysisSelection,
             ShowPitchRollAnalysisSelection = explicitState.ShowPitchRollAnalysisSelection,
             ShowSpeedAnalysisSelection = explicitState.ShowSpeedAnalysisSelection,
             ShowElevationAnalysisSelection = explicitState.ShowElevationAnalysisSelection,
+            ShowTerrainAnalysisSelection = explicitState.ShowTerrainAnalysisSelection,
+            ShowRoughnessAnalysisSelection = explicitState.ShowRoughnessAnalysisSelection,
+            ShowGradeAnalysisSelection = explicitState.ShowGradeAnalysisSelection,
         };
     }
 
@@ -602,6 +608,9 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                 ShowPitchRollAnalysisSelection = false,
                 ShowSpeedAnalysisSelection = false,
                 ShowElevationAnalysisSelection = false,
+                ShowTerrainAnalysisSelection = false,
+                ShowRoughnessAnalysisSelection = false,
+                ShowGradeAnalysisSelection = false,
             };
         }
 
@@ -613,6 +622,9 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             ShowPitchRollAnalysisSelection = false,
             ShowSpeedAnalysisSelection = false,
             ShowElevationAnalysisSelection = false,
+            ShowTerrainAnalysisSelection = false,
+            ShowRoughnessAnalysisSelection = false,
+            ShowGradeAnalysisSelection = false,
         };
     }
 

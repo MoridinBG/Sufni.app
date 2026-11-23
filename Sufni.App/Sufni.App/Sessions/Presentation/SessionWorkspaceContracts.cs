@@ -81,6 +81,9 @@ public interface IRecordedSessionSignalsWorkspace : ITimeSeriesPlotInteractions
     bool ShowPitchRollAirtime { get; }
     bool ShowSpeedAirtime { get; }
     bool ShowElevationAirtime { get; }
+    bool ShowTerrainAirtime { get; }
+    bool ShowRoughnessAirtime { get; }
+    bool ShowGradeAirtime { get; }
     IReadOnlyList<TelemetryHighlightRange> AnalysisSelectionHighlightRanges { get; }
     bool HasAnalysisSelection { get; }
     bool ShowAnalysisSelection { get; }
@@ -89,12 +92,18 @@ public interface IRecordedSessionSignalsWorkspace : ITimeSeriesPlotInteractions
     bool ShowPitchRollAnalysisSelection { get; }
     bool ShowSpeedAnalysisSelection { get; }
     bool ShowElevationAnalysisSelection { get; }
+    bool ShowTerrainAnalysisSelection { get; }
+    bool ShowRoughnessAnalysisSelection { get; }
+    bool ShowGradeAnalysisSelection { get; }
     IReadOnlyList<SignalRowAction> TravelHeaderActions { get; }
     IReadOnlyList<SignalRowAction> VelocityHeaderActions { get; }
     IReadOnlyList<SignalRowAction> ImuHeaderActions { get; }
     IReadOnlyList<SignalRowAction> PitchRollHeaderActions { get; }
     IReadOnlyList<SignalRowAction> SpeedHeaderActions { get; }
     IReadOnlyList<SignalRowAction> ElevationHeaderActions { get; }
+    IReadOnlyList<SignalRowAction> TerrainHeaderActions { get; }
+    IReadOnlyList<SignalRowAction> RoughnessHeaderActions { get; }
+    IReadOnlyList<SignalRowAction> GradeHeaderActions { get; }
 }
 
 public interface ISessionMediaWorkspace

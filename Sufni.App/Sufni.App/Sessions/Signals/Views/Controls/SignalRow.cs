@@ -91,6 +91,9 @@ public sealed class SignalRow : UserControl
     public static readonly StyledProperty<double> CollapsedHeaderHeightProperty =
         AvaloniaProperty.Register<SignalRow, double>(nameof(CollapsedHeaderHeight), defaultValue: 32);
 
+    public static readonly StyledProperty<double?> FixedPlotHeightProperty =
+        AvaloniaProperty.Register<SignalRow, double?>(nameof(FixedPlotHeight));
+
     public static readonly StyledProperty<double> PreferredPlotHeightProperty =
         AvaloniaProperty.Register<SignalRow, double>(nameof(PreferredPlotHeight), defaultValue: 180);
 
@@ -177,6 +180,12 @@ public sealed class SignalRow : UserControl
     {
         get => GetValue(CollapsedHeaderHeightProperty);
         set => SetValue(CollapsedHeaderHeightProperty, value);
+    }
+
+    public double? FixedPlotHeight
+    {
+        get => GetValue(FixedPlotHeightProperty);
+        set => SetValue(FixedPlotHeightProperty, value);
     }
 
     public double PreferredPlotHeight
@@ -369,7 +378,7 @@ public sealed class SignalRow : UserControl
                 e.Property == IsExpandedProperty ||
                 e.Property == HeaderHeightProperty ||
                 e.Property == CollapsedHeaderHeightProperty ||
-                e.Property == PreferredPlotHeightProperty ||
+                e.Property == FixedPlotHeightProperty || e.Property == PreferredPlotHeightProperty ||
                 e.Property == MinimumPlotHeightProperty ||
                 e.Property == ChildRowGapProperty ||
                 e.Property == RowBackgroundProperty ||
@@ -437,7 +446,7 @@ public sealed class SignalRow : UserControl
             return 0;
         }
 
-        return (HasOwnPlotSlot ? 1 : 0) +
+        return (HasOwnPlotSlot && FixedPlotHeight is null ? 1 : 0) +
                ChildRows
                    .Where(row => row.ReservesLayout)
                    .Sum(row => row.GetVisiblePlotSlotCount());
@@ -456,7 +465,7 @@ public sealed class SignalRow : UserControl
         }
 
         var childRows = ChildRows.Where(row => row.ReservesLayout).ToArray();
-        return HeaderHeight +
+        return HeaderHeight + (HasOwnPlotSlot ? FixedPlotHeight ?? 0 : 0) +
                Math.Max(0, childRows.Length - 1) * ChildRowGap +
                childRows.Sum(row => row.GetFixedHeightExcludingPlots());
     }
@@ -522,7 +531,7 @@ public sealed class SignalRow : UserControl
             return AllocatedGroupHeight;
         }
 
-        AllocatedPlotHeight = HasOwnPlotSlot ? plotHeight : 0;
+        AllocatedPlotHeight = HasOwnPlotSlot ? FixedPlotHeight ?? plotHeight : 0;
         var height = HeaderHeight + AllocatedPlotHeight;
         var visibleChildren = ChildRows.Where(row => row.ReservesLayout).ToArray();
         if (visibleChildren.Length > 0)
@@ -565,7 +574,7 @@ public sealed class SignalRow : UserControl
             e.Property == PlotContentProperty ||
             e.Property == HeaderHeightProperty ||
             e.Property == CollapsedHeaderHeightProperty ||
-            e.Property == PreferredPlotHeightProperty ||
+            e.Property == FixedPlotHeightProperty || e.Property == PreferredPlotHeightProperty ||
             e.Property == MinimumPlotHeightProperty ||
             e.Property == ChildRowGapProperty)
         {

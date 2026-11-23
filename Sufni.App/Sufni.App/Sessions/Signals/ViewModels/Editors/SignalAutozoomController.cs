@@ -35,6 +35,9 @@ internal sealed class SignalAutozoomController
             [SignalRowIds.PitchRoll] = [zoomSelection],
             [SignalRowIds.Speed] = [zoomSelection],
             [SignalRowIds.Elevation] = [zoomSelection],
+            [SignalRowIds.Terrain] = [zoomSelection],
+            [SignalRowIds.Roughness] = [zoomSelection],
+            [SignalRowIds.Grade] = [zoomSelection],
         };
     }
 
