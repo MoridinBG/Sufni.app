@@ -95,7 +95,11 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
             });
         }
         catch (OperationCanceledException) when (stopped) { }
-        catch (Exception error) { Logger.Warning(error, "Could not plan terrain profiles"); }
+        catch (Exception error)
+        {
+            Logger.Warning(error, "Could not plan terrain profiles");
+            await dispatcher.InvokeAsync(() => { activeCancellation?.Cancel(); queue.Clear(); });
+        }
         finally
         {
             await dispatcher.InvokeAsync(() =>
@@ -139,17 +143,7 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
                 ? (TerrainMaterialization.WithoutProfile(TerrainOutcome.Failed), true)
                 : await background.RunAsync(() => ComputeAndCommitAsync(request, token), token).ConfigureAwait(false);
             if (result is null) return;
-            await dispatcher.InvokeAsync(async () =>
-            {
-                if (token.IsCancellationRequested || sessions.Get(request.Id) is not { } session) return;
-                var evaluation = SessionTerrainStatusQuery.Evaluate(session, tracks.GetAll());
-                if (evaluation.Key != request.Key || evaluation.Status is not TerrainStatus.Pending) return;
-                if (writeFailed) writeFailures[request.Id] = request.Key;
-                await sessions.PublishSessionsChangedAsync([session with
-                {
-                    TerrainProfileKey = request.Key, TerrainOutcome = result.Outcome, TerrainSummary = result.Summary
-                }], token);
-            });
+            await PublishAsync(request, result, writeFailed, token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         finally
@@ -163,6 +157,27 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
                 completion.TrySetResult();
                 StartNext();
             });
+        }
+    }
+
+    private async Task PublishAsync(Request request, TerrainMaterialization result, bool writeFailed, CancellationToken token)
+    {
+        while (!token.IsCancellationRequested)
+        {
+            Task? validation = null;
+            await dispatcher.InvokeAsync(async () =>
+            {
+                // A newer publication may still be selecting the track on the worker.
+                validation = planning;
+                if (validation is not null || token.IsCancellationRequested || sessions.Get(request.Id) is not { } session) return;
+                if (writeFailed) writeFailures[request.Id] = request.Key;
+                await sessions.PublishSessionsChangedAsync([session with
+                {
+                    TerrainProfileKey = request.Key, TerrainOutcome = result.Outcome, TerrainSummary = result.Summary
+                }], token);
+            });
+            if (validation is null) return;
+            await validation.WaitAsync(token).ConfigureAwait(false);
         }
     }
 

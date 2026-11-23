@@ -69,6 +69,29 @@ public class TerrainProfileCoordinatorTests
     }
 
     [Fact]
+    public async Task AuthoredEditDuringCommitKeepsItsMetadataAndTheComputedProfile()
+    {
+        await using var h = new Harness();
+        var session = Session();
+        var writing = new TaskCompletionSource();
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        h.Repository.TryCommitAsync(session.Id, Arg.Any<TerrainProfileKey>(), Arg.Any<TerrainMaterialization>(),
+            Arg.Any<CancellationToken>()).Returns(async call =>
+            {
+                writing.TrySetResult();
+                await release.Task.WaitAsync(call.Arg<CancellationToken>());
+                return true;
+            });
+        await h.StartAsync([session]);
+        await h.DrainAsync(writing.Task);
+        await h.PublishAsync(session with { Description = "after the ride" });
+        release.SetResult();
+        await h.WaitForAsync(session, TerrainOutcome.Computed);
+        Assert.IsType<TerrainStatus.Current>(h.Status(session.Id));
+        Assert.Equal("after the ride", h.Sessions.Get(session.Id)!.Description);
+    }
+
+    [Fact]
     public async Task NoOverlapFinishesWithoutReadingTelemetry()
     {
         await using var h = new Harness();
