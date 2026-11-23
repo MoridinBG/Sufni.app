@@ -28,7 +28,7 @@ public class RecordedTerrainTests
         using var h = new SessionDetailHarness();
         var ride = SyntheticRide.Build([new(140, LowBandG: 0.2, MiddleBandG: 0.2, HighBandG: 0.2),
             new(140, LowBandG: 1.5, MiddleBandG: 1.6, HighBandG: 1.8)]);
-        var profile = Assert.IsType<TerrainProfileResult.Computed>(TerrainProfileCalculator.Calculate(ride.Telemetry, ride.Fixes)).Profile;
+        var profile = ride.Profile();
         var session = h.CreateRecordedSession();
         var domain = h.WithTerrain(session, profile);
         var editor = h.CreateRecordedEditor(session, h.CreateLoadedResult(ride.Telemetry), Observable.Return(domain));

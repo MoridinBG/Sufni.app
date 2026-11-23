@@ -19,6 +19,6 @@ public static class SyntheticResponseRides
         ];
         var ride = SyntheticRide.Build(sections.Select(s => s with { CompressionGain = gain, ReboundGain = gain }).ToArray(),
             new(Seed: seed, Lowers: lowers, NoiseG: 0.002));
-        return ((TerrainProfileResult.Computed)TerrainProfileCalculator.Calculate(ride.Telemetry, ride.Fixes)).Profile;
+        return ride.Profile();
     }
 }

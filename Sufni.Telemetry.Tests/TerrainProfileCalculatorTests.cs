@@ -4,14 +4,11 @@ namespace Sufni.Telemetry.Tests;
 
 public class TerrainProfileCalculatorTests
 {
-    private static TerrainProfile Profile(SyntheticRide ride) =>
-        Assert.IsType<TerrainProfileResult.Computed>(TerrainProfileCalculator.Calculate(ride.Telemetry, ride.Fixes)).Profile;
-
     [Fact]
     public void StopOccupiesOneDistanceWindowWithoutAddingWindows()
     {
         var ride = SyntheticRide.Build([new(1000, 10)], new RideRecording(Stop: new(40.5, 100.5)));
-        var profile = Profile(ride);
+        var profile = ride.Profile();
         Assert.Equal(100, profile.Windows.Length);
         var stopped = Assert.Single(profile.Windows.Where(w => !w.Moving));
         Assert.Null(stopped.Roughness);
@@ -22,7 +19,7 @@ public class TerrainProfileCalculatorTests
     public void WindowsStayInsideConnectedTrackCoverage()
     {
         var ride = SyntheticRide.Build([new(1000, 10)], new RideRecording(FirstFix: 20, FixLoss: new(40, 70)));
-        var windows = Profile(ride).Windows;
+        var windows = ride.Profile().Windows;
         Assert.Equal(20, windows[0].StartSeconds);
         Assert.All(windows, w => Assert.True(w.EndSeconds <= 39 || w.StartSeconds >= 70));
     }
@@ -31,7 +28,7 @@ public class TerrainProfileCalculatorTests
     public void MissingImuSamplesLeaveWindowMeasurementsAbsent()
     {
         var ride = SyntheticRide.Build([new(300, 10)], new RideRecording(RecordingGap: new(10.2, 10.8)));
-        var windows = Profile(ride).Windows;
+        var windows = ride.Profile().Windows;
         Assert.Null(windows[10].Roughness);
         Assert.Null(windows[10].Front);
         Assert.NotNull(windows[9].Frame);
@@ -43,7 +40,7 @@ public class TerrainProfileCalculatorTests
     {
         RideSection[] course = [new(600), new(250, LowBandG: 0.9, MiddleBandG: 1, HighBandG: 1.2),
             new(150, LowBandG: 1.4, MiddleBandG: 1.6, HighBandG: 1.8, CompressionGain: 0.3)];
-        var profile = Profile(SyntheticRide.Build(course));
+        var profile = SyntheticRide.Build(course).Profile();
         var windows = profile.Windows;
         void Check(double from, double to, RoughnessClass expected)
         {
@@ -63,8 +60,8 @@ public class TerrainProfileCalculatorTests
     public void SpeedNormalisationKeepsGroundClassStableAtDifferentSpeeds()
     {
         var ground = new RideSection(900, LowBandG: 1, MiddleBandG: 1, HighBandG: 1);
-        var slow = Profile(SyntheticRide.Build([ground with { Speed = 5 }])).Windows;
-        var fast = Profile(SyntheticRide.Build([ground with { Speed = 9 }])).Windows;
+        var slow = SyntheticRide.Build([ground with { Speed = 5 }]).Profile().Windows;
+        var fast = SyntheticRide.Build([ground with { Speed = 9 }]).Profile().Windows;
         Assert.True(slow.Zip(fast).Count(p => p.First.Roughness == RoughnessClass.Medium &&
             p.Second.Roughness == RoughnessClass.Medium) >= 0.85 * slow.Length);
         Assert.True(slow[20].Frame!.Level < 1.4 && fast[20].Frame!.Level > 1.4);
@@ -78,8 +75,8 @@ public class TerrainProfileCalculatorTests
     [InlineData(true, true, 2048, 4096, RoughnessSource.LowersOnly)]
     public void ClassificationIdentifiesTheCalibratedSensors(bool frame, bool lowers, int frameScale, int forkScale, RoughnessSource source)
     {
-        var profile = Profile(SyntheticRide.Build([new(200)], new RideRecording(Frame: frame, Lowers: lowers,
-            AccelScale: frameScale, LowersAccelScale: forkScale)));
+        var profile = SyntheticRide.Build([new(200)], new RideRecording(Frame: frame, Lowers: lowers,
+            AccelScale: frameScale, LowersAccelScale: forkScale)).Profile();
         Assert.Equal(source, profile.Windows[10].Source);
         if (!frame) Assert.Equal(TerrainSteepnessState.NoFrameSensor, profile.SteepnessState);
     }
@@ -89,8 +86,8 @@ public class TerrainProfileCalculatorTests
     [InlineData(2048)]
     public void SaturatedLowersCannotClassifyWhenBothSensorsRecord(int frameScale)
     {
-        var profile = Profile(SyntheticRide.Build([new(420, LowBandG: 2.4, MiddleBandG: 2.2, HighBandG: 2)],
-            new RideRecording(AccelScale: frameScale, LowersAccelScale: 4096)));
+        var profile = SyntheticRide.Build([new(420, LowBandG: 2.4, MiddleBandG: 2.2, HighBandG: 2)],
+            new RideRecording(AccelScale: frameScale, LowersAccelScale: 4096)).Profile();
         var w = profile.Windows[10];
         Assert.True(w.Lowers!.ClippedShare > 0.02);
         if (frameScale == 4096)
@@ -104,7 +101,7 @@ public class TerrainProfileCalculatorTests
     [Fact]
     public void UncalibratedSensorStillProvidesPhysicalBandLevelsAndMatchingSeries()
     {
-        var profile = Profile(SyntheticRide.Build([new(350)], new RideRecording(AccelScale: 2048, Lowers: false)));
+        var profile = SyntheticRide.Build([new(350)], new RideRecording(AccelScale: 2048, Lowers: false)).Profile();
         Assert.Equal(TerrainRoughnessState.ValuesOnly, profile.RoughnessState);
         Assert.Null(profile.Windows[15].Roughness);
         Assert.True(profile.Windows[15].Frame!.MiddleBand > 0);
@@ -117,7 +114,7 @@ public class TerrainProfileCalculatorTests
     public void GradeUsesElevationToRemoveMountOffset(double mountPitch)
     {
         var course = new[] { new RideSection(400, 10, 3), new RideSection(400, 10, 8), new RideSection(400, 10, 14) };
-        var windows = Profile(SyntheticRide.Build(course, new RideRecording(MountPitch: mountPitch))).Windows;
+        var windows = SyntheticRide.Build(course, new RideRecording(MountPitch: mountPitch)).Profile().Windows;
         Assert.Equal(SteepnessClass.Gentle, windows[20].Steepness);
         Assert.Equal(SteepnessClass.Moderate, windows[60].Steepness);
         Assert.Equal(SteepnessClass.Steep, windows[100].Steepness);
@@ -127,7 +124,7 @@ public class TerrainProfileCalculatorTests
     public void GradeRemovesForwardBrakingAcceleration()
     {
         var ride = SyntheticRide.Build([new(1600, 22, 3)], new RideRecording(FixRate: 3, Braking: new(12, 18)));
-        var window = Profile(ride).Windows.First(w => w.StartSeconds >= 14);
+        var window = ride.Profile().Windows.First(w => w.StartSeconds >= 14);
         Assert.Equal(SteepnessClass.Gentle, window.Steepness);
         Assert.InRange(window.Grade!.Value, 0.025, 0.085);
     }
@@ -135,7 +132,7 @@ public class TerrainProfileCalculatorTests
     [Fact]
     public void ShortRideKeepsRoughnessWithoutGrades()
     {
-        var profile = Profile(SyntheticRide.Build([new(500)]));
+        var profile = SyntheticRide.Build([new(500)]).Profile();
         Assert.Equal(TerrainSteepnessState.TooShort, profile.SteepnessState);
         Assert.All(profile.Windows, w => { Assert.NotNull(w.Roughness); Assert.Null(w.Grade); });
     }
@@ -149,7 +146,7 @@ public class TerrainProfileCalculatorTests
         var fixes = ride.Fixes.ToBuilder();
         var index = first ? 0 : fixes.Count - 1;
         fixes[index] = fixes[index] with { Elevation = null };
-        var profile = Profile(ride with { Fixes = fixes.ToImmutable() });
+        var profile = (ride with { Fixes = fixes.ToImmutable() }).Profile();
         Assert.Equal(TerrainSteepnessState.NoElevation, profile.SteepnessState);
         Assert.All(profile.Windows, w => { Assert.Null(w.Grade); Assert.NotNull(w.Roughness); });
     }
@@ -167,7 +164,7 @@ public class TerrainProfileCalculatorTests
     [Fact]
     public void SerializedProfilePreservesClassifiedWindowsAndSensorMatching()
     {
-        var profile = Profile(SyntheticRide.Build([new(210)]));
+        var profile = SyntheticRide.Build([new(210)]).Profile();
         var restored = MessagePackSerializer.Deserialize<TerrainProfile>(MessagePackSerializer.Serialize(profile));
         Assert.Equal(profile.Windows.ToArray(), restored.Windows.ToArray());
         Assert.Equal(profile.FrameMatching.ToArray(), restored.FrameMatching.ToArray());

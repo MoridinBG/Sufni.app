@@ -20,7 +20,7 @@ public static class SyntheticTrailRuns
         }
         var ride = SyntheticRide.Build(sections, new RideRecording(Seed: recordingSeed, Frame: frame, Lowers: lowers,
             SurfaceVariation: variedGround ? 0.05 : 0, NoiseG: 0.002, FixRate: 5));
-        return ((TerrainProfileResult.Computed)TerrainProfileCalculator.Calculate(ride.Telemetry, ride.Fixes)).Profile;
+        return ride.Profile();
     }
 
     public static (double SourceSeconds, double MatchSeconds)[] Map(TerrainProfile source, TerrainProfile match)
