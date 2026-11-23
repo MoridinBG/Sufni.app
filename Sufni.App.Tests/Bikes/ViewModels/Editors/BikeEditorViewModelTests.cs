@@ -288,6 +288,20 @@ public class BikeEditorViewModelTests : BikeEditorFixture
     }
 
     [AvaloniaFact]
+    public async Task Save_CompletesTheEdit_WhenNothingChangedDuringSave()
+    {
+        var snapshot = TestSnapshots.Bike(updated: 5);
+        var editor = CreateEditor(snapshot);
+        editor.Name = "saved";
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), DraftFrom(snapshot)).Returns(call =>
+            new BikeSaveResult.Saved(call.ArgAt<BikeDraft>(0).ToSnapshot() with { Updated = 11 }));
+
+        await editor.SaveCommand.ExecuteAsync(null);
+
+        shell.Received(1).CompleteEdit(new EditorKey.Bike(snapshot.Id));
+    }
+
+    [AvaloniaFact]
     public async Task Reset_RestoresAcceptedSnapshot_AndClearsDirtyState()
     {
         var snapshot = CalibratedFullSuspensionSnapshot(imageRotationDegrees: 12.5);
