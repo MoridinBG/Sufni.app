@@ -67,18 +67,45 @@ public class BikeEditorLinkageGeometryTests
     }
 
     [Fact]
-    public void OverlayBoundsAndLinkLengthsUseTheCurrentScale()
+    public void WheelOverlaysAreCenteredOnTheirJointsAtTheCurrentScale()
     {
         using var editor = Open(TestSnapshots.FullSuspensionLinkageSpec(true));
         var geometry = editor.Current.Geometry;
-        Assert.Equal(2, geometry.Scale);
-        Assert.Equal(351, geometry.Front.Diameter);
-        Assert.Equal(350, geometry.Rear.Diameter);
-        Assert.Equal(-169.5, geometry.Front.Left);
-        Assert.Equal(-126, geometry.Front.Top);
-        Assert.Equal(new Rect(-193, -146, 413, 391), geometry.ContentBounds);
-        var link = editor.Current.Inputs.Linkage.Links[0];
-        Assert.Equal(4, geometry.LinkLengths[link.Id]);
+        var joints = editor.Current.Inputs.Linkage.Joints;
+        var scale = geometry.Scale!.Value;
+
+        foreach (var (overlay, type, diameter) in new[] { (geometry.Front, JointType.FrontWheel, 702.0), (geometry.Rear, JointType.RearWheel, 700.0) })
+        {
+            var joint = joints.Single(j => j.Type == type);
+            Assert.Equal(diameter / scale, overlay.Diameter);
+            Assert.Equal(new Point(joint.X, joint.Y), new Point(overlay.Left + overlay.Diameter / 2, overlay.Top + overlay.Diameter / 2));
+        }
+    }
+
+    [Fact]
+    public void ContentBoundsIncludeTheImageTheWheelsAndEveryJoint()
+    {
+        using var editor = Open(TestSnapshots.FullSuspensionLinkageSpec(true));
+        var geometry = editor.Current.Geometry;
+
+        Assert.True(geometry.ContentBounds.Contains(geometry.ImageBounds));
+        foreach (var wheel in new[] { geometry.Front, geometry.Rear })
+            Assert.True(geometry.ContentBounds.Contains(new Rect(wheel.Left, wheel.Top, wheel.Diameter, wheel.Diameter)));
+        Assert.All(editor.Current.Inputs.Linkage.Joints, joint => Assert.True(geometry.ContentBounds.Contains(new Point(joint.X, joint.Y))));
+    }
+
+    [Fact]
+    public void LinkLengthsUseTheCurrentScale()
+    {
+        using var editor = Open(TestSnapshots.FullSuspensionLinkageSpec(true));
+        var geometry = editor.Current.Geometry;
+        var linkage = editor.Current.Inputs.Linkage;
+
+        Assert.All(linkage.Links, link =>
+        {
+            var (a, b) = (linkage.Joint(link.A)!, linkage.Joint(link.B)!);
+            Assert.Equal(geometry.Scale!.Value * Math.Sqrt(Math.Pow(a.X - b.X, 2) + Math.Pow(a.Y - b.Y, 2)), geometry.LinkLengths[link.Id], 9);
+        });
     }
 
     [Fact]
