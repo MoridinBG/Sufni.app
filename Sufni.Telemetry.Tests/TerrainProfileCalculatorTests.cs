@@ -76,6 +76,17 @@ public class TerrainProfileCalculatorTests
     }
 
     [Theory]
+    [InlineData(5)]
+    [InlineData(9)]
+    public void FrameSpeedRemovalRestoresTheGroundLevelAtReferenceSpeed(double speed)
+    {
+        var ground = new RideSection(900, speed, LowBandG: 1, MiddleBandG: 1, HighBandG: 1);
+        var groundLevel = Math.Sqrt(3);
+        var window = SyntheticRide.Build([ground]).Profile().Windows[20];
+        Assert.InRange(window.Frame!.SpeedRemoved, groundLevel * 0.97, groundLevel * 1.03);
+    }
+
+    [Theory]
     [InlineData(true, true, 4096, 4096, RoughnessSource.Both)]
     [InlineData(true, false, 4096, 4096, RoughnessSource.FrameOnly)]
     [InlineData(false, true, 4096, 4096, RoughnessSource.LowersOnly)]
