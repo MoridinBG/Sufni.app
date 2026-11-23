@@ -13,6 +13,8 @@
         Maximum="90"
         Minimum="0"
         Name="HeadAngleInput"
+        ToolTip.Tip="{Binding HeadAngleHint}"
+        ShowButtonSpinner="{Binding !IsHeadAngleDerived}"
         IsReadOnly="{Binding IsHeadAngleDerived}"
         Value="{Binding HeadAngle}" />
         <TextBlock Grid.Column="0" Grid.Row="1"

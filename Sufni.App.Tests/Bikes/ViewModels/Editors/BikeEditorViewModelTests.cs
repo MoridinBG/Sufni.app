@@ -82,7 +82,7 @@ public class BikeEditorViewModelTests : BikeEditorFixture
     [InlineData(0.0)]
     [InlineData(-10.0)]
     [InlineData(double.NaN)]
-    public void InvalidChainstay_RestoresManualAngle(double invalidChainstay)
+    public void InvalidChainstay_KeepsLastPhotoAngleForManualEditing(double invalidChainstay)
     {
         var snapshot = FullSuspensionSnapshot(
             includeHeadTubeJoints: true,
@@ -90,13 +90,21 @@ public class BikeEditorViewModelTests : BikeEditorFixture
             rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5));
         var editor = CreateEditor(snapshot);
         Assert.True(editor.Linkage.PixelsToMillimeters.HasValue);
-        Assert.True(editor.Frame.HeadAngle.HasValue);
+        var headTube = editor.Linkage.JointViewModels.Single(joint => joint.Name == JointNames.HeadTube1);
+        headTube.X += 3;
+        var calculated = editor.Frame.HeadAngle;
+        Assert.NotNull(calculated);
+        Assert.NotEqual(snapshot.HeadAngle, calculated);
+        editor.Frame.HeadAngle = 61;
+        Assert.Equal(calculated, editor.Frame.HeadAngle);
 
         editor.Linkage.Chainstay = invalidChainstay;
 
         Assert.Null(editor.Linkage.PixelsToMillimeters);
         Assert.False(editor.Frame.IsHeadAngleDerived);
-        Assert.Equal(snapshot.HeadAngle, editor.Frame.HeadAngle);
+        Assert.Equal(calculated, editor.Frame.HeadAngle);
+        editor.Frame.HeadAngle = 63;
+        Assert.Equal(63, editor.Frame.HeadAngle);
     }
 
     [AvaloniaFact]

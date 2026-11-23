@@ -33,7 +33,7 @@ public class BikeEditorStateTests
 
         editor.Actions.Mode(RearSuspensionKind.None);
         Assert.Null(editor.Current.Presentation);
-        Assert.Equal(65, editor.Current.Geometry.EffectiveHeadAngle);
+        Assert.Equal(71.6, editor.Current.Geometry.EffectiveHeadAngle);
     }
 
     [Fact]

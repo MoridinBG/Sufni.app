@@ -47,7 +47,14 @@ public sealed class BikeEditorStateController : IDisposable
 
     internal static BikeEditorState Refresh(BikeEditorState before, BikeEditorState after, bool force, bool debounce, bool busy)
     {
-        var geometry = BikeEditorGeometryDeriver.Derive(after.Inputs, after.Baseline, after.Presentation);
+        var inputs = after.Inputs;
+        if (before.Phase == BikeEditorPhase.Ready && before.Geometry.IsHeadAngleDerived &&
+            !ReferenceEquals(before.Inputs, inputs))
+        {
+            inputs = inputs with { ManualHeadAngle = before.Geometry.EffectiveHeadAngle };
+        }
+        var geometry = BikeEditorGeometryDeriver.Derive(inputs, after.Baseline, after.Presentation);
+        if (!geometry.IsHeadAngleDerived) after = after with { Inputs = inputs };
         if (after.Inputs.Mode != before.Inputs.Mode) after = after with { Presentation = null };
         if (force || geometry.Spec != before.Geometry.Spec)
         {

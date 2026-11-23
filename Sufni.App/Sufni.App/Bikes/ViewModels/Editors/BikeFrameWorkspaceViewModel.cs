@@ -19,6 +19,9 @@ public sealed class BikeFrameWorkspaceViewModel(BikeEditorStateController contro
 {
     public bool HasRearSuspension => State.Inputs.Mode != RearSuspensionKind.None;
     public bool IsHeadAngleDerived => State.Geometry.IsHeadAngleDerived;
+    public string HeadAngleHint => IsHeadAngleDerived
+        ? "Calculated from the two head-tube points and the ground line between the wheel contact points."
+        : "Enter the head angle manually. Automatic calculation requires both head-tube points and a calibrated ground line.";
     public double? HeadAngle { get => State.Geometry.EffectiveHeadAngle; set { if (value != HeadAngle) Actions.HeadAngle(value); } }
     public double? ForksStroke { get => State.Inputs.ForkStroke; set { if (value != ForksStroke) Actions.ForkStroke(value); } }
     public double? ShockStroke { get => State.Inputs.ShockStroke; set { if (value != ShockStroke) Actions.ShockStroke(value); } }
