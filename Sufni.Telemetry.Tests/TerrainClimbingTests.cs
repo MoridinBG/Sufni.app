@@ -7,7 +7,7 @@ public class TerrainClimbingTests
     [InlineData(120, true)]
     public void ClimbsNeedTwoMinutesOfDetectedPedalling(int pedalledWindows, bool described)
     {
-        var profile = TerrainProfiles.Profile(Climb(0, pedalledWindows, 8));
+        var profile = TerrainProfiles.Profile(TerrainProfiles.PedalledClimb(0, pedalledWindows, 8));
 
         Assert.Equal(described, TerrainClimbing.Describe(profile, null) is not null);
     }
@@ -15,7 +15,7 @@ public class TerrainClimbingTests
     [Fact]
     public void PedallingOutsideTheRangeDoesNotCount()
     {
-        var profile = TerrainProfiles.Profile(Climb(0, 200, 8));
+        var profile = TerrainProfiles.Profile(TerrainProfiles.PedalledClimb(0, 200, 8));
 
         Assert.Null(TerrainClimbing.Describe(profile, new(0, 100)));
     }
@@ -23,8 +23,8 @@ public class TerrainClimbingTests
     [Fact]
     public void SummaryMeasuresTheClimbsAndTakesBobAndCadenceFromPedalledWindowsOnly()
     {
-        var technical = Enumerable.Range(160, 40).Select(i => ClimbWindow(i, null) with { Roughness = RoughnessClass.TechnicalClimb });
-        var profile = TerrainProfiles.Profile([.. Climb(0, 100, 7), .. Climb(100, 60, 9), .. technical]);
+        var technical = Enumerable.Range(160, 40).Select(i => TerrainProfiles.Climb(i) with { Roughness = RoughnessClass.TechnicalClimb });
+        var profile = TerrainProfiles.Profile([.. TerrainProfiles.PedalledClimb(0, 100, 7), .. TerrainProfiles.PedalledClimb(100, 60, 9), .. technical]);
 
         var climbing = TerrainClimbing.Describe(profile, null)!;
 
@@ -41,21 +41,13 @@ public class TerrainClimbingTests
     {
         var descent = TerrainProfiles.Window(120) with { Band = GradeBand.Descent, Rear = Travel(30) };
         var flat = TerrainProfiles.Window(121) with { Band = GradeBand.Flat, Rear = Travel(80) };
-        var profile = TerrainProfiles.Profile([.. Climb(0, 120, 8), descent, flat]);
+        var profile = TerrainProfiles.Profile([.. TerrainProfiles.PedalledClimb(0, 120, 8), descent, flat]);
 
         var climbing = TerrainClimbing.Describe(profile, null)!;
 
         Assert.Equal(new ClimbTravel(50, 30), climbing.Rear);
         Assert.Equal(new ClimbTravel(null, null), climbing.Front);
     }
-
-    private static IEnumerable<TerrainWindow> Climb(int start, int count, double bob) =>
-        Enumerable.Range(start, count).Select(i => ClimbWindow(i, new PedallingFigures(true, 80, bob)));
-
-    private static TerrainWindow ClimbWindow(int index, PedallingFigures? pedalling) => TerrainProfiles.Window(index) with
-    {
-        Band = GradeBand.Climb, Grade = -0.1, Roughness = RoughnessClass.SmoothClimb, Pedalling = pedalling, Rear = Travel(50)
-    };
 
     private static SuspensionWindowFigures Travel(double meanTravel) => new(100, 1, 1, meanTravel, null);
 }

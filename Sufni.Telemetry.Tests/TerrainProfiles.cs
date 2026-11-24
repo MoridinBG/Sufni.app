@@ -30,4 +30,14 @@ public static class TerrainProfiles
     /// <summary>Pairs each of the first <paramref name="windows"/> windows with the window of the same index.</summary>
     public static TerrainRunAlignment.Aligned Identity(int windows) =>
         new(ImuLocation.Frame, [], [.. Enumerable.Range(0, windows).Select(i => new TerrainWindowPair(i, i))]);
+
+    /// <summary>Smooth climb windows at −0.1 grade with 50 mm mean rear travel and pedalling detected at 80 rpm.</summary>
+    public static IEnumerable<TerrainWindow> PedalledClimb(int start, int count, double bob = 8) =>
+        Enumerable.Range(start, count).Select(i => Climb(i, new PedallingFigures(true, 80, bob)));
+
+    public static TerrainWindow Climb(int index, PedallingFigures? pedalling = null) => Window(index) with
+    {
+        Band = GradeBand.Climb, Grade = -0.1, Roughness = RoughnessClass.SmoothClimb, Pedalling = pedalling,
+        Rear = new SuspensionWindowFigures(100, 1, 1, 50, null)
+    };
 }
