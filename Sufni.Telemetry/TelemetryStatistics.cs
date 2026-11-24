@@ -67,6 +67,22 @@ public static partial class TelemetryStatistics
         selection is null || selection.Contains(stroke.EndSeconds > stroke.StartSeconds
             ? stroke.StartSeconds + (double)offset / rate : (double)(stroke.Start + offset) / rate);
 
+    private static (double Sum, int Count) SumSelectedSamples(Stroke stroke, double strokeSum, ImmutableArray<double> values,
+        TelemetryTimeSelection? selection, int rate)
+    {
+        if (selection is null || selection.CoversSamples(StrokeStartSeconds(stroke, rate), StrokeEndSeconds(stroke, rate)))
+            return (strokeSum, stroke.Stat.Count);
+        double sum = 0;
+        var count = 0;
+        for (var i = stroke.Start; i <= stroke.End; i++)
+        {
+            if (!IncludesSample(selection, stroke, i - stroke.Start, rate)) continue;
+            sum += values[i];
+            count++;
+        }
+        return (sum, count);
+    }
+
     private static double StrokeStartSeconds(Stroke stroke, int sampleRate) =>
         stroke.EndSeconds > stroke.StartSeconds
             ? stroke.StartSeconds

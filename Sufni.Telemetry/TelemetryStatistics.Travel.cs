@@ -203,21 +203,10 @@ public static partial class TelemetryStatistics
 
         foreach (var stroke in GetIncludedCompressions(telemetryData, suspension, range).Concat(GetIncludedRebounds(telemetryData, suspension, range)))
         {
-            if (range is null || range.CoversSamples(StrokeStartSeconds(stroke, telemetryData.Metadata.SampleRate),
-                    StrokeEndSeconds(stroke, telemetryData.Metadata.SampleRate)))
-            {
-                sum += stroke.Stat.SumTravel;
-                count += stroke.Stat.Count;
-            }
-            else
-            {
-                for (var i = stroke.Start; i <= stroke.End; i++)
-                {
-                    if (!IncludesSample(range, stroke, i - stroke.Start, telemetryData.Metadata.SampleRate)) continue;
-                    sum += suspension.Travel[i];
-                    count++;
-                }
-            }
+            var selected = SumSelectedSamples(stroke, stroke.Stat.SumTravel, suspension.Travel, range,
+                telemetryData.Metadata.SampleRate);
+            sum += selected.Sum;
+            count += selected.Count;
             bottomouts += stroke.Stat.Bottomouts;
             if (stroke.Stat.MaxTravel > max)
             {
