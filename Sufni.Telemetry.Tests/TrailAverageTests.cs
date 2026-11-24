@@ -37,16 +37,17 @@ public class TrailAverageTests
         });
     }
 
+    // The measured level is the geometric mean of all four readings: (2.4³ × 0.1)^¼ and (2.4² × 0.1²)^¼.
     [Theory]
-    [InlineData(3, RoughnessClass.Rough)]
-    [InlineData(2, null)]
-    public void UnknownScalesContributeOnlyToMeasuredLevel(int calibratedCount, RoughnessClass? expected)
+    [InlineData(3, RoughnessClass.Rough, 1.0843)]
+    [InlineData(2, null, 0.4899)]
+    public void UnknownScalesContributeOnlyToMeasuredLevel(int calibratedCount, RoughnessClass? expected, double level)
     {
         var profiles = Enumerable.Range(0, 4).Select(i => i < calibratedCount
             ? Measurements(i, frameLevel: 2.4) : Measurements(i, frameLevel: 0.1, calibrated: false)).ToArray();
         var window = Average(profiles).Windows[0];
         Assert.Equal(expected, window.Roughness);
-        Assert.InRange(window.FrameLevel!.Value, 0.48, 1.10);
+        Assert.Equal(level, window.FrameLevel!.Value, 0.0005);
     }
 
     [Theory]
