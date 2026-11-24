@@ -45,11 +45,9 @@ public sealed record SegmentComparisonSessionState(
 }
 
 /// <summary>
-/// Segment matching of one open recorded session. It lives as long as the session
-/// editor. Matches are shown a page at a time as child rows of the travel,
-/// velocity, IMU, and speed rows; one match can be compared with the current
-/// analysis. A change of the analysis range, telemetry, or track discards the
-/// matches; a change of the analysis settings rebuilds only the comparison.
+/// The matches, trail average and analysis comparison of one open recorded session, for the
+/// editor's lifetime. The comparison follows the editor's analysis scope, which it only requests.
+/// A change of the range, telemetry, track or source terrain profile key discards the matches.
 /// </summary>
 public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisposable, IAsyncDisposable
 {
