@@ -17,6 +17,7 @@ using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Segments.Coordinators;
+using Sufni.App.Segments.Models;
 using Sufni.App.Segments.Services;
 using Sufni.App.Segments.Stores;
 using Sufni.App.Sessions.Analysis.Services;
@@ -108,6 +109,24 @@ internal sealed class SessionDetailHarness : IDisposable
         {
             Terrain = new TerrainStatus.Current(key, TerrainProfileCalculator.Summarize(profile))
         };
+    }
+
+    /// <summary>
+    /// Loads an editor over the segment-match telemetry and its track, with a rough window inside the
+    /// 2–5 s analysis range, and runs Match over the given comparisons.
+    /// </summary>
+    public async Task<SessionDetailViewModel> LoadMatchedEditorAsync(SessionSnapshot session,
+        IObservable<RecordedSessionDomainSnapshot>? laterDomains = null, params SegmentComparison[] matches)
+    {
+        var profile = Telemetry.Tests.TerrainProfiles.Classified(Telemetry.Tests.TerrainProfiles.Window(2, RoughnessClass.Rough, RoughnessSource.Both));
+        var domains = (laterDomains ?? Observable.Empty<RecordedSessionDomainSnapshot>()).StartWith(WithTerrain(session, profile));
+        var editor = CreateRecordedEditor(session, CreateLoadedResult(TestSegmentMatches.Telemetry(),
+            trackPoints: [new(1000, 0, 0, null), new(1030, 200, 50, null)]), domains);
+        await LoadAsync(editor);
+        editor.SignalsWorkspace.SetAnalysisRange(2, 5);
+        TestSegmentComparisons.MatchReturns(SegmentCoordinator, matches);
+        await editor.SignalsWorkspace.SegmentComparison.MatchCommand.ExecuteAsync(null);
+        return editor;
     }
 
     public SessionSnapshot CreateRecordedSession(

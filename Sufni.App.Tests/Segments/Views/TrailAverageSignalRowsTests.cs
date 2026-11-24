@@ -1,4 +1,3 @@
-using System.Reactive.Linq;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Sufni.App.Segments.Services;
@@ -24,23 +23,17 @@ public class TrailAverageSignalRowsTests
         using var h = new SessionDetailHarness();
         var session = h.CreateRecordedSession();
         var telemetry = TestSegmentMatches.Telemetry();
-        var profile = TerrainProfiles.Classified(TerrainProfiles.Window(0, RoughnessClass.Rough, RoughnessSource.Both));
-        var editor = h.CreateRecordedEditor(session, h.CreateLoadedResult(telemetry,
-            trackPoints: [new(1000, 0, 0, null), new(1030, 200, 50, null)]), Observable.Return(h.WithTerrain(session, profile)));
+        TestSegmentComparisons.WithTrailAverage(h.SegmentCoordinator);
+        var editor = await h.LoadMatchedEditorAsync(session, matches:
+            [SegmentComparisonBuilder.Build(TestSegmentMatches.Match(10, 13), telemetry, 30)!,
+                SegmentComparisonBuilder.Build(TestSegmentMatches.Match(6, 12), telemetry, 30)!]);
         try
         {
-            await h.LoadAsync(editor);
             var signals = editor.SignalsWorkspace;
-            signals.SetAnalysisRange(2, 5);
-            TestSegmentComparisons.MatchReturns(h.SegmentCoordinator,
-                SegmentComparisonBuilder.Build(TestSegmentMatches.Match(10, 13), telemetry, 30)!,
-                SegmentComparisonBuilder.Build(TestSegmentMatches.Match(6, 12), telemetry, 30)!);
-            TestSegmentComparisons.WithTrailAverage(h.SegmentCoordinator);
             ViewTestHelpers.EnsureFluentTheme();
             ViewTestHelpers.EnsureViewTestResources();
             var view = new RecordedSignalRowsView { DataContext = signals };
             await using var mounted = await ViewTestHelpers.MountAsync(view);
-            await signals.SegmentComparison.MatchCommand.ExecuteAsync(null);
             await ViewTestHelpers.FlushDispatcherAsync();
 
             var root = view.FindControl<SignalRowsRoot>("SignalRowsRoot")!;

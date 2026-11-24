@@ -4,6 +4,7 @@ using Sufni.App.Segments.Coordinators;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.Telemetry.Tests;
+using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -62,26 +63,16 @@ public class RecordedTerrainTests
     {
         using var h = new SessionDetailHarness();
         var session = h.CreateRecordedSession();
-        var telemetry = TestSegmentMatches.Telemetry();
-        var profile = TerrainProfiles.Classified(TerrainProfiles.Window(2, RoughnessClass.Rough, RoughnessSource.Both));
-        var domain = h.WithTerrain(session, profile);
-        using var changes = new BehaviorSubject<RecordedSessionDomainSnapshot>(domain);
-        var editor = h.CreateRecordedEditor(session, h.CreateLoadedResult(telemetry,
-            trackPoints: [new(1000, 0, 0, null), new(1030, 200, 50, null)]), changes);
-        await h.LoadAsync(editor);
+        using var changes = new Subject<RecordedSessionDomainSnapshot>();
+        var compared = SegmentComparisonBuilder.Build(TestSegmentMatches.Match(10, 13), TestSegmentMatches.Telemetry(), 30)!;
+        TestSegmentComparisons.DetailReturns(h.SegmentCoordinator, compared);
+        var editor = await h.LoadMatchedEditorAsync(session, changes, compared);
         var signals = editor.SignalsWorkspace;
-        signals.SetAnalysisRange(2, 5);
         var filter = signals.TerrainFilter!;
         var chip = filter.Roughness[(int)RoughnessClass.Rough];
         chip.Toggle.Execute(null);
         Assert.True(filter.IsActive);
-        var compared = SegmentComparisonBuilder.Build(TestSegmentMatches.Match(10, 13), telemetry, 30)!;
-        h.SegmentCoordinator.MatchAsync(Arg.Any<SegmentMatchSource>(), Arg.Any<CancellationToken>())
-            .Returns(new SegmentMatchResult.Matched([compared.Match], new SegmentComparisonPage([compared], [])));
-        h.SegmentCoordinator.LoadComparisonDetailAsync(compared, Arg.Any<CancellationToken>())
-            .Returns(new SegmentComparisonDetailResult.Loaded(SegmentComparisonBuilder.BuildDetail(telemetry, [])));
         var comparisons = signals.SegmentComparison;
-        await comparisons.MatchCommand.ExecuteAsync(null);
         var row = Assert.Single(comparisons.TravelRows);
         await ((IAsyncRelayCommand)row.HeaderActions.Single(a => a.Command is IAsyncRelayCommand).Command!).ExecuteAsync(null);
         Assert.True(comparisons.HasAnalysisComparison);
