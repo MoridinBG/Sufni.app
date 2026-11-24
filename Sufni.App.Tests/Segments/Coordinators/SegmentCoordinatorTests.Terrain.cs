@@ -148,9 +148,9 @@ public partial class SegmentCoordinatorTests
             return Task.Delay(Timeout.Infinite, token);
         };
         var work = CreateCoordinator().BuildTrailAverageAsync(source, new(0, 10), [match, repeated], TestContext.Current.CancellationToken);
-        await reading.Task;
+        await reading.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         operationRunner.Cancel(source.SessionId);
-        Assert.IsType<SegmentTrailAverage.Cancelled>(await work);
+        Assert.IsType<SegmentTrailAverage.Cancelled>(await work.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
     }
 
     private (SegmentTerrainSource Source, SegmentMatch Match) TerrainComparisonInputs(int baselineCount,

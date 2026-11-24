@@ -575,8 +575,13 @@ public class SessionDetailViewModelTests
         var pending = new TaskCompletionSource<SessionDetailTrackLoadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         harness.SessionLoader.LoadTrackAsync(snapshot.Id, ride.Telemetry, Arg.Any<IProgress<SessionDetailLoadProgress>>(),
             Arg.Any<CancellationToken>()).Returns(pending.Task);
+        var published = new TaskCompletionSource();
+        ((INotifyPropertyChanged)editor.SignalsWorkspace).PropertyChanged += (_, _) =>
+        {
+            if (ReferenceEquals(editor.SignalsWorkspace.TelemetryData, ride.Telemetry)) published.TrySetResult();
+        };
         var load = harness.LoadAsync(editor);
-        await WaitForAsync(() => ReferenceEquals(editor.SignalsWorkspace.TelemetryData, ride.Telemetry));
+        await published.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         var view = new FramePitchRollPlotView
         {
             Telemetry = editor.SignalsWorkspace.TelemetryData,
@@ -596,7 +601,7 @@ public class SessionDetailViewModelTests
             var track = loaded.Data.TelemetryPresentation;
             pending.SetResult(new SessionDetailTrackLoadResult.Loaded(
                 new SessionTrackPresentationData(track.FullTrackId, track.FullTrackPoints, track.TrackPoints)));
-            await load;
+            await load.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
             await ViewTestHelpers.FlushDispatcherAsync();
             Assert.InRange(PitchDuringBraking(), descentPitch - 2, descentPitch + 2);
         }
