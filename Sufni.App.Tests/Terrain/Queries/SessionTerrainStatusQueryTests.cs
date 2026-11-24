@@ -13,11 +13,10 @@ public class SessionTerrainStatusQueryTests
     {
         var session = TestSnapshots.Session(hasProcessedData: true) with { Timestamp = 100, DurationSeconds = 20 };
         var track = new TrackSnapshot(Guid.NewGuid(), 100, 120, 7);
-        var key = SessionTerrainStatusQuery.Evaluate(session, [track]).Key;
         var summary = new TerrainSummary(10, 0, 1, 0, null, null, null, RoughnessSource.FrameOnly);
-        session = session with { TerrainProfileKey = key, TerrainOutcome = TerrainOutcome.Computed, TerrainSummary = summary };
+        session = TestSnapshots.WithCurrentTerrain(session, TerrainOutcome.Computed, summary, [track]);
 
-        Assert.Equal(new TerrainStatus.Current(key, summary),
+        Assert.Equal(new TerrainStatus.Current(session.TerrainProfileKey!, summary),
             SessionTerrainStatusQuery.Evaluate(session with { Name = "renamed" }, [track]).Status);
         foreach (var changed in new[] {
             session with { ProcessedTelemetryRevision = session.ProcessedTelemetryRevision + 1 },
@@ -36,8 +35,8 @@ public class SessionTerrainStatusQueryTests
     public void TerminalOutcomesExpireWithTheirKey(TerrainOutcome outcome, TerrainAvailabilityReason? reason)
     {
         var session = TestSnapshots.Session(hasProcessedData: true);
-        var key = SessionTerrainStatusQuery.Evaluate(session, []).Key;
-        session = session with { TerrainProfileKey = key, TerrainOutcome = outcome };
+        session = TestSnapshots.WithCurrentTerrain(session, outcome);
+        var key = session.TerrainProfileKey!;
         var status = SessionTerrainStatusQuery.Evaluate(session, []).Status;
         if (reason is { } unavailable)
             Assert.Equal(new TerrainStatus.Unavailable(unavailable), status);

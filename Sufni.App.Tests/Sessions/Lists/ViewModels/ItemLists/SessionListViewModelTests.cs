@@ -33,10 +33,8 @@ public class SessionListViewModelTests
         var (projection, cache) = CreateProjection();
         using (cache)
         {
-            var session = TestSnapshots.Session(hasProcessedData: true);
-            var key = SessionTerrainStatusQuery.Evaluate(session, []).Key;
-            session = session with { TerrainProfileKey = key, TerrainOutcome = TerrainOutcome.Computed,
-                TerrainSummary = new TerrainSummary(metres, 0.577, 0.279, 0.144, null, null, steep, RoughnessSource.Both) };
+            var session = TestSnapshots.WithCurrentTerrain(TestSnapshots.Session(hasProcessedData: true), TerrainOutcome.Computed,
+                new TerrainSummary(metres, 0.577, 0.279, 0.144, null, null, steep, RoughnessSource.Both));
             var summary = CreateSummary("ride") with { Id = session.Id };
             void Publish() => cache.AddOrUpdate(summary with { Terrain = SessionTerrainStatusQuery.Evaluate(session, []).Status });
             Publish();
@@ -48,8 +46,7 @@ public class SessionListViewModelTests
             session = session with { GpsOffsetSeconds = 2 };
             Publish();
             Assert.False(row.HasSubtitleText);
-            var changed = SessionTerrainStatusQuery.Evaluate(session, []).Key;
-            session = session with { TerrainProfileKey = changed, TerrainOutcome = TerrainOutcome.Failed };
+            session = TestSnapshots.WithCurrentTerrain(session, TerrainOutcome.Failed);
             Publish();
             Assert.Null(row.Fingerprint);
             session = session with { TerrainOutcome = TerrainOutcome.NoTrack };

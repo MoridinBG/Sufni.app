@@ -1,9 +1,11 @@
 using Sufni.Kinematics;
+using Sufni.Telemetry;
 
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
 using Sufni.App.Bikes.Models;
+using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Queries;
 namespace Sufni.App.Tests.TestSupport.Fixtures;
@@ -105,4 +107,13 @@ public static class TestSnapshots
 
     /// <summary>The terrain status of a session without a selected track.</summary>
     public static TerrainStatus Terrain(SessionSnapshot session) => SessionTerrainStatusQuery.Evaluate(session, []).Status;
+
+    /// <summary>Stores a terrain outcome under the session's current profile key.</summary>
+    public static SessionSnapshot WithCurrentTerrain(SessionSnapshot session, TerrainOutcome outcome,
+        TerrainSummary? summary = null, IReadOnlyList<TrackSnapshot>? tracks = null) => session with
+    {
+        TerrainProfileKey = SessionTerrainStatusQuery.Evaluate(session, tracks ?? []).Key,
+        TerrainOutcome = outcome,
+        TerrainSummary = summary
+    };
 }

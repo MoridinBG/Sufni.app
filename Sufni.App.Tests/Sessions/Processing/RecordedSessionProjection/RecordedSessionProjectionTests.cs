@@ -9,7 +9,6 @@ using Sufni.App.Tests.TestSupport.Doubles;
 using System.Reactive.Linq;
 using DynamicData;
 using Sufni.App.Terrain.Models;
-using Sufni.App.Terrain.Queries;
 using Sufni.Telemetry;
 using NSubstitute;
 using Sufni.App.Shared.Stores;
@@ -35,9 +34,8 @@ public class RecordedSessionProjectionTests
         var fingerprints = new ProcessingFingerprintService();
         using var projection = stores.CreateProjection(fingerprints, scheduler);
         var context = CreateCurrentContext(fingerprints);
-        var key = SessionTerrainStatusQuery.Evaluate(context.Session, []).Key;
-        var session = context.Session with { TerrainProfileKey = key, TerrainOutcome = TerrainOutcome.Computed,
-            TerrainSummary = new TerrainSummary(20, 0.5, 0, 0.5, null, null, null, RoughnessSource.Both) };
+        var session = TestSnapshots.WithCurrentTerrain(context.Session, TerrainOutcome.Computed,
+            new TerrainSummary(20, 0.5, 0, 0.5, null, null, null, RoughnessSource.Both));
         using var observation = projection.ConnectSessions().Bind(out var summaries).Subscribe();
         var domains = new List<RecordedSessionDomainSnapshot>();
         using var watch = projection.WatchSession(session.Id).Subscribe(domains.Add);
