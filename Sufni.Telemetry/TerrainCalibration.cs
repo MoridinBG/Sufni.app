@@ -24,4 +24,8 @@ public sealed record TerrainCalibration(double CalmBoundary, double RoughBoundar
         frameLevel < TechnicalClimbLevel ? RoughnessClass.SmoothClimb : RoughnessClass.TechnicalClimb;
 
     public double Normalise(double speedRemoved) => Math.Log(speedRemoved / CalmBoundary) / Math.Log(RoughBoundary / CalmBoundary);
+
+    /// <summary>The speed-removed levels, in g, at the boundaries between adjacent descent levels.</summary>
+    public IReadOnlyList<double> LevelEdges =>
+        [.. new[] { -1d, 0, 1, 2 }.Select(n => CalmBoundary * Math.Pow(RoughBoundary / CalmBoundary, n))];
 }

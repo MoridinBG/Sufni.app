@@ -30,4 +30,9 @@ public sealed record TerrainSourceCoverage(double JointShare, double FrameOnlySh
 
 public sealed record TerrainPresentation(ImmutableArray<TerrainRun<RoughnessClass>> RoughnessRuns,
     ImmutableArray<TerrainRun<GradeBand>> GradeRuns, ImmutableArray<TerrainSignalSection> Frame,
-    ImmutableArray<TerrainSignalSection> Lowers, ImmutableArray<TerrainSignalSection> Grade, TerrainSourceCoverage Coverage);
+    ImmutableArray<TerrainSignalSection> Lowers, ImmutableArray<TerrainSignalSection> Grade, TerrainSourceCoverage Coverage)
+{
+    /// <summary>Speed-removed frame levels at the descent level boundaries; empty without a calibrated frame scale.</summary>
+    public ImmutableArray<double> FrameEdges { get; init; } = [];
+    public ImmutableArray<double> LowersEdges { get; init; } = [];
+}

@@ -4,7 +4,9 @@ public static partial class TerrainProfileCalculator
 {
     private const double MinimumGradeMetres = 800;
     private const double GradeCutoffHz = 0.08;
-    private static readonly double[] BandEdges = [.. new[] { -6d, -2, 2, 5, 10, 15 }.Select(d => Math.Sin(d * Math.PI / 180))];
+    /// <summary>The boundaries between adjacent grade bands, in degrees downhill.</summary>
+    public static IReadOnlyList<double> GradeBandEdges { get; } = [-6, -2, 2, 5, 10, 15];
+    private static readonly double[] BandEdges = [.. GradeBandEdges.Select(d => Math.Sin(d * Math.PI / 180))];
 
     private static TerrainGradeState MeasureGrade(TrackMotion motion, RawImuData? imu, ImuMetaEntry? frame,
         List<TerrainWindow> windows, CancellationToken token)

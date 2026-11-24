@@ -46,7 +46,14 @@ internal static partial class RecordedSessionPresentationDeriver
         var total = Math.Max(1d, joint + frameOnly + lowersOnly);
         return new(roughness.ToImmutable(), grade.ToImmutable(), frame.Build(), lowers.Build(), grades.Build(),
             new(joint / total, frameOnly / total, lowersOnly / total, clipped, frameMissing, lowersMissing,
-                frameUncalibrated, lowersUncalibrated, profile.SilentSensors));
+                frameUncalibrated, lowersUncalibrated, profile.SilentSensors))
+        {
+            FrameEdges = Edges(ImuLocation.Frame, profile.FrameScale),
+            LowersEdges = Edges(ImuLocation.Fork, profile.LowersScale)
+        };
+
+        static ImmutableArray<double> Edges(ImuLocation location, double? scale) =>
+            scale is { } value && TerrainCalibration.For(location, value) is { } calibration ? [.. calibration.LevelEdges] : [];
     }
 
     public static RecordedSessionEditorState WithTerrainSelection(RecordedSessionEditorState previous, RecordedSessionEditorState next)
