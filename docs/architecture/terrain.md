@@ -34,7 +34,7 @@ The baseline identity is the ordered set of current profile keys of other rides 
 
 Climbing windows stay out of the fit and out of every response row, because pedalling and rider load drive the response there. Each target needs five compatible rides, 1,000 moving windows with positive observations, and independent variation in the log band levels and speed. Front targets prefer the lowers sensor and rear targets the frame. The alternative is used only if the preferred sensor is absent on the evaluated ride or throughout the baseline. Transmission uses the lowers bands to predict the frame level. Each model carries its predictor, coverage and availability.
 
-Insights measures the whole ride and each roughness class inside the analysis time range, independently of the class filter. Boundary-window distance and log residuals are weighted by the covered fraction. Ratios use the geometric mean of observed over predicted response. A row reports ratios from 150 m, and the presentation marks distances under 300 m as low confidence. Classification uses the bike-baseline repeat thresholds of 30% for suspension response and 10% for transmission.
+Insights measures the whole ride and each descent level inside the analysis time range, independently of the class filter. Boundary-window distance and log residuals are weighted by the covered fraction. Ratios use the geometric mean of observed over predicted response. A row reports ratios from 150 m, and the presentation marks distances under 300 m as low confidence. Classification uses the bike-baseline repeat thresholds of 30% for suspension response and 10% for transmission.
 
 ## Same-trail comparison
 
@@ -44,6 +44,6 @@ The pair fit excludes both compared rides and requires compatible predictor scal
 
 ## Known-trail average
 
-Each source window receives at most one measurement from each aligned run. Measured frame and lowers levels use geometric means of at least three readings. Grade uses an arithmetic mean and the same contiguous 50 m baseline as a single ride. A stopped source window stays in the average without values or classes, so the baseline reaches past it.
+Each source window receives at most one measurement from each aligned run. Measured frame and lowers levels use geometric means of at least three readings. Grade uses an arithmetic mean and the same contiguous 50 m baseline as a single ride. A climbing window takes its climb level from the geometric mean of at least three calibrated frame levels. A stopped source window stays in the average without values or classes, so the baseline reaches past it.
 
 Classification requires three eligible readings for each contributing sensor. Each reading uses its own scale calibration. A ride with frame data excludes its lowers class evidence when clipping exceeds 2%. Uncalibrated and clipped readings can still contribute to the measured levels. When both sensors qualify, their mean normalized values carry equal weight. A comparison using the average keeps windows without an averaged class in its all-terrain row only. Average values live for the current Match in the recorded editor.

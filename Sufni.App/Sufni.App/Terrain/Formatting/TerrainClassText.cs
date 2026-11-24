@@ -24,6 +24,8 @@ internal static class TerrainClassText
         RoughnessClass.Medium => "Medium",
         RoughnessClass.Rough => "Rough",
         RoughnessClass.VeryRough => "Very rough",
+        RoughnessClass.SmoothClimb => "Smooth climb",
+        RoughnessClass.TechnicalClimb => "Technical climb",
         _ => throw new ArgumentOutOfRangeException(nameof(level))
     };
 }

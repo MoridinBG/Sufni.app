@@ -72,6 +72,8 @@ public static partial class TerrainProfileCalculator
 
     public static bool IsClimb(this GradeBand band) => band <= GradeBand.Climb;
 
+    public static bool IsClimb(this RoughnessClass level) => level >= RoughnessClass.SmoothClimb;
+
     /// <summary>Mean downhill grade over up to five adjacent windows, requiring three measured grades.</summary>
     public static double? BaselineGrade(IReadOnlyList<TerrainWindow> windows, int i) =>
         BaselineGrade(windows, i, static w => w.Grade, static (a, b) => a.EndSeconds == b.StartSeconds);

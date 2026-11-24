@@ -75,16 +75,17 @@ public class SuspensionResponseModelTests
     }
 
     [Fact]
-    public void ClimbingWindowsStayOutOfTheWholeRideRow()
+    public void ClimbingWindowsStayOutOfEveryResponseRow()
     {
         var profile = SyntheticResponseRides.Profile(37);
         var evaluated = profile with
         {
-            Windows = [.. profile.Windows.Select(w => w.StartMetres < 1100 ? w with { Band = GradeBand.Climb } : w)]
+            Windows = [.. profile.Windows.Select(w => w.StartMetres < 1100
+                ? w with { Band = GradeBand.Climb, Roughness = RoughnessClass.TechnicalClimb, Source = null } : w)]
         };
-        var whole = TerrainResponse.Describe(evaluated, SuspensionResponseModel.Fit(evaluated, SyntheticResponseRides.Baseline), null)
-            .Single(row => row.Class is null);
-        Assert.Equal(10 * profile.Windows.Count(w => w.Moving && w.StartMetres >= 1100), whole.DistanceMetres, 6);
+        var rows = TerrainResponse.Describe(evaluated, SuspensionResponseModel.Fit(evaluated, SyntheticResponseRides.Baseline), null);
+        Assert.Equal(10 * profile.Windows.Count(w => w.Moving && w.StartMetres >= 1100), rows.Single(row => row.Class is null).DistanceMetres, 6);
+        Assert.DoesNotContain(rows, row => row.Class?.IsClimb() == true);
     }
 
     private static TerrainProfile Climbing(TerrainProfile profile) =>

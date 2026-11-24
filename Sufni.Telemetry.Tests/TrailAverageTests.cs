@@ -24,14 +24,16 @@ public class TrailAverageTests
         Assert.All(average.Windows, w => Assert.Equal(GradeBand.Descent, w.Band));
     }
 
-    [Fact]
-    public void AveragedClimbHasAClimbBandButNoRoughnessClass()
+    [Theory]
+    [InlineData(0.2, RoughnessClass.SmoothClimb)]
+    [InlineData(0.35, RoughnessClass.TechnicalClimb)]
+    public void AveragedClimbGetsTheClimbLevelOfItsFrameVibration(double frameLevel, RoughnessClass expected)
     {
-        var average = Average([.. gradeSeeds.Select(seed => Measurements(seed, grade: -GroundGrade))]);
+        var average = Average([.. gradeSeeds.Select(seed => Measurements(seed, frameLevel: frameLevel, grade: -GroundGrade))]);
         Assert.All(average.Windows, w =>
         {
             Assert.Equal(GradeBand.SteepClimb, w.Band);
-            Assert.Null(w.Roughness);
+            Assert.Equal(expected, w.Roughness);
         });
     }
 

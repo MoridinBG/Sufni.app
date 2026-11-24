@@ -18,7 +18,7 @@ public static class TerrainRunComparison
     public static ImmutableArray<TerrainComparisonRow> Compare(TerrainProfile current, TerrainProfile earlier,
         TerrainRunAlignment.Aligned alignment, SuspensionResponseModel model, TrailAverage.Averaged? average = null, CancellationToken token = default)
     {
-        var levels = Enum.GetValues<RoughnessClass>();
+        var levels = Enum.GetValues<RoughnessClass>().Where(level => !level.IsClimb()).ToArray();
         var groups = levels.Select(_ => new List<Pair>()).Append([]).ToArray();
         var averageClasses = average?.Windows.ToDictionary(w => w.SourceIndex, w => w.Roughness);
         foreach (var indices in alignment.Pairs)
@@ -29,7 +29,7 @@ public static class TerrainRunComparison
             var roughness = averageClasses is null
                 ? PairClass(pair)
                 : averageClasses.GetValueOrDefault(indices.SourceIndex);
-            if (roughness.HasValue) groups[(int)roughness.Value].Add(pair);
+            if (roughness is { } level && !level.IsClimb()) groups[(int)level].Add(pair);
         }
         return [.. groups.Select((pairs, index) => Describe(pairs, index < levels.Length ? levels[index] : null, model, token))];
     }

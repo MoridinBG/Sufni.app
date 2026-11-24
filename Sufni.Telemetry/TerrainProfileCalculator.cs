@@ -42,8 +42,14 @@ public static partial class TerrainProfileCalculator
         var grade = MeasureGrade(motion, imu, frame, windows, cancellationToken);
         for (var i = 0; i < windows.Count; i++)
         {
-            // Pedalling dominates climbing vibration, so the ground scale does not apply there.
-            if (!windows[i].Moving || windows[i].Climbing) continue;
+            if (!windows[i].Moving) continue;
+            // Pedalling dominates climbing vibration and climbs are slow, so climbs use raw frame vibration.
+            if (windows[i].Climbing)
+            {
+                if (windows[i].Frame is { Normalised: not null } climbFrame)
+                    windows[i] = windows[i] with { Roughness = TerrainCalibration.ClassifyClimb(climbFrame.Level) };
+                continue;
+            }
             var (roughness, source) = Classify(windows[i].Frame, windows[i].Lowers);
             windows[i] = windows[i] with { Roughness = roughness, Source = source };
         }
@@ -97,11 +103,11 @@ public static partial class TerrainProfileCalculator
     public static TerrainSummary Summarize(TerrainProfile profile)
     {
         var moving = profile.Windows.Where(w => w.Moving).ToArray();
-        var classified = moving.Where(w => w.Roughness.HasValue).ToArray();
+        var classified = moving.Where(w => w.Roughness is { } level && !level.IsClimb()).ToArray();
         return new(WindowMetres * (double)moving.Length,
             profile.GradeState == TerrainGradeState.Available ? WindowMetres * (double)moving.Count(w => w.Climbing) : null,
             WindowMetres * (double)classified.Length,
-            classified.Length == 0 ? 0 : (double)classified.Count(w => w.Roughness >= RoughnessClass.Rough) / classified.Length,
+            classified.Length == 0 ? 0 : (double)classified.Count(w => w.Roughness is RoughnessClass.Rough or RoughnessClass.VeryRough) / classified.Length,
             classified.GroupBy(w => w.Source).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key);
     }
 }

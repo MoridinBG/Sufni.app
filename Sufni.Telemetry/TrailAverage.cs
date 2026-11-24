@@ -27,6 +27,7 @@ public closed record TrailAverage(int RunCount)
                 totals[pair.SourceIndex].Add(run.Profile.Windows[pair.MatchIndex]);
         }
         var windows = new List<TrailAverageWindow>();
+        var climbLevels = new List<RoughnessClass?>();
         for (var i = 0; i < source.Windows.Length; i++)
         {
             var w = source.Windows[i];
@@ -37,16 +38,18 @@ public closed record TrailAverage(int RunCount)
             {
                 // A stop stays in the list so the grade baseline walks past it, as it does for a single ride.
                 windows.Add(new(i, w.StartSeconds, w.EndSeconds, null, null, null, null, null));
+                climbLevels.Add(null);
                 continue;
             }
             totals[i].Add(w);
             windows.Add(totals[i].Window(i, w));
+            climbLevels.Add(totals[i].ClimbLevel);
         }
         for (var i = 0; i < windows.Count; i++)
         {
             if (BaselineGrade(windows, i) is not { } baseline) continue;
             var band = TerrainProfileCalculator.ClassifyGrade(baseline);
-            windows[i] = windows[i] with { Band = band, Roughness = band.IsClimb() ? null : windows[i].Roughness };
+            windows[i] = windows[i] with { Band = band, Roughness = band.IsClimb() ? climbLevels[i] : windows[i].Roughness };
         }
         return new Averaged(count, [.. windows]);
     }
@@ -70,12 +73,13 @@ public closed record TrailAverage(int RunCount)
 
     private struct WindowTotals
     {
-        private Mean logFrame, logLowers, normalisedFrame, normalisedLowers, grade;
+        private Mean logFrame, logLowers, normalisedFrame, normalisedLowers, grade, logClimbFrame;
 
         public void Add(TerrainWindow window)
         {
             if (window.Frame is { } frame) logFrame.Add(Math.Log(frame.SpeedRemoved));
             if (window.Lowers is { } lowers) logLowers.Add(Math.Log(lowers.SpeedRemoved));
+            if (window.Frame is { Normalised: not null } calibrated) logClimbFrame.Add(Math.Log(calibrated.Level));
             normalisedFrame.Add(window.Frame?.Normalised);
             normalisedLowers.Add(TerrainProfileCalculator.LowersClassValue(window.Frame, window.Lowers));
             grade.Add(window.Grade);
@@ -89,6 +93,8 @@ public closed record TrailAverage(int RunCount)
             return new(index, source.StartSeconds, source.EndSeconds, Exp(logFrame.Value), Exp(logLowers.Value),
                 grade.Value, normalised.HasValue ? TerrainCalibration.Classify(normalised.Value) : null, null);
         }
+
+        public readonly RoughnessClass? ClimbLevel => Exp(logClimbFrame.Value) is { } level ? TerrainCalibration.ClassifyClimb(level) : null;
 
         private static double? Exp(double? log) => log.HasValue ? Math.Exp(log.Value) : null;
     }

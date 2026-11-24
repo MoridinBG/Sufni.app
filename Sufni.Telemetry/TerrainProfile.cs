@@ -3,7 +3,8 @@ using MessagePack;
 
 namespace Sufni.Telemetry;
 
-public enum RoughnessClass { Smooth, Calm, Medium, Rough, VeryRough }
+/// <summary>Five levels on the speed-corrected descent scale, then two climb levels from frame vibration.</summary>
+public enum RoughnessClass { Smooth, Calm, Medium, Rough, VeryRough, SmoothClimb, TechnicalClimb }
 /// <summary>Signed ground slope over 50 m. The two climb bands come first.</summary>
 public enum GradeBand { SteepClimb, Climb, Flat, GentleDescent, Descent, SteepDescent, VerySteepDescent }
 public enum RoughnessSource { Both, FrameOnly, LowersOnly }

@@ -15,7 +15,7 @@ public static class TerrainResponse
     public static ImmutableArray<TerrainResponseRow> Describe(TerrainProfile profile, SuspensionResponseModel model,
         TelemetryTimeRange? range)
     {
-        var levels = Enum.GetValues<RoughnessClass>();
+        var levels = Enum.GetValues<RoughnessClass>().Where(level => !level.IsClimb()).ToArray();
         var groups = levels.Select(_ => new List<Portion>()).Append([]).ToArray();
         var all = groups[^1];
         foreach (var window in profile.Windows)
@@ -26,7 +26,7 @@ public static class TerrainResponse
             if (end <= start) continue;
             var portion = new Portion(window, (end - start) / (window.EndSeconds - window.StartSeconds));
             if (!window.Climbing) all.Add(portion);
-            if (window.Roughness is { } roughness) groups[(int)roughness].Add(portion);
+            if (window.Roughness is { } roughness && !roughness.IsClimb()) groups[(int)roughness].Add(portion);
         }
         var total = all.Sum(p => p.Fraction);
         return [.. groups.Select((group, i) =>

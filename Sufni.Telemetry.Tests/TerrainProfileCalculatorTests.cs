@@ -264,14 +264,19 @@ public class TerrainProfileCalculatorTests
         Assert.Equal(band, window.Band);
     }
 
-    [Fact]
-    public void ClimbingWindowsKeepTheirLevelsWithoutARoughnessClass()
+    // At 3 m/s the frame reads 0.55 of the ground level: 0.23 g on the smooth climb and 0.41 g on the technical one.
+    private static readonly RideSection[] SmoothAndTechnicalClimbCourse = [
+        new(500, 3, -8, LowBandG: 0.2, MiddleBandG: 0.2, HighBandG: 0.3),
+        new(500, 3, -8, LowBandG: 0.4, MiddleBandG: 0.4, HighBandG: 0.5)];
+
+    [Theory]
+    [InlineData(0, 500, RoughnessClass.SmoothClimb)]
+    [InlineData(500, 1000, RoughnessClass.TechnicalClimb)]
+    public void ClimbsGetAClimbLevelFromRawFrameVibration(double from, double to, RoughnessClass expected)
     {
-        var windows = SyntheticRide.Build(EveryBandCourse).Profile().Windows;
-        var climbing = windows.Where(w => w.Climbing).ToArray();
-        Assert.NotEmpty(climbing);
-        Assert.All(climbing, w => { Assert.Null(w.Roughness); Assert.NotNull(w.Frame); });
-        Assert.All(windows.Where(w => w.Band > GradeBand.Flat), w => Assert.NotNull(w.Roughness));
+        var section = SyntheticRide.Build(SmoothAndTechnicalClimbCourse).Profile().Windows
+            .Where(w => w.StartMetres >= from + 50 && w.StartMetres < to - 50).ToArray();
+        Assert.All(section, w => { Assert.Equal(expected, w.Roughness); Assert.Null(w.Source); });
     }
 
     [Fact]
