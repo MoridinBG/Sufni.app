@@ -417,7 +417,7 @@ internal sealed class SegmentCoordinator(
         {
             return await backgroundTaskRunner.RunAsync<SegmentTerrainComparison>(async () =>
             {
-                var expected = source.Baseline.Profiles.Where(p => p.SessionId != source.SessionId && p.SessionId != match.SessionId)
+                var expected = source.Baseline.Profiles.Where(p => p.SessionId != match.SessionId)
                     .ToDictionary(p => p.SessionId, p => p.Key);
                 expected.Add(match.SessionId, TerrainProfileKey.From(match.ContentToken));
                 var profiles = await terrainProfiles.ReadAsync(expected, token).ConfigureAwait(false);
@@ -428,7 +428,7 @@ internal sealed class SegmentCoordinator(
                 if (alignment is not TerrainRunAlignment.Aligned aligned)
                     return new SegmentTerrainComparison.Unavailable(alignment is TerrainRunAlignment.NoCommonSensor
                         ? SegmentTerrainUnavailable.NoCommonSensor : SegmentTerrainUnavailable.Unaligned);
-                var baseline = profiles.Where(p => p.Key != match.SessionId && p.Key != source.SessionId).Select(p => p.Value).ToArray();
+                var baseline = profiles.Where(p => p.Key != match.SessionId).Select(p => p.Value).ToArray();
                 var model = SuspensionResponseModel.FitPair(source.Profile, earlier, baseline, token);
                 return new SegmentTerrainComparison.Compared(TerrainRunComparison.Compare(source.Profile, earlier, aligned, model, average, token), average?.RunCount);
             }, token);
