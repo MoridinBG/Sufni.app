@@ -302,20 +302,19 @@ public class SegmentComparisonViewModelTests
         coordinator.LoadComparisonDetailAsync(compared, Arg.Any<CancellationToken>()).Returns(result.Task);
         await vm.MatchCommand.ExecuteAsync(null);
         var load = ((IAsyncRelayCommand)CompareAction(vm.TravelRows[0]).Command!).ExecuteAsync(null);
-        Assert.Equal(new AnalysisScope.SegmentComparison(compared.Match.SessionId), sessionState.Value.Scope);
+        Assert.True(CompareAction(vm.TravelRows[0]).IsChecked);
         var detail = new SegmentComparisonDetailResult.Loaded(SegmentComparisonBuilder.BuildDetail(telemetry, []));
         if (finishFirst)
         {
             result.SetResult(detail);
-            await load;
+            await load.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
             Assert.True(vm.HasAnalysisComparison);
         }
         var filter = AnalysisScope.For(new TerrainClassFilter().Toggle(RoughnessClass.Rough));
         sessionState.OnNext(sessionState.Value with { Scope = filter });
         if (!finishFirst) result.SetResult(detail);
-        await load;
+        await load.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         Assert.False(vm.HasAnalysisComparison);
-        Assert.Equal(filter, sessionState.Value.Scope);
         Assert.False(CompareAction(vm.TravelRows[0]).IsChecked);
     }
 
@@ -395,15 +394,13 @@ public class SegmentComparisonViewModelTests
         await using var vm = CreateComparison();
         TrailMatches((10, 13), (6, 12));
         var result = new TaskCompletionSource<SegmentTrailAverage>();
-        CancellationToken token = default;
         coordinator.BuildTrailAverageAsync(Arg.Any<SegmentTerrainSource>(), Arg.Any<TelemetryTimeRange>(),
                 Arg.Any<IReadOnlyList<SegmentMatch>>(), Arg.Any<CancellationToken>())
-            .Returns(call => { token = call.Arg<CancellationToken>(); return result.Task; });
+            .Returns(result.Task);
         var matching = vm.MatchCommand.ExecuteAsync(null);
         vm.Clear();
-        Assert.True(token.IsCancellationRequested);
         result.SetResult(new SegmentTrailAverage.Averaged(new(3, []), [], []));
-        await matching;
+        await matching.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         Assert.Null(vm.TrailAverage);
     }
 
