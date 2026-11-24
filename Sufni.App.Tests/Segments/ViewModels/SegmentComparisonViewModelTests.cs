@@ -469,15 +469,8 @@ public class SegmentComparisonViewModelTests
     {
         coordinator.LoadComparisonDetailAsync(Arg.Any<SegmentComparison>(), Arg.Any<CancellationToken>())
             .Returns(new SegmentComparisonDetailResult.Unavailable());
-        var comparison = new SegmentComparisonViewModel(
-            Guid.NewGuid(),
-            sessionState,
-            TestSegmentComparisons.BuildAnalysisComparisons(coordinator, terrain),
-            (start, end) => visibleRanges.Add((start, end)),
-            errors.Add,
-            notifications.Add,
-            id => sessionState.OnNext(sessionState.Value with { Scope = new AnalysisScope.SegmentComparison(id) }),
-            () => sessionState.OnNext(sessionState.Value with { Scope = new AnalysisScope.Whole() }));
+        var comparison = TestSegmentComparisons.Create(TestSegmentComparisons.BuildAnalysisComparisons(coordinator, terrain),
+            sessionState, (start, end) => visibleRanges.Add((start, end)), errors.Add, notifications.Add);
         sessionState.OnNext(State());
         return comparison;
     }

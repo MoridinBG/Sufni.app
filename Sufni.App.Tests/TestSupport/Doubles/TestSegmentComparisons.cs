@@ -1,5 +1,6 @@
 using System.Reactive.Subjects;
 using Sufni.App.Terrain.Models;
+using Sufni.App.Shared.Models;
 using Sufni.App.Segments.Models;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Sessions.Models;
@@ -60,6 +61,18 @@ internal static class TestSegmentComparisons
         CreateFactory().Create(Guid.NewGuid(), Observable.Never<SegmentComparisonSessionState>(), (_, _) => { }, _ => { }, _ => { }, _ => { }, () => { });
 
     /// <summary>
+    /// Creates a comparison whose begin and end requests set the scope in <paramref name="states"/>,
+    /// as the editor reducer does.
+    /// </summary>
+    public static SegmentComparisonViewModel Create(ISegmentCoordinator coordinator,
+        BehaviorSubject<SegmentComparisonSessionState> states, Action<double, double>? setTimelineVisibleRange = null,
+        Action<FailurePresentation>? reportError = null, Action<string>? reportNotification = null) =>
+        new SegmentComparisonFactory(coordinator).Create(Guid.NewGuid(), states, setTimelineVisibleRange ?? ((_, _) => { }),
+            reportError ?? (_ => { }), reportNotification ?? (_ => { }),
+            id => states.OnNext(states.Value with { Scope = new AnalysisScope.SegmentComparison(id) }),
+            () => states.OnNext(states.Value with { Scope = new AnalysisScope.Whole() }));
+
+    /// <summary>
     /// A comparison that shows one match; its compare action loads the matched
     /// session's analysis.
     /// </summary>
@@ -76,15 +89,8 @@ internal static class TestSegmentComparisons
             Telemetry = telemetry,
             TrackTimeline = new TrackTimeRange(1000, telemetry.Metadata.Duration),
         };
-        var states = new BehaviorSubject<SegmentComparisonSessionState>(sessionState);
-        var segmentComparison = CreateFactory(coordinator, terrain).Create(
-            Guid.NewGuid(),
-            states,
-            (_, _) => { },
-            _ => { },
-            _ => { },
-            id => states.OnNext(states.Value with { Scope = new AnalysisScope.SegmentComparison(id) }),
-            () => states.OnNext(states.Value with { Scope = new AnalysisScope.Whole() }));
+        var segmentComparison = Create(BuildAnalysisComparisons(coordinator, terrain),
+            new BehaviorSubject<SegmentComparisonSessionState>(sessionState));
         await segmentComparison.MatchCommand.ExecuteAsync(null);
         return segmentComparison;
     }
