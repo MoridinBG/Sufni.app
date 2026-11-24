@@ -259,9 +259,16 @@ public class TerrainProfileCalculatorTests
     }
 
     [Fact]
+    public void ClimbingAtWalkingPaceCountsAsMoving()
+    {
+        var windows = SyntheticRide.Build([new(100, 1.5, -6)]).Profile().Windows;
+        Assert.All(windows, w => Assert.True(w.Moving));
+    }
+
+    [Fact]
     public void RideBelowMovingSpeedIsUnavailableForNoMovement()
     {
-        var ride = SyntheticRide.Build([new(100, 2)]);
+        var ride = SyntheticRide.Build([new(100, 0.8)]);
         Assert.Equal(new TerrainProfileResult.Unavailable(TerrainUnavailableReason.NoMovement),
             TerrainProfileCalculator.Calculate(ride.Telemetry, ride.Fixes));
     }

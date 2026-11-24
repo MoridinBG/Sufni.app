@@ -5,7 +5,7 @@ namespace Sufni.Telemetry;
 public static partial class TerrainProfileCalculator
 {
     public const int WindowMetres = 10;
-    private const double MinimumMovingSpeed = 2.5;
+    private const double MinimumMovingSpeed = 1;
     private const double MinimumWindowSeconds = 0.4;
 
     private static List<TerrainWindow> CutWindows(TrackMotion motion, CancellationToken cancellationToken,

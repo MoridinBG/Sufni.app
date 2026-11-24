@@ -4,7 +4,7 @@ namespace Sufni.Telemetry;
 
 public static partial class TerrainProfileCalculator
 {
-    public const int AlgorithmVersion = 2;
+    public const int AlgorithmVersion = 3;
     public const double ClippedShareLimit = 0.02;
     private const double SilentShareLimit = 0.5;
     private const int MinimumImuRate = 200;
