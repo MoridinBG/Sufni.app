@@ -35,14 +35,14 @@ public sealed record SuspensionResponseModel(ImmutableDictionary<ResponseTarget,
     {
         var targets = Enum.GetValues<ResponseTarget>();
         var predictors = targets.Select(target => SelectPredictor(target, evaluated, paired, baseline)).ToArray();
+        var scales = targets.Select((target, i) => AvailableScale(target, predictors[i], evaluated, paired)).ToArray();
         var regressions = targets.Select(_ => new Regression()).ToArray();
         int sessions = 0, windows = 0;
         Span<double> observation = stackalloc double[6];
         foreach (var profile in baseline)
         {
-            var compatible = targets.Select((target, i) => Scale(evaluated, predictors[i]) is { } scale &&
-                Scale(profile, predictors[i]) == scale && (paired is null || Scale(paired, predictors[i]) == scale) &&
-                (target != ResponseTarget.Transmission || evaluated.FrameScale.HasValue && (paired is null || paired.FrameScale.HasValue))).ToArray();
+            var compatible = scales.Select((scale, i) => scale.HasValue && Scale(profile, predictors[i]) == scale &&
+                (paired is null || Scale(paired, predictors[i]) == scale)).ToArray();
             var contributed = new bool[targets.Length];
             foreach (var window in profile.Windows)
             {
@@ -63,12 +63,9 @@ public sealed record SuspensionResponseModel(ImmutableDictionary<ResponseTarget,
         var results = ImmutableDictionary.CreateBuilder<ResponseTarget, ResponseFit>();
         for (var i = 0; i < targets.Length; i++)
         {
-            var predictor = predictors[i];
-            results.Add(targets[i], Scale(evaluated, predictor) is null ||
-                paired is not null && Scale(paired, predictor) is null ||
-                targets[i] == ResponseTarget.Transmission && (evaluated.FrameScale is null || paired is { FrameScale: null })
-                ? new ResponseFit.Unavailable(predictor, 0, 0, ResponseFitIssue.MissingSensor)
-                : regressions[i].Finish(predictor));
+            results.Add(targets[i], scales[i] is null
+                ? new ResponseFit.Unavailable(predictors[i], 0, 0, ResponseFitIssue.MissingSensor)
+                : regressions[i].Finish(predictors[i]));
         }
         return new(results.ToImmutable(), sessions, windows);
     }
@@ -101,6 +98,12 @@ public sealed record SuspensionResponseModel(ImmutableDictionary<ResponseTarget,
             baseline.Any(p => Scale(p, preferred).HasValue)) return preferred;
         return front ? ImuLocation.Frame : ImuLocation.Fork;
     }
+
+    /// <summary>The predictor scale of the evaluated ride, or null when a judged ride lacks a sensor the target needs.</summary>
+    private static double? AvailableScale(ResponseTarget target, ImuLocation predictor, TerrainProfile evaluated, TerrainProfile? paired) =>
+        paired is not null && Scale(paired, predictor) is null ||
+        target == ResponseTarget.Transmission && (evaluated.FrameScale is null || paired is { FrameScale: null })
+            ? null : Scale(evaluated, predictor);
 
     private static double? Scale(TerrainProfile profile, ImuLocation sensor) =>
         sensor == ImuLocation.Frame ? profile.FrameScale : profile.LowersScale;
