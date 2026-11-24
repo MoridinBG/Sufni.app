@@ -138,9 +138,18 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
         {
             var result = await background.RunAsync(() => ComputeAndCommitAsync(request, token), token).ConfigureAwait(false);
             if (result is null) return;
-            await PublishAsync(request, result, token).ConfigureAwait(false);
+            await dispatcher.InvokeAsync(() => sessions.Get(request.Id) is { } session
+                ? sessions.PublishSessionsChangedAsync([session with
+                {
+                    TerrainProfileKey = request.Key, TerrainOutcome = result.Outcome, TerrainSummary = result.Summary
+                }], token)
+                : Task.CompletedTask).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception error)
+        {
+            Logger.Warning(error, "Could not publish terrain for {SessionId}", request.Id);
+        }
         finally
         {
             await dispatcher.InvokeAsync(() =>
@@ -152,26 +161,6 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
                 completion.TrySetResult();
                 StartNext();
             });
-        }
-    }
-
-    private async Task PublishAsync(Request request, TerrainMaterialization result, CancellationToken token)
-    {
-        while (!token.IsCancellationRequested)
-        {
-            Task? validation = null;
-            await dispatcher.InvokeAsync(async () =>
-            {
-                // A newer publication may still be selecting the track on the worker.
-                validation = planning;
-                if (validation is not null || token.IsCancellationRequested || sessions.Get(request.Id) is not { } session) return;
-                await sessions.PublishSessionsChangedAsync([session with
-                {
-                    TerrainProfileKey = request.Key, TerrainOutcome = result.Outcome, TerrainSummary = result.Summary
-                }], token);
-            });
-            if (validation is null) return;
-            await validation.WaitAsync(token).ConfigureAwait(false);
         }
     }
 
