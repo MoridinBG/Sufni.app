@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Immutable;
 using Sufni.App.Terrain.Models;
+using Sufni.App.Terrain.Queries;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
@@ -54,6 +55,20 @@ internal static partial class RecordedSessionPresentationDeriver
         return new(roughness.ToImmutable(), steepness.ToImmutable(), frame.Build(), lowers.Build(), grades.Build(),
             new(joint / total, frameOnly / total, lowersOnly / total, clipped, frameMissing, lowersMissing,
                 frameUncalibrated, lowersUncalibrated));
+    }
+
+    public static RecordedSessionEditorState WithTerrainSelection(RecordedSessionEditorState previous, RecordedSessionEditorState next)
+    {
+        var profile = (next.Terrain as RecordedTerrainState.Loaded)?.Profile;
+        var filter = next.Intent.Scope is AnalysisScope.ClassFilter selected ? selected.Filter : default;
+        if (ReferenceEquals(profile, (previous.Terrain as RecordedTerrainState.Loaded)?.Profile) &&
+            filter == (previous.Intent.Scope is AnalysisScope.ClassFilter earlier ? earlier.Filter : default) &&
+            next.Intent.AnalysisRange == previous.Intent.AnalysisRange)
+            return next;
+        return next with
+        {
+            TerrainSelection = profile is null ? null : TerrainSelectionQuery.Evaluate(profile, filter, next.Intent.AnalysisRange)
+        };
     }
 
     private static void AddRun(ImmutableArray<TerrainClassRun>.Builder runs, TerrainWindow window, TerrainLevel? level)

@@ -27,7 +27,7 @@ internal sealed class RecordedSessionAnalysisComputer(
             RecordedSessionAnalysisFamily.DampingPercentages => new DampingPercentagesAnalysisResult(
                 CalculateDampingPercentages(key, telemetry, timeSelection)),
             RecordedSessionAnalysisFamily.SessionInsights => CalculateSessionInsights(key, telemetry, timeSelection, inputs),
-            RecordedSessionAnalysisFamily.Availability => CalculateAvailability(key, telemetry, timeSelection) with { TerrainSelection = inputs?.TerrainSelection?.Value },
+            RecordedSessionAnalysisFamily.Availability => CalculateAvailability(key, telemetry, timeSelection),
             RecordedSessionAnalysisFamily.SelectionHighlights => CalculateHighlights(key, telemetry, timeSelection),
             _ => ComputePlot(key, telemetry, inputs),
         };
@@ -35,7 +35,7 @@ internal sealed class RecordedSessionAnalysisComputer(
     }
 
     private static TelemetryTimeSelection? SelectionFor(RecordedSessionAnalysisKey key, RecordedSessionAnalysisInputs? inputs) =>
-        key.Scope is AnalysisScope.ClassFilter ? inputs!.TerrainSelection!.Value.Selection : key.AnalysisRange;
+        key.Scope is AnalysisScope.ClassFilter ? inputs!.TerrainSelection!.Selection : key.AnalysisRange;
 
     private static AnalysisAvailabilityResult CalculateAvailability(RecordedSessionAnalysisKey key, TelemetryData telemetry, TelemetryTimeSelection? timeSelection)
     {

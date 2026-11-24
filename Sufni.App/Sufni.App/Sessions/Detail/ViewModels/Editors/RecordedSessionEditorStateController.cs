@@ -83,7 +83,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             {
                 Presentation = state.Presentation with
                 {
-                    TerrainSelection = availability.TerrainSelection,
                     Analysis = RecordedSessionPresentationDeriver.CreateAnalysisPresentation(availability, state.Intent.AnalysisRange),
                 },
             }),
@@ -103,6 +102,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                     next.Editor.Presentation.Signals != current.Editor.Presentation.Signals ||
                     next.Editor.Presentation.SignalAvailability != current.Editor.Presentation.SignalAvailability)
                     next = next with { Editor = RecordedSessionPresentationDeriver.WithTerrainPresentation(next.Editor) };
+                next = next with { Editor = RecordedSessionPresentationDeriver.WithTerrainSelection(current.Editor, next.Editor) };
                 return next with { Editor = InvalidateAnalysisResults(current.Editor, next.Editor) };
             })
             .Select(static current => current.Editor)
@@ -134,8 +134,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             previous.Intent.Scope != next.Intent.Scope || previous.Intent.Scope is AnalysisScope.ClassFilter && (previous.Terrain as RecordedTerrainState.Loaded)?.Key != (next.Terrain as RecordedTerrainState.Loaded)?.Key;
         if (scopeChanged)
             next = ApplySelection(next, next.AnalysisSelection with { HighlightRanges = [] });
-        if (scopeChanged || (previous.Terrain as RecordedTerrainState.Loaded)?.Key != (next.Terrain as RecordedTerrainState.Loaded)?.Key)
-            next = next with { Presentation = next.Presentation with { TerrainSelection = null } };
         var dampingChanged = scopeChanged ||
             previous.Preferences.Analysis.VelocityAverageMode != next.Preferences.Analysis.VelocityAverageMode ||
             previous.Intent.DampingSpeedCutoffs != next.Intent.DampingSpeedCutoffs;

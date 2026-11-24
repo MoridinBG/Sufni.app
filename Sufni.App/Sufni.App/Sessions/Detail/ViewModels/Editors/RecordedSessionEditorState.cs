@@ -32,6 +32,9 @@ internal sealed record RecordedSessionEditorState(
     public RecordedTerrainState Terrain { get; init; } = new RecordedTerrainState.Unavailable(
         Sufni.App.Terrain.Models.TerrainAvailabilityReason.NoTelemetry);
 
+    /// <summary>Class distances and the filtered windows of the loaded profile inside the analysis range.</summary>
+    public TerrainSelectionResult? TerrainSelection { get; init; }
+
     public SessionTrackTimeline? TrackTimeline => TelemetryData is { } telemetry
         ? SessionTrackTimeline.FromSessionWindow(telemetry.Metadata.Timestamp, Session?.GpsOffsetSeconds ?? 0,
             Session?.WindowStartSeconds ?? 0) : null;
@@ -125,10 +128,7 @@ internal sealed record RecordedSessionEditorPresentationState(
     bool CanEditDampingSpeedCutoffs,
     SessionInsightsResult SessionInsights,
     SessionScreenPresentationState ScreenState,
-    SessionOperationPresentationState OperationState)
-{
-    public TerrainSelectionResult? TerrainSelection { get; init; }
-}
+    SessionOperationPresentationState OperationState);
 
 internal sealed record RecordedSignalAvailabilityState(
     bool Travel,

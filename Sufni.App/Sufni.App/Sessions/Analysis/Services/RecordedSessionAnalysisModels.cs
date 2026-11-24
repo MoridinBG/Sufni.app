@@ -46,7 +46,7 @@ public sealed record RecordedSessionAnalysisInputs(
     public long TrackGeneration { get; init; }
     public TerrainProfile? TerrainProfile { get; init; }
     public TerrainBaseline? Baseline { get; init; }
-    public Lazy<TerrainSelectionResult>? TerrainSelection { get; init; }
+    public TerrainSelectionResult? TerrainSelection { get; init; }
     public Lazy<ImmutableArray<TrackSample>>? TrackSamples { get; init; }
     public TelemetryRangeSelection? FrontSelection { get; init; }
     public TelemetryRangeSelection? RearSelection { get; init; }
@@ -334,9 +334,6 @@ public sealed record AnalysisAvailabilityResult(
     AnalysisDataAvailability FrontFrameVibration,
     AnalysisDataAvailability RearForkVibration,
     AnalysisDataAvailability RearFrameVibration,
-    bool FullSessionBalanceAvailable) : RecordedSessionAnalysisResult
-{
-    public TerrainSelectionResult? TerrainSelection { get; init; }
-}
+    bool FullSessionBalanceAvailable) : RecordedSessionAnalysisResult;
 
 public sealed record SelectionHighlightsAnalysisResult(ImmutableArray<TelemetryHighlightRange> Ranges) : RecordedSessionAnalysisResult;

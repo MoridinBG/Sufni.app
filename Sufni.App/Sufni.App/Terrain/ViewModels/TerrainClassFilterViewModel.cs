@@ -57,7 +57,7 @@ public sealed class TerrainClassFilterViewModel : ObservableObject, IDisposable
             () => actions.ToggleSteepness(value), f => f.Contains(value), r => r.SteepnessMetres[(int)value])).ToArray();
         Clear = new RelayCommand(actions.ClearClassFilter);
         subscription = states.Select(state => (Available: state.Terrain is RecordedTerrainState.Loaded,
-            Scope: state.Intent.Scope as AnalysisScope.ClassFilter, Result: state.Presentation.TerrainSelection))
+            Scope: state.Intent.Scope as AnalysisScope.ClassFilter, Result: state.TerrainSelection))
             .DistinctUntilChanged().Subscribe(input =>
         {
             var (available, scope, result) = input;
