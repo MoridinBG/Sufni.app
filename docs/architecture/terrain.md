@@ -40,6 +40,10 @@ Insights measures the whole ride and each descent level inside the analysis time
 
 `TerrainComfort` describes, per roughness level, the moving ground inside a range that a window filter admits. Each row gives the distance, the fork and shock activity (RMS velocity, mm/s) and the frame level (band-limited vibration, g). The figures are as measured, so faster riding raises them. Each figure is the quadratic mean of its windows, weighted by covered time, because the window figures are RMS values. A missing sensor leaves its figure empty.
 
+## Climbing
+
+`TerrainClimbing` describes the moving climb windows inside the analysis range, with covered fractions. It reports distance, time, the net height gained from the window grades, the time with detected pedalling, and the split into smooth and technical climb levels. Bob and cadence are time-weighted medians over the pedalled climb windows only, because travel at the pedal frequency on rough climbs is ground input. Mean travel per end compares climb windows with the descent bands; flat ground stays out. Below 120 s of pedalled climbing there is no summary.
+
 ## Character (experimental)
 
 `TerrainCharacter` reports, per end, the moving descent ground of level Medium or rougher inside the analysis range that has a median compression stroke size. It splits that distance into big hits and chatter by the stroke size as a share of the end's max travel: rear big hits from 16% and chatter below 8%, front big hits from 20% and chatter below 9%. These are one bike's quartiles on rough ground and stay provisional. A share is dominant when it covers more than half of at least 300 m. Insights shows the dominant shares as an experimental hint in the response panel.
