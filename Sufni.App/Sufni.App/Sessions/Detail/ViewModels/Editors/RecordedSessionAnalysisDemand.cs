@@ -20,7 +20,7 @@ internal sealed class RecordedSessionAnalysisDemand : IAsyncDisposable
     private readonly IRecordedSessionAnalysisResultState analysisResultState;
     private readonly IDisposable analysisResultSubscription;
     private readonly IDisposable intentSubscription;
-    private readonly Func<int, bool> isInsightsPage;
+    private readonly Func<int, bool> showsInsights;
     private readonly Action<AnalysisAvailabilityResult> publishAvailability;
     private readonly Action<SelectionHighlightsAnalysisResult> publishHighlights;
     private readonly Action<SessionDampingPercentages> publishPercentages;
@@ -34,11 +34,11 @@ internal sealed class RecordedSessionAnalysisDemand : IAsyncDisposable
     private bool insightsRequested;
 
     public RecordedSessionAnalysisDemand(IObservable<RecordedSessionEditorIntent> intents, IRecordedSessionAnalysisResultStateFactory factory,
-        Func<int, bool> isInsightsPage, Action<AnalysisAvailabilityResult> publishAvailability,
+        Func<int, bool> showsInsights, Action<AnalysisAvailabilityResult> publishAvailability,
         Action<SelectionHighlightsAnalysisResult> publishHighlights, Action<SessionDampingPercentages> publishPercentages,
         Action<SessionInsightsResult> publishInsights, Action<FailurePresentation> reportError, CancellationToken lifetime)
     {
-        this.isInsightsPage = isInsightsPage;
+        this.showsInsights = showsInsights;
         this.publishAvailability = publishAvailability;
         this.publishHighlights = publishHighlights;
         this.publishPercentages = publishPercentages;
@@ -116,7 +116,7 @@ internal sealed class RecordedSessionAnalysisDemand : IAsyncDisposable
                     RequestAnalysisResult(inputs.SelectionHighlightsKey);
                 if (held?.DampingPercentagesKey != inputs.DampingPercentagesKey)
                     RequestAnalysisResult(inputs.DampingPercentagesKey);
-                if ((insightsRequested || isInsightsPage(currentState.Intent.SelectedPageIndex)) && held?.SessionInsightsKey != inputs.SessionInsightsKey)
+                if ((insightsRequested || showsInsights(currentState.Intent.SelectedPageIndex)) && held?.SessionInsightsKey != inputs.SessionInsightsKey)
                     RequestInsights();
             }
         }
@@ -144,7 +144,7 @@ internal sealed class RecordedSessionAnalysisDemand : IAsyncDisposable
 
     private void RequestVisibleInsights()
     {
-        if (isInsightsPage(currentState.Intent.SelectedPageIndex)) RequestInsights();
+        if (showsInsights(currentState.Intent.SelectedPageIndex)) RequestInsights();
     }
 
     private void OnAnalysisResultChanged(RecordedSessionAnalysisResultChanged change)

@@ -8,7 +8,7 @@ public sealed class VibrationPageViewModel : PageViewModelBase
     public ISessionAnalysisWorkspace Workspace { get; }
 
     public VibrationPageViewModel(ISessionAnalysisWorkspace workspace)
-        : base("Vibration")
+        : base("Ground & comfort")
     {
         Workspace = workspace;
     }

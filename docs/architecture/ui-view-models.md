@@ -357,7 +357,7 @@ workspace-owned index. The two editors
 compose different page sets:
 
 - Recorded sessions: signals, spring, strokes, damping, position/velocity,
-  balance, vibration, insights, notes, preferences.
+  balance, ground & comfort, insights, notes, preferences.
 - Live captures: signals, spring, damping, notes, preferences; balance is
   inserted when the current live analysis produces balance data.
 
@@ -528,6 +528,8 @@ definitions are separate synced store facts.
 The recorded signal and analysis workspaces expose the same tab-owned `TerrainScopeViewModel`. Preset and class options report their distance within the current time range and are disabled outside the current preset. Presets other than All need grade, and a profile without grade adds a note. A scope chip in the Terrain row header shows the scope and its selected distance; its flyout selects a preset and restores the default scope. The compact signal header and the analysis banners also show the legends in that flyout. Analysis pages show a banner with the scope, selected distance and excluded stopped time. The default scope keeps the banner quiet; a chosen scope highlights it. An empty selection states that no ground matches and offers to use all ground. Live workspaces have no terrain scope.
 
 Recorded list rows append a terrain summary from a current profile, for example "Descent 3.1 km · 42% rough · Climb 1.2 km". Each part needs 300 m. Descent is all non-climb moving distance and needs grade. The rough share counts classified non-climb distance. A pending, failed or unavailable summary immediately removes that subtitle component.
+
+The Ground & comfort page keeps the `VibrationPageViewModel` and the desktop tab key `vibration`. It tells one story about the ground in scope: Ground (distance per roughness level), Absorbed (fork and shock activity, against your usual when it is ready) and Reached the frame (frame g as felt, and vibration passed to the frame against your usual). The shared `GroundComfortView` renders the `GroundComfortReport` of the Insights result, so selecting the page or tab demands Insights as the Insights page does. The four stroke-phase vibration cards follow below in a collapsed "Stroke detail" section.
 
 Recorded Session Insights includes a Ground & comfort summary after the steps. `GroundComfortReports` builds it inside the Insights result from the terrain profile, the effective terrain scope, the analysis range and a fitted baseline. A segment comparison leaves out the scope, so the summary is absent there, and live Insights has no profile. One sentence gives context, and a small table lists each roughness level in scope: distance, fork and shock activity against your usual (or in mm/s before it is ready), and the frame g as felt. Column headers carry tooltips. Notes name a missing baseline or IMU. The Insights analysis key carries the terrain scope, so a scope change recomputes the summary even when the selection is unchanged.
 

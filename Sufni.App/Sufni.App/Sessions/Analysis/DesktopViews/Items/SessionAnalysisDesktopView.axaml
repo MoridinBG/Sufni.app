@@ -383,67 +383,75 @@ mc:Ignorable="d">
                     </controls:BalanceAnalysisHost>
                 </Grid>
 
-                <!--  Vibration  -->
-                <Grid Name="Vibration">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="{Binding FrontForkVibrationState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                        <ColumnDefinition Width="{Binding FrontFrameVibrationState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                        <ColumnDefinition Width="{Binding RearForkVibrationState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                        <ColumnDefinition Width="{Binding RearFrameVibrationState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                    </Grid.ColumnDefinitions>
+                <!--  Ground & comfort  -->
+                <StackPanel Name="Vibration" Spacing="8">
+                    <Panel IsVisible="{Binding SessionInsights.HasGroundComfort, FallbackValue=False}">
+                        <terrainViews:GroundComfortView DataContext="{Binding SessionInsights.GroundComfort}" />
+                    </Panel>
+                    <Expander Header="Stroke detail" IsExpanded="False" HorizontalAlignment="Stretch">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="{Binding FrontForkVibrationState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                                <ColumnDefinition Width="{Binding FrontFrameVibrationState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                                <ColumnDefinition Width="{Binding RearForkVibrationState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                                <ColumnDefinition Width="{Binding RearFrameVibrationState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                            </Grid.ColumnDefinitions>
 
-                    <controls:VibrationAnalysisHost
-                    Grid.Column="0"
-                    Margin="0,0,4,0"
-                    AnalysisRange="{Binding AnalysisRange}"
-                    AnalysisResultState="{Binding AnalysisResultState}"
-                    ImuLocation="Fork"
-                    MinCardHeight="320"
-                    PlotRowHeight="260"
-                    PresentationState="{Binding FrontForkVibrationState}"
-                    SuspensionType="Front"
-                    Telemetry="{Binding TelemetryData}"
-                    Title="Front fork" />
+                            <controls:VibrationAnalysisHost
+                            Grid.Column="0"
+                            Margin="0,0,4,0"
+                            AnalysisRange="{Binding AnalysisRange}"
+                            AnalysisResultState="{Binding AnalysisResultState}"
+                            ImuLocation="Fork"
+                            MinCardHeight="320"
+                            PlotRowHeight="260"
+                            PresentationState="{Binding FrontForkVibrationState}"
+                            SuspensionType="Front"
+                            Telemetry="{Binding TelemetryData}"
+                            Title="Front fork" />
 
-                    <controls:VibrationAnalysisHost
-                    Grid.Column="1"
-                    Margin="4,0,4,0"
-                    AnalysisRange="{Binding AnalysisRange}"
-                    AnalysisResultState="{Binding AnalysisResultState}"
-                    ImuLocation="Frame"
-                    MinCardHeight="320"
-                    PlotRowHeight="260"
-                    PresentationState="{Binding FrontFrameVibrationState}"
-                    SuspensionType="Front"
-                    Telemetry="{Binding TelemetryData}"
-                    Title="Front frame" />
+                            <controls:VibrationAnalysisHost
+                            Grid.Column="1"
+                            Margin="4,0,4,0"
+                            AnalysisRange="{Binding AnalysisRange}"
+                            AnalysisResultState="{Binding AnalysisResultState}"
+                            ImuLocation="Frame"
+                            MinCardHeight="320"
+                            PlotRowHeight="260"
+                            PresentationState="{Binding FrontFrameVibrationState}"
+                            SuspensionType="Front"
+                            Telemetry="{Binding TelemetryData}"
+                            Title="Front frame" />
 
-                    <controls:VibrationAnalysisHost
-                    Grid.Column="2"
-                    Margin="4,0,4,0"
-                    AnalysisRange="{Binding AnalysisRange}"
-                    AnalysisResultState="{Binding AnalysisResultState}"
-                    ImuLocation="Fork"
-                    MinCardHeight="320"
-                    PlotRowHeight="260"
-                    PresentationState="{Binding RearForkVibrationState}"
-                    SuspensionType="Rear"
-                    Telemetry="{Binding TelemetryData}"
-                    Title="Rear fork" />
+                            <controls:VibrationAnalysisHost
+                            Grid.Column="2"
+                            Margin="4,0,4,0"
+                            AnalysisRange="{Binding AnalysisRange}"
+                            AnalysisResultState="{Binding AnalysisResultState}"
+                            ImuLocation="Fork"
+                            MinCardHeight="320"
+                            PlotRowHeight="260"
+                            PresentationState="{Binding RearForkVibrationState}"
+                            SuspensionType="Rear"
+                            Telemetry="{Binding TelemetryData}"
+                            Title="Rear fork" />
 
-                    <controls:VibrationAnalysisHost
-                    Grid.Column="3"
-                    Margin="4,0,0,0"
-                    AnalysisRange="{Binding AnalysisRange}"
-                    AnalysisResultState="{Binding AnalysisResultState}"
-                    ImuLocation="Frame"
-                    MinCardHeight="320"
-                    PlotRowHeight="260"
-                    PresentationState="{Binding RearFrameVibrationState}"
-                    SuspensionType="Rear"
-                    Telemetry="{Binding TelemetryData}"
-                    Title="Rear frame" />
-                </Grid>
+                            <controls:VibrationAnalysisHost
+                            Grid.Column="3"
+                            Margin="4,0,0,0"
+                            AnalysisRange="{Binding AnalysisRange}"
+                            AnalysisResultState="{Binding AnalysisResultState}"
+                            ImuLocation="Frame"
+                            MinCardHeight="320"
+                            PlotRowHeight="260"
+                            PresentationState="{Binding RearFrameVibrationState}"
+                            SuspensionType="Rear"
+                            Telemetry="{Binding TelemetryData}"
+                            Title="Rear frame" />
+                
+                        </Grid>
+                    </Expander>
+                </StackPanel>
 
                 <!--  Analysis  -->
                 <Grid Name="Analysis">

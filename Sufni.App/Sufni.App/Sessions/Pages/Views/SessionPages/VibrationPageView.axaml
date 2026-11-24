@@ -26,53 +26,61 @@ mc:Ignorable="d">
             <segmentViews:SegmentAnalysisComparisonBannerView DataContext="{Binding Workspace.SegmentComparison}" />
             <terrainViews:TerrainScopeBannerView DataContext="{Binding Workspace.TerrainScope}" />
 
-            <controls2:VibrationAnalysisHost
-            HostName="FrontForkVibrationHost"
-            AnalysisRange="{Binding Workspace.AnalysisRange}"
-            AnalysisResultState="{Binding Workspace.AnalysisResultState}"
-            ImuLocation="Fork"
-            MinCardHeight="320"
-            PlotRowHeight="260"
-            PresentationState="{Binding Workspace.FrontForkVibrationState}"
-            SuspensionType="Front"
-            Telemetry="{Binding Workspace.TelemetryData}"
-            Title="Front fork" />
+            <Panel IsVisible="{Binding Workspace.SessionInsights.HasGroundComfort, FallbackValue=False}">
+                <terrainViews:GroundComfortView Name="GroundComfort" DataContext="{Binding Workspace.SessionInsights.GroundComfort}" />
+            </Panel>
 
-            <controls2:VibrationAnalysisHost
-            HostName="FrontFrameVibrationHost"
-            AnalysisRange="{Binding Workspace.AnalysisRange}"
-            AnalysisResultState="{Binding Workspace.AnalysisResultState}"
-            ImuLocation="Frame"
-            MinCardHeight="320"
-            PlotRowHeight="260"
-            PresentationState="{Binding Workspace.FrontFrameVibrationState}"
-            SuspensionType="Front"
-            Telemetry="{Binding Workspace.TelemetryData}"
-            Title="Front frame" />
+            <Expander Name="StrokeDetail" Header="Stroke detail" IsExpanded="False" HorizontalAlignment="Stretch">
+                <StackPanel Spacing="10">
+                    <controls2:VibrationAnalysisHost
+                    HostName="FrontForkVibrationHost"
+                    AnalysisRange="{Binding Workspace.AnalysisRange}"
+                    AnalysisResultState="{Binding Workspace.AnalysisResultState}"
+                    ImuLocation="Fork"
+                    MinCardHeight="320"
+                    PlotRowHeight="260"
+                    PresentationState="{Binding Workspace.FrontForkVibrationState}"
+                    SuspensionType="Front"
+                    Telemetry="{Binding Workspace.TelemetryData}"
+                    Title="Front fork" />
 
-            <controls2:VibrationAnalysisHost
-            HostName="RearForkVibrationHost"
-            AnalysisRange="{Binding Workspace.AnalysisRange}"
-            AnalysisResultState="{Binding Workspace.AnalysisResultState}"
-            ImuLocation="Fork"
-            MinCardHeight="320"
-            PlotRowHeight="260"
-            PresentationState="{Binding Workspace.RearForkVibrationState}"
-            SuspensionType="Rear"
-            Telemetry="{Binding Workspace.TelemetryData}"
-            Title="Rear fork" />
+                    <controls2:VibrationAnalysisHost
+                    HostName="FrontFrameVibrationHost"
+                    AnalysisRange="{Binding Workspace.AnalysisRange}"
+                    AnalysisResultState="{Binding Workspace.AnalysisResultState}"
+                    ImuLocation="Frame"
+                    MinCardHeight="320"
+                    PlotRowHeight="260"
+                    PresentationState="{Binding Workspace.FrontFrameVibrationState}"
+                    SuspensionType="Front"
+                    Telemetry="{Binding Workspace.TelemetryData}"
+                    Title="Front frame" />
 
-            <controls2:VibrationAnalysisHost
-            HostName="RearFrameVibrationHost"
-            AnalysisRange="{Binding Workspace.AnalysisRange}"
-            AnalysisResultState="{Binding Workspace.AnalysisResultState}"
-            ImuLocation="Frame"
-            MinCardHeight="320"
-            PlotRowHeight="260"
-            PresentationState="{Binding Workspace.RearFrameVibrationState}"
-            SuspensionType="Rear"
-            Telemetry="{Binding Workspace.TelemetryData}"
-            Title="Rear frame" />
+                    <controls2:VibrationAnalysisHost
+                    HostName="RearForkVibrationHost"
+                    AnalysisRange="{Binding Workspace.AnalysisRange}"
+                    AnalysisResultState="{Binding Workspace.AnalysisResultState}"
+                    ImuLocation="Fork"
+                    MinCardHeight="320"
+                    PlotRowHeight="260"
+                    PresentationState="{Binding Workspace.RearForkVibrationState}"
+                    SuspensionType="Rear"
+                    Telemetry="{Binding Workspace.TelemetryData}"
+                    Title="Rear fork" />
+
+                    <controls2:VibrationAnalysisHost
+                    HostName="RearFrameVibrationHost"
+                    AnalysisRange="{Binding Workspace.AnalysisRange}"
+                    AnalysisResultState="{Binding Workspace.AnalysisResultState}"
+                    ImuLocation="Frame"
+                    MinCardHeight="320"
+                    PlotRowHeight="260"
+                    PresentationState="{Binding Workspace.RearFrameVibrationState}"
+                    SuspensionType="Rear"
+                    Telemetry="{Binding Workspace.TelemetryData}"
+                    Title="Rear frame" />
+                </StackPanel>
+            </Expander>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

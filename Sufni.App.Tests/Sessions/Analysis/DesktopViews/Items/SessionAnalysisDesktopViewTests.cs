@@ -23,6 +23,19 @@ public class SessionAnalysisDesktopViewTests
         Assert.DoesNotContain("Position/velocity", GetTabHeaders(mounted.View));
     }
 
+    [AvaloniaFact]
+    public async Task SessionAnalysisDesktopView_GroundAndComfortTabRequestsInsights()
+    {
+        using var workspace = CreateWorkspace();
+        await using var mounted = await MountAsync(workspace);
+        var tabs = mounted.View.FindControl<TabStrip>("TabControl")!;
+
+        tabs.SelectedItem = tabs.Items.OfType<TabItem>().Single(item => Equals(item.Header, "Ground & comfort"));
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(1, workspace.InsightsRequests);
+    }
+
     private static TestSessionAnalysisWorkspace CreateWorkspace() =>
         new(
             telemetryData: TestTelemetryData.CreateProcessed(),

@@ -15,6 +15,7 @@ public partial class SessionAnalysisDesktopView : UserControl
 {
     private const string DefaultTabKey = "spring";
     private const string InsightsTabKey = "analysis";
+    private const string GroundComfortTabKey = "vibration";
 
     private readonly List<AnalysisTabEntry> currentTabEntries = [];
     private ISessionAnalysisWorkspace? workspace;
@@ -134,8 +135,8 @@ public partial class SessionAnalysisDesktopView : UserControl
 
         yield return new AnalysisTabEntry("balance", "Balance", Balance,
             "Compares how the front and rear suspension move together to check the bike is balanced from end to end.");
-        yield return new AnalysisTabEntry("vibration", "Vibration", Vibration,
-            "Vibration picked up by the IMU across the frequency range, and how smooth the ride is measured overall.");
+        yield return new AnalysisTabEntry(GroundComfortTabKey, "Ground & comfort", Vibration,
+            "How the ground in scope reached you: what the suspension absorbed and what reached the frame, with stroke detail below.");
         yield return new AnalysisTabEntry(InsightsTabKey, "Insights", Analysis,
             "Setup suggestions derived from the session data, interpreted through the selected riding context.");
     }
@@ -174,7 +175,9 @@ public partial class SessionAnalysisDesktopView : UserControl
             var isDemandActive = isSelected && effectiveVisibilityObserver.IsEffectivelyVisible;
             entry.Content.IsVisible = isSelected;
             SetAnalysisDemandActive(entry.Content, isDemandActive);
-            if (isDemandActive && StringComparer.Ordinal.Equals(entry.Key, InsightsTabKey))
+            // The Ground & comfort tab reads its report from the Insights result.
+            if (isDemandActive && (StringComparer.Ordinal.Equals(entry.Key, InsightsTabKey) ||
+                StringComparer.Ordinal.Equals(entry.Key, GroundComfortTabKey)))
             {
                 workspace?.RequestSessionInsights();
             }

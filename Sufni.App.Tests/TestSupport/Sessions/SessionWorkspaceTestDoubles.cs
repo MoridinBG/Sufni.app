@@ -115,7 +115,8 @@ internal sealed class TestSessionAnalysisWorkspace : ISessionAnalysisWorkspace, 
     public TelemetryRangeSelection? ActiveRearAnalysisSelection { get; set; }
     public PositionVelocityPageViewModel? PositionVelocity { get; set; }
 
-    public void RequestSessionInsights() { }
+    public int InsightsRequests { get; private set; }
+    public void RequestSessionInsights() => InsightsRequests++;
     public void PreviewDampingSpeedCutoff(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond) { }
     public void CancelDampingSpeedCutoffPreview() { }
     public Task CommitDampingSpeedCutoffAsync(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond) =>

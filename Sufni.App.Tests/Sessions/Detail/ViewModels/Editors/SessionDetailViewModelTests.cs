@@ -235,8 +235,10 @@ public class SessionDetailViewModelTests
         Assert.Empty(editor.ErrorMessages);
     }
 
-    [AvaloniaFact]
-    public async Task Insights_FirstPageSelectionRequestsAnalysisInTheSameStateUpdate()
+    [AvaloniaTheory]
+    [InlineData(typeof(SessionInsightsPageViewModel))]
+    [InlineData(typeof(VibrationPageViewModel))]
+    public async Task Insights_FirstPageSelectionRequestsAnalysisInTheSameStateUpdate(Type page)
     {
         using var harness = new SessionDetailHarness();
         var editor = harness.CreateRecordedEditor();
@@ -244,7 +246,7 @@ public class SessionDetailViewModelTests
         harness.SessionInsightsService.DidNotReceive().Analyze(Arg.Any<SessionInsightsRequest>());
 
         editor.MobileWorkspace.SelectedPageIndex = editor.MobileWorkspace.Pages.IndexOf(
-            editor.MobileWorkspace.Pages.OfType<SessionInsightsPageViewModel>().Single());
+            editor.MobileWorkspace.Pages.Single(page.IsInstanceOfType));
 
         harness.SessionInsightsService.Received(1).Analyze(Arg.Is<SessionInsightsRequest>(
             request => request.TelemetryData == editor.SignalsWorkspace.TelemetryData && request.Selection == null));

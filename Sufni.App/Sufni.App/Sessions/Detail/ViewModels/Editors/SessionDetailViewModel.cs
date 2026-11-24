@@ -98,6 +98,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     private readonly RecordedPagePresentationApplier presentationApplier;
     private SessionDraft draftBase;
     private SessionInsightsPageViewModel AnalysisPage { get; }
+    private VibrationPageViewModel GroundComfortPage { get; }
 
     private readonly CancellableOperation viewLoadOperation = new();
     private enum EditorLifecycle { Created, Loaded, ApplyingDraft, Closed }
@@ -292,7 +293,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
             sessionOperationStateInput, dampingPercentagesInput, sessionInsightsInput, analysisAvailabilityInput,
             selectionHighlightsInput, domainInput);
         analysisDemand = new RecordedSessionAnalysisDemand(editorActions.Intents,
-            analysisResultStateFactory, IsInsightsPage,
+            analysisResultStateFactory, ShowsInsights,
             value => PublishEditorInput(analysisAvailabilityInput, value),
             value => PublishEditorInput(selectionHighlightsInput, value),
             value => PublishEditorInput(dampingPercentagesInput, value),
@@ -384,7 +385,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         var strokesPage = new StrokesPageViewModel(AnalysisWorkspace);
         var dampingPage = new DampingPageViewModel(AnalysisWorkspace);
         var balancePage = new BalancePageViewModel(AnalysisWorkspace);
-        var vibrationPage = new VibrationPageViewModel(AnalysisWorkspace);
+        GroundComfortPage = new VibrationPageViewModel(AnalysisWorkspace);
         AnalysisPage = new SessionInsightsPageViewModel(AnalysisWorkspace);
         pages.Add(signalsPage);
         pages.Add(springPage);
@@ -392,12 +393,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         pages.Add(dampingPage);
         pages.Add(positionVelocityPage);
         pages.Add(balancePage);
-        pages.Add(vibrationPage);
+        pages.Add(GroundComfortPage);
         pages.Add(AnalysisPage);
         pages.Add(NotesPage);
         pages.Add(PreferencesPage);
         presentationApplier = new RecordedPagePresentationApplier(pages, springPage, dampingPage, balancePage,
-            vibrationPage, AnalysisPage, NotesPage, PreferencesPage, editorStateController.State);
+            GroundComfortPage, AnalysisPage, NotesPage, PreferencesPage, editorStateController.State);
         loadController = new RecordedSessionLoadController(Id, editorStateController.State, sessionLoader,
             sessionStore, processedTelemetryReader, uiThreadDispatcher,
             editorLifetime.Token, value => PublishEditorInput(loadPresentationInput, value), ReportError);
@@ -457,8 +458,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
 
     }
 
-    private bool IsInsightsPage(int index) => pages.Count > 0 && AnalysisPage is not null &&
-        ReferenceEquals(pages[RecordedSessionPageSelection.ClampSelectedPageIndex(index, pages.Count)], AnalysisPage);
+    // The Ground & comfort page reads its report from the Insights result.
+    private bool ShowsInsights(int index) => pages.Count > 0 && AnalysisPage is not null &&
+        pages[RecordedSessionPageSelection.ClampSelectedPageIndex(index, pages.Count)] is var page &&
+        (ReferenceEquals(page, AnalysisPage) || ReferenceEquals(page, GroundComfortPage));
 
     private void OnPagesChanged(object? sender, NotifyCollectionChangedEventArgs args)
     {
