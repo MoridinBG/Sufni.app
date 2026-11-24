@@ -66,7 +66,7 @@ public class RecordedTerrainTests
         Assert.True(comparisons.HasAnalysisComparison);
         Assert.False(filter.IsActive);
         chip.Toggle.Execute(null);
-        Assert.False(comparisons.HasAnalysisComparison);
+        Assert.True(filter.IsActive);
         comparisons.ClearAnalysisComparisonCommand.Execute(null);
         Assert.True(filter.IsActive);
         var replacement = session with { ProcessedTelemetryRevision = session.ProcessedTelemetryRevision + 1 };
