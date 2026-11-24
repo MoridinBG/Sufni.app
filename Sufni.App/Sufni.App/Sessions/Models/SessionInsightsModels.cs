@@ -158,6 +158,11 @@ public sealed record SessionInsightsResult(
     public SessionResponsePanel Response { get; init; } = SessionResponsePanel.Hidden;
 
     public bool HasGroundComfort => GroundComfort is not null;
+
+    /// <summary>The climbs in the time range; the scope does not narrow them.</summary>
+    public ClimbingReport? Climbing { get; init; }
+
+    public bool HasClimbing => Climbing is not null;
 }
 
 // The headline "Try this next" recommendation: which area it belongs to, the

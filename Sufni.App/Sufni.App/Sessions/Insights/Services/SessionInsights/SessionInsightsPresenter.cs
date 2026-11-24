@@ -34,6 +34,7 @@ internal static class SessionInsightsPresenter
         {
             NextStep = BuildNextStep(presented),
             Response = PresentResponse(report.Response),
+            Climbing = context.Request.Terrain is { } terrain ? ClimbingReports.Build(terrain.Profile, terrain.AnalysisRange) : null,
         };
     }
 

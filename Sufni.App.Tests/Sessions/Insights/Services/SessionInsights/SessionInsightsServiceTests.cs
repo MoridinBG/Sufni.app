@@ -71,6 +71,19 @@ public class SessionInsightsServiceTests
         Assert.Equal(scoped, result.HasGroundComfort);
     }
 
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData(100d, false)]
+    public void ClimbingCardFollowsTheTimeRangeNotTheScope(double? rangeEnd, bool shown)
+    {
+        var profile = TerrainProfiles.Profile(TerrainProfiles.PedalledClimb(0, 150));
+        TelemetryTimeRange? range = rangeEnd is { } end ? new(0, end) : null;
+
+        var result = Analyze(profile, range, scope: new TerrainScope(TerrainPreset.Descents));
+
+        Assert.Equal(shown, result.HasClimbing);
+    }
+
     [Fact]
     public void Analyze_ReturnsHidden_WhenTelemetryIsMissing()
     {
