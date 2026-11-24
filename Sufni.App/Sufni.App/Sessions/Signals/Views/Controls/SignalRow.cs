@@ -957,7 +957,8 @@ public sealed class SignalRow : UserControl
 
     private void ApplyPlotBackgrounds(object? content)
     {
-        if (content is not SufniPlotView plotView)
+        // A row may place controls beside its plot in a panel; the plot still takes the row backgrounds.
+        if ((content as SufniPlotView ?? (content as Panel)?.Children.OfType<SufniPlotView>().FirstOrDefault()) is not { } plotView)
         {
             return;
         }

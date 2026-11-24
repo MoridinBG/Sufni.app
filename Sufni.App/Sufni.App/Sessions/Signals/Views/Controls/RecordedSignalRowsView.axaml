@@ -200,19 +200,25 @@ mc:Ignorable="d">
                 </sessionSignals:SignalRow.ChildRows>
             </sessionSignals:SignalRow>
             <sessionSignals:SignalRow RowId="{x:Static sessionPreferences:SignalRowIds.Terrain}"
-                Title="{Binding TerrainTitle}" FixedPlotHeight="112" TitleToolTip="{Binding TerrainSourceDescription}"
+                Title="{Binding TerrainTitle}" FixedPlotHeight="{Binding #Root.TerrainPlotHeight}" TitleToolTip="{Binding TerrainSourceDescription}"
                 HeaderActions="{Binding TerrainHeaderActions}" PresentationState="{Binding TerrainSignalState}">
                 <sessionSignals:SignalRow.HeaderAccessory>
                     <terrainViews:TerrainClassFilterView DataContext="{Binding TerrainScope}" Compact="{Binding #Root.CompactTerrainFilter}" />
                 </sessionSignals:SignalRow.HeaderAccessory>
                 <sessionSignals:SignalRow.PlotContent>
-                    <terrainViews:TerrainClassStripPlotView
-                        SignalRowId="{x:Static sessionPreferences:SignalRowIds.Terrain}"
-                        Terrain="{Binding TerrainPresentation}" Telemetry="{Binding TelemetryData}"
-                        Timeline="{Binding Timeline}" SignalsWorkspace="{Binding}" AnalysisRange="{Binding AnalysisRange}" TerrainSelection="{Binding TerrainScope.Selection}"
-                        HideRightAxis="{Binding #Root.HideRightAxis}" ShowAirtime="{Binding ShowTerrainAirtime}"
-                        ShowAnalysisSelection="{Binding ShowTerrainAnalysisSelection}"
-                        AnalysisSelectionHighlightRanges="{Binding AnalysisSelectionHighlightRanges}" />
+                    <Grid RowDefinitions="*,Auto,Auto">
+                        <terrainViews:TerrainClassStripPlotView
+                            SignalRowId="{x:Static sessionPreferences:SignalRowIds.Terrain}"
+                            Terrain="{Binding TerrainPresentation}" Telemetry="{Binding TelemetryData}"
+                            Timeline="{Binding Timeline}" SignalsWorkspace="{Binding}" AnalysisRange="{Binding AnalysisRange}" TerrainSelection="{Binding TerrainScope.Selection}"
+                            HideRightAxis="{Binding #Root.HideRightAxis}" ShowAirtime="{Binding ShowTerrainAirtime}"
+                            ShowAnalysisSelection="{Binding ShowTerrainAnalysisSelection}"
+                            AnalysisSelectionHighlightRanges="{Binding AnalysisSelectionHighlightRanges}" />
+                        <terrainViews:TerrainLegendView Grid.Row="1" Options="{Binding TerrainScope.Grade}" Margin="40,2,8,0"
+                            IsVisible="{Binding !#Root.CompactTerrainFilter}" />
+                        <terrainViews:TerrainLegendView Grid.Row="2" Options="{Binding TerrainScope.Roughness}" Margin="40,2,8,2"
+                            IsVisible="{Binding !#Root.CompactTerrainFilter}" />
+                    </Grid>
                 </sessionSignals:SignalRow.PlotContent>
                 <sessionSignals:SignalRow.PlaceholderContent>
                     <overlays:SurfacePlaceholderCard Title="Terrain" />

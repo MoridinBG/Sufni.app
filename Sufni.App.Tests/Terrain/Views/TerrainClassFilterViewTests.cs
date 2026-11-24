@@ -5,6 +5,8 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Media;
+using Sufni.App.Infrastructure.Theming;
 using Avalonia.VisualTree;
 using NSubstitute;
 using Sufni.App.LiveDaq.Coordinators.Capture;
@@ -44,6 +46,25 @@ public class TerrainClassFilterViewTests
             chip => ReferenceEquals(chip.DataContext, rough)).Command!.Execute(null);
         Assert.False(filter.IsDefault);
         flyout.Hide();
+        await h.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
+    public async Task LegendEntryShowsItsScaleColourAndSelectsItsClassWithinThePreset()
+    {
+        using var h = new SessionDetailHarness();
+        var editor = await LoadAsync(h);
+        var scope = editor.SignalsWorkspace.TerrainScope!;
+        var legend = new TerrainLegendView { DataContext = scope, Options = scope.Roughness };
+        await using var mounted = await ViewTestHelpers.MountAsync(legend);
+        var entries = legend.GetVisualDescendants().OfType<ToggleButton>().ToArray();
+        var rough = Assert.Single(entries, e => ReferenceEquals(e.DataContext, scope.Roughness[(int)RoughnessClass.Rough]));
+        Assert.False(Assert.Single(entries, e => ReferenceEquals(e.DataContext, scope.Roughness[(int)RoughnessClass.TechnicalClimb])).IsEnabled);
+        var swatch = Assert.Single(rough.GetVisualDescendants().OfType<Border>(), b => b.Background is ISolidColorBrush);
+        Assert.Equal(SufniThemes.SignalSeries.Terrain.Roughness[(int)RoughnessClass.Rough], ((ISolidColorBrush)swatch.Background!).Color);
+        rough.Command!.Execute(null);
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.True(rough.IsChecked);
         await h.CloseAsync(editor);
     }
 

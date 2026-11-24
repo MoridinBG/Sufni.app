@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sufni.App.Terrain.ViewModels"
+             xmlns:views="using:Sufni.App.Terrain.Views"
+             x:Class="Sufni.App.Terrain.Views.TerrainLegendView"
+             x:Name="Root">
+    <UserControl.Resources>
+        <views:TerrainSwatchConverter x:Key="Swatch" />
+    </UserControl.Resources>
+    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+        <ItemsControl ItemsSource="{Binding #Root.Options}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="2" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:TerrainScopeOption">
+                    <ToggleButton IsChecked="{Binding IsChecked, Mode=OneWay}" Command="{Binding Select}" IsEnabled="{Binding IsEnabled}"
+                                  Padding="4,1" FontSize="{StaticResource SufniFontSizeSmall}" AutomationProperties.Name="{Binding Label}">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <Border Width="10" Height="10" CornerRadius="2" VerticalAlignment="Center"
+                                    Background="{Binding Class, Converter={StaticResource Swatch}}" />
+                            <TextBlock Text="{Binding Label}" />
+                            <TextBlock Text="{Binding DistanceText}" Opacity="0.75" />
+                        </StackPanel>
+                    </ToggleButton>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </ScrollViewer>
+</UserControl>

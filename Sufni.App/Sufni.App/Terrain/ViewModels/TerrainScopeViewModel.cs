@@ -5,6 +5,7 @@ using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Shared.Formatting;
 using Sufni.App.Terrain.Formatting;
 using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Queries;
@@ -19,10 +20,11 @@ public sealed class TerrainScopeOption : ObservableObject
     private readonly Func<TerrainScope, TerrainProfile, bool> isEnabled;
     private readonly Func<TerrainSelectionResult, double> metres;
 
-    internal TerrainScopeOption(string label, Action select, Func<TerrainScope, bool> isSelected,
+    internal TerrainScopeOption(string label, Enum? terrainClass, Action select, Func<TerrainScope, bool> isSelected,
         Func<TerrainScope, TerrainProfile, bool> isEnabled, Func<TerrainSelectionResult, double> metres)
     {
         Label = label;
+        Class = terrainClass;
         Select = new RelayCommand(select);
         this.isSelected = isSelected;
         this.isEnabled = isEnabled;
@@ -30,10 +32,22 @@ public sealed class TerrainScopeOption : ObservableObject
     }
 
     public string Label { get; }
+
+    /// <summary>The grade band or roughness level of a legend entry; null for a preset.</summary>
+    public Enum? Class { get; }
     public IRelayCommand Select { get; }
     public bool IsChecked { get; private set => SetProperty(ref field, value); }
     public bool IsEnabled { get; private set => SetProperty(ref field, value); }
-    public double DistanceMetres { get; private set => SetProperty(ref field, value); }
+    public double DistanceMetres
+    {
+        get;
+        private set
+        {
+            if (SetProperty(ref field, value)) OnPropertyChanged(nameof(DistanceText));
+        }
+    }
+
+    public string DistanceText => UnitsFormatter.FormatDistance(DistanceMetres);
 
     internal void Update(TerrainScope? scope, TerrainProfile? profile, TerrainSelectionResult? result)
     {
@@ -66,14 +80,14 @@ public sealed class TerrainScopeViewModel : ObservableObject, IDisposable
 
     internal TerrainScopeViewModel(IObservable<RecordedSessionEditorState> states, RecordedSessionEditorActions actions)
     {
-        Presets = Enum.GetValues<TerrainPreset>().Select(preset => new TerrainScopeOption(TerrainScopeText.Name(preset),
+        Presets = Enum.GetValues<TerrainPreset>().Select(preset => new TerrainScopeOption(TerrainScopeText.Name(preset), null,
             () => actions.SelectTerrainPreset(preset), s => s.Preset == preset,
             (_, p) => preset == TerrainPreset.All || p.GradeState == TerrainGradeState.Available,
             r => r.PresetMetres(preset))).ToArray();
-        Roughness = Enum.GetValues<RoughnessClass>().Select(value => new TerrainScopeOption(TerrainClassText.Name(value),
+        Roughness = Enum.GetValues<RoughnessClass>().Select(value => new TerrainScopeOption(TerrainClassText.Name(value), value,
             () => actions.ToggleRoughness(value), s => s.Filter.Contains(value), (s, _) => s.Admits(value),
             r => r.RoughnessMetres[(int)value])).ToArray();
-        Grade = Enum.GetValues<GradeBand>().Select(value => new TerrainScopeOption(TerrainClassText.Name(value),
+        Grade = Enum.GetValues<GradeBand>().Select(value => new TerrainScopeOption(TerrainClassText.Name(value), value,
             () => actions.ToggleGrade(value), s => s.Filter.Contains(value), (s, _) => s.Admits(value),
             r => r.GradeMetres[(int)value])).ToArray();
         Reset = new RelayCommand(actions.ResetTerrainScope);
