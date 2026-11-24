@@ -39,7 +39,8 @@ internal static class SessionInsightsPresenter
     private static SessionResponsePanel PresentResponse(TerrainResponseDiagnostics? response) => response is null
         ? SessionResponsePanel.Hidden
         : new(response.State, SessionInsightsTextCatalog.ResponseDescription(response),
-            response.State == SessionResponseState.Reported ? TerrainResponseReports.AgainstUsual(response.Rows) : null);
+            response.State == SessionResponseState.Reported ? TerrainResponseReports.AgainstUsual(response.Rows) : null,
+            SessionInsightsTextCatalog.CharacterHint(response.Character));
 
     private const string SagTitle = "Sag & travel use";
     private const string ForkTitle = "Fork";

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Sufni.App.Sessions.Models;
 using Sufni.Telemetry;
 
@@ -18,4 +19,19 @@ internal static partial class SessionInsightsTextCatalog
             $"Your usual comes from {report.Sessions} other rides on this bike ({report.Windows:N0} windows).",
         _ => string.Empty
     };
+
+    public static string? CharacterHint(TerrainCharacter character)
+    {
+        var parts = new List<string>();
+        Add(character.Rear, "rear");
+        Add(character.Front, "fork");
+        return parts.Count == 0 ? null : $"Experimental: most rough ground here was {string.Join(" and ", parts)}.";
+
+        void Add(CharacterShares? shares, string end)
+        {
+            if (shares?.Dominant is not { } dominant) return;
+            var (name, share) = dominant == StrokeCharacter.BigHits ? ("big hits", shares.BigHitShare) : ("chatter", shares.ChatterShare);
+            parts.Add($"{name} at the {end} ({share:P0})");
+        }
+    }
 }

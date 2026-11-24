@@ -7,6 +7,8 @@
     <StackPanel Spacing="6">
         <TextBlock Text="Bike response against your usual" FontWeight="SemiBold" />
         <TextBlock Name="Description" Text="{Binding Description}" TextWrapping="Wrap" />
+        <TextBlock Name="Hint" Text="{Binding Hint}" IsVisible="{Binding Hint, Converter={x:Static ObjectConverters.IsNotNull}}"
+                   TextWrapping="Wrap" FontStyle="Italic" />
         <Panel IsVisible="{Binding Report, Converter={x:Static ObjectConverters.IsNotNull}}">
             <terrain:TerrainResponseReportView Name="Report" DataContext="{Binding Report}" />
         </Panel>

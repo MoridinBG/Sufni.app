@@ -45,6 +45,20 @@ public class SessionInsightsServiceTests
         Assert.Equal(0, FrontRms(panel, null).Deviation!.Value, 8);
     }
 
+    [Theory]
+    [InlineData(RoughnessClass.Rough, true)]
+    [InlineData(RoughnessClass.Calm, false)]
+    public void ResponsePanelHintsAtTheCharacterOfMostRoughGround(RoughnessClass roughness, bool hinted)
+    {
+        var profile = TerrainProfiles.Classified([.. Enumerable.Range(0, 40).Select(i =>
+            TerrainProfiles.Window(i, roughness, RoughnessSource.Both) with { Rear = new SuspensionWindowFigures(1, 1, 1, 40, 34) })])
+            with { RearMaxTravel = 150 };
+
+        var panel = Response(profile, analysisRange: null);
+
+        Assert.Equal(hinted, panel.Hint is not null);
+    }
+
     [Fact]
     public void Analyze_ReturnsHidden_WhenTelemetryIsMissing()
     {

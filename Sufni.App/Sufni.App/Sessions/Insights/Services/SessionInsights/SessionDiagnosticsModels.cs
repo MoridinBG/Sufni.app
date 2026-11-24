@@ -90,4 +90,4 @@ internal sealed record SessionDiagnosticsReport(
 }
 
 internal sealed record TerrainResponseDiagnostics(SessionResponseState State, int Sessions, int Windows,
-    bool LacksVariation, System.Collections.Immutable.ImmutableArray<TerrainResponseRow> Rows);
+    bool LacksVariation, System.Collections.Immutable.ImmutableArray<TerrainResponseRow> Rows, TerrainCharacter Character);

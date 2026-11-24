@@ -87,15 +87,21 @@ internal static class SessionDiagnostics
         };
     }
 
-    private static TerrainResponseDiagnostics? DescribeResponse(SessionTerrainInput? input) => input?.Baseline switch
+    private static TerrainResponseDiagnostics? DescribeResponse(SessionTerrainInput? input)
     {
-        TerrainBaseline.Fitted fit => new(SessionResponseState.Reported, fit.Model.Sessions, fit.Model.Windows, false,
-            TerrainResponse.Describe(input.Profile, fit.Model, input.AnalysisRange)),
-        TerrainBaseline.Insufficient limited => new(SessionResponseState.InsufficientBaseline, limited.Model.Sessions,
-            limited.Model.Windows, limited.Model.Fits.Values.Any(f => f is ResponseFit.Unavailable { Reason: ResponseFitIssue.InsufficientVariation }), []),
-        TerrainBaseline.Failed => new(SessionResponseState.BaselineError, 0, 0, false, []),
-        _ => null
-    };
+        if (input is null) return null;
+        var character = TerrainCharacter.Describe(input.Profile, input.AnalysisRange);
+        return input.Baseline switch
+        {
+            TerrainBaseline.Fitted fit => new(SessionResponseState.Reported, fit.Model.Sessions, fit.Model.Windows, false,
+                TerrainResponse.Describe(input.Profile, fit.Model, input.AnalysisRange), character),
+            TerrainBaseline.Insufficient limited => new(SessionResponseState.InsufficientBaseline, limited.Model.Sessions,
+                limited.Model.Windows, limited.Model.Fits.Values.Any(f => f is ResponseFit.Unavailable { Reason: ResponseFitIssue.InsufficientVariation }),
+                [], character),
+            TerrainBaseline.Failed => new(SessionResponseState.BaselineError, 0, 0, false, [], character),
+            _ => null
+        };
+    }
 
     private static void AddDataQualityFindings(
         TelemetryData telemetryData,
