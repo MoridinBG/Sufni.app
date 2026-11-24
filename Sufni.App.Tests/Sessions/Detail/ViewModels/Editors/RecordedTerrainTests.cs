@@ -78,6 +78,24 @@ public class RecordedTerrainTests
         await h.CloseAsync(editor);
     }
 
+    [AvaloniaFact]
+    public async Task GpsOffsetEditEndsTheActiveClassFilter()
+    {
+        using var h = new SessionDetailHarness();
+        var session = h.CreateRecordedSession();
+        var domain = h.WithTerrain(session, RoughProfile());
+        using var changes = new BehaviorSubject<RecordedSessionDomainSnapshot>(domain);
+        var editor = h.CreateRecordedEditor(session, projectionChanges: changes);
+        await h.LoadAsync(editor);
+        var filter = editor.SignalsWorkspace.TerrainFilter!;
+        filter.Roughness[(int)RoughnessClass.Rough].Toggle.Execute(null);
+        Assert.True(filter.IsActive);
+        changes.OnNext(domain with { Session = session with { GpsOffsetSeconds = 2 }, Terrain = new TerrainStatus.Pending() });
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.False(filter.IsActive);
+        await h.CloseAsync(editor);
+    }
+
     [AvaloniaTheory]
     [InlineData(false)]
     [InlineData(true)]
