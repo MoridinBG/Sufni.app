@@ -9,6 +9,7 @@ public enum RoughnessSource { Both, FrameOnly, LowersOnly }
 public enum TerrainRoughnessState { Classified, ValuesOnly, NoSensor }
 public enum TerrainSteepnessState { Available, NoFrameSensor, NoElevation, TooShort }
 public enum TerrainUnavailableReason { NoTrack, NoMovement }
+public enum TerrainSensor { Front, Rear, Frame, Lowers }
 
 [MessagePackObject(keyAsPropertyName: true)]
 public sealed record SensorRoughness(double Level, double LowBand, double MiddleBand, double HighBand,
@@ -45,7 +46,11 @@ public readonly record struct TerrainMatchSample(double Metres, double Seconds, 
 [MessagePackObject(keyAsPropertyName: true)]
 public sealed record TerrainProfile(ImmutableArray<TerrainWindow> Windows,
     ImmutableArray<TerrainMatchSample> FrameMatching, ImmutableArray<TerrainMatchSample> LowersMatching,
-    TerrainRoughnessState RoughnessState, TerrainSteepnessState SteepnessState, double? FrameScale, double? LowersScale);
+    TerrainRoughnessState RoughnessState, TerrainSteepnessState SteepnessState, double? FrameScale, double? LowersScale)
+{
+    /// <summary>Sensors that read zero in most measured moving windows; the profile holds no readings from them.</summary>
+    public ImmutableArray<TerrainSensor> SilentSensors { get; init; } = [];
+}
 
 public closed record TerrainProfileResult
 {

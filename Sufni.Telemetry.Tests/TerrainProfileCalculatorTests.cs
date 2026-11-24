@@ -161,6 +161,42 @@ public class TerrainProfileCalculatorTests
         Assert.All(expected.Where(w => w.Moving), w => Assert.NotNull(w.Front));
     }
 
+    [Theory]
+    [InlineData(TerrainSensor.Front)]
+    [InlineData(TerrainSensor.Rear)]
+    [InlineData(TerrainSensor.Frame)]
+    [InlineData(TerrainSensor.Lowers)]
+    public void SensorReadingZeroInMostMovingWindowsIsIgnored(TerrainSensor sensor)
+    {
+        var profile = SyntheticRide.Build([new(600)], new RideRecording(Silence: (sensor, new(0, 55)))).Profile();
+        Assert.Equal([sensor], profile.SilentSensors);
+        Assert.All(profile.Windows, w => Assert.Null(sensor switch
+        {
+            TerrainSensor.Front => w.Front,
+            TerrainSensor.Rear => w.Rear,
+            TerrainSensor.Frame => (object?)w.Frame,
+            _ => w.Lowers
+        }));
+    }
+
+    [Fact]
+    public void SensorReadingZeroInFewerThanHalfOfMovingWindowsIsKept()
+    {
+        var profile = SyntheticRide.Build([new(600)], new RideRecording(Silence: (TerrainSensor.Rear, new(0, 30)))).Profile();
+        Assert.Empty(profile.SilentSensors);
+        Assert.NotNull(profile.Windows[^1].Rear);
+    }
+
+    [Fact]
+    public void SilentFrameLeavesClassificationToLowersAndRemovesSteepness()
+    {
+        var profile = SyntheticRide.Build([new(1000, GradeDegrees: 8)],
+            new RideRecording(Silence: (TerrainSensor.Frame, new(0, 100)))).Profile();
+        Assert.All(profile.Windows.Where(w => w.Moving), w => Assert.Equal(RoughnessSource.LowersOnly, w.Source));
+        Assert.Empty(profile.FrameMatching);
+        Assert.Equal(TerrainSteepnessState.NoFrameSensor, profile.SteepnessState);
+    }
+
     [Fact]
     public void MatchingSeriesHoldsTheLogBroadbandLevelOfEachMetre()
     {
@@ -239,11 +275,12 @@ public class TerrainProfileCalculatorTests
     }
 
     [Fact]
-    public void SerializedProfilePreservesClassifiedWindowsAndSensorMatching()
+    public void SerializedProfilePreservesClassifiedWindowsSensorMatchingAndSilentSensors()
     {
-        var profile = SyntheticRide.Build([new(210)]).Profile();
+        var profile = SyntheticRide.Build([new(210)], new RideRecording(Silence: (TerrainSensor.Rear, new(0, 25)))).Profile();
         var restored = MessagePackSerializer.Deserialize<TerrainProfile>(MessagePackSerializer.Serialize(profile));
         Assert.Equal(profile.Windows.ToArray(), restored.Windows.ToArray());
         Assert.Equal(profile.FrameMatching.ToArray(), restored.FrameMatching.ToArray());
+        Assert.Equal([TerrainSensor.Rear], restored.SilentSensors);
     }
 }

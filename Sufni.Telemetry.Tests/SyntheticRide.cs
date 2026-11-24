@@ -11,7 +11,7 @@ public sealed record RideRecording(
     TelemetryTimeRange? FixLoss = null, TelemetryTimeRange? RecordingGap = null, TelemetryTimeRange? Stop = null,
     TelemetryTimeRange? Braking = null, double BrakingAcceleration = 2.94, double MountPitch = 0, double Roll = 0,
     bool Frame = true, bool Lowers = true, int AccelScale = 4096,
-    int Seed = 17, double NoiseG = 0, int? LowersAccelScale = null);
+    int Seed = 17, double NoiseG = 0, int? LowersAccelScale = null, (TerrainSensor Sensor, TelemetryTimeRange Range)? Silence = null);
 
 public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<TrackSample> Fixes)
 {
@@ -74,8 +74,15 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
                 section.HighBandG * Math.Sin(2 * Math.PI * 45 * seconds + phases[2]));
             if (!Inside(recording.RecordingGap, seconds))
             {
+                bool Silent(TerrainSensor sensor) => recording.Silence is { } silence && silence.Sensor == sensor &&
+                    Inside(silence.Range, seconds);
                 foreach (var sensor in sensors)
                 {
+                    if (Silent(sensor.Identity))
+                    {
+                        sensor.Add(tick, rate, 0, 0, 0, 0, 0, 0);
+                        continue;
+                    }
                     var vibration = ground * sensor.LevelScale(speed) + recording.NoiseG * (2 * random.NextDouble() - 1);
                     sensor.Add(tick, rate, upX + (speed - lastSpeed) * rate / Gravity,
                         upY + speed * gz / Gravity + vibration, upZ - speed * gy / Gravity,
@@ -84,8 +91,8 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
                 var level = Math.Sqrt(section.LowBandG * section.LowBandG +
                     section.MiddleBandG * section.MiddleBandG + section.HighBandG * section.HighBandG);
                 var response = ResponseAmplitude(level, speed);
-                front.Add(tick, response, section);
-                rear.Add(tick, response * 0.8, section);
+                front.Add(tick, Silent(TerrainSensor.Front) ? 0 : response, section);
+                rear.Add(tick, Silent(TerrainSensor.Rear) ? 0 : response * 0.8, section);
             }
 
             var remaining = section.Length - (distance - sectionStart);
@@ -150,6 +157,7 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
     private sealed class Sensor(ImuLocation location, int scale)
     {
         public ImuMetaEntry Meta { get; } = new((byte)location, scale, GyroScale);
+        public TerrainSensor Identity => location == ImuLocation.Frame ? TerrainSensor.Frame : TerrainSensor.Lowers;
         private readonly List<RawImuSegment> segments = [];
         private readonly List<ImuRecord> samples = [];
         private int first;
