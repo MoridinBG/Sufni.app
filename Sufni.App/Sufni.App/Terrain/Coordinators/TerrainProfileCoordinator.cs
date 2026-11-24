@@ -113,7 +113,6 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
 
     public void Prioritize(Guid sessionId)
     {
-        if (!dispatcher.CheckAccess()) { dispatcher.Post(() => Prioritize(sessionId)); return; }
         if (stopped || active?.Id == sessionId) return;
         priorities.Remove(sessionId);
         priorities.Insert(0, sessionId);

@@ -36,8 +36,7 @@ public class TerrainProfileCoordinatorTests
             return h.Available(key);
         };
         await h.DrainAsync(started.Task);
-        h.Coordinator.Prioritize(oldest.Id);
-        await h.Dispatcher.DrainAsync();
+        await h.Dispatcher.DrainUntilAsync(h.Dispatcher.InvokeAsync(() => h.Coordinator.Prioritize(oldest.Id)));
         release.SetResult();
         await h.WaitForAsync(middle, TerrainOutcome.Computed);
         Assert.Equal([newest.Id, oldest.Id, middle.Id], h.Published.Select(publication => publication.Id));
