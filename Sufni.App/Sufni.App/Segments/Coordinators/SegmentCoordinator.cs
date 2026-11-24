@@ -119,6 +119,11 @@ public interface ISegmentCoordinator
         DampingSpeedCutoffs cutoffs, SessionDampingPercentages currentPercentages, SegmentTerrainSource? terrain, TrailAverage.Averaged? average,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Averages the source range with every aligned match as the session's operation. Too few
+    /// candidates for <see cref="TrailAverage.MinimumRuns"/> give <see cref="SegmentTrailAverage.TooFewRuns"/>
+    /// without reading profiles.
+    /// </summary>
     Task<SegmentTrailAverage> BuildTrailAverageAsync(SegmentTerrainSource source, TelemetryTimeRange range,
         IReadOnlyList<SegmentMatch> matches, CancellationToken cancellationToken);
 
@@ -446,6 +451,7 @@ internal sealed class SegmentCoordinator(
     public async Task<SegmentTrailAverage> BuildTrailAverageAsync(SegmentTerrainSource source, TelemetryTimeRange range,
         IReadOnlyList<SegmentMatch> matches, CancellationToken cancellationToken)
     {
+        if (matches.Count + 1 < TrailAverage.MinimumRuns) return new SegmentTrailAverage.TooFewRuns(matches.Count + 1);
         using var operation = operationRunner.Start(source.SessionId, "averaging trail terrain");
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(operation.CancellationToken, cancellationToken);
         var token = lifetime.Token;

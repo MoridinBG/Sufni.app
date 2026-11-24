@@ -354,22 +354,17 @@ public class SegmentComparisonViewModelTests
     }
 
     [Fact]
-    public async Task SingleMatchCompletesWithoutWaitingForTrailAveraging()
+    public async Task SingleMatchShowsTheCoordinatorsTooFewRunsResult()
     {
         await using var vm = CreateComparison();
         TrailMatches((10, 13));
-        var deferred = new TaskCompletionSource<SegmentTrailAverage>();
         coordinator.BuildTrailAverageAsync(Arg.Any<SegmentTerrainSource>(), Arg.Any<TelemetryTimeRange>(),
                 Arg.Any<IReadOnlyList<SegmentMatch>>(), Arg.Any<CancellationToken>())
-            .Returns(deferred.Task);
-        var match = vm.MatchCommand.ExecuteAsync(null);
-        var completed = match.IsCompletedSuccessfully;
-        deferred.SetResult(new SegmentTrailAverage.TooFewRuns(2));
-        await match;
-        Assert.True(completed);
-        Assert.Single(vm.TravelRows);
-        Assert.NotNull(vm.TrailAverageStatus);
+            .Returns(new SegmentTrailAverage.TooFewRuns(2));
+        await vm.MatchCommand.ExecuteAsync(null);
+        Assert.Equal(2, Assert.IsType<SegmentTrailAverage.TooFewRuns>(vm.TrailAverage).RunCount);
         Assert.Empty(vm.RoughnessRows);
+        Assert.Single(vm.TravelRows);
     }
 
     private void TrailMatches(params (int Start, int End)[] ranges)

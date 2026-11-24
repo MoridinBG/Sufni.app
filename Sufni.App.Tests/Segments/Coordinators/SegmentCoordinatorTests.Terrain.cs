@@ -104,16 +104,33 @@ public partial class SegmentCoordinatorTests
     }
 
     [Fact]
+    public async Task OneMatchGivesTooFewRunsWithoutReadingProfiles()
+    {
+        var (source, match) = TerrainComparisonInputs(0);
+        var reads = 0;
+        terrainProfiles.BeforeRead = (_, _) =>
+        {
+            reads++;
+            return Task.CompletedTask;
+        };
+        var result = await CreateCoordinator().BuildTrailAverageAsync(source, new(0, source.Profile.Windows[^1].EndSeconds),
+            [match], TestContext.Current.CancellationToken);
+        Assert.Equal(2, Assert.IsType<SegmentTrailAverage.TooFewRuns>(result).RunCount);
+        Assert.Equal(0, reads);
+    }
+
+    [Fact]
     public async Task CancellingSessionOperationDuringProfileReadCancelsTheAverage()
     {
         var (source, match) = TerrainComparisonInputs(0);
+        var repeated = TestSegmentMatches.OnTrail(source.Profile, earlierRide.Value);
         var reading = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         terrainProfiles.BeforeRead = (_, token) =>
         {
             reading.SetResult();
             return Task.Delay(Timeout.Infinite, token);
         };
-        var work = CreateCoordinator().BuildTrailAverageAsync(source, new(0, 10), [match], TestContext.Current.CancellationToken);
+        var work = CreateCoordinator().BuildTrailAverageAsync(source, new(0, 10), [match, repeated], TestContext.Current.CancellationToken);
         await reading.Task;
         operationRunner.Cancel(source.SessionId);
         Assert.IsType<SegmentTrailAverage.Cancelled>(await work);
