@@ -1,5 +1,4 @@
 using Sufni.App.Terrain.Models;
-using Sufni.App.Terrain.Queries;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Sessions.Lists.ViewModels.Rows;
 using Sufni.Telemetry;
@@ -28,33 +27,60 @@ public class SessionListViewModelTests
     [InlineData(300, 0.224, 22)]
     [InlineData(300, null, null)]
     [InlineData(200, 0.224, null)]
-    public void ListSubtitleUsesOnlyCurrentClassifiedDistance(double metres, double? steep, int? expectedSteep)
+    public void RowFingerprintUsesOnlyTheClassifiedDistanceOfACurrentProfile(double metres, double? steep, int? expectedSteep)
     {
         var (projection, cache) = CreateProjection();
         using (cache)
         {
-            var session = TestSnapshots.WithCurrentTerrain(TestSnapshots.Session(hasProcessedData: true), TerrainOutcome.Computed,
-                new TerrainSummary(metres, 0.577, 0.279, 0.144, null, null, steep, RoughnessSource.Both));
-            var summary = CreateSummary("ride") with { Id = session.Id };
-            void Publish() => cache.AddOrUpdate(summary with { Terrain = SessionTerrainStatusQuery.Evaluate(session, []).Status });
-            Publish();
-            var view = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
-            var row = Assert.Single(view.Items);
+            cache.AddOrUpdate(CreateSummary("ride") with
+            {
+                Terrain = CurrentTerrain(new TerrainSummary(metres, 0.577, 0.279, 0.144, null, null, steep, RoughnessSource.Both))
+            });
+            var row = Assert.Single(CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher).Items);
             Assert.Equal(metres >= 300, row.HasSubtitleText);
             Assert.Equal(metres >= 300 ? new TerrainFingerprint(14, 58, expectedSteep) : null, row.Fingerprint);
+        }
+    }
 
-            session = session with { GpsOffsetSeconds = 2 };
-            Publish();
+    public static TheoryData<TerrainStatus> StatusesWithoutAProfile =>
+        [new TerrainStatus.Pending(), new TerrainStatus.Failed(), new TerrainStatus.Unavailable(TerrainAvailabilityReason.NoTrack)];
+
+    [Theory]
+    [MemberData(nameof(StatusesWithoutAProfile))]
+    public void RowHasNoFingerprintWithoutACurrentProfile(TerrainStatus status)
+    {
+        var (projection, cache) = CreateProjection();
+        using (cache)
+        {
+            cache.AddOrUpdate(CreateSummary("ride") with { Terrain = status });
+            var row = Assert.Single(CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher).Items);
+            Assert.Null(row.Fingerprint);
             Assert.False(row.HasSubtitleText);
-            session = TestSnapshots.WithCurrentTerrain(session, TerrainOutcome.Failed);
-            Publish();
+        }
+    }
+
+    [Fact]
+    public void RowFingerprintFollowsTheTerrainOfEachPublishedSummary()
+    {
+        var (projection, cache) = CreateProjection();
+        using (cache)
+        {
+            var summary = CreateSummary("ride") with
+            {
+                Terrain = CurrentTerrain(new TerrainSummary(300, 0.577, 0.279, 0.144, null, null, null, RoughnessSource.Both))
+            };
+            cache.AddOrUpdate(summary);
+            var row = Assert.Single(CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher).Items);
+            Assert.NotNull(row.Fingerprint);
+
+            cache.AddOrUpdate(summary with { Terrain = new TerrainStatus.Pending() });
             Assert.Null(row.Fingerprint);
-            session = session with { TerrainOutcome = TerrainOutcome.NoTrack };
-            Publish();
-            Assert.Null(row.Fingerprint);
-            session = session with { TerrainOutcome = TerrainOutcome.Computed,
-                TerrainSummary = new TerrainSummary(400, 0.4, 0.3, 0.3, null, null, null, RoughnessSource.FrameOnly) };
-            Publish();
+            Assert.False(row.HasSubtitleText);
+
+            cache.AddOrUpdate(summary with
+            {
+                Terrain = CurrentTerrain(new TerrainSummary(400, 0.4, 0.3, 0.3, null, null, null, RoughnessSource.FrameOnly))
+            });
             Assert.Equal(new TerrainFingerprint(30, 40, null), row.Fingerprint);
             Assert.True(row.HasSubtitleText);
         }
@@ -458,6 +484,9 @@ public class SessionListViewModelTests
         DistanceMeters: distanceMeters,
         AscentMeters: ascentMeters,
         DescentMeters: descentMeters) { Terrain = new TerrainStatus.Pending() };
+
+    private static TerrainStatus CurrentTerrain(TerrainSummary summary) => TestSnapshots.Terrain(
+        TestSnapshots.WithCurrentTerrain(TestSnapshots.Session(hasProcessedData: true), TerrainOutcome.Computed, summary));
 
     private static long ToUnixSeconds(int year, int month, int day, int hour, int minute)
     {
