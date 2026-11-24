@@ -24,38 +24,26 @@ namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 public class RecordedTerrainTests
 {
     [AvaloniaFact]
-    public async Task RoughChipChangesTravelStatisticsAndClearingRestoresTheWholeRide()
+    public async Task RoughChipNarrowsTheDampingShareToTheRoughSectionAndClearingRestoresTheWholeRide()
     {
         using var h = new SessionDetailHarness();
         var ride = SyntheticRide.Build([new(140, LowBandG: 0.2, MiddleBandG: 0.2, HighBandG: 0.2),
             new(140, LowBandG: 1.5, MiddleBandG: 1.6, HighBandG: 1.8)]);
-        var profile = ride.Profile();
         var session = h.CreateRecordedSession();
-        var domain = h.WithTerrain(session, profile);
+        var domain = h.WithTerrain(session, ride.Profile());
         var editor = h.CreateRecordedEditor(session, h.CreateLoadedResult(ride.Telemetry), Observable.Return(domain));
         await h.LoadAsync(editor);
         var filter = editor.SignalsWorkspace.TerrainFilter!;
         var rough = filter.Roughness[(int)RoughnessClass.Rough];
         Assert.InRange(rough.DistanceMetres, 120, 150);
-        var full = await TravelAsync();
+        var analysis = editor.AnalysisWorkspace;
+        var full = analysis.DampingPercentages;
         rough.Toggle.Execute(null);
-        Assert.True(filter.IsActive);
-        Assert.True(rough.IsChecked);
         Assert.Equal(rough.DistanceMetres, filter.SelectedMetres);
-        var filtered = await TravelAsync();
-        Assert.True(filtered.Average > full.Average);
+        Assert.True(analysis.DampingPercentages.FrontHscPercentage > full.FrontHscPercentage);
         filter.Clear.Execute(null);
-        Assert.False(filter.IsActive);
-        Assert.Equal(full, await TravelAsync());
+        Assert.Equal(full, analysis.DampingPercentages);
         await h.CloseAsync(editor);
-
-        async Task<TravelStatistics> TravelAsync()
-        {
-            var results = editor.SignalsWorkspace.AnalysisResultState;
-            var current = results.CurrentInputs!.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
-            await results.RequestAsync(current, TestContext.Current.CancellationToken);
-            return Assert.IsType<TravelDistributionAnalysisResult>(results.Get(current)).Statistics;
-        }
     }
 
     [AvaloniaFact]

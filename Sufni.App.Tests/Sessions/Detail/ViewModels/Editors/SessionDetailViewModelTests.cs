@@ -31,6 +31,8 @@ using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.App.Tests.TestSupport.Harness;
+using Sufni.App.Sessions.Plots.Views.Plots;
 using Sufni.App.Tests.TestSupport.Sessions;
 using Sufni.App.Tests.TestSupport.Video;
 using Sufni.App.Video.Models;
@@ -566,6 +568,7 @@ public class SessionDetailViewModelTests
         var ride = SyntheticRide.Build([new RideSection(800, Speed: 25, GradeDegrees: 10,
             LowBandG: 0, MiddleBandG: 0, HighBandG: 0)],
             new RideRecording(Braking: new TelemetryTimeRange(10, 17), FixRate: 3));
+        const double descentPitch = -10;
         var loaded = SessionDetailHarness.CreateLoadedRide(ride);
         var snapshot = harness.CreateRecordedSession();
         var editor = harness.CreateRecordedEditor(snapshot, loaded);
@@ -574,24 +577,28 @@ public class SessionDetailViewModelTests
             Arg.Any<CancellationToken>()).Returns(pending.Task);
         var load = harness.LoadAsync(editor);
         await WaitForAsync(() => ReferenceEquals(editor.SignalsWorkspace.TelemetryData, ride.Telemetry));
-        var analysis = editor.SignalsWorkspace.AnalysisResultState;
-        async Task<double> PitchDuringBraking()
+        var view = new FramePitchRollPlotView
         {
-            var key = analysis.CurrentInputs!.ImuDisplayProjectionKey;
-            await analysis.RequestAsync(key, TestContext.Current.CancellationToken);
-            var result = Assert.IsType<ImuDisplayProjectionAnalysisResult>(analysis.Get(key));
-            var pitch = result.Projection.FramePitchRoll!;
-            return pitch.PitchDegrees.Where((_, i) => pitch.Times[i] >= 12 && pitch.Times[i] < 15).Average();
+            Telemetry = editor.SignalsWorkspace.TelemetryData,
+            AnalysisResultState = editor.SignalsWorkspace.AnalysisResultState,
+        };
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+        double PitchDuringBraking()
+        {
+            var pitch = PlotViewTestSupport.GetRenderedPlot(view).Plot.GetPlottables()
+                .OfType<ScottPlot.Plottables.Signal>().Single(signal => signal.LegendText == "Pitch").Data;
+            return pitch.GetYs().Where((_, i) => pitch.XOffset + i * pitch.Period is >= 12 and < 15).Average();
         }
 
         try
         {
-            var withoutFixes = await PitchDuringBraking();
+            Assert.True(Math.Abs(PitchDuringBraking() - descentPitch) > 2);
             var track = loaded.Data.TelemetryPresentation;
             pending.SetResult(new SessionDetailTrackLoadResult.Loaded(
                 new SessionTrackPresentationData(track.FullTrackId, track.FullTrackPoints, track.TrackPoints)));
             await load;
-            Assert.NotEqual(withoutFixes, await PitchDuringBraking());
+            await ViewTestHelpers.FlushDispatcherAsync();
+            Assert.InRange(PitchDuringBraking(), descentPitch - 2, descentPitch + 2);
         }
         finally
         {
