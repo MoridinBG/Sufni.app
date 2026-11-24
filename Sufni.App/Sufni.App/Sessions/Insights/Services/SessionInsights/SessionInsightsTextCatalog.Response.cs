@@ -19,7 +19,7 @@ internal static partial class SessionInsightsTextCatalog
     };
 
     public static string ResponseCoverage(TerrainResponseRow row) => row.MeanSpeed is { } speed
-        ? $"{row.DistanceMetres:0.#} m · {row.Share:P0} · {speed * 3.6:0.#} km/h" : "0 m";
+        ? $"{TerrainResponseText.Distance(row.DistanceMetres)} · {row.Share:P0} · {speed * 3.6:0.#} km/h" : "0 m";
 
     public static SessionResponseCell ResponseCell(ResponseCell cell)
     {

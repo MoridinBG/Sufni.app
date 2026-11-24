@@ -16,9 +16,15 @@ internal static class TerrainResponseText
         _ => throw new System.ArgumentOutOfRangeException(nameof(target))
     };
 
+    public static string TooShort { get; } = $"Under {SuspensionResponseModel.MinimumReportMetres} m";
+
+    public static string Distance(double metres) =>
+        metres is >= SuspensionResponseModel.MinimumReportMetres and < SuspensionResponseModel.ConfidentReportMetres
+            ? $"{metres:0.#} m · low confidence" : $"{metres:0.#} m";
+
     public static string Value(ResponseCellState state, double? ratioValue) => ratioValue is { } ratio ? $"{ratio:0.00}×" : state switch
         {
-            ResponseCellState.TooShort => "Under 300 m",
+            ResponseCellState.TooShort => TooShort,
             ResponseCellState.InsufficientVariation => "Insufficient variation",
             ResponseCellState.NoBaseline => "Insufficient baseline",
             _ => "Unavailable"
