@@ -68,6 +68,20 @@ public partial class SegmentCoordinatorTests
     }
 
     [Fact]
+    public async Task TrailAverageClassesEveryMatchedWindowAndNamesItsRunCount()
+    {
+        var (source, match) = TerrainComparisonInputs(0);
+        var allRough = new TrailAverage.Averaged(4, [.. source.Profile.Windows.Select((w, i) =>
+            new TrailAverageWindow(i, w.StartSeconds, w.EndSeconds, null, null, null, RoughnessClass.Rough, null))]);
+        var compared = Assert.IsType<SegmentTerrainComparison.Compared>(await CompareTerrain(source, match, allRough));
+        Assert.Equal(4, compared.AverageRunCount);
+        var all = compared.Rows.Single(r => r.Class is null);
+        Assert.True(all.DistanceMetres > 0);
+        Assert.Equal(all.DistanceMetres, compared.Rows.Single(r => r.Class == RoughnessClass.Rough).DistanceMetres);
+        Assert.All(compared.Rows.Where(r => r.Class is RoughnessClass.Calm or RoughnessClass.Medium), r => Assert.Equal(0, r.DistanceMetres));
+    }
+
+    [Fact]
     public async Task TrailAverageCountsOnlyMatchesWithCurrentAlignedProfiles()
     {
         var (source, first) = TerrainComparisonInputs(0);
@@ -93,6 +107,17 @@ public partial class SegmentCoordinatorTests
         var result = await CreateCoordinator().BuildTrailAverageAsync(source, new(0, source.Profile.Windows[^1].EndSeconds),
             [first, absent], TestContext.Current.CancellationToken);
         Assert.Equal(2, Assert.IsType<SegmentTrailAverage.TooFewRuns>(result).RunCount);
+    }
+
+    [Fact]
+    public async Task AveragingFailureReturnsFailed()
+    {
+        var (source, first) = TerrainComparisonInputs(0);
+        var second = TestSegmentMatches.OnTrail(source.Profile, earlierRide.Value);
+        terrainProfiles.ReadFailure = new IOException("profile read failed");
+        var result = await CreateCoordinator().BuildTrailAverageAsync(source, new(0, source.Profile.Windows[^1].EndSeconds),
+            [first, second], TestContext.Current.CancellationToken);
+        Assert.IsType<SegmentTrailAverage.Failed>(result);
     }
 
     [Fact]

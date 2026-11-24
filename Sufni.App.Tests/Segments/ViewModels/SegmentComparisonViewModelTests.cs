@@ -421,6 +421,37 @@ public class SegmentComparisonViewModelTests
         Assert.Single(vm.TravelRows);
     }
 
+    [Fact]
+    public async Task SourceProfileArrivingAfterAMatchStartsTheTrailAverage()
+    {
+        await using var vm = CreateComparison();
+        MatchReturns(Comparison(TestSegmentMatches.Match(10, 13)), Comparison(TestSegmentMatches.Match(6, 12)));
+        TestSegmentComparisons.WithTrailAverage(coordinator);
+        await vm.MatchCommand.ExecuteAsync(null);
+        Assert.Empty(vm.RoughnessRows);
+
+        sessionState.OnNext(sessionState.Value with { Terrain = TerrainSource() });
+
+        Assert.Single(vm.RoughnessRows);
+        Assert.Single(vm.GradeRows);
+    }
+
+    [Fact]
+    public async Task FailedTrailAverageShowsAStatusAndKeepsTheMatchedRows()
+    {
+        await using var vm = CreateComparison();
+        TrailMatches((10, 13), (6, 12));
+        coordinator.BuildTrailAverageAsync(Arg.Any<SegmentTerrainSource>(), Arg.Any<TelemetryTimeRange>(),
+                Arg.Any<IReadOnlyList<SegmentMatch>>(), Arg.Any<CancellationToken>())
+            .Returns(new SegmentTrailAverage.Failed());
+
+        await vm.MatchCommand.ExecuteAsync(null);
+
+        Assert.NotNull(vm.TrailAverageStatus);
+        Assert.Empty(vm.RoughnessRows);
+        Assert.Equal(2, vm.TravelRows.Count);
+    }
+
     private void TrailMatches(params (int Start, int End)[] ranges)
     {
         sessionState.OnNext(State() with { Terrain = TerrainSource() });
