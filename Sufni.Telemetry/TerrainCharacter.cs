@@ -35,10 +35,8 @@ public sealed record TerrainCharacter(CharacterShares? Front, CharacterShares? R
         {
             if (!window.Moving || window.Climbing || window.Roughness is not (>= RoughnessClass.Medium and <= RoughnessClass.VeryRough) ||
                 strokeSize(window) is not { } size) continue;
-            var start = Math.Max(window.StartSeconds, range?.StartSeconds ?? window.StartSeconds);
-            var end = Math.Min(window.EndSeconds, range?.EndSeconds ?? window.EndSeconds);
-            if (end <= start) continue;
-            var covered = TerrainProfileCalculator.WindowMetres * (end - start) / (window.EndSeconds - window.StartSeconds);
+            var covered = TerrainProfileCalculator.WindowMetres * window.CoveredFraction(range);
+            if (covered == 0) continue;
             metres += covered;
             var share = size / maxTravel.Value;
             if (share >= thresholds.BigHits) bigHits += covered;

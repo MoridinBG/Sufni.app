@@ -24,19 +24,19 @@ public sealed record ResponseFinding(ResponseTarget Target, RoughnessClass? Grou
 
 public static class TerrainResponse
 {
+    /// <summary>Rows for all descent ground and each descent level inside the range, limited to the windows a filter admits.</summary>
     public static ImmutableArray<TerrainResponseRow> Describe(TerrainProfile profile, SuspensionResponseModel model,
-        TelemetryTimeRange? range)
+        TelemetryTimeRange? range, Func<TerrainWindow, bool>? admits = null)
     {
         var levels = Enum.GetValues<RoughnessClass>().Where(level => !level.IsClimb()).ToArray();
         var groups = levels.Select(_ => new List<Portion>()).Append([]).ToArray();
         var all = groups[^1];
         foreach (var window in profile.Windows)
         {
-            if (!window.Moving) continue;
-            var start = Math.Max(window.StartSeconds, range?.StartSeconds ?? window.StartSeconds);
-            var end = Math.Min(window.EndSeconds, range?.EndSeconds ?? window.EndSeconds);
-            if (end <= start) continue;
-            var portion = new Portion(window, (end - start) / (window.EndSeconds - window.StartSeconds));
+            if (!window.Moving || admits?.Invoke(window) == false) continue;
+            var fraction = window.CoveredFraction(range);
+            if (fraction == 0) continue;
+            var portion = new Portion(window, fraction);
             if (!window.Climbing) all.Add(portion);
             if (window.Roughness is { } roughness && !roughness.IsClimb()) groups[(int)roughness].Add(portion);
         }

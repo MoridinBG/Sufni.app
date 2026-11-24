@@ -55,6 +55,14 @@ public sealed record TerrainWindow(double StartMetres, double StartSeconds, doub
 
     /// <summary>Null where the rear travel or the frame IMU does not cover the 8 s around the window.</summary>
     public PedallingFigures? Pedalling { get; init; }
+
+    /// <summary>The share of the window's time inside the range; the whole window without a range.</summary>
+    internal double CoveredFraction(TelemetryTimeRange? range)
+    {
+        var start = Math.Max(StartSeconds, range?.StartSeconds ?? StartSeconds);
+        var end = Math.Min(EndSeconds, range?.EndSeconds ?? EndSeconds);
+        return end > start ? (end - start) / (EndSeconds - StartSeconds) : 0;
+    }
 }
 
 [MessagePackObject(keyAsPropertyName: true)]

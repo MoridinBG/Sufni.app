@@ -101,6 +101,15 @@ public class SuspensionResponseModelTests
         Assert.DoesNotContain(rows, row => row.Class?.IsClimb() == true);
     }
 
+    [Fact]
+    public void AFilterLimitsEveryResponseRowToTheWindowsItAdmits()
+    {
+        var evaluated = SyntheticResponseRides.Profile(37);
+        var rows = TerrainResponse.Describe(evaluated, SuspensionResponseModel.Fit(evaluated, SyntheticResponseRides.Baseline), null,
+            w => w.StartMetres >= 1100);
+        Assert.Equal(10 * evaluated.Windows.Count(w => w.Moving && w.StartMetres >= 1100), rows.Single(row => row.Class is null).DistanceMetres, 6);
+    }
+
     private static TerrainProfile Climbing(TerrainProfile profile) =>
         profile with { Windows = [.. profile.Windows.Select(w => w with { Band = GradeBand.Climb })] };
 
