@@ -17,6 +17,8 @@ public closed record TerrainRunAlignment
     public const int MaximumShiftMetres = 40;
     public const double MinimumCorrelation = 0.6;
     public const double MinimumCoverage = 0.8;
+    public const double MinimumAcceptedShare = 0.5;
+    public const int NeighbourShiftToleranceMetres = 5;
 
     public static TerrainRunAlignment Calculate(TerrainProfile source, TerrainProfile match,
         IReadOnlyList<(double SourceSeconds, double MatchSeconds)> timeMap, CancellationToken token = default)
@@ -32,7 +34,8 @@ public closed record TerrainRunAlignment
         if (first is null || last is null) return new Unaligned();
         var start = MetresAt(first, Math.Max(first.StartSeconds, timeMap[0].SourceSeconds));
         var end = MetresAt(last, Math.Min(last.EndSeconds, timeMap[^1].SourceSeconds));
-        var chunks = ImmutableArray.CreateBuilder<TerrainAlignmentChunk>();
+        var accepted = new List<TerrainAlignmentChunk>();
+        var candidates = 0;
         var a = new double?[ChunkMetres];
         var b = new double?[ChunkMetres];
         for (var origin = start; origin + ChunkMetres <= end; origin += StepMetres)
@@ -45,6 +48,7 @@ public closed record TerrainRunAlignment
             }
             Correlation(0, out var covered);
             if (covered < MinimumCoverage * ChunkMetres) continue;
+            candidates++;
             var best = double.NegativeInfinity;
             var shift = 0;
             for (var delta = -MaximumShiftMetres; delta <= MaximumShiftMetres; delta++)
@@ -54,9 +58,11 @@ public closed record TerrainRunAlignment
                 shift = delta;
             }
             if (best >= MinimumCorrelation && Math.Abs(shift) < MaximumShiftMetres)
-                chunks.Add(new(origin + ChunkMetres / 2d, shift));
+                accepted.Add(new(origin + ChunkMetres / 2d, shift));
         }
-        if (chunks.Count < 2) return new Unaligned();
+        if (accepted.Count < MinimumAcceptedShare * candidates) return new Unaligned();
+        var chunks = Consistent(accepted);
+        if (chunks.Length < 2) return new Unaligned();
 
         var pairs = ImmutableArray.CreateBuilder<TerrainWindowPair>();
         for (var i = 0; i < source.Windows.Length; i++)
@@ -66,14 +72,14 @@ public closed record TerrainRunAlignment
             if (!window.Moving || centre < start || centre >= end || Map(centre) is not { } mapped) continue;
             var right = LowerBound(chunks, centre, static c => c.CentreMetres);
             var lower = chunks[Math.Max(0, right - 1)];
-            var upper = chunks[Math.Min(right, chunks.Count - 1)];
+            var upper = chunks[Math.Min(right, chunks.Length - 1)];
             if (Math.Min(Math.Abs(centre - lower.CentreMetres), Math.Abs(centre - upper.CentreMetres)) > StepMetres) continue;
             var fraction = upper.CentreMetres == lower.CentreMetres ? 0 : (centre - lower.CentreMetres) / (upper.CentreMetres - lower.CentreMetres);
             var target = mapped + lower.ShiftMetres + fraction * (upper.ShiftMetres - lower.ShiftMetres);
             if (FindWindow(matchWindows, target, byTime: false) is { } j && match.Windows[j].Moving)
                 pairs.Add(new(i, j));
         }
-        return new Aligned(frame ? ImuLocation.Frame : ImuLocation.Fork, chunks.ToImmutable(), pairs.ToImmutable());
+        return new Aligned(frame ? ImuLocation.Frame : ImuLocation.Fork, chunks, pairs.ToImmutable());
 
         double? Map(double distance)
         {
@@ -113,6 +119,13 @@ public closed record TerrainRunAlignment
             return count >= ChunkMetres * MinimumCoverage && xx > 0 && yy > 0 ? xy / Math.Sqrt(xx * yy) : null;
         }
     }
+
+    private static ImmutableArray<TerrainAlignmentChunk> Consistent(List<TerrainAlignmentChunk> accepted) =>
+    [
+        .. accepted.Where((chunk, i) =>
+            i > 0 && Math.Abs(chunk.ShiftMetres - accepted[i - 1].ShiftMetres) <= NeighbourShiftToleranceMetres ||
+            i + 1 < accepted.Count && Math.Abs(chunk.ShiftMetres - accepted[i + 1].ShiftMetres) <= NeighbourShiftToleranceMetres)
+    ];
 
     private static double MetresAt(TerrainWindow window, double time) => window.StartMetres +
         (time - window.StartSeconds) / (window.EndSeconds - window.StartSeconds) * TerrainProfileCalculator.WindowMetres;
