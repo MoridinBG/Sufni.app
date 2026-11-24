@@ -1,0 +1,35 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="using:Sufni.App.Terrain.Models"
+             x:Class="Sufni.App.Sessions.Insights.Views.Controls.SessionInsightsClimbingPanel"
+             x:DataType="models:ClimbingReport">
+    <UserControl.Styles>
+        <Style Selector="TextBlock.label">
+            <Setter Property="Opacity" Value="0.75" />
+        </Style>
+    </UserControl.Styles>
+    <Border Margin="0,4,0,0" Padding="10" BorderBrush="{DynamicResource SufniLineDefaultBrush}" BorderThickness="1" CornerRadius="6">
+        <StackPanel Spacing="8">
+            <TextBlock FontSize="15" FontWeight="SemiBold" Text="Climbing"
+                       ToolTip.Tip="The climbs in the time range. Pedalling is detected from the rear rhythm; bob and cadence come from pedalled climbs only." />
+            <TextBlock Name="Summary" TextWrapping="Wrap" Text="{Binding Summary}" />
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="3">
+                <TextBlock Classes="label" Text="Pedalling" ToolTip.Tip="The share of climb time with a steady pedal rhythm." />
+                <TextBlock Grid.Column="1" Text="{Binding Pedalling}" />
+                <TextBlock Grid.Row="1" Classes="label" Text="Pedal bob"
+                           ToolTip.Tip="How far the shock moved with each pedal stroke, peak to peak." />
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Bob}" />
+                <TextBlock Grid.Row="2" Classes="label" Text="Cadence" />
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Cadence}" />
+                <TextBlock Grid.Row="3" Classes="label" Text="Shock sits at" IsVisible="{Binding HasShockTravel}"
+                           ToolTip.Tip="Mean shock travel while climbing and on descents." />
+                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding ShockTravel}" IsVisible="{Binding HasShockTravel}" />
+                <TextBlock Grid.Row="4" Classes="label" Text="Fork sits at" IsVisible="{Binding HasForkTravel}"
+                           ToolTip.Tip="Mean fork travel while climbing and on descents." />
+                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding ForkTravel}" IsVisible="{Binding HasForkTravel}" />
+                <TextBlock Grid.Row="5" Classes="label" Text="Climb ground" IsVisible="{Binding HasGround}"
+                           ToolTip.Tip="Smooth and technical climbing, from frame vibration." />
+                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding Ground}" IsVisible="{Binding HasGround}" />
+            </Grid>
+        </StackPanel>
+    </Border>
+</UserControl>

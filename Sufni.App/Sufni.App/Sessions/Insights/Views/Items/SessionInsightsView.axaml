@@ -109,6 +109,9 @@ mc:Ignorable="d">
                         </Panel>
                         <segments:SegmentTerrainComparisonView DataContext="{Binding SegmentComparison}" />
                         <controls2:SessionInsightsResponsePanel DataContext="{Binding SessionInsights.Response}" />
+                        <Panel IsVisible="{Binding SessionInsights.HasClimbing}">
+                            <controls2:SessionInsightsClimbingPanel Name="SessionInsightsClimbingPanel" DataContext="{Binding SessionInsights.Climbing}" />
+                        </Panel>
                     </StackPanel>
                 </ScrollViewer>
             </controls:PlaceholderOverlayContainer.ReadyContent>

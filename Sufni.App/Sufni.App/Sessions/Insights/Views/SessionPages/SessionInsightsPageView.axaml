@@ -113,6 +113,9 @@ mc:Ignorable="d">
                         </Panel>
                         <segments:SegmentTerrainComparisonView DataContext="{Binding Workspace.SegmentComparison}" />
                         <controls2:SessionInsightsResponsePanel DataContext="{Binding Workspace.SessionInsights.Response}" />
+                        <Panel IsVisible="{Binding Workspace.SessionInsights.HasClimbing}">
+                            <controls2:SessionInsightsClimbingPanel Name="MobileSessionInsightsClimbingPanel" DataContext="{Binding Workspace.SessionInsights.Climbing}" />
+                        </Panel>
                     </StackPanel>
                 </controls:PlaceholderOverlayContainer.ReadyContent>
                 <controls:PlaceholderOverlayContainer.PlaceholderContent>
