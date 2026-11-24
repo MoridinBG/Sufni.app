@@ -24,6 +24,9 @@ internal static class TerrainScopeText
         return classes.Length == 0 ? Name(scope.Preset) : $"{Name(scope.Preset)} · {string.Join(", ", classes)}";
     }
 
+    public static string Chip(TerrainScope scope, TerrainSelectionResult selection) =>
+        $"{Label(scope)} · {UnitsFormatter.FormatDistance(selection.SelectedMetres)}";
+
     public static string Banner(TerrainScope scope, TerrainSelectionResult selection)
     {
         var text = $"{Label(scope)} · {UnitsFormatter.FormatDistance(selection.SelectedMetres)}";

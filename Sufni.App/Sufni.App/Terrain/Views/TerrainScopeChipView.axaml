@@ -1,0 +1,45 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sufni.App.Terrain.ViewModels"
+             xmlns:views="using:Sufni.App.Terrain.Views"
+             x:Class="Sufni.App.Terrain.Views.TerrainScopeChipView"
+             x:Name="Root" x:DataType="vm:TerrainScopeViewModel" IsVisible="{Binding Available, FallbackValue=False}">
+    <Button Name="ScopeButton" Padding="8,1" VerticalAlignment="Center" FontSize="{StaticResource SufniFontSizeSmall}"
+            AutomationProperties.Name="Terrain scope">
+        <StackPanel Orientation="Horizontal" Spacing="4">
+            <TextBlock Text="{Binding ChipText}" />
+            <TextBlock Text="▾" Opacity="0.75" />
+        </StackPanel>
+        <Button.Flyout>
+            <Flyout Placement="Bottom">
+                <StackPanel Spacing="6" MaxWidth="560">
+                    <ItemsControl ItemsSource="{Binding Presets}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="2" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:TerrainScopeOption">
+                                <ToggleButton IsChecked="{Binding IsChecked, Mode=OneWay}" Command="{Binding Select}" IsEnabled="{Binding IsEnabled}"
+                                              Padding="6,2" AutomationProperties.Name="{Binding Label}">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock Text="{Binding Label}" />
+                                        <TextBlock Text="{Binding DistanceText}" Opacity="0.75" />
+                                    </StackPanel>
+                                </ToggleButton>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding Note}" IsVisible="{Binding Note, Converter={x:Static ObjectConverters.IsNotNull}}"
+                               FontSize="{StaticResource SufniFontSizeSmall}" Opacity="0.75" TextWrapping="Wrap" />
+                    <StackPanel Spacing="4" IsVisible="{Binding #Root.ShowLegends}">
+                        <TextBlock Text="Grade" FontSize="{StaticResource SufniFontSizeSmall}" />
+                        <views:TerrainLegendView Options="{Binding Grade}" />
+                        <TextBlock Text="Roughness" FontSize="{StaticResource SufniFontSizeSmall}" />
+                        <views:TerrainLegendView Options="{Binding Roughness}" />
+                    </StackPanel>
+                    <Button Content="Default scope" Command="{Binding Reset}" IsVisible="{Binding !IsDefault}" HorizontalAlignment="Left" />
+                </StackPanel>
+            </Flyout>
+        </Button.Flyout>
+    </Button>
+</UserControl>

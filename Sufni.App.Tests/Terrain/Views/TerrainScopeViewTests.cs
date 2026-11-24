@@ -14,6 +14,7 @@ using Sufni.App.LiveDaq.ViewModels.Editors;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Pages.Views.SessionPages;
+using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Views;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Fixtures;
@@ -26,25 +27,26 @@ using Sufni.Telemetry.Tests;
 namespace Sufni.App.Tests.Terrain.Views;
 
 [Collection("Ui")]
-public class TerrainClassFilterViewTests
+public class TerrainScopeChipViewTests
 {
-    [AvaloniaFact]
-    public async Task CompactHeaderEntryChoosesAScope()
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ChipFlyoutOffersThePresetsAndTheLegendsOnlyWhenAsked(bool showLegends)
     {
         using var h = new SessionDetailHarness();
         var editor = await LoadAsync(h);
-        var filter = editor.SignalsWorkspace.TerrainScope!;
-        var header = new TerrainClassFilterView { DataContext = filter, Compact = true };
-        await using var mounted = await ViewTestHelpers.MountAsync(header);
-        var button = header.FindControl<Button>("FilterButton")!;
+        var scope = editor.SignalsWorkspace.TerrainScope!;
+        var chip = new TerrainScopeChipView { DataContext = scope, ShowLegends = showLegends };
+        await using var mounted = await ViewTestHelpers.MountAsync(chip);
+        Assert.Contains(chip.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "Descents · 10 m");
+        var button = chip.FindControl<Button>("ScopeButton")!;
         Click(mounted.Host, button);
         await ViewTestHelpers.FlushDispatcherAsync();
         var flyout = Assert.IsType<Flyout>(button.Flyout);
-        Assert.True(flyout.IsOpen);
-        var rough = filter.Roughness[(int)RoughnessClass.Rough];
-        Assert.Single(Assert.IsType<StackPanel>(flyout.Content).GetVisualDescendants().OfType<ToggleButton>(),
-            chip => ReferenceEquals(chip.DataContext, rough)).Command!.Execute(null);
-        Assert.False(filter.IsDefault);
+        var content = Assert.IsType<StackPanel>(flyout.Content);
+        Assert.Contains(content.GetVisualDescendants().OfType<ToggleButton>(), t => ReferenceEquals(t.DataContext, scope.Presets[0]));
+        Assert.Equal(showLegends, content.GetVisualDescendants().OfType<TerrainLegendView>().Any(l => l.IsEffectivelyVisible));
         flyout.Hide();
         await h.CloseAsync(editor);
     }
@@ -69,22 +71,38 @@ public class TerrainClassFilterViewTests
     }
 
     [AvaloniaFact]
-    public async Task BannerDefaultButtonRestoresTheDefaultScope()
+    public async Task BannerStaysQuietForTheDefaultScopeAndStandsOutForAChosenOne()
     {
         using var h = new SessionDetailHarness();
         var editor = await LoadAsync(h);
-        var banner = new TerrainClassFilterBannerView { DataContext = editor.AnalysisWorkspace.TerrainScope };
-        await using var mounted = await ViewTestHelpers.MountAsync(banner);
         var scope = editor.AnalysisWorkspace.TerrainScope!;
-        var button = Assert.Single(banner.GetVisualDescendants().OfType<Button>());
-        Assert.False(button.IsVisible);
-        var rough = scope.Roughness[(int)RoughnessClass.Rough];
-        rough.Select.Execute(null);
+        var banner = new TerrainScopeBannerView { DataContext = scope };
+        await using var mounted = await ViewTestHelpers.MountAsync(banner);
+        var border = banner.FindControl<Border>("Banner")!;
+        Assert.True(banner.IsVisible);
+        Assert.Null(border.Background);
+        scope.Roughness[(int)RoughnessClass.Rough].Select.Execute(null);
         await ViewTestHelpers.FlushDispatcherAsync();
-        Click(mounted.Host, button);
+        Assert.NotNull(border.Background);
+        await h.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
+    public async Task EmptyScopeOffersToUseAllGround()
+    {
+        using var h = new SessionDetailHarness();
+        var editor = await LoadAsync(h);
+        var scope = editor.AnalysisWorkspace.TerrainScope!;
+        var banner = new TerrainScopeBannerView { DataContext = scope };
+        await using var mounted = await ViewTestHelpers.MountAsync(banner);
+        var useAll = Assert.Single(banner.GetVisualDescendants().OfType<Button>(), b => Equals(b.Content, "Use all"));
+        Assert.False(useAll.IsVisible);
+        scope.Presets[(int)TerrainPreset.Climbs].Select.Execute(null);
         await ViewTestHelpers.FlushDispatcherAsync();
-        Assert.True(scope.IsDefault);
-        Assert.False(rough.IsChecked);
+        Click(mounted.Host, useAll);
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.True(scope.Presets[(int)TerrainPreset.All].IsChecked);
+        Assert.False(scope.IsEmpty);
         await h.CloseAsync(editor);
     }
 
@@ -101,7 +119,7 @@ public class TerrainClassFilterViewTests
         workspace.Apply(LiveCaptureTestData.State(true, TestTelemetryData.CreateProcessed()));
         var page = new VibrationPageView { DataContext = new VibrationPageViewModel(workspace) };
         await using var mounted = await ViewTestHelpers.MountAsync(page);
-        Assert.False(Assert.Single(page.GetVisualDescendants().OfType<TerrainClassFilterBannerView>()).IsVisible);
+        Assert.False(Assert.Single(page.GetVisualDescendants().OfType<TerrainScopeBannerView>()).IsVisible);
     }
 
     private static async Task<SessionDetailViewModel> LoadAsync(SessionDetailHarness h)

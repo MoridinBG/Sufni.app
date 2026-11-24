@@ -203,7 +203,7 @@ mc:Ignorable="d">
                 Title="{Binding TerrainTitle}" FixedPlotHeight="{Binding #Root.TerrainPlotHeight}" TitleToolTip="{Binding TerrainSourceDescription}"
                 HeaderActions="{Binding TerrainHeaderActions}" PresentationState="{Binding TerrainSignalState}">
                 <sessionSignals:SignalRow.HeaderAccessory>
-                    <terrainViews:TerrainClassFilterView DataContext="{Binding TerrainScope}" Compact="{Binding #Root.CompactTerrainFilter}" />
+                    <terrainViews:TerrainScopeChipView DataContext="{Binding TerrainScope}" ShowLegends="{Binding #Root.CompactTerrainRow}" />
                 </sessionSignals:SignalRow.HeaderAccessory>
                 <sessionSignals:SignalRow.PlotContent>
                     <Grid RowDefinitions="*,Auto,Auto">
@@ -215,9 +215,9 @@ mc:Ignorable="d">
                             ShowAnalysisSelection="{Binding ShowTerrainAnalysisSelection}"
                             AnalysisSelectionHighlightRanges="{Binding AnalysisSelectionHighlightRanges}" />
                         <terrainViews:TerrainLegendView Grid.Row="1" Options="{Binding TerrainScope.Grade}" Margin="40,2,8,0"
-                            IsVisible="{Binding !#Root.CompactTerrainFilter}" />
+                            IsVisible="{Binding !#Root.CompactTerrainRow}" />
                         <terrainViews:TerrainLegendView Grid.Row="2" Options="{Binding TerrainScope.Roughness}" Margin="40,2,8,2"
-                            IsVisible="{Binding !#Root.CompactTerrainFilter}" />
+                            IsVisible="{Binding !#Root.CompactTerrainRow}" />
                     </Grid>
                 </sessionSignals:SignalRow.PlotContent>
                 <sessionSignals:SignalRow.PlaceholderContent>

@@ -73,6 +73,10 @@ public sealed class TerrainScopeViewModel : ObservableObject, IDisposable
     /// <summary>The selected ground of a chosen scope, for plot overlays. The default scope stays unmarked.</summary>
     public TelemetryTimeSelection? Selection { get; private set => SetProperty(ref field, value); }
     public string Label { get; private set => SetProperty(ref field, value); } = string.Empty;
+    public string ChipText { get; private set => SetProperty(ref field, value); } = string.Empty;
+
+    /// <summary>A chosen or empty scope changes what the pages show, so its banner stands out.</summary>
+    public bool Highlighted { get; private set => SetProperty(ref field, value); }
     public string BannerText { get; private set => SetProperty(ref field, value); } = string.Empty;
     public string? Note { get; private set => SetProperty(ref field, value); }
     public IRelayCommand Reset { get; }
@@ -104,6 +108,8 @@ public sealed class TerrainScopeViewModel : ObservableObject, IDisposable
             SelectedMetres = Available ? result!.SelectedMetres : 0;
             Selection = Available && !IsDefault ? result!.Selection : null;
             Label = applied is null ? string.Empty : TerrainScopeText.Label(applied);
+            ChipText = Available ? TerrainScopeText.Chip(applied!, result!) : string.Empty;
+            Highlighted = Available && (!IsDefault || IsEmpty);
             BannerText = Available ? IsEmpty ? TerrainScopeText.Empty(applied!) : TerrainScopeText.Banner(applied!, result!) : string.Empty;
             Note = profile is null ? null : TerrainScopeText.NoGrade(profile.GradeState);
             foreach (var option in Presets.Concat(Roughness).Concat(Grade)) option.Update(applied, profile, result);

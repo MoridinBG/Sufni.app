@@ -1,0 +1,23 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sufni.App.Terrain.ViewModels"
+             xmlns:views="using:Sufni.App.Terrain.Views"
+             x:Class="Sufni.App.Terrain.Views.TerrainScopeBannerView"
+             x:DataType="vm:TerrainScopeViewModel" IsVisible="{Binding Available, FallbackValue=False}">
+    <UserControl.Styles>
+        <!-- The default scope keeps a quiet banner; a chosen or empty scope stands out. -->
+        <Style Selector="Border#Banner.chosen">
+            <Setter Property="Background" Value="{DynamicResource SufniSelectionSurfaceSubtle}" />
+        </Style>
+        <Style Selector="Border#Banner:not(.chosen) TextBlock#BannerText">
+            <Setter Property="Opacity" Value="0.75" />
+        </Style>
+    </UserControl.Styles>
+    <Border Name="Banner" Padding="8,4" CornerRadius="4" Classes.chosen="{Binding Highlighted}">
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+            <TextBlock Name="BannerText" Text="{Binding BannerText}" VerticalAlignment="Center" TextWrapping="Wrap" />
+            <Button Grid.Column="1" Content="Use all" Command="{Binding UseAll}" IsVisible="{Binding IsEmpty}" />
+            <views:TerrainScopeChipView Grid.Column="2" ShowLegends="True" />
+        </Grid>
+    </Border>
+</UserControl>
