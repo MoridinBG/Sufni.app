@@ -25,11 +25,11 @@ public static partial class TelemetryStatistics
         if (rate <= 0 || suspension.Travel.IsDefaultOrEmpty) return new TravelFrequencyResult.NoData();
         var intervals = SuspensionSampleInterval.Select(suspension.Segments, suspension.Travel.Length, rate, range);
         if (intervals.Count == 0) return new TravelFrequencyResult.NoData();
-        intervals.RemoveAll(interval => interval.Count < (long)MinimumSpectrumIntervalSeconds * rate);
+        intervals.RemoveAll(interval => interval.Count < MinimumSpectrumIntervalSeconds * rate);
         if (intervals.Count == 0) return new TravelFrequencyResult.InsufficientContinuousData();
 
-        var count = Math.Max(checked(MinimumFrequencyResolutionSeconds * rate), intervals.Max(i => i.Count));
-        var bins = Math.Min(count / 2 + 1, (int)(10L * count / rate + 1));
+        var count = Math.Max(MinimumFrequencyResolutionSeconds * rate, intervals.Max(i => i.Count));
+        var bins = Math.Min(count / 2 + 1, 10 * count / rate + 1);
         var power = new double[bins];
         var signal = new Complex[count];
         foreach (var interval in intervals)
