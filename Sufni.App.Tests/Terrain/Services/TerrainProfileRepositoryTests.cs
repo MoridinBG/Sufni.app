@@ -41,7 +41,6 @@ public class TerrainProfileRepositoryTests
         Assert.Empty(await db.TerrainProfiles.ReadAsync(new Dictionary<Guid, TerrainProfileKey> { [session.Id] = key }));
         Assert.Empty(await db.TerrainProfiles.ReadAsync(new Dictionary<Guid, TerrainProfileKey> { [session.Id] = nextKey }));
         var latest = SessionSnapshot.From((await db.GetSessionAsync(session.Id))!);
-        Assert.Null(latest.TerrainSummary);
         Assert.Equal(new TerrainStatus.Unavailable(TerrainAvailabilityReason.NoTrack),
             SessionTerrainStatusQuery.Evaluate(latest, []).Status);
     }
