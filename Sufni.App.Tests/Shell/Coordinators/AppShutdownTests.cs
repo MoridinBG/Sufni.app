@@ -157,6 +157,25 @@ public class AppShutdownTests
     }
 
     [Fact]
+    public async Task Shutdown_WaitsForTerrainWorkBeforeDisposingServices()
+    {
+        using var pending = TestPendingDeletes.Create();
+        var terrainDrain = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var terrain = Substitute.For<ITerrainProfileCoordinator>();
+        terrain.StopAsync().Returns(terrainDrain.Task);
+        var shutdown = Create(CreateWorkspace(), pending, TestCoordinatorSubstitutes.ImportSessions(), terrain: terrain);
+        var disposed = false;
+
+        var run = shutdown.RequestAsync(() => { disposed = true; return ValueTask.CompletedTask; }, () => { });
+
+        Assert.False(run.IsCompleted);
+        Assert.False(disposed);
+        terrainDrain.SetResult();
+        Assert.True(await run.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
+        Assert.True(disposed);
+    }
+
+    [Fact]
     public async Task Background_FinalizesDeletesWithoutClosingTabsOrStoppingWork()
     {
         var workspace = CreateWorkspace();
@@ -188,9 +207,11 @@ public class AppShutdownTests
     private static ShellWorkspaceViewModel CreateWorkspace() => new(new InlineUiThreadDispatcher(), new FakeTimeProvider());
 
     private static AppShutdown Create(ShellWorkspaceViewModel workspace, IPendingDeletes pending,
-        IImportSessionsCoordinator imports, ISynchronizationServerService? server = null, ITrackCoordinator? tracks = null) =>
+        IImportSessionsCoordinator imports, ISynchronizationServerService? server = null, ITrackCoordinator? tracks = null,
+        ITerrainProfileCoordinator? terrain = null) =>
         new(workspace, Substitute.For<IAppStartup>(), imports, TestCoordinatorSubstitutes.Sync(),
             Substitute.For<ISessionRecomputeEngine>(), pending, new InlineBackgroundTaskRunner(), tracks ?? TestCoordinatorSubstitutes.Track(),
             Substitute.For<ISessionEditingCoordinator>(), TestCoordinatorSubstitutes.Session(),
-            Substitute.For<IVideoCoordinator>(), TestCoordinatorSubstitutes.Bike(), Substitute.For<ITerrainProfileCoordinator>(), server);
+            Substitute.For<IVideoCoordinator>(), TestCoordinatorSubstitutes.Bike(),
+            terrain ?? Substitute.For<ITerrainProfileCoordinator>(), server);
 }
