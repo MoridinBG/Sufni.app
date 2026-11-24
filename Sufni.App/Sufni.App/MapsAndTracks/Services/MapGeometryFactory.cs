@@ -1,7 +1,5 @@
 using System.Collections.Immutable;
-using Sufni.App.Infrastructure.Theming;
 using Sufni.App.Terrain.Models;
-using Sufni.App.Terrain.Plots;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -27,7 +25,7 @@ public sealed record MapGeometryInput(
     IReadOnlyList<TrackPoint> FullTrack,
     IReadOnlyList<TrackPoint> SessionTrack,
     MatchedTrackOverlay? MatchedTrack,
-    ImmutableArray<TerrainClassRun> TerrainRuns = default, double TerrainOriginSeconds = 0);
+    ImmutableArray<TerrainColourRun> TerrainRuns = default, double TerrainOriginSeconds = 0);
 
 public sealed record MapGeometrySnapshot(
     MapGeometryInput Input,
@@ -53,7 +51,7 @@ internal sealed class MapGeometryFactory(IBackgroundTaskRunner background) : IMa
                 ? previous.MatchedFeatures : BuildMatched(input.MatchedTrack)), cancellationToken);
 
     private static RenderedTrackGeometry BuildTrack(IReadOnlyList<TrackPoint> points, bool buildTimeIndex,
-        ImmutableArray<TerrainClassRun> runs = default, double origin = 0)
+        ImmutableArray<TerrainColourRun> runs = default, double origin = 0)
     {
         IReadOnlyList<IFeature> lines = points.Count < 2 ? [] : buildTimeIndex
             ? SessionLines(points, runs, origin)
@@ -63,7 +61,7 @@ internal sealed class MapGeometryFactory(IBackgroundTaskRunner background) : IMa
     }
 
     private static IReadOnlyList<IFeature> SessionLines(IReadOnlyList<TrackPoint> points,
-        ImmutableArray<TerrainClassRun> runs, double origin)
+        ImmutableArray<TerrainColourRun> runs, double origin)
     {
         if (runs.IsDefaultOrEmpty)
             return [SessionLine(points.Select(p => new Coordinate(p.X, p.Y)).ToArray(), null)];
@@ -71,7 +69,7 @@ internal sealed class MapGeometryFactory(IBackgroundTaskRunner background) : IMa
         var line = new List<Coordinate> { new(points[0].X, points[0].Y) };
         using var changes = Boundaries().GetEnumerator();
         var hasChange = changes.MoveNext();
-        TerrainLevel? level = null;
+        Avalonia.Media.Color? colour = null;
         for (var i = 1; i < points.Count; i++)
         {
             var a = points[i - 1];
@@ -87,7 +85,7 @@ internal sealed class MapGeometryFactory(IBackgroundTaskRunner background) : IMa
                     FinishLine();
                     line.Add(border);
                 }
-                level = next;
+                colour = next;
                 hasChange = changes.MoveNext();
             }
             if (line[^1].X != b.X || line[^1].Y != b.Y) line.Add(new(b.X, b.Y));
@@ -95,12 +93,12 @@ internal sealed class MapGeometryFactory(IBackgroundTaskRunner background) : IMa
         FinishLine();
         return features;
 
-        IEnumerable<(double Time, TerrainLevel? Level)> Boundaries()
+        IEnumerable<(double Time, Avalonia.Media.Color? Colour)> Boundaries()
         {
             for (var i = 0; !runs.IsDefault && i < runs.Length; i++)
             {
                 var run = runs[i];
-                yield return (origin + run.StartSeconds, run.Level);
+                yield return (origin + run.StartSeconds, run.Colour);
                 if (i + 1 == runs.Length || runs[i + 1].StartSeconds != run.EndSeconds)
                     yield return (origin + run.EndSeconds, null);
             }
@@ -108,19 +106,14 @@ internal sealed class MapGeometryFactory(IBackgroundTaskRunner background) : IMa
 
         void FinishLine()
         {
-            if (line.Count >= 2) features.Add(SessionLine(line.ToArray(), level));
+            if (line.Count >= 2) features.Add(SessionLine(line.ToArray(), colour));
             line.Clear();
         }
     }
 
-    private static GeometryFeature SessionLine(Coordinate[] coordinates, TerrainLevel? level)
+    private static GeometryFeature SessionLine(Coordinate[] coordinates, Avalonia.Media.Color? terrain)
     {
-        var color = Color.FromString("#9e0142");
-        if (level is { } band)
-        {
-            var c = SufniThemes.SignalSeries.Terrain.ColorFor(band);
-            color = new(c.R, c.G, c.B, c.A);
-        }
+        var color = terrain is { } c ? new Color(c.R, c.G, c.B, c.A) : Color.FromString("#9e0142");
         var feature = new GeometryFeature { Geometry = new LineString(coordinates) };
         feature.Styles.Add(new VectorStyle { Line = new Pen(color, 5) });
         return feature;

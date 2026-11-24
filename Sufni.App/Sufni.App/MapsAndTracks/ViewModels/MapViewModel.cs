@@ -1,3 +1,5 @@
+using Sufni.App.Infrastructure.Theming;
+using Sufni.App.Terrain.Plots;
 using Sufni.App.Terrain.Models;
 using Sufni.App.Shared.Models;
 using System;
@@ -36,10 +38,10 @@ public partial class MapViewModel : ViewModelBase, IDisposable
         set { if (HasTerrain && value != coloring) selectColoring?.Invoke(value); }
     }
 
-    public ImmutableArray<TerrainClassRun> TerrainRuns => coloring switch
+    public ImmutableArray<TerrainColourRun> TerrainRuns => coloring switch
     {
-        MapTrackColoring.Roughness when terrain is not null => terrain.RoughnessRuns,
-        MapTrackColoring.Steepness when terrain is not null => terrain.GradeRuns,
+        MapTrackColoring.Roughness when terrain is not null => terrain.RoughnessRuns.Colour(SufniThemes.SignalSeries.Terrain.ColorFor),
+        MapTrackColoring.Steepness when terrain is not null => terrain.GradeRuns.Colour(SufniThemes.SignalSeries.Terrain.ColorFor),
         _ => []
     };
 

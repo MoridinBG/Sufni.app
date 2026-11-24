@@ -10,8 +10,8 @@ internal static partial class RecordedSessionPresentationDeriver
 {
     public static TerrainPresentation CreateTerrain(TerrainProfile profile)
     {
-        var roughness = ImmutableArray.CreateBuilder<TerrainClassRun>();
-        var grade = ImmutableArray.CreateBuilder<TerrainClassRun>();
+        var roughness = ImmutableArray.CreateBuilder<TerrainRun<RoughnessClass>>();
+        var grade = ImmutableArray.CreateBuilder<TerrainRun<GradeBand>>();
         var frame = new TerrainSignalSections();
         var lowers = new TerrainSignalSections();
         var grades = new TerrainSignalSections();
@@ -21,17 +21,8 @@ internal static partial class RecordedSessionPresentationDeriver
         {
             var window = profile.Windows[i];
             if (!window.Moving) continue;
-            AddRun(roughness, window, window.Roughness switch
-            {
-                RoughnessClass.Smooth or RoughnessClass.Calm => TerrainLevel.Low, RoughnessClass.Medium => TerrainLevel.Middle,
-                RoughnessClass.Rough or RoughnessClass.VeryRough => TerrainLevel.High, _ => null
-            });
-            AddRun(grade, window, window.Band switch
-            {
-                GradeBand.Climb or GradeBand.Flat or GradeBand.GentleDescent => TerrainLevel.Low,
-                GradeBand.SteepClimb or GradeBand.Descent => TerrainLevel.Middle,
-                GradeBand.SteepDescent or GradeBand.VerySteepDescent => TerrainLevel.High, _ => null
-            });
+            AddRun(roughness, window, window.Roughness);
+            AddRun(grade, window, window.Band);
             var baseline = TerrainProfileCalculator.BaselineGrade(profile.Windows, i);
             frame.Add(window.StartSeconds, window.EndSeconds, window.Frame?.SpeedRemoved);
             lowers.Add(window.StartSeconds, window.EndSeconds, window.Lowers?.SpeedRemoved);
@@ -70,12 +61,13 @@ internal static partial class RecordedSessionPresentationDeriver
         };
     }
 
-    private static void AddRun(ImmutableArray<TerrainClassRun>.Builder runs, TerrainWindow window, TerrainLevel? level)
+    private static void AddRun<TClass>(ImmutableArray<TerrainRun<TClass>>.Builder runs, TerrainWindow window, TClass? value)
+        where TClass : struct, Enum
     {
-        if (level is not { } value) return;
-        if (runs.Count > 0 && runs[^1] is var last && last.Level == value && last.EndSeconds == window.StartSeconds)
+        if (value is not { } current) return;
+        if (runs.Count > 0 && runs[^1] is var last && last.Class.Equals(current) && last.EndSeconds == window.StartSeconds)
             runs[^1] = last with { EndSeconds = window.EndSeconds };
         else
-            runs.Add(new(window.StartSeconds, window.EndSeconds, value));
+            runs.Add(new(window.StartSeconds, window.EndSeconds, current));
     }
 }

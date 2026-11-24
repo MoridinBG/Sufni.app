@@ -8,7 +8,7 @@ namespace Sufni.App.Tests.MapsAndTracks.Services;
 public class MapGeometryFactoryTests
 {
     private static readonly MapGeometryInput Input = new([], [new(100, 0, 0, null), new(104, 40, 20, null)], null,
-        [new(0, 1.5, TerrainLevel.Low), new(1.5, 4, TerrainLevel.High)], 100);
+        [new(0, 1.5, Avalonia.Media.Colors.Blue), new(1.5, 4, Avalonia.Media.Colors.Red)], 100);
 
     private readonly MapGeometryFactory factory = new(new InlineBackgroundTaskRunner());
 

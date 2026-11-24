@@ -255,9 +255,14 @@ public sealed record SufniSeriesTheme(
     Color GpsElevation,
     Color GpsQuality,
     IReadOnlyList<Color> TravelZone,
-    SufniTerrainRamp Terrain);
+    SufniTerrainScales Terrain);
 
-public sealed record SufniTerrainRamp(Color Low, Color Middle, Color High);
+/// <summary>
+/// Terrain class colours: a diverging grade scale from steep climb to very steep descent, a single-hue
+/// roughness scale from smooth to very rough, and two neutral climb roughness steps.
+/// </summary>
+public sealed record SufniTerrainScales(IReadOnlyList<Color> Grade, IReadOnlyList<Color> Roughness,
+    IReadOnlyList<Color> ClimbRoughness);
 
 public sealed record SufniTypographyTheme(
     string FontFamilyName,

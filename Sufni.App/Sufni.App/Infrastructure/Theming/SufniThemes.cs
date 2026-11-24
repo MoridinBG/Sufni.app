@@ -35,7 +35,10 @@ public static class SufniThemes
         GpsElevation: C("#FFFFBF"),
         GpsQuality: C("#D0D6DA"),
         TravelZone: TravelZoneRamp,
-        Terrain: new(C("#2B9B62"), C("#E8C841"), C("#D44243")));
+        Terrain: new(
+            Grade: [C("#2166AC"), C("#67A9CF"), C("#B4B4AA"), C("#FDD49E"), C("#FC8D59"), C("#D7301F"), C("#7F0000")],
+            Roughness: [C("#D9C9EC"), C("#B49BD6"), C("#8E6CBF"), C("#6A41A3"), C("#4A1A80")],
+            ClimbRoughness: [C("#BFB29C"), C("#736654")]));
 
     // Typography and spacing are dimensions, not colors, and do not vary by
     // variant — both themes share these, and SufniThemeResourceBridge.PopulateRoot

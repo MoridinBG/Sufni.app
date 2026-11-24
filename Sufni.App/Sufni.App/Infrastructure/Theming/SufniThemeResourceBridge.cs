@@ -259,9 +259,6 @@ public static class SufniThemeResourceBridge
         AddColorPair(resources, "SufniSeriesImuShock", theme.Plot.Series.ImuShock);
         AddColorPair(resources, "SufniSeriesGpsSpeed", theme.Plot.Series.GpsSpeed);
         AddColorPair(resources, "SufniSeriesGpsElevation", theme.Plot.Series.GpsElevation);
-        AddColorPair(resources, "SufniTerrainLow", theme.Plot.Series.Terrain.Low);
-        AddColorPair(resources, "SufniTerrainMiddle", theme.Plot.Series.Terrain.Middle);
-        AddColorPair(resources, "SufniTerrainHigh", theme.Plot.Series.Terrain.High);
     }
 
     private static void AddSignalRowDepth(ResourceDictionary resources, string prefix, SufniSignalRowDepthTheme depth)

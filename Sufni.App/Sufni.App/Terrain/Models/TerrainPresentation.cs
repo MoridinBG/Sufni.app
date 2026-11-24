@@ -1,13 +1,17 @@
+using System;
 using System.Collections.Immutable;
+using Avalonia.Media;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Terrain.Models;
 
 public enum MapTrackColoring { Plain, Roughness, Steepness }
 
-public enum TerrainLevel { Low, Middle, High }
+/// <summary>Adjacent moving windows of one class on one axis.</summary>
+public readonly record struct TerrainRun<TClass>(double StartSeconds, double EndSeconds, TClass Class) where TClass : struct, Enum;
 
-public readonly record struct TerrainClassRun(double StartSeconds, double EndSeconds, TerrainLevel Level);
+/// <summary>A run with its theme colour, for surfaces that do not know terrain classes.</summary>
+public readonly record struct TerrainColourRun(double StartSeconds, double EndSeconds, Color Colour);
 
 public sealed record TerrainSignalSection(ImmutableArray<double> Seconds, ImmutableArray<double> Values);
 
@@ -24,6 +28,6 @@ public sealed record TerrainSourceCoverage(double JointShare, double FrameOnlySh
     };
 }
 
-public sealed record TerrainPresentation(ImmutableArray<TerrainClassRun> RoughnessRuns,
-    ImmutableArray<TerrainClassRun> GradeRuns, ImmutableArray<TerrainSignalSection> Frame,
+public sealed record TerrainPresentation(ImmutableArray<TerrainRun<RoughnessClass>> RoughnessRuns,
+    ImmutableArray<TerrainRun<GradeBand>> GradeRuns, ImmutableArray<TerrainSignalSection> Frame,
     ImmutableArray<TerrainSignalSection> Lowers, ImmutableArray<TerrainSignalSection> Grade, TerrainSourceCoverage Coverage);

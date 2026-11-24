@@ -161,8 +161,8 @@ public class RecordedTerrainTests
         var editor = h.CreateRecordedEditor(session, projectionChanges: Observable.Return(domain));
         await h.LoadAsync(editor);
         var presentation = Assert.IsType<TerrainPresentation>(editor.SignalsWorkspace.TerrainPresentation);
-        Assert.Equal([new TerrainClassRun(0, 1, TerrainLevel.Low), new TerrainClassRun(1, 2, TerrainLevel.High),
-            new TerrainClassRun(3, 6, TerrainLevel.High)],
+        Assert.Equal([new TerrainRun<RoughnessClass>(0, 1, RoughnessClass.Calm), new(1, 2, RoughnessClass.Rough),
+            new(3, 6, RoughnessClass.Rough)],
             presentation.RoughnessRuns);
         Assert.Equal(RoughnessSource.Both, presentation.Coverage.Source);
         Assert.Equal(0.6, presentation.Coverage.FrameOnlyShare);
