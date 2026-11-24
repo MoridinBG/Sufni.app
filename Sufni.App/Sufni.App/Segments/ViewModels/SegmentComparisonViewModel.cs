@@ -75,6 +75,8 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
     private readonly CancellableOperation averaging = new();
     private CancellationTokenSource? pageLoad;
     private CancellationTokenSource? analysisLoad;
+    private TerrainRequest? terrainRequest;
+    private CancellationTokenSource? terrainLoad;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TrailAverageStatus), nameof(RoughnessRows), nameof(GradeRows))]
@@ -102,8 +104,10 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
     [ObservableProperty] public partial IReadOnlyList<SegmentComparisonRowViewModel> SpeedRows { get; private set; } = [];
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasAnalysisComparison), nameof(AnalysisComparisonText), nameof(TerrainTable))]
+    [NotifyPropertyChangedFor(nameof(HasAnalysisComparison), nameof(AnalysisComparisonText))]
     public partial SegmentAnalysisComparison? AnalysisComparison { get; private set; }
+
+    [ObservableProperty] public partial SegmentTerrainTable? TerrainTable { get; private set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasMultiplePages))]
@@ -130,8 +134,6 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
 
     public bool HasMultiplePages => MatchCount > SegmentComparisonPage.Size;
     public bool HasAnalysisComparison => AnalysisComparison is not null;
-
-    public SegmentTerrainTable? TerrainTable => AnalysisComparison is { } analysis ? SegmentTerrainTable.From(analysis.Terrain) : null;
 
     public string? AnalysisComparisonText => AnalysisComparison?.Comparison is { } comparison
         ? $"Comparing analysis with {comparison.Match.SessionName}{FormatLocalTime(comparison)}  match error {comparison.Match.NormalizedCostMeters:0.0}m"
@@ -166,25 +168,27 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
                 _ = TrackAsync(AverageAsync(terrain, range, matches));
         }
 
+        RefreshTerrainComparison();
         if (comparedMatch is not null && comparedDetail is not null &&
             (previous.TravelDistributionMode != next.TravelDistributionMode ||
              previous.VelocityAverageMode != next.VelocityAverageMode ||
              previous.DampingSpeedCutoffs != next.DampingSpeedCutoffs ||
-             previous.DampingPercentages != next.DampingPercentages || previous.Terrain != next.Terrain))
+             previous.DampingPercentages != next.DampingPercentages))
         {
-            AnalysisComparison = null;
             _ = TrackAsync(BuildAnalysisComparisonAsync(comparedMatch, comparedDetail, zoomTimeline: false));
         }
     }
+
+    partial void OnTrailAverageChanged(SegmentTrailAverage? value) => RefreshTerrainComparison();
 
     /// <summary>Discards the matches and the analysis comparison.</summary>
     public void Clear()
     {
         matching.Cancel();
         averaging.Cancel();
-        TrailAverage = null;
         Cancel(ref pageLoad);
         ClearAnalysisComparison();
+        TrailAverage = null;
         matches = [];
         MatchCount = 0;
         pageIndex = 0;
@@ -201,6 +205,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         averaging.Dispose();
         Cancel(ref pageLoad);
         Cancel(ref analysisLoad);
+        Cancel(ref terrainLoad);
     }
 
     public async ValueTask DisposeAsync()
@@ -229,13 +234,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
 
         var token = matching.Start(shutdown.Token);
         averaging.Cancel();
-        var hadAverage = TrailAverage is SegmentTrailAverage.Averaged;
         TrailAverage = null;
-        if (hadAverage && comparedMatch is not null && comparedDetail is not null)
-        {
-            AnalysisComparison = null;
-            _ = TrackAsync(BuildAnalysisComparisonAsync(comparedMatch, comparedDetail, zoomTimeline: false));
-        }
         var result = await segmentCoordinator.MatchAsync(source, token);
         if (token.IsCancellationRequested || CreateMatchSource() != source)
         {
@@ -270,11 +269,6 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         var average = await segmentCoordinator.BuildTrailAverageAsync(terrain, range, candidates, token);
         if (token.IsCancellationRequested || average is SegmentTrailAverage.Cancelled) return;
         TrailAverage = average;
-        if (average is SegmentTrailAverage.Averaged && comparedMatch is not null && comparedDetail is not null)
-        {
-            AnalysisComparison = null;
-            await BuildAnalysisComparisonAsync(comparedMatch, comparedDetail, zoomTimeline: false);
-        }
     }
 
     private bool CanMatch() => !disposed && CreateMatchSource() is not null;
@@ -302,7 +296,38 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         comparedMatch = null;
         comparedDetail = null;
         AnalysisComparison = null;
+        RefreshTerrainComparison();
         UpdateComparedRows();
+    }
+
+    private void RefreshTerrainComparison()
+    {
+        var average = (TrailAverage as SegmentTrailAverage.Averaged)?.Measurement;
+        TerrainRequest? request = comparedMatch is not null && comparedDetail is not null
+            ? new(comparedMatch.Match, state.Terrain?.Key, state.Terrain?.Baseline, average)
+            : null;
+        if (request == terrainRequest) return;
+        terrainRequest = request;
+        Cancel(ref terrainLoad);
+        TerrainTable = null;
+        if (request is not null) _ = TrackAsync(BuildTerrainComparisonAsync(request.Match, state.Terrain, average));
+    }
+
+    private async Task BuildTerrainComparisonAsync(SegmentMatch match, SegmentTerrainSource? source, TrailAverage.Averaged? average)
+    {
+        using var cancellation = Replace(ref terrainLoad);
+        try
+        {
+            var result = await segmentCoordinator.BuildTerrainComparisonAsync(match, source, average, cancellation.Token);
+            if (!cancellation.IsCancellationRequested) TerrainTable = SegmentTerrainTable.From(result);
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            if (ReferenceEquals(terrainLoad, cancellation)) terrainLoad = null;
+        }
     }
 
     private async Task MoveToPageAsync(int index)
@@ -378,6 +403,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
 
             var detail = ((SegmentComparisonDetailResult.Loaded)result).Detail;
             comparedDetail = detail;
+            RefreshTerrainComparison();
             await BuildAnalysisComparisonAsync(comparison, detail, zoomTimeline: true);
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
@@ -397,8 +423,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         {
             var result = await segmentCoordinator.BuildAnalysisComparisonAsync(
                 comparison, detail, settings.TravelDistributionMode, settings.VelocityAverageMode,
-                settings.DampingSpeedCutoffs, settings.DampingPercentages, settings.Terrain,
-                (TrailAverage as SegmentTrailAverage.Averaged)?.Measurement, cancellation.Token);
+                settings.DampingSpeedCutoffs, settings.DampingPercentages, cancellation.Token);
             if (cancellation.IsCancellationRequested || !ReferenceEquals(comparedMatch, comparison))
             {
                 return;
@@ -406,6 +431,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
 
             if (result is SegmentAnalysisComparisonResult.Failed failed)
             {
+                AnalysisComparison = null;
                 reportError(FailurePresentation.From(failed.Reason, failed.Details));
                 return;
             }
@@ -526,4 +552,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         field?.Cancel();
         field = null;
     }
+
+    private sealed record TerrainRequest(SegmentMatch Match, TerrainProfileKey? SourceKey, TerrainBaselineIdentity? Baseline,
+        TrailAverage.Averaged? Average);
 }

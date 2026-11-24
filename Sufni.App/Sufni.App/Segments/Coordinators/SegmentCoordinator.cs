@@ -116,8 +116,15 @@ public interface ISegmentCoordinator
     Task<SegmentAnalysisComparisonResult> BuildAnalysisComparisonAsync(
         SegmentComparison comparison, SegmentComparisonDetail detail,
         TravelDistributionMode travelMode, VelocityAverageMode velocityMode,
-        DampingSpeedCutoffs cutoffs, SessionDampingPercentages currentPercentages, SegmentTerrainSource? terrain, TrailAverage.Averaged? average,
+        DampingSpeedCutoffs cutoffs, SessionDampingPercentages currentPercentages,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Compares the terrain response of the source range with the matched run, with both runs held
+    /// out of the pair model. Classes come from <paramref name="average"/> when it is given.
+    /// </summary>
+    Task<SegmentTerrainComparison> BuildTerrainComparisonAsync(SegmentMatch match, SegmentTerrainSource? source,
+        TrailAverage.Averaged? average, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Averages the source range with every aligned match as the session's operation. Too few
@@ -395,16 +402,14 @@ internal sealed class SegmentCoordinator(
     public async Task<SegmentAnalysisComparisonResult> BuildAnalysisComparisonAsync(
         SegmentComparison comparison, SegmentComparisonDetail detail,
         TravelDistributionMode travelMode, VelocityAverageMode velocityMode,
-        DampingSpeedCutoffs cutoffs, SessionDampingPercentages currentPercentages, SegmentTerrainSource? terrain, TrailAverage.Averaged? average,
+        DampingSpeedCutoffs cutoffs, SessionDampingPercentages currentPercentages,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            var ordinary = await backgroundTaskRunner.RunAsync(
+            return new SegmentAnalysisComparisonResult.Built(await backgroundTaskRunner.RunAsync(
                 () => SegmentAnalysisComparisonBuilder.Build(comparison, detail, travelMode, velocityMode, cutoffs, currentPercentages),
-                cancellationToken);
-            var result = await BuildTerrainComparisonAsync(comparison.Match, terrain, average, cancellationToken);
-            return new SegmentAnalysisComparisonResult.Built(ordinary with { Terrain = result });
+                cancellationToken));
         }
         catch (Exception e)
         {
@@ -414,8 +419,8 @@ internal sealed class SegmentCoordinator(
         }
     }
 
-    private async Task<SegmentTerrainComparison> BuildTerrainComparisonAsync(SegmentMatch match, SegmentTerrainSource? source,
-        TrailAverage.Averaged? average, CancellationToken token)
+    public async Task<SegmentTerrainComparison> BuildTerrainComparisonAsync(SegmentMatch match, SegmentTerrainSource? source,
+        TrailAverage.Averaged? average, CancellationToken token = default)
     {
         if (source is null) return new SegmentTerrainComparison.Unavailable(SegmentTerrainUnavailable.NoSourceProfile);
         try

@@ -239,7 +239,7 @@ public partial class SegmentCoordinatorTests
 
         var result = await coordinator.BuildAnalysisComparisonAsync(comparison, detail,
             TravelDistributionMode.ActiveSuspension, VelocityAverageMode.SampleAveraged,
-            DampingSpeedCutoffs.Default, SessionDampingPercentages.Empty, null, null, TestContext.Current.CancellationToken);
+            DampingSpeedCutoffs.Default, SessionDampingPercentages.Empty, TestContext.Current.CancellationToken);
 
         var failure = Assert.IsType<SegmentAnalysisComparisonResult.Failed>(result);
         Assert.Equal(SegmentComparisonFailureReason.Analysis, failure.Reason);

@@ -184,10 +184,7 @@ public class SegmentComparisonViewModelTests
     [Fact]
     public async Task LeavingComparisonScopeRemovesTheTerrainRows()
     {
-        var measurable = new ComparisonRatio(ResponseCellState.WithinRepeatRange, 1.01);
-        var targets = Enum.GetValues<ResponseTarget>().ToImmutableDictionary(t => t, _ => measurable);
-        TerrainComparisonRow rough = new(RoughnessClass.Rough, 500, new(0.97, 1.01, 1.04), targets, measurable, measurable);
-        using var vm = CreateComparison(new SegmentTerrainComparison.Compared([rough]));
+        using var vm = CreateComparison(new SegmentTerrainComparison.Compared([RoughRow()]));
         var compared = Comparison(TestSegmentMatches.Match(10, 13));
         MatchReturns(compared);
         DetailReturns(compared);
@@ -198,6 +195,63 @@ public class SegmentComparisonViewModelTests
         sessionState.OnNext(sessionState.Value with { Scope = AnalysisScope.For(new TerrainClassFilter().Toggle(RoughnessClass.Calm)) });
         Assert.Null(vm.TerrainTable);
         Assert.Single(vm.TravelRows);
+    }
+
+    [Fact]
+    public async Task ModeToggleKeepsTheAnalysisComparisonVisibleWhileItRebuilds()
+    {
+        var vm = CreateComparison();
+        var compared = Comparison(TestSegmentMatches.Match(10, 13));
+        MatchReturns(compared);
+        DetailReturns(compared);
+        await vm.MatchCommand.ExecuteAsync(null);
+        await ((IAsyncRelayCommand)CompareAction(vm.TravelRows[0]).Command!).ExecuteAsync(null);
+        var shown = vm.AnalysisComparison;
+        var rebuilt = new TaskCompletionSource<SegmentAnalysisComparisonResult>();
+        coordinator.BuildAnalysisComparisonAsync(Arg.Any<SegmentComparison>(), Arg.Any<SegmentComparisonDetail>(),
+                Arg.Any<TravelDistributionMode>(), Arg.Any<VelocityAverageMode>(), Arg.Any<DampingSpeedCutoffs>(),
+                Arg.Any<Sufni.App.Sessions.Models.SessionDampingPercentages>(), Arg.Any<CancellationToken>())
+            .Returns(rebuilt.Task);
+
+        sessionState.OnNext(sessionState.Value with { TravelDistributionMode = TravelDistributionMode.DynamicSag });
+
+        Assert.NotNull(shown);
+        Assert.Same(shown, vm.AnalysisComparison);
+        rebuilt.SetResult(new SegmentAnalysisComparisonResult.Built(shown));
+        await vm.DisposeAsync().AsTask().AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task ModeToggleKeepsTheTerrainComparison()
+    {
+        await using var vm = CreateComparison(new SegmentTerrainComparison.Compared([RoughRow()]));
+        var compared = Comparison(TestSegmentMatches.Match(10, 13));
+        MatchReturns(compared);
+        DetailReturns(compared);
+        await vm.MatchCommand.ExecuteAsync(null);
+        await ((IAsyncRelayCommand)CompareAction(vm.TravelRows[0]).Command!).ExecuteAsync(null);
+        var table = vm.TerrainTable;
+
+        sessionState.OnNext(sessionState.Value with { VelocityAverageMode = VelocityAverageMode.StrokePeakAveraged });
+
+        Assert.NotNull(table);
+        Assert.Same(table, vm.TerrainTable);
+    }
+
+    [Fact]
+    public async Task FailedTerrainComparisonKeepsTheAnalysisComparison()
+    {
+        await using var vm = CreateComparison(new SegmentTerrainComparison.Failed());
+        var compared = Comparison(TestSegmentMatches.Match(10, 13));
+        MatchReturns(compared);
+        DetailReturns(compared);
+        await vm.MatchCommand.ExecuteAsync(null);
+
+        await ((IAsyncRelayCommand)CompareAction(vm.TravelRows[0]).Command!).ExecuteAsync(null);
+
+        Assert.True(vm.HasAnalysisComparison);
+        Assert.True(vm.TerrainTable!.HasMessage);
+        Assert.False(vm.TerrainTable.HasRows);
     }
 
     [Fact]
@@ -369,9 +423,18 @@ public class SegmentComparisonViewModelTests
 
     private void TrailMatches(params (int Start, int End)[] ranges)
     {
-        var profile = TerrainProfiles.Classified(TerrainProfiles.Window(0, RoughnessClass.Calm, RoughnessSource.FrameOnly));
-        sessionState.OnNext(State() with { Terrain = new(Guid.NewGuid(), TerrainProfileKey.From(TestSegmentMatches.Token), profile, TerrainBaselineIdentity.Empty) });
+        sessionState.OnNext(State() with { Terrain = TerrainSource() });
         MatchReturns(ranges.Select(r => Comparison(TestSegmentMatches.Match(r.Start, r.End))).ToArray());
+    }
+
+    private static SegmentTerrainSource TerrainSource() => new(Guid.NewGuid(), TerrainProfileKey.From(TestSegmentMatches.Token),
+        TerrainProfiles.Classified(TerrainProfiles.Window(0, RoughnessClass.Calm, RoughnessSource.FrameOnly)), TerrainBaselineIdentity.Empty);
+
+    private static TerrainComparisonRow RoughRow()
+    {
+        var measurable = new ComparisonRatio(ResponseCellState.WithinRepeatRange, 1.01);
+        return new(RoughnessClass.Rough, 500, new(0.97, 1.01, 1.04),
+            Enum.GetValues<ResponseTarget>().ToImmutableDictionary(t => t, _ => measurable), measurable, measurable);
     }
 
     private SegmentComparisonViewModel CreateComparison(SegmentTerrainComparison? terrain = null)

@@ -21,19 +21,20 @@ internal static class TestSegmentComparisons
         new SegmentComparisonFactory(BuildAnalysisComparisons(segmentCoordinator ?? Substitute.For<ISegmentCoordinator>(), terrain));
 
     /// <summary>
-    /// Makes the substitute build analysis comparisons with the real builder.
+    /// Makes the substitute build analysis comparisons with the real builder and return
+    /// <paramref name="terrain"/>, or no source profile, as the terrain comparison.
     /// </summary>
     public static ISegmentCoordinator BuildAnalysisComparisons(ISegmentCoordinator coordinator, SegmentTerrainComparison? terrain = null)
     {
         coordinator.BuildAnalysisComparisonAsync(Arg.Any<SegmentComparison>(), Arg.Any<SegmentComparisonDetail>(),
                 Arg.Any<TravelDistributionMode>(), Arg.Any<VelocityAverageMode>(), Arg.Any<DampingSpeedCutoffs>(),
-                Arg.Any<SessionDampingPercentages>(), Arg.Any<SegmentTerrainSource?>(), Arg.Any<TrailAverage.Averaged?>(), Arg.Any<CancellationToken>())
-            .Returns(call =>
-            {
-                var comparison = SegmentAnalysisComparisonBuilder.Build(call.Arg<SegmentComparison>(), call.Arg<SegmentComparisonDetail>(),
-                    call.Arg<TravelDistributionMode>(), call.Arg<VelocityAverageMode>(), call.Arg<DampingSpeedCutoffs>(), call.Arg<SessionDampingPercentages>());
-                return new SegmentAnalysisComparisonResult.Built(terrain is null ? comparison : comparison with { Terrain = terrain });
-            });
+                Arg.Any<SessionDampingPercentages>(), Arg.Any<CancellationToken>())
+            .Returns(call => new SegmentAnalysisComparisonResult.Built(SegmentAnalysisComparisonBuilder.Build(
+                call.Arg<SegmentComparison>(), call.Arg<SegmentComparisonDetail>(), call.Arg<TravelDistributionMode>(),
+                call.Arg<VelocityAverageMode>(), call.Arg<DampingSpeedCutoffs>(), call.Arg<SessionDampingPercentages>())));
+        coordinator.BuildTerrainComparisonAsync(Arg.Any<SegmentMatch>(), Arg.Any<SegmentTerrainSource?>(),
+                Arg.Any<TrailAverage.Averaged?>(), Arg.Any<CancellationToken>())
+            .Returns(terrain ?? new SegmentTerrainComparison.Unavailable(SegmentTerrainUnavailable.NoSourceProfile));
         return coordinator;
     }
 
