@@ -30,23 +30,19 @@ public class TerrainBaselineEditorTests
         var domain = h.WithTerrain(session, profiles[0]) with { Setup = TestSnapshots.Setup(bikeId: bike.Id), Bike = bike };
         var rows = profiles.Select((_, i) => new RecordedSessionSummary(Guid.NewGuid(), i, "baseline", "", null, true,
             new SessionStaleness.Current(), BikeId: bike.Id) { Terrain = domain.Terrain }).ToArray();
-        var byId = rows.Index().ToDictionary(p => p.Item.Id, p => profiles[p.Index]);
+        var key = ((TerrainStatus.Current)domain.Terrain).Key;
+        foreach (var (index, row) in rows.Index()) h.TerrainProfiles.Seed(row.Id, key, profiles[index]);
         var firstFive = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseFive = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var attemptedFive = 0;
-        var fail = false;
-        h.TerrainProfiles.ReadAsync(Arg.Is<IReadOnlyDictionary<Guid, TerrainProfileKey>>(keys =>
-            keys.Count > 0 && !keys.ContainsKey(session.Id)), Arg.Any<CancellationToken>()).Returns(call => ReadAsync(call.Arg<IReadOnlyDictionary<Guid, TerrainProfileKey>>()));
-        async Task<IReadOnlyDictionary<Guid, TerrainProfile>> ReadAsync(IReadOnlyDictionary<Guid, TerrainProfileKey> keys)
+        h.TerrainProfiles.BeforeRead = async (keys, _) =>
         {
             if (keys.Count == 5 && Interlocked.Increment(ref attemptedFive) == 1)
             {
                 firstFive.SetResult();
                 await releaseFive.Task;
             }
-            if (fail) throw new IOException("Baseline unavailable.");
-            return keys.Keys.ToDictionary(id => id, id => byId[id]);
-        }
+        };
         h.SessionInsightsService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(call =>
             new SessionInsightsService().Analyze(call.Arg<SessionInsightsRequest>()));
         h.SessionSummaries.AddOrUpdate(rows[..4]);
@@ -65,7 +61,7 @@ public class TerrainBaselineEditorTests
         Assert.Equal(4, report.Rows.Length);
         h.SessionSummaries.AddOrUpdate(rows[4] with { Terrain = new TerrainStatus.Pending() });
         await WaitForAsync(workspace, p => p.State == SessionResponseState.InsufficientBaseline && p.BaselineSessions == 4);
-        fail = true;
+        h.TerrainProfiles.ReadFailure = new IOException("Baseline unavailable.");
         h.SessionSummaries.AddOrUpdate(rows[4]);
         await WaitForAsync(workspace, p => p.State == SessionResponseState.BaselineError);
         Assert.True(editor.SignalsWorkspace.TerrainSignalState.IsReady);

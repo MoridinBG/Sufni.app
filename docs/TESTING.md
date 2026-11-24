@@ -97,8 +97,9 @@ Do not bombard the SUT with random junk just to create more cases. Prefer inputs
 - Keep shared helpers small and mechanical. They should reduce repetition, not hide the behavior the test is asserting.
 
 `Persistence/InMemorySessionRepository`, `InMemorySynchronizableRepository`,
-`InMemorySetupTransactions` and `InMemoryPairedDeviceRepository` keep coordinator
-tests on observable facts without SQLite. `TestSupport/Doubles/TestCoordinatorSubstitutes`
+`InMemorySetupTransactions`, `InMemoryPairedDeviceRepository` and
+`InMemoryTerrainProfileRepository` keep coordinator tests on observable facts
+without SQLite. `TestSupport/Doubles/TestCoordinatorSubstitutes`
 provides default typed outcomes; `TestSupport/Fixtures/TestSnapshots` supplies small
 immutable entity inputs. The screenshot project references these same fixtures.
 

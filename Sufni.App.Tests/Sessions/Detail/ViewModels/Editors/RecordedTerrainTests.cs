@@ -147,9 +147,7 @@ public class RecordedTerrainTests
         var key = SessionTerrainStatusQuery.Evaluate(session, []).Key;
         var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0)], TerrainRoughnessState.ValuesOnly,
             TerrainSteepnessState.NoElevation, 2048, null);
-        h.TerrainProfiles.ReadAsync(Arg.Is<IReadOnlyDictionary<Guid, TerrainProfileKey>>(
-            keys => keys[session.Id] == key), Arg.Any<CancellationToken>())
-            .Returns(new Dictionary<Guid, TerrainProfile> { [session.Id] = profile });
+        h.TerrainProfiles.Seed(session.Id, key, profile);
         changes.OnNext(domain with { Terrain = new TerrainStatus.Current(key, TerrainProfileCalculator.Summarize(profile)) });
         await ViewTestHelpers.FlushDispatcherAsync();
         Assert.True(editor.SignalsWorkspace.TerrainSignalState.IsReady);
@@ -184,14 +182,14 @@ public class RecordedTerrainTests
         var domain = SessionDetailHarness.DomainFromSnapshot(session);
         var current = new TerrainStatus.Current(key, TerrainProfileCalculator.Summarize(profile));
         using var changes = new BehaviorSubject<RecordedSessionDomainSnapshot>(domain with { Terrain = current });
-        var result = new TaskCompletionSource<IReadOnlyDictionary<Guid, TerrainProfile>>();
-        h.TerrainProfiles.ReadAsync(Arg.Any<IReadOnlyDictionary<Guid, TerrainProfileKey>>(), Arg.Any<CancellationToken>())
-            .Returns(result.Task);
+        var release = new TaskCompletionSource();
+        h.TerrainProfiles.Seed(session.Id, key, profile);
+        h.TerrainProfiles.BeforeRead = (_, _) => release.Task;
         var editor = h.CreateRecordedEditor(session, projectionChanges: changes);
         await h.LoadAsync(editor);
         changes.OnNext(domain with { Session = session with { GpsOffsetSeconds = 2 }, Terrain = new TerrainStatus.Pending() });
         await ViewTestHelpers.FlushDispatcherAsync();
-        result.SetResult(new Dictionary<Guid, TerrainProfile> { [session.Id] = profile });
+        release.SetResult();
         await ViewTestHelpers.FlushDispatcherAsync();
         Assert.True(editor.SignalsWorkspace.TerrainSignalState.ShowSpinner);
         await h.CloseAsync(editor);

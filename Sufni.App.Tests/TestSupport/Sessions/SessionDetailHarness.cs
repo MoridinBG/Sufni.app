@@ -2,7 +2,6 @@ using DynamicData;
 using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Queries;
 using Sufni.App.Terrain.Coordinators;
-using Sufni.App.Terrain.Services;
 using Sufni.App.Sessions.Services.Preferences;
 using Sufni.App.Shared.Views.Dialogs;
 using Sufni.App.Shared.Stores;
@@ -68,7 +67,7 @@ internal sealed class SessionDetailHarness : IDisposable
         SessionInsightsService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(SessionInsightsResult.Hidden);
     }
 
-    public ITerrainProfileRepository TerrainProfiles { get; } = Substitute.For<ITerrainProfileRepository>();
+    public InMemoryTerrainProfileRepository TerrainProfiles { get; } = new();
     public ITerrainProfileCoordinator TerrainCoordinator { get; } = Substitute.For<ITerrainProfileCoordinator>();
     public IBackgroundTaskRunner GpsBackgroundRunner { get; set; } = new InlineBackgroundTaskRunner();
     public IBikeCoordinator BikeCoordinator { get; } = TestCoordinatorSubstitutes.Bike();
@@ -104,9 +103,7 @@ internal sealed class SessionDetailHarness : IDisposable
     public RecordedSessionDomainSnapshot WithTerrain(SessionSnapshot session, TerrainProfile profile)
     {
         var key = SessionTerrainStatusQuery.Evaluate(session, []).Key;
-        TerrainProfiles.ReadAsync(Arg.Is<IReadOnlyDictionary<Guid, TerrainProfileKey>>(keys =>
-                keys.ContainsKey(session.Id) && keys[session.Id] == key), Arg.Any<CancellationToken>())
-            .Returns(new Dictionary<Guid, TerrainProfile> { [session.Id] = profile });
+        TerrainProfiles.Seed(session.Id, key, profile);
         return DomainFromSnapshot(session) with
         {
             Terrain = new TerrainStatus.Current(key, TerrainProfileCalculator.Summarize(profile))

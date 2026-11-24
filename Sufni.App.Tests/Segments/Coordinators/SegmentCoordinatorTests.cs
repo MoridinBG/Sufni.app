@@ -1,4 +1,3 @@
-using Sufni.App.Terrain.Services;
 using Sufni.App.Shared.Models;
 using Sufni.App.Shared.Stores;
 using NSubstitute;
@@ -17,6 +16,7 @@ using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.App.Tests.TestSupport.Persistence;
 using Sufni.Telemetry;
 namespace Sufni.App.Tests.Segments.Coordinators;
 
@@ -365,7 +365,7 @@ public partial class SegmentCoordinatorTests
         return [];
     }
 
-    private readonly ITerrainProfileRepository terrainProfiles = Substitute.For<ITerrainProfileRepository>();
+    private readonly InMemoryTerrainProfileRepository terrainProfiles = new();
 
     private ISegmentCoordinator CreateCoordinator(ISessionSegmentStoreWriter? store = null, IBackgroundTaskRunner? runner = null) => new SegmentCoordinator(repository, store ?? segmentStore, sessionStore, matcher, contentReader, operationRunner, runner ?? new InlineBackgroundTaskRunner(), stravaService, sourceStore, terrainProfiles);
 }

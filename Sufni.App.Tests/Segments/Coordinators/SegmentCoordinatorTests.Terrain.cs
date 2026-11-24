@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using Sufni.App.Bikes.Models;
-using NSubstitute;
 using Sufni.App.Segments.Coordinators;
 using Sufni.App.Segments.Models;
 using Sufni.App.Segments.Services;
@@ -16,7 +15,6 @@ public partial class SegmentCoordinatorTests
 {
     private static readonly Lazy<TerrainProfile> earlierRide = new(() => SyntheticTrailRuns.Record(8, roughRebound: 0.60));
     private static readonly Lazy<TerrainProfile> currentRide = new(() => SyntheticTrailRuns.Record(8, calmSpeedFactor: 0.8));
-    private readonly Dictionary<Guid, (TerrainProfileKey Key, TerrainProfile Profile)> cachedProfiles = [];
 
     [Fact]
     public async Task MatchInsideBaselineDoesNotInfluenceQualifiedPairRatios()
@@ -49,8 +47,8 @@ public partial class SegmentCoordinatorTests
     public async Task MatchWithOlderProfileKeepsOrdinaryAnalysis()
     {
         var (source, match) = TerrainComparisonInputs(0);
-        var (key, profile) = cachedProfiles[match.SessionId];
-        cachedProfiles[match.SessionId] = (key with { AlgorithmVersion = key.AlgorithmVersion - 1 }, profile);
+        var key = TerrainProfileKey.From(match.ContentToken);
+        terrainProfiles.Seed(match.SessionId, key with { AlgorithmVersion = key.AlgorithmVersion - 1 }, earlierRide.Value);
         var result = await CompareTerrain(source, match);
         Assert.Equal(SegmentTerrainUnavailable.NoMatchProfile, Assert.IsType<SegmentTerrainComparison.Unavailable>(result.Terrain).Reason);
         Assert.NotEmpty(result.Metrics);
@@ -70,8 +68,7 @@ public partial class SegmentCoordinatorTests
     public async Task ProfileReadFailureKeepsOrdinaryAnalysisAndReportsTerrainError()
     {
         var (source, match) = TerrainComparisonInputs(0);
-        terrainProfiles.ReadAsync(Arg.Any<IReadOnlyDictionary<Guid, TerrainProfileKey>>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromException<IReadOnlyDictionary<Guid, TerrainProfile>>(new IOException("profile read failed")));
+        terrainProfiles.ReadFailure = new IOException("profile read failed");
         var result = await CompareTerrain(source, match);
         Assert.IsType<SegmentTerrainComparison.Failed>(result.Terrain);
         Assert.NotEmpty(result.Overlays);
@@ -84,10 +81,10 @@ public partial class SegmentCoordinatorTests
         var (source, first) = TerrainComparisonInputs(0);
         var repeated = SyntheticTrailRuns.Record(8, recordingSeed: 40);
         var second = TestSegmentMatches.OnTrail(source.Profile, repeated);
-        cachedProfiles[second.SessionId] = (source.Key, repeated);
+        terrainProfiles.Seed(second.SessionId, source.Key, repeated);
         var unrelated = SyntheticTrailRuns.Record(81, variedGround: false);
         var third = TestSegmentMatches.OnTrail(source.Profile, unrelated);
-        cachedProfiles[third.SessionId] = (source.Key, unrelated);
+        terrainProfiles.Seed(third.SessionId, source.Key, unrelated);
 
         var average = Assert.IsType<SegmentTrailAverage.Averaged>(await CreateCoordinator().BuildTrailAverageAsync(
             source, new(0, source.Profile.Windows[^1].EndSeconds), [first, second, third], TestContext.Current.CancellationToken));
@@ -111,19 +108,15 @@ public partial class SegmentCoordinatorTests
     {
         var (source, match) = TerrainComparisonInputs(0);
         var reading = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        terrainProfiles.ReadAsync(Arg.Any<IReadOnlyDictionary<Guid, TerrainProfileKey>>(), Arg.Any<CancellationToken>())
-            .Returns(call => ReadUntilCancelled(call.Arg<CancellationToken>()));
+        terrainProfiles.BeforeRead = (_, token) =>
+        {
+            reading.SetResult();
+            return Task.Delay(Timeout.Infinite, token);
+        };
         var work = CreateCoordinator().BuildTrailAverageAsync(source, new(0, 10), [match], TestContext.Current.CancellationToken);
         await reading.Task;
         operationRunner.Cancel(source.SessionId);
         Assert.IsType<SegmentTrailAverage.Cancelled>(await work);
-
-        async Task<IReadOnlyDictionary<Guid, TerrainProfile>> ReadUntilCancelled(CancellationToken token)
-        {
-            reading.SetResult();
-            await Task.Delay(Timeout.Infinite, token);
-            return new Dictionary<Guid, TerrainProfile>();
-        }
     }
 
     private (SegmentTerrainSource Source, SegmentMatch Match) TerrainComparisonInputs(int baselineCount,
@@ -133,16 +126,13 @@ public partial class SegmentCoordinatorTests
         earlier ??= earlierRide.Value;
         var match = TestSegmentMatches.OnTrail(current, earlier);
         var key = TerrainProfileKey.From(match.ContentToken);
-        cachedProfiles[match.SessionId] = (key, earlier);
+        terrainProfiles.Seed(match.SessionId, key, earlier);
         var references = Enumerable.Range(0, baselineCount).Select(i =>
         {
             var id = Guid.NewGuid();
-            cachedProfiles[id] = (key, SyntheticResponseRides.Baseline[i]);
+            terrainProfiles.Seed(id, key, SyntheticResponseRides.Baseline[i]);
             return new SessionProfileReference(id, key);
         }).ToImmutableArray();
-        terrainProfiles.ReadAsync(Arg.Any<IReadOnlyDictionary<Guid, TerrainProfileKey>>(), Arg.Any<CancellationToken>())
-            .Returns(call => cachedProfiles.Where(p => call.Arg<IReadOnlyDictionary<Guid, TerrainProfileKey>>().TryGetValue(p.Key, out var k) && p.Value.Key == k)
-                .ToDictionary(p => p.Key, p => p.Value.Profile));
         return (new(sourceId, key, current, new(references)), match);
     }
 
