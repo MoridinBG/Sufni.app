@@ -1,4 +1,5 @@
 using Sufni.App.Terrain.ViewModels;
+using Sufni.App.Terrain.Formatting;
 using Sufni.App.Terrain.Models;
 using Sufni.App.Sessions.Presentation;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;

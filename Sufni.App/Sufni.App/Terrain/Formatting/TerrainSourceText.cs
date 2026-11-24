@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Sufni.App.Terrain.Models;
 using Sufni.Telemetry;
 
-namespace Sufni.App.Terrain.ViewModels;
+namespace Sufni.App.Terrain.Formatting;
 
 internal static class TerrainSourceText
 {

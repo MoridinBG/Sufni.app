@@ -1,4 +1,4 @@
-using Sufni.App.Terrain.ViewModels;
+using Sufni.App.Terrain.Formatting;
 using Sufni.App.Sessions.Models;
 using Sufni.Telemetry;
 

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Immutable;
 using System.Linq;
 using Sufni.App.Segments.Models;
-using Sufni.App.Terrain.ViewModels;
+using Sufni.App.Terrain.Formatting;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Segments.ViewModels;

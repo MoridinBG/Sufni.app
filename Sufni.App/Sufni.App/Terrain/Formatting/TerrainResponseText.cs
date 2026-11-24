@@ -1,6 +1,6 @@
 using Sufni.Telemetry;
 
-namespace Sufni.App.Terrain.ViewModels;
+namespace Sufni.App.Terrain.Formatting;
 
 internal static class TerrainResponseText
 {
