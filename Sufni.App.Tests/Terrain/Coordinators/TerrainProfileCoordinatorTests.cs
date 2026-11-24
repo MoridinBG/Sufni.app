@@ -101,19 +101,36 @@ public class TerrainProfileCoordinatorTests
         Assert.Empty(h.Reads);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task MissingExactContentFinishesUnavailable(bool missingFixes)
+    [Fact]
+    public async Task MissingTrackFixesFinishAsContentMissing()
     {
         await using var h = new Harness();
         var session = Session();
-        if (missingFixes) h.Points.GetTrackPointsExactAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>())
+        h.Points.GetTrackPointsExactAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyList<Sufni.App.MapsAndTracks.Models.TrackPoint>?>(null));
-        else h.Read = (_, _, _) => Task.FromResult<SessionContentSnapshotResult>(new SessionContentSnapshotResult.Missing());
         await h.StartAsync([session]);
         await h.WaitForAsync(session, TerrainOutcome.ContentMissing);
         Assert.Equal(new TerrainStatus.Unavailable(TerrainAvailabilityReason.ContentMissing), h.Status(session.Id));
+    }
+
+    [Fact]
+    public async Task MissingTelemetryEndsTheRunWithoutAWrite()
+    {
+        await using var h = new Harness();
+        var session = Session();
+        var read = new TaskCompletionSource();
+        h.Read = (_, _, _) =>
+        {
+            read.TrySetResult();
+            return Task.FromResult<SessionContentSnapshotResult>(new SessionContentSnapshotResult.Missing());
+        };
+        await h.StartAsync([session]);
+        await h.DrainAsync(read.Task);
+        var next = Session(500);
+        await h.PublishAsync(next);
+        await h.WaitForAsync(next, TerrainOutcome.NoTrack);
+        Assert.Null(h.Repository.StoredKey(session.Id));
+        Assert.IsType<TerrainStatus.Pending>(h.Status(session.Id));
     }
 
     [Theory]

@@ -207,9 +207,8 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
         {
             var read = await content.GetExactSnapshotAsync(request.Id, request.Key.Content,
                 SessionContentSelection.ProcessedTelemetry, token).ConfigureAwait(false);
-            if (read is SessionContentSnapshotResult.Stale) return null;
             if (read is not SessionContentSnapshotResult.Available { Snapshot.ProcessedTelemetry: { } telemetry })
-                return TerrainMaterialization.WithoutProfile(TerrainOutcome.ContentMissing);
+                return null;
             var fixes = await points.GetTrackPointsExactAsync(track.TrackId, track.PointsRevision, token)
                 .ConfigureAwait(false);
             if (fixes is null) return TerrainMaterialization.WithoutProfile(TerrainOutcome.ContentMissing);
