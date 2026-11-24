@@ -5,6 +5,7 @@ namespace Sufni.Telemetry;
 
 public enum RoughnessClass { Calm, Medium, Rough }
 public enum SteepnessClass { Gentle, Moderate, Steep }
+public enum TerrainDirection { Climbing, Level, Descending }
 public enum RoughnessSource { Both, FrameOnly, LowersOnly }
 public enum TerrainRoughnessState { Classified, ValuesOnly, NoSensor }
 public enum TerrainSteepnessState { Available, NoFrameSensor, NoElevation, TooShort }
@@ -26,6 +27,7 @@ public sealed record TerrainWindow(double StartMetres, double StartSeconds, doub
     public RoughnessClass? Roughness { get; init; }
     public RoughnessSource? Source { get; init; }
     public double? Grade { get; init; }
+    public TerrainDirection? Direction { get; init; }
     public SteepnessClass? Steepness { get; init; }
 
     [IgnoreMember]

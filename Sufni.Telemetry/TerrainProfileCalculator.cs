@@ -4,7 +4,7 @@ namespace Sufni.Telemetry;
 
 public static partial class TerrainProfileCalculator
 {
-    public const int AlgorithmVersion = 3;
+    public const int AlgorithmVersion = 4;
     public const double ClippedShareLimit = 0.02;
     private const double SilentShareLimit = 0.5;
     private const int MinimumImuRate = 200;
@@ -39,13 +39,14 @@ public static partial class TerrainProfileCalculator
         })).ToImmutableArray();
         if (silent.Contains(TerrainSensor.Frame)) (frame, frameSeries) = (null, []);
         if (silent.Contains(TerrainSensor.Lowers)) (lowers, lowersSeries) = (null, []);
+        var steepness = MeasureGrade(motion, imu, frame, windows, cancellationToken);
         for (var i = 0; i < windows.Count; i++)
         {
-            if (!windows[i].Moving) continue;
+            // Pedalling dominates climbing vibration, so the ground scale does not apply there.
+            if (!windows[i].Moving || windows[i].Direction == TerrainDirection.Climbing) continue;
             var (roughness, source) = Classify(windows[i].Frame, windows[i].Lowers);
             windows[i] = windows[i] with { Roughness = roughness, Source = source };
         }
-        var steepness = MeasureGrade(motion, imu, frame, windows, cancellationToken);
         var classified = frame != null && TerrainCalibration.For(ImuLocation.Frame, frame.AccelLsbPerG) != null ||
                          lowers != null && TerrainCalibration.For(ImuLocation.Fork, lowers.AccelLsbPerG) != null;
         var roughState = classified ? TerrainRoughnessState.Classified :

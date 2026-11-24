@@ -4,6 +4,7 @@ public static partial class TerrainProfileCalculator
 {
     private const double MinimumGradeMetres = 800;
     private const double GradeCutoffHz = 0.08;
+    private static readonly double LevelGrade = Math.Sin(2 * Math.PI / 180);
     private static readonly double GentleGrade = Math.Sin(5 * Math.PI / 180);
     private static readonly double SteepGrade = Math.Sin(10 * Math.PI / 180);
 
@@ -59,13 +60,20 @@ public static partial class TerrainProfileCalculator
         for (var i = 0; i < windows.Count; i++)
         {
             if (BaselineGrade(windows, i) is not { } baseline) continue;
-            windows[i] = windows[i] with { Steepness = ClassifyGrade(baseline) };
+            var (direction, steepness) = ClassifyGrade(baseline);
+            windows[i] = windows[i] with { Direction = direction, Steepness = steepness };
         }
         return TerrainSteepnessState.Available;
     }
 
-    internal static SteepnessClass ClassifyGrade(double baseline) => baseline < GentleGrade ? SteepnessClass.Gentle :
-        baseline < SteepGrade ? SteepnessClass.Moderate : SteepnessClass.Steep;
+    internal static (TerrainDirection Direction, SteepnessClass Steepness) ClassifyGrade(double baseline)
+    {
+        var direction = baseline > LevelGrade ? TerrainDirection.Descending
+            : baseline < -LevelGrade ? TerrainDirection.Climbing : TerrainDirection.Level;
+        var magnitude = Math.Abs(baseline);
+        return (direction, magnitude < GentleGrade ? SteepnessClass.Gentle
+            : magnitude < SteepGrade ? SteepnessClass.Moderate : SteepnessClass.Steep);
+    }
 
     /// <summary>Mean downhill grade over up to five adjacent windows, requiring three measured grades.</summary>
     public static double? BaselineGrade(IReadOnlyList<TerrainWindow> windows, int i) =>

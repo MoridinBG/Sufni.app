@@ -25,6 +25,18 @@ public class TrailAverageTests
     }
 
     [Fact]
+    public void AveragedClimbHasDirectionAndSteepnessButNoRoughnessClass()
+    {
+        var average = Average([.. gradeSeeds.Select(seed => Measurements(seed, grade: -GroundGrade))]);
+        Assert.All(average.Windows, w =>
+        {
+            Assert.Equal(TerrainDirection.Climbing, w.Direction);
+            Assert.Equal(SteepnessClass.Moderate, w.Steepness);
+            Assert.Null(w.Roughness);
+        });
+    }
+
+    [Fact]
     public void GeometricMeanKeepsFivePercentAboveTheRoughBoundary()
     {
         var factors = new[] { 0.80, 1.25, 0.90, 1 / 0.90 };
@@ -90,7 +102,7 @@ public class TrailAverageTests
     private static AlignedTerrainRun Aligned(TerrainProfile profile) => new(profile, TerrainProfiles.Identity(WindowCount));
 
     private static TerrainProfile Measurements(int seed, double frameLevel = 2.31, bool calibrated = true,
-        double? lowersLevel = null, bool clipped = false)
+        double? lowersLevel = null, bool clipped = false, double grade = GroundGrade)
     {
         var random = new Random(seed);
         var windows = Enumerable.Range(0, WindowCount).Select(i =>
@@ -98,7 +110,7 @@ public class TrailAverageTests
             var noise = (random.Next(2) == 0 ? -1 : 1) * (0.014 + 0.002 * random.NextDouble());
             return TerrainProfiles.Window(i) with
             {
-                Grade = GroundGrade + noise,
+                Grade = grade + noise,
                 Frame = TerrainProfiles.Sensor(frameLevel, calibrated ? Math.Log(frameLevel / 1.4) / Math.Log(2.2 / 1.4) : null),
                 Lowers = lowersLevel is { } l
                     ? TerrainProfiles.Sensor(l, Math.Log(l / 2.5) / Math.Log(3.8 / 2.5), clipped ? 0.10 : 0) : null

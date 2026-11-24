@@ -5,7 +5,10 @@ namespace Sufni.Telemetry;
 public sealed record AlignedTerrainRun(TerrainProfile Profile, TerrainRunAlignment.Aligned Alignment);
 
 public sealed record TrailAverageWindow(int SourceIndex, double StartSeconds, double EndSeconds, double? FrameLevel,
-    double? LowersLevel, double? Grade, RoughnessClass? Roughness, SteepnessClass? Steepness);
+    double? LowersLevel, double? Grade, RoughnessClass? Roughness, SteepnessClass? Steepness)
+{
+    public TerrainDirection? Direction { get; init; }
+}
 
 public closed record TrailAverage(int RunCount)
 {
@@ -44,8 +47,13 @@ public closed record TrailAverage(int RunCount)
         }
         for (var i = 0; i < windows.Count; i++)
         {
-            var baseline = BaselineGrade(windows, i);
-            if (baseline.HasValue) windows[i] = windows[i] with { Steepness = TerrainProfileCalculator.ClassifyGrade(baseline.Value) };
+            if (BaselineGrade(windows, i) is not { } baseline) continue;
+            var (direction, steepness) = TerrainProfileCalculator.ClassifyGrade(baseline);
+            windows[i] = windows[i] with
+            {
+                Direction = direction, Steepness = steepness,
+                Roughness = direction == TerrainDirection.Climbing ? null : windows[i].Roughness
+            };
         }
         return new Averaged(count, [.. windows]);
     }

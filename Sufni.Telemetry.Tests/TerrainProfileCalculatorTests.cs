@@ -227,6 +227,31 @@ public class TerrainProfileCalculatorTests
         Assert.Equal(SteepnessClass.Steep, windows[100].Steepness);
     }
 
+    private static readonly RideSection[] DescentLevelClimbCourse = [new(400, 7, 8), new(300, 7, 0),
+        new(400, 3, -8), new(400, 3, -14)];
+
+    [Theory]
+    [InlineData(200, TerrainDirection.Descending, SteepnessClass.Moderate)]
+    [InlineData(550, TerrainDirection.Level, SteepnessClass.Gentle)]
+    [InlineData(900, TerrainDirection.Climbing, SteepnessClass.Moderate)]
+    [InlineData(1300, TerrainDirection.Climbing, SteepnessClass.Steep)]
+    public void GradeGivesDirectionAndSteepnessInBothDirections(double metres, TerrainDirection direction, SteepnessClass steepness)
+    {
+        var window = SyntheticRide.Build(DescentLevelClimbCourse).Profile().Windows.Single(w => w.StartMetres == metres);
+        Assert.Equal(direction, window.Direction);
+        Assert.Equal(steepness, window.Steepness);
+    }
+
+    [Fact]
+    public void ClimbingWindowsKeepTheirLevelsWithoutARoughnessClass()
+    {
+        var windows = SyntheticRide.Build(DescentLevelClimbCourse).Profile().Windows;
+        var climbing = windows.Where(w => w.Direction == TerrainDirection.Climbing).ToArray();
+        Assert.NotEmpty(climbing);
+        Assert.All(climbing, w => { Assert.Null(w.Roughness); Assert.NotNull(w.Frame); });
+        Assert.All(windows.Where(w => w.Direction == TerrainDirection.Descending), w => Assert.NotNull(w.Roughness));
+    }
+
     [Fact]
     public void GradeRemovesForwardBrakingAcceleration()
     {
