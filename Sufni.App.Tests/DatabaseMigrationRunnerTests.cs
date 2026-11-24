@@ -55,11 +55,13 @@ public class DatabaseMigrationRunnerTests
         {
             await db.PutAsync(session);
             key = SessionTerrainStatusQuery.Evaluate(SessionSnapshot.From((await db.GetSessionAsync(session.Id))!), []).Key;
-            Assert.True(await db.TerrainProfiles.TryCommitAsync(session.Id, key, TerrainMaterialization.Computed(profile)));
+            Assert.True(await db.TerrainProfiles.TryCommitAsync(session.Id, key, TerrainMaterialization.Computed(profile),
+                TestContext.Current.CancellationToken));
             await db.DeleteAsync(session);
         }
         await using var reopened = new TestPersistenceHarness(temp.DatabasePath);
-        Assert.Empty(await reopened.TerrainProfiles.ReadAsync(new Dictionary<Guid, TerrainProfileKey> { [session.Id] = key }));
+        Assert.Empty(await reopened.TerrainProfiles.ReadAsync(new Dictionary<Guid, TerrainProfileKey> { [session.Id] = key },
+            TestContext.Current.CancellationToken));
     }
 
     [Fact]
