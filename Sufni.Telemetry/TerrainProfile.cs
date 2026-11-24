@@ -3,7 +3,7 @@ using MessagePack;
 
 namespace Sufni.Telemetry;
 
-public enum RoughnessClass { Calm, Medium, Rough }
+public enum RoughnessClass { Smooth, Calm, Medium, Rough, VeryRough }
 /// <summary>Signed ground slope over 50 m. The two climb bands come first.</summary>
 public enum GradeBand { SteepClimb, Climb, Flat, GentleDescent, Descent, SteepDescent, VerySteepDescent }
 public enum RoughnessSource { Both, FrameOnly, LowersOnly }
@@ -65,7 +65,7 @@ public closed record TerrainProfileResult
 
 /// <summary>
 /// Ride totals for the session list. <see cref="ClimbMetres"/> is null without grade. <see cref="RoughShare"/> is the
-/// rough share of <see cref="ClassifiedMetres"/>, the non-climb distance with a roughness class.
+/// rough and very rough share of <see cref="ClassifiedMetres"/>, the non-climb distance with a roughness class.
 /// </summary>
 [MessagePackObject(keyAsPropertyName: true)]
 public sealed record TerrainSummary(double MovingMetres, double? ClimbMetres, double ClassifiedMetres, double RoughShare,

@@ -18,19 +18,20 @@ public static class TerrainRunComparison
     public static ImmutableArray<TerrainComparisonRow> Compare(TerrainProfile current, TerrainProfile earlier,
         TerrainRunAlignment.Aligned alignment, SuspensionResponseModel model, TrailAverage.Averaged? average = null, CancellationToken token = default)
     {
-        var groups = new List<Pair>[4] { [], [], [], [] };
+        var levels = Enum.GetValues<RoughnessClass>();
+        var groups = levels.Select(_ => new List<Pair>()).Append([]).ToArray();
         var averageClasses = average?.Windows.ToDictionary(w => w.SourceIndex, w => w.Roughness);
         foreach (var indices in alignment.Pairs)
         {
             token.ThrowIfCancellationRequested();
             var pair = new Pair(current.Windows[indices.SourceIndex], earlier.Windows[indices.MatchIndex]);
-            groups[3].Add(pair);
+            groups[^1].Add(pair);
             var roughness = averageClasses is null
                 ? PairClass(pair)
                 : averageClasses.GetValueOrDefault(indices.SourceIndex);
             if (roughness.HasValue) groups[(int)roughness.Value].Add(pair);
         }
-        return [.. groups.Select((pairs, index) => Describe(pairs, index < 3 ? (RoughnessClass)index : null, model, token))];
+        return [.. groups.Select((pairs, index) => Describe(pairs, index < levels.Length ? levels[index] : null, model, token))];
     }
 
     private static RoughnessClass? PairClass(Pair pair) =>

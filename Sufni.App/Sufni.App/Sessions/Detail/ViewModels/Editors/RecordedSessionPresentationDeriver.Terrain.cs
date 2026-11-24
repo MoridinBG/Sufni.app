@@ -23,8 +23,8 @@ internal static partial class RecordedSessionPresentationDeriver
             if (!window.Moving) continue;
             AddRun(roughness, window, window.Roughness switch
             {
-                RoughnessClass.Calm => TerrainLevel.Low, RoughnessClass.Medium => TerrainLevel.Middle,
-                RoughnessClass.Rough => TerrainLevel.High, _ => null
+                RoughnessClass.Smooth or RoughnessClass.Calm => TerrainLevel.Low, RoughnessClass.Medium => TerrainLevel.Middle,
+                RoughnessClass.Rough or RoughnessClass.VeryRough => TerrainLevel.High, _ => null
             });
             AddRun(grade, window, window.Band switch
             {

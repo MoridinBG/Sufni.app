@@ -78,9 +78,9 @@ public static class SyntheticTrailRuns
         foreach (var section in Describe(groundSeed, recordingSeed))
         {
             var intensity = section.FrameLevel / BandLevel;
-            sections.Add(new(SectionMetres, section.Roughness == RoughnessClass.Calm ? Speed * calmSpeedFactor : Speed, GradeDegrees,
+            sections.Add(new(SectionMetres, section.Roughness <= RoughnessClass.Calm ? Speed * calmSpeedFactor : Speed, GradeDegrees,
                 intensity * LowBand, intensity * MiddleBand, intensity * HighBand,
-                ReboundGain: section.Roughness == RoughnessClass.Rough ? roughRebound : 1));
+                ReboundGain: section.Roughness >= RoughnessClass.Rough ? roughRebound : 1));
         }
         var ride = SyntheticRide.Build(sections, new RideRecording(Seed: recordingSeed, Frame: frame, Lowers: lowers,
             NoiseG: 0.002, FixRate: 5));

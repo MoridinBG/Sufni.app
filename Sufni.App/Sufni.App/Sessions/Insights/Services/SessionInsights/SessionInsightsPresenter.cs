@@ -5,6 +5,7 @@ using Sufni.Telemetry;
 using Sufni.App.Shared.Common;
 
 using Sufni.App.Sessions.Models;
+using Sufni.App.Terrain.Formatting;
 namespace Sufni.App.Sessions.Insights.Services.SessionInsights;
 
 /// <summary>
@@ -38,7 +39,7 @@ internal static class SessionInsightsPresenter
     private static SessionResponsePanel PresentResponse(TerrainResponseDiagnostics? response) => response is null
         ? SessionResponsePanel.Hidden : new(response.State, SessionInsightsTextCatalog.ResponseDescription(response),
             response.Sessions, response.Windows, [.. response.Rows.Select(row => new SessionResponseRow(
-                row.Class?.ToString() ?? "Whole session", SessionInsightsTextCatalog.ResponseCoverage(row), row,
+                row.Class is { } level ? TerrainClassText.Name(level) : "Whole session", SessionInsightsTextCatalog.ResponseCoverage(row), row,
                 [.. row.Cells.Select(SessionInsightsTextCatalog.ResponseCell)]))]);
 
     private const string SagTitle = "Sag & travel use";

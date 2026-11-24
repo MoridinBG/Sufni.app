@@ -41,7 +41,7 @@ public sealed record SegmentTerrainTable(string? Message, ImmutableArray<Segment
         static SegmentTerrainValue Ratio(ComparisonRatio value, string prefix = "") =>
             new(prefix + TerrainResponseText.Value(value.State, value.Ratio), value.State == ResponseCellState.WithinRepeatRange);
         return new([
-            Text(row.Class?.ToString() ?? "All"), Text(TerrainResponseText.Distance(row.DistanceMetres)),
+            Text(row.Class is { } level ? TerrainClassText.Name(level) : "All"), Text(TerrainResponseText.Distance(row.DistanceMetres)),
             Text(row.Pace is { } pace ? $"{pace.Median:0.00}× ({pace.Lower:0.00}–{pace.Upper:0.00})" : TerrainResponseText.TooShort),
             .. Enum.GetValues<ResponseTarget>().Select(target => new SegmentTerrainColumn([Ratio(row.Responses[target])])),
             new([Ratio(row.FrontSamePosition, "Front "), Ratio(row.RearSamePosition, "Rear ")])

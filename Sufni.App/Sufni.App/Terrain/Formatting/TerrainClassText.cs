@@ -19,9 +19,11 @@ internal static class TerrainClassText
 
     public static string Name(RoughnessClass level) => level switch
     {
+        RoughnessClass.Smooth => "Smooth",
         RoughnessClass.Calm => "Calm",
         RoughnessClass.Medium => "Medium",
         RoughnessClass.Rough => "Rough",
+        RoughnessClass.VeryRough => "Very rough",
         _ => throw new ArgumentOutOfRangeException(nameof(level))
     };
 }

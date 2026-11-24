@@ -38,13 +38,18 @@ public class TerrainProfileCalculatorTests
     private static readonly RideSection[] CalmMediumRoughCourse = [new(600),
         new(250, LowBandG: 0.9, MiddleBandG: 1, HighBandG: 1.2), new(150, LowBandG: 1.4, MiddleBandG: 1.6, HighBandG: 1.8)];
 
+    private static readonly RideSection[] EveryLevelCourse = [new(200, LowBandG: 0.2, MiddleBandG: 0.3, HighBandG: 0.4),
+        .. CalmMediumRoughCourse, new(200, LowBandG: 2, MiddleBandG: 2.2, HighBandG: 2.4)];
+
     [Theory]
-    [InlineData(0, 600, RoughnessClass.Calm)]
-    [InlineData(600, 850, RoughnessClass.Medium)]
-    [InlineData(850, 1000, RoughnessClass.Rough)]
-    public void EachGroundSectionGetsTheClassOfItsBandLevels(double from, double to, RoughnessClass expected)
+    [InlineData(0, 200, RoughnessClass.Smooth)]
+    [InlineData(200, 800, RoughnessClass.Calm)]
+    [InlineData(800, 1050, RoughnessClass.Medium)]
+    [InlineData(1050, 1200, RoughnessClass.Rough)]
+    [InlineData(1200, 1400, RoughnessClass.VeryRough)]
+    public void EachGroundSectionGetsTheLevelOfItsBandLevels(double from, double to, RoughnessClass expected)
     {
-        var section = SyntheticRide.Build(CalmMediumRoughCourse).Profile().Windows
+        var section = SyntheticRide.Build(EveryLevelCourse).Profile().Windows
             .Where(w => w.StartMetres >= from && w.StartMetres < to).ToArray();
         Assert.True(section.Count(w => w.Roughness == expected) >= section.Length * 0.9);
     }
@@ -133,7 +138,7 @@ public class TerrainProfileCalculatorTests
         if (frameScale == 4096)
         {
             Assert.Equal(RoughnessSource.FrameOnly, w.Source);
-            Assert.Equal(RoughnessClass.Rough, w.Roughness);
+            Assert.Equal(RoughnessClass.VeryRough, w.Roughness);
         }
         else Assert.Null(w.Roughness);
     }

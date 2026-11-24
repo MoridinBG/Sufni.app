@@ -15,7 +15,9 @@ public static class TerrainResponse
     public static ImmutableArray<TerrainResponseRow> Describe(TerrainProfile profile, SuspensionResponseModel model,
         TelemetryTimeRange? range)
     {
-        var groups = new List<Portion>[4] { [], [], [], [] };
+        var levels = Enum.GetValues<RoughnessClass>();
+        var groups = levels.Select(_ => new List<Portion>()).Append([]).ToArray();
+        var all = groups[^1];
         foreach (var window in profile.Windows)
         {
             if (!window.Moving) continue;
@@ -23,16 +25,16 @@ public static class TerrainResponse
             var end = Math.Min(window.EndSeconds, range?.EndSeconds ?? window.EndSeconds);
             if (end <= start) continue;
             var portion = new Portion(window, (end - start) / (window.EndSeconds - window.StartSeconds));
-            if (!window.Climbing) groups[3].Add(portion);
+            if (!window.Climbing) all.Add(portion);
             if (window.Roughness is { } roughness) groups[(int)roughness].Add(portion);
         }
-        var total = groups[3].Sum(p => p.Fraction);
+        var total = all.Sum(p => p.Fraction);
         return [.. groups.Select((group, i) =>
         {
             var coverage = group.Sum(p => p.Fraction);
             var distance = coverage * TerrainProfileCalculator.WindowMetres;
             var seconds = group.Sum(p => p.Fraction * (p.Window.EndSeconds - p.Window.StartSeconds));
-            return new TerrainResponseRow(i < 3 ? (RoughnessClass)i : null, distance, total > 0 ? coverage / total : 0,
+            return new TerrainResponseRow(i < levels.Length ? levels[i] : null, distance, total > 0 ? coverage / total : 0,
                 seconds > 0 ? distance / seconds : null,
                 [.. Enum.GetValues<ResponseTarget>().Select(target => DescribeCell(target, group, distance, model))]);
         })];

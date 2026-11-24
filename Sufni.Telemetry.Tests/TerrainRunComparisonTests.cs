@@ -23,24 +23,26 @@ public class TerrainRunComparisonTests
     }
 
     [Fact]
-    public void ReducedRoughReboundAppearsOnlyInRoughClass()
+    public void ReducedRoughReboundAppearsOnlyInRoughLevels()
     {
         var rows = Compare(SyntheticTrailRuns.Record(42, roughRebound: 0.7));
         foreach (var side in new[] { ResponseTarget.FrontPeakRebound, ResponseTarget.RearPeakRebound })
         {
-            var rough = rows.Single(row => row.Class == RoughnessClass.Rough).Responses[side];
-            Assert.Equal(ResponseCellState.Finding, rough.State);
-            Assert.InRange(rough.Ratio!.Value, 0.65, 0.75);
-            Assert.DoesNotContain(rows.Where(row => row.Class != RoughnessClass.Rough), row => row.Responses[side].State == ResponseCellState.Finding);
+            Assert.All(rows.Where(row => row.Class >= RoughnessClass.Rough), row =>
+            {
+                Assert.Equal(ResponseCellState.Finding, row.Responses[side].State);
+                Assert.InRange(row.Responses[side].Ratio!.Value, 0.65, 0.75);
+            });
+            Assert.DoesNotContain(rows.Where(row => row.Class < RoughnessClass.Rough), row => row.Responses[side].State == ResponseCellState.Finding);
         }
     }
 
     [Fact]
-    public void OnlyCalmSectionsLosePace()
+    public void OnlySmoothAndCalmSectionsLosePace()
     {
         var rows = Compare(SyntheticTrailRuns.Record(42, calmSpeedFactor: 0.8));
-        Assert.InRange(rows.Single(row => row.Class == RoughnessClass.Calm).Pace!.Value.Median, 0.77, 0.83);
-        Assert.InRange(rows.Single(row => row.Class == RoughnessClass.Rough).Pace!.Value.Median, 0.97, 1.03);
+        Assert.All(rows.Where(row => row.Class <= RoughnessClass.Calm), row => Assert.InRange(row.Pace!.Value.Median, 0.77, 0.83));
+        Assert.All(rows.Where(row => row.Class >= RoughnessClass.Rough), row => Assert.InRange(row.Pace!.Value.Median, 0.97, 1.03));
     }
 
     [Fact]

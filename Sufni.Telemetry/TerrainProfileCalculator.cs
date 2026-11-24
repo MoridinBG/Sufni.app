@@ -101,7 +101,7 @@ public static partial class TerrainProfileCalculator
         return new(WindowMetres * (double)moving.Length,
             profile.GradeState == TerrainGradeState.Available ? WindowMetres * (double)moving.Count(w => w.Climbing) : null,
             WindowMetres * (double)classified.Length,
-            classified.Length == 0 ? 0 : (double)classified.Count(w => w.Roughness == RoughnessClass.Rough) / classified.Length,
+            classified.Length == 0 ? 0 : (double)classified.Count(w => w.Roughness >= RoughnessClass.Rough) / classified.Length,
             classified.GroupBy(w => w.Source).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key);
     }
 }
