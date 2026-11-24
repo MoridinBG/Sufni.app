@@ -28,7 +28,7 @@ namespace Sufni.App.Tests;
 public class DatabaseMigrationRunnerTests
 {
     [Fact]
-    public async Task UpgradeMakesExistingRecordingsPendingAndCleanupRemovesTheirDeletedProfiles()
+    public async Task UpgradeMakesExistingRecordingsPending()
     {
         using var temp = new TempDatabase();
         var session = new Session(Guid.NewGuid(), "existing ride", "", null, 100)
@@ -38,15 +38,23 @@ public class DatabaseMigrationRunnerTests
             legacy.CreateTable<Session>();
             legacy.Insert(session);
         }
+        await using var db = new TestPersistenceHarness(temp.DatabasePath);
+        var existing = SessionSnapshot.From(Assert.Single(await db.GetSessionsAsync()));
+        Assert.IsType<TerrainStatus.Pending>(SessionTerrainStatusQuery.Evaluate(existing, []).Status);
+    }
+
+    [Fact]
+    public async Task CleanupRemovesTheTerrainProfileOfADeletedSession()
+    {
+        using var temp = new TempDatabase();
+        var session = new Session(Guid.NewGuid(), "ride", "", null, 100) { ProcessedData = [1], DurationSeconds = 10 };
         var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0)], TerrainRoughnessState.NoSensor,
             TerrainSteepnessState.NoFrameSensor, null, null);
         TerrainProfileKey key;
         await using (var db = new TestPersistenceHarness(temp.DatabasePath))
         {
-            var existing = SessionSnapshot.From(Assert.Single(await db.GetSessionsAsync()));
-            var evaluation = SessionTerrainStatusQuery.Evaluate(existing, []);
-            key = evaluation.Key;
-            Assert.IsType<TerrainStatus.Pending>(evaluation.Status);
+            await db.PutAsync(session);
+            key = SessionTerrainStatusQuery.Evaluate(SessionSnapshot.From((await db.GetSessionAsync(session.Id))!), []).Key;
             Assert.True(await db.TerrainProfiles.TryCommitAsync(session.Id, key, TerrainMaterialization.Computed(profile)));
             await db.DeleteAsync(session);
         }
