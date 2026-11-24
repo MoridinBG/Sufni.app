@@ -23,7 +23,7 @@ public static class TerrainResponse
             var end = Math.Min(window.EndSeconds, range?.EndSeconds ?? window.EndSeconds);
             if (end <= start) continue;
             var portion = new Portion(window, (end - start) / (window.EndSeconds - window.StartSeconds));
-            groups[3].Add(portion);
+            if (window.Direction != TerrainDirection.Climbing) groups[3].Add(portion);
             if (window.Roughness is { } roughness) groups[(int)roughness].Add(portion);
         }
         var total = groups[3].Sum(p => p.Fraction);
