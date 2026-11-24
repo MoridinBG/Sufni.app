@@ -18,7 +18,7 @@ A calculation failure is recorded for its input key. If the database write itsel
 
 ## Recorded editor
 
-The editor reads the exact profile on its background runner and derives timed runs for both axes, segmented sensor and grade signals, and distance shares for jointly classified, frame-only and lowers-only windows. The reducer accepts a loaded result only for the current domain status. A change of status immediately removes the previous plot and map data.
+The editor reads the exact profile on its background runner and derives timed runs for both axes, segmented sensor, grade and pedal bob signals, and distance shares for jointly classified, frame-only and lowers-only windows. The reducer accepts a loaded result only for the current domain status. A change of status immediately removes the previous plot and map data.
 
 The source label identifies both sensors when both contributed anywhere in the ride. The tooltip distinguishes separate contributions from joint classification and identifies clipping, missing samples or an uncalibrated scale. The grade trace uses the same five-window baseline as the grade bands.
 
