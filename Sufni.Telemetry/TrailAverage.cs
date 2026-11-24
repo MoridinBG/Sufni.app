@@ -31,8 +31,14 @@ public closed record TrailAverage(int RunCount)
         {
             var w = source.Windows[i];
             var centre = (w.StartSeconds + w.EndSeconds) / 2;
-            if (centre < range.StartSeconds || centre >= range.EndSeconds || !w.Moving) continue;
+            if (centre < range.StartSeconds || centre >= range.EndSeconds) continue;
             token.ThrowIfCancellationRequested();
+            if (!w.Moving)
+            {
+                // A stop stays in the list so the grade baseline walks past it, as it does for a single ride.
+                windows.Add(new(i, w.StartSeconds, w.EndSeconds, null, null, null, null, null));
+                continue;
+            }
             totals[i].Add(w);
             windows.Add(totals[i].Window(i, w));
         }

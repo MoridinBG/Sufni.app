@@ -54,6 +54,19 @@ public class TrailAverageTests
     }
 
     [Fact]
+    public void GradeBaselineReachesPastAStop()
+    {
+        var gentle = Math.Sin(3 * Math.PI / 180);
+        var windows = Enumerable.Range(0, 7).Select(i => i == 3 ? TerrainProfiles.Window(i, moving: false)
+            : TerrainProfiles.Window(i) with { Grade = i < 3 ? gentle : 0.3 });
+        var profile = TerrainProfiles.Profile(windows);
+        var run = new AlignedTerrainRun(profile, TerrainProfiles.Identity(7));
+        var average = Assert.IsType<TrailAverage.Averaged>(TrailAverage.Calculate(profile, new(0, 7), [run, run]));
+        // Windows 0, 1, 2 and 4 give (3 × sin 3° + 0.3) / 4 ≈ 0.114, between sin 5° and sin 10°.
+        Assert.Equal(SteepnessClass.Moderate, average.Windows.Single(w => w.SourceIndex == 2).Steepness);
+    }
+
+    [Fact]
     public void OneAlignedMatchCountsTwoRuns()
     {
         var profile = Measurements(12);
