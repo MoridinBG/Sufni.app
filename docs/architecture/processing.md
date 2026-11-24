@@ -107,7 +107,7 @@ Grade needs a frame IMU, elevation at both moving endpoints and 800 m of moving 
 
 Each axis then merges outliers. A single window between two time-adjacent windows of one other class takes their class; a stop, a gap or an unclassified neighbour leaves it unchanged. Grade bands merge before the roughness scale is chosen. The merged class serves display, selection and statistics, while the measured values keep the outlier. A recording gap interrupts sensor coverage; windows without full sensor coverage carry no measurement for that sensor.
 
-The profile includes per-side velocity figures and per-metre IMU matching values. `Summarize` reports the moving and climbing distance, the classified non-climb distance and its rough share. The algorithm and calibration have independent versions. The profile has its own MessagePack contract.
+The profile includes per-side velocity figures, mean travel and the median travel gain of compression strokes that start in each window. It stores the max travel of each end and per-metre IMU matching values. `Summarize` reports the moving and climbing distance, the classified non-climb distance and its rough share. The algorithm and calibration have independent versions. The profile has its own MessagePack contract.
 
 ### Processing Parameters
 

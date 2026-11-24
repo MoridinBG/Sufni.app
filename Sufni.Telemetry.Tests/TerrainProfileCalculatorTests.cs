@@ -179,6 +179,18 @@ public class TerrainProfileCalculatorTests
     }
 
     [Fact]
+    public void TravelFiguresFollowTheStrokeShape()
+    {
+        const double speed = 5;
+        var section = new RideSection(300, speed, LowBandG: 0.6, MiddleBandG: 0.8, HighBandG: 0);
+        // Equal gains split each cycle in half, so travel swings amplitude / 2π above its 35 mm floor.
+        var swing = SyntheticRide.ResponseAmplitude(1, speed) / (2 * Math.PI);
+        var front = SyntheticRide.Build([section]).Profile().Windows[15].Front!.Value;
+        Assert.InRange(front.MeanTravel, 35 + swing / 2 - 0.3, 35 + swing / 2 + 0.3);
+        Assert.InRange(front.MedianStrokeSize!.Value, swing * 0.95, swing * 1.05);
+    }
+
+    [Fact]
     public void ContinuousSuspensionWithoutSegmentListGetsTheSameFigures()
     {
         var ride = SyntheticRide.Build([new(300, LowBandG: 0.6, MiddleBandG: 0.8)]);

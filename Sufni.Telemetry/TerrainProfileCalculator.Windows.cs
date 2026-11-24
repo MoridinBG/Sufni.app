@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using MathNet.Numerics.Statistics;
 
 namespace Sufni.Telemetry;
 
@@ -65,6 +66,25 @@ public static partial class TerrainProfileCalculator
         return start >= origin - 1e-9 && end <= origin + (double)count / rate + 1e-9 && from >= 0 && to <= count && from < to;
     }
 
+    private static double?[] MedianStrokeSizes(Suspension side, List<TerrainWindow> windows)
+    {
+        var medians = new double?[windows.Count];
+        if (side.Strokes?.Compressions is not { IsDefaultOrEmpty: false } compressions) return medians;
+        var strokes = compressions.Where(s => s.Start >= 0 && s.Start < side.Travel.Length)
+            .OrderBy(s => s.StartSeconds).ToArray();
+        var next = 0;
+        var sizes = new List<double>();
+        for (var i = 0; i < windows.Count; i++)
+        {
+            while (next < strokes.Length && strokes[next].StartSeconds < windows[i].StartSeconds) next++;
+            sizes.Clear();
+            for (var j = next; j < strokes.Length && strokes[j].StartSeconds < windows[i].EndSeconds; j++)
+                sizes.Add(strokes[j].Stat.MaxTravel - side.Travel[strokes[j].Start]);
+            if (sizes.Count > 0) medians[i] = sizes.Median();
+        }
+        return medians;
+    }
+
     private static void MeasureSuspension(Suspension? side, int rate, List<TerrainWindow> windows,
         bool front, CancellationToken token)
     {
@@ -72,6 +92,7 @@ public static partial class TerrainProfileCalculator
         // Older processed telemetry stores continuous data with an empty segment list.
         var segments = side.Segments.IsDefaultOrEmpty
             ? [new ProcessedSuspensionSegment { SampleCount = side.Velocity.Length }] : side.Segments;
+        var strokeSizes = MedianStrokeSizes(side, windows);
         foreach (var segment in segments)
         {
             for (var i = 0; i < windows.Count; i++)
@@ -80,15 +101,17 @@ public static partial class TerrainProfileCalculator
                 var w = windows[i];
                 if (!w.Moving || !SampleRange(w.StartSeconds, w.EndSeconds, segment.StartSeconds, rate, segment.SampleCount,
                         out var a, out var b)) continue;
-                double power = 0, compression = 0, rebound = 0;
+                double power = 0, compression = 0, rebound = 0, travel = 0;
                 for (var j = a; j < b; j++)
                 {
                     var v = side.Velocity[segment.FirstDenseIndex + j];
                     power += v * v;
                     compression = Math.Max(compression, v);
                     rebound = Math.Max(rebound, -v);
+                    travel += side.Travel[segment.FirstDenseIndex + j];
                 }
-                var figures = new SuspensionWindowFigures(Math.Sqrt(power / (b - a)), compression, rebound);
+                var figures = new SuspensionWindowFigures(Math.Sqrt(power / (b - a)), compression, rebound,
+                    travel / (b - a), strokeSizes[i]);
                 windows[i] = front ? w with { Front = figures } : w with { Rear = figures };
             }
         }

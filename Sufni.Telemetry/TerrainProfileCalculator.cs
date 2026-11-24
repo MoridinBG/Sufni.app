@@ -59,7 +59,12 @@ public static partial class TerrainProfileCalculator
         var roughState = classified ? TerrainRoughnessState.Classified :
             frame != null || lowers != null ? TerrainRoughnessState.ValuesOnly : TerrainRoughnessState.NoSensor;
         return new TerrainProfileResult.Computed(new([.. windows], frameSeries, lowersSeries, roughState, grade,
-            frame?.AccelLsbPerG, lowers?.AccelLsbPerG) { SilentSensors = silent });
+            frame?.AccelLsbPerG, lowers?.AccelLsbPerG)
+        {
+            SilentSensors = silent,
+            FrontMaxTravel = telemetry.Front is { Present: true } ? telemetry.Front.MaxTravel : null,
+            RearMaxTravel = telemetry.Rear is { Present: true } ? telemetry.Rear.MaxTravel : null
+        });
     }
 
     // A failed sensor reads zero. Its few non-zero windows would still distort classification and the bike

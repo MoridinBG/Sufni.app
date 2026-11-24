@@ -252,7 +252,7 @@ public class SessionInsightsServiceTests
     }
 
     private static TerrainWindow ResponseWindow(int index, RoughnessClass roughness, double frontRms) =>
-        TerrainProfiles.Window(index, roughness, RoughnessSource.Both) with { Front = new(frontRms, 150, 105) };
+        TerrainProfiles.Window(index, roughness, RoughnessSource.Both) with { Front = new(frontRms, 150, 105, 40, null) };
 
     private static ResponseCell FrontRms(SessionResponsePanel panel, RoughnessClass? roughness) =>
         panel.Rows.Single(r => r.Measurement.Class == roughness).Cells.Single(c => c.Measurement.Target == ResponseTarget.FrontRms).Measurement;

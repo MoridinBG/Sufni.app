@@ -17,8 +17,13 @@ public enum TerrainSensor { Front, Rear, Frame, Lowers }
 public sealed record SensorRoughness(double Level, double LowBand, double MiddleBand, double HighBand,
     double SpeedRemoved, double? Normalised, double ClippedShare);
 
+/// <summary>
+/// One end's motion in a window. Velocities are in mm/s. Mean travel and the median travel gain of compression strokes
+/// that start in the window are in mm; the stroke size is null without such a stroke.
+/// </summary>
 [MessagePackObject(keyAsPropertyName: true)]
-public readonly record struct SuspensionWindowFigures(double RmsVelocity, double PeakCompression, double PeakRebound);
+public readonly record struct SuspensionWindowFigures(double RmsVelocity, double PeakCompression, double PeakRebound,
+    double MeanTravel, double? MedianStrokeSize);
 
 [MessagePackObject(keyAsPropertyName: true)]
 public sealed record TerrainWindow(double StartMetres, double StartSeconds, double EndSeconds, double MeanSpeed, bool Moving)
@@ -55,6 +60,8 @@ public sealed record TerrainProfile(ImmutableArray<TerrainWindow> Windows,
 {
     /// <summary>Sensors that read zero in most measured moving windows; the profile holds no readings from them.</summary>
     public ImmutableArray<TerrainSensor> SilentSensors { get; init; } = [];
+    public double? FrontMaxTravel { get; init; }
+    public double? RearMaxTravel { get; init; }
 }
 
 public closed record TerrainProfileResult
