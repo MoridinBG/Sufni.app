@@ -5,7 +5,8 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Terrain.Models;
 
-public enum MapTrackColoring { Plain, Roughness, Steepness }
+// Preferences store the numeric value, so a saved Steepness choice reads as Grade.
+public enum MapTrackColoring { Plain, Roughness, Grade }
 
 /// <summary>Adjacent moving windows of one class on one axis.</summary>
 public readonly record struct TerrainRun<TClass>(double StartSeconds, double EndSeconds, TClass Class) where TClass : struct, Enum;

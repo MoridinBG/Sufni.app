@@ -213,7 +213,7 @@ The code-behind builds a fixed layer stack on each attach: a tile layer (replace
 the view captures a `MapGeometryInput` and requests `IMapGeometryFactory` on the
 background runner. The returned snapshot contains line/marker features and a
 `TrackPointTimeIndex`; unchanged point-list references reuse prior geometry.
-Recorded maps offer Plain, Roughness and Steepness beside the tile provider. The editor owns the saved choice. The selector becomes available with a loaded terrain profile. Geometry uses the strip’s timed runs and the aligned track origin. A colour change interpolates one shared border point, and unclassified sections retain the plain line style.
+Recorded maps offer Plain, Roughness and Grade beside the tile provider. The editor owns the saved choice; preferences store its numeric value, so an earlier Steepness choice reads as Grade. The selector becomes available with a loaded terrain profile. Geometry uses the strip’s timed runs in the theme terrain scales and the aligned track origin. A colour change interpolates one shared border point. With terrain colouring, ground without a class draws as a thinner, dashed grey line, and a legend lists the classes of the chosen colouring and that style.
 
 Only the current attached request applies its result on the UI thread. Cursor and
 viewport changes consume the prepared index without building geometry. A failed

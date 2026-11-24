@@ -238,6 +238,24 @@ public class RecordedTerrainTests
         await h.CloseAsync(editor);
     }
 
+    [AvaloniaTheory]
+    [InlineData(MapTrackColoring.Plain, new string[0])]
+    [InlineData(MapTrackColoring.Roughness, new[] { "Smooth", "Calm", "Medium", "Rough", "Very rough", "Smooth climb", "Technical climb", "No class" })]
+    [InlineData(MapTrackColoring.Grade, new[] { "Steep climb", "Climb", "Flat", "Gentle descent", "Descent", "Steep descent",
+        "Very steep descent", "No class" })]
+    public async Task MapLegendListsTheClassesOfTheChosenColouring(MapTrackColoring coloring, string[] labels)
+    {
+        using var h = new SessionDetailHarness();
+        var session = h.CreateRecordedSession();
+        var editor = h.CreateRecordedEditor(session, projectionChanges: Observable.Return(h.WithTerrain(session, RoughProfile())));
+        await h.LoadAsync(editor);
+        var map = editor.MediaWorkspace.MapViewModel!;
+        map.TrackColoring = coloring;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.Equal(labels, map.TerrainLegend.Select(entry => entry.Label));
+        await h.CloseAsync(editor);
+    }
+
     [AvaloniaFact]
     public async Task FailedTerrainShowsTheErrorRowAndClearsTheMap()
     {

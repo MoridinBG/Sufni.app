@@ -1,3 +1,6 @@
+using Sufni.App.Terrain.Formatting;
+using Sufni.Telemetry;
+using System.Linq;
 using Sufni.App.Infrastructure.Theming;
 using Sufni.App.Terrain.Plots;
 using Sufni.App.Terrain.Models;
@@ -16,6 +19,8 @@ using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Shared.Base;
 namespace Sufni.App.MapsAndTracks.ViewModels;
+
+public sealed record MapLegendEntry(string Label, Avalonia.Media.Color Colour);
 
 public partial class MapViewModel : ViewModelBase, IDisposable
 {
@@ -41,9 +46,21 @@ public partial class MapViewModel : ViewModelBase, IDisposable
     public ImmutableArray<TerrainColourRun> TerrainRuns => coloring switch
     {
         MapTrackColoring.Roughness when terrain is not null => terrain.RoughnessRuns.Colour(SufniThemes.SignalSeries.Terrain.ColorFor),
-        MapTrackColoring.Steepness when terrain is not null => terrain.GradeRuns.Colour(SufniThemes.SignalSeries.Terrain.ColorFor),
+        MapTrackColoring.Grade when terrain is not null => terrain.GradeRuns.Colour(SufniThemes.SignalSeries.Terrain.ColorFor),
         _ => []
     };
+
+    /// <summary>The classes of the selected terrain colouring, then the style of ground without a class.</summary>
+    public IReadOnlyList<MapLegendEntry> TerrainLegend => TerrainRuns.IsEmpty ? [] : coloring switch
+    {
+        MapTrackColoring.Roughness => Legend(Enum.GetValues<RoughnessClass>().Select(v =>
+            new MapLegendEntry(TerrainClassText.Name(v), SufniThemes.SignalSeries.Terrain.ColorFor(v)))),
+        _ => Legend(Enum.GetValues<GradeBand>().Select(v =>
+            new MapLegendEntry(TerrainClassText.Name(v), SufniThemes.SignalSeries.Terrain.ColorFor(v))))
+    };
+
+    private static MapLegendEntry[] Legend(IEnumerable<MapLegendEntry> classes) =>
+        [.. classes, new("No class", SufniThemes.SignalSeries.Terrain.Unclassified)];
 
     internal void ApplyTerrain(MapTrackColoring selected, TerrainPresentation? presentation)
     {
@@ -55,6 +72,7 @@ public partial class MapViewModel : ViewModelBase, IDisposable
         if (hadTerrain != HasTerrain) OnPropertyChanged(nameof(HasTerrain));
         if (previous != selected) OnPropertyChanged(nameof(TrackColoring));
         OnPropertyChanged(nameof(TerrainRuns));
+        OnPropertyChanged(nameof(TerrainLegend));
     }
 
     public IMapGeometryFactory GeometryFactory { get; }

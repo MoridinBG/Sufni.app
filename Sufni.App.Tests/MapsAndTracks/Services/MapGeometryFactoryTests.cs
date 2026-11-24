@@ -26,6 +26,17 @@ public class MapGeometryFactoryTests
     }
 
     [Fact]
+    public async Task GroundWithoutAClassDrawsThinAndDashedBetweenColouredRuns()
+    {
+        var input = Input with { TerrainRuns = [new(0, 1, Avalonia.Media.Colors.Blue), new(3, 4, Avalonia.Media.Colors.Red)] };
+        var built = await factory.BuildAsync(input, null, TestContext.Current.CancellationToken);
+        var pens = built.SessionTrack.LineFeatures.Select(f => Assert.Single(f.Styles.OfType<VectorStyle>()).Line!).ToArray();
+        Assert.Equal(3, pens.Length);
+        Assert.Equal((PenStyle.Dash, 3d), (pens[1].PenStyle, pens[1].Width));
+        Assert.Equal(PenStyle.Solid, pens[0].PenStyle);
+    }
+
+    [Fact]
     public async Task PlainColouringReplacesTerrainFeaturesWithOneTrackFeature()
     {
         var colored = await factory.BuildAsync(Input, null, TestContext.Current.CancellationToken);

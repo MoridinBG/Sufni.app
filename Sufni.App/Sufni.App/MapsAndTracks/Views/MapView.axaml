@@ -10,6 +10,25 @@
     <Grid>
         <ContentControl Name="MapHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
 
+        <Border Name="TerrainLegend" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10"
+                Padding="{StaticResource SufniMapOverlayPadding}" Background="{DynamicResource SufniMapOverlaySurface}"
+                CornerRadius="{StaticResource SufniMapOverlayCornerRadius}" Opacity="{StaticResource SufniMapOverlayOpacity}"
+                IsVisible="{Binding !TerrainRuns.IsEmpty}">
+            <ItemsControl ItemsSource="{Binding TerrainLegend}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:MapLegendEntry">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <Border Width="10" Height="10" CornerRadius="2" VerticalAlignment="Center">
+                                <Border.Background><SolidColorBrush Color="{Binding Colour}" /></Border.Background>
+                            </Border>
+                            <TextBlock Text="{Binding Label}" Foreground="{DynamicResource SufniMapOverlayText}"
+                                       FontSize="{StaticResource SufniFontSizeSmall}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Border>
+
         <Border VerticalAlignment="Bottom" HorizontalAlignment="Left"
                 Margin="10" Padding="{StaticResource SufniMapOverlayPadding}"
                 Background="{DynamicResource SufniMapOverlaySurface}"

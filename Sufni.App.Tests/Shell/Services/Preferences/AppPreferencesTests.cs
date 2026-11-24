@@ -23,10 +23,21 @@ public class AppPreferencesTests
         var path = CreatePreferencesPath(directory);
         var session = Guid.NewGuid();
         await TestAppPreferences.Load(path).Session.UpdateRecordedAsync(session,
-            p => p with { MapTrackColoring = MapTrackColoring.Steepness });
+            p => p with { MapTrackColoring = MapTrackColoring.Grade });
         var reopened = TestAppPreferences.Load(path);
-        Assert.Equal(MapTrackColoring.Steepness, (await reopened.Session.GetRecordedAsync(session)).MapTrackColoring);
+        Assert.Equal(MapTrackColoring.Grade, (await reopened.Session.GetRecordedAsync(session)).MapTrackColoring);
         Assert.Equal(MapTrackColoring.Plain, (await reopened.Session.GetRecordedAsync(Guid.NewGuid())).MapTrackColoring);
+    }
+
+    [Fact]
+    public async Task SavedSteepnessColouringReadsAsGrade()
+    {
+        using var directory = new TempDirectory();
+        var path = CreatePreferencesPath(directory);
+        var id = Guid.NewGuid();
+        await File.WriteAllTextAsync(path, """{"session":{"sessions":{"SESSION":{"mapTrackColoring":2}}}}"""
+            .Replace("SESSION", id.ToString("D")), TestContext.Current.CancellationToken);
+        Assert.Equal(MapTrackColoring.Grade, (await TestAppPreferences.Load(path).Session.GetRecordedAsync(id)).MapTrackColoring);
     }
 
     [Fact]

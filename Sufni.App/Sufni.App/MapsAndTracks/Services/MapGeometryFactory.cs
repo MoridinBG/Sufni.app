@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Sufni.App.Infrastructure.Theming;
 using Sufni.App.Terrain.Models;
 using System;
 using System.Collections.Generic;
@@ -64,7 +65,7 @@ internal sealed class MapGeometryFactory(IBackgroundTaskRunner background) : IMa
         ImmutableArray<TerrainColourRun> runs, double origin)
     {
         if (runs.IsDefaultOrEmpty)
-            return [SessionLine(points.Select(p => new Coordinate(p.X, p.Y)).ToArray(), null)];
+            return [PlainLine(points.Select(p => new Coordinate(p.X, p.Y)).ToArray())];
         var features = new List<IFeature>();
         var line = new List<Coordinate> { new(points[0].X, points[0].Y) };
         using var changes = Boundaries().GetEnumerator();
@@ -106,16 +107,28 @@ internal sealed class MapGeometryFactory(IBackgroundTaskRunner background) : IMa
 
         void FinishLine()
         {
-            if (line.Count >= 2) features.Add(SessionLine(line.ToArray(), colour));
+            if (line.Count >= 2) features.Add(colour is { } c ? TerrainLine(line.ToArray(), c) : UnclassifiedLine(line.ToArray()));
             line.Clear();
         }
     }
 
-    private static GeometryFeature SessionLine(Coordinate[] coordinates, Avalonia.Media.Color? terrain)
+    private static GeometryFeature PlainLine(Coordinate[] coordinates) =>
+        Line(coordinates, new Pen(Color.FromString("#9e0142"), 5));
+
+    private static GeometryFeature TerrainLine(Coordinate[] coordinates, Avalonia.Media.Color colour) =>
+        Line(coordinates, new Pen(new Color(colour.R, colour.G, colour.B, colour.A), 5));
+
+    // Grey alone would read as Flat or a climb level, so ground without a class is also thinner and dashed.
+    private static GeometryFeature UnclassifiedLine(Coordinate[] coordinates)
     {
-        var color = terrain is { } c ? new Color(c.R, c.G, c.B, c.A) : Color.FromString("#9e0142");
+        var colour = SufniThemes.SignalSeries.Terrain.Unclassified;
+        return Line(coordinates, new Pen(new Color(colour.R, colour.G, colour.B, colour.A), 3) { PenStyle = PenStyle.Dash });
+    }
+
+    private static GeometryFeature Line(Coordinate[] coordinates, Pen pen)
+    {
         var feature = new GeometryFeature { Geometry = new LineString(coordinates) };
-        feature.Styles.Add(new VectorStyle { Line = new Pen(color, 5) });
+        feature.Styles.Add(new VectorStyle { Line = pen });
         return feature;
     }
 
