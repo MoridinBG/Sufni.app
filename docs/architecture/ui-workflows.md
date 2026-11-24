@@ -49,6 +49,7 @@ All coordinators are singletons.
 | `IInboundSyncCoordinator` (`InboundSyncCoordinator`) | desktop only | Server-side pairing, row push/pull, and BLOB and source uploads. |
 | `IMapLayerCoordinator` (`MapLayerCoordinator`) | shared | Custom map-layer additions and the device's map-layer selection. |
 | `TrackCoordinator` | shared | GPS metric recomputation, GPX import and read-only session-track loading. |
+| `ITerrainProfileCoordinator` (`TerrainProfileCoordinator`) | shared | Device-local terrain profile backfill, editor priority and the terrain fields of published session snapshots. See [Terrain profiles](terrain.md). |
 | `LiveDaqCoordinator` | shared | `LiveDaqStore` writes, the browse lease, live-capture save and DAQ management. See [Live DAQ Streaming](live-streaming.md). |
 
 Details per coordinator:
@@ -89,6 +90,11 @@ Details per coordinator:
   `TrackStore` and reads its points through `ISessionTrackReader`. GPS
   alignment belongs to `SessionCoordinator.ShiftGpsOffsetAsync`, which uses the
   same selection rule.
+- **`TerrainProfileCoordinator`** materializes device-local terrain profiles,
+  one recording at a time, after session and track store publications. It
+  commits each result under its key and publishes it onto the current session
+  snapshot. An open editor can prioritize a pending recording. See
+  [Terrain profiles](terrain.md).
 - **`LiveDaqCoordinator`** reconciles discovery with known boards. It activates
   when the user selects the Live primary page, so it needs no eager resolution.
   The shell routes diagnostics and live-session editor keys. `EditorFactory`
@@ -255,7 +261,7 @@ After the tabs close, the shell:
    Window edits stay retained until their recomputes complete, so recompute remains
    available throughout this drain. These owners accept writes normally; closed
    tabs no longer initiate them.
-2. Cancels and awaits startup jobs, import, sync, recompute and track work.
+2. Cancels and awaits startup jobs, import, sync, recompute, track and terrain work.
 3. Finalizes pending deletes.
 4. Stops the sync server.
 5. Disposes the application provider.
@@ -466,8 +472,9 @@ save/discard/cancel and unsavable-page confirmation render as overlays on
 single-view hosts. Every overlay uses the explicitly configured host; there is
 no application-lifetime lookup fallback.
 
-`App`'s page-activation callback eagerly resolves `TrackCoordinator` and
-`SyncCoordinator` for their store and inbound-activity subscriptions. This
+`App`'s page-activation callback eagerly resolves `TrackCoordinator`,
+`TerrainProfileCoordinator` and `SyncCoordinator` for their store and
+inbound-activity subscriptions. This
 happens before server startup. `AppStartup` awaits the mobile pairing
 coordinator's explicit `InitializeAsync` before it activates pages; the
 constructor starts no credential or identity I/O. Inbound sync is reached

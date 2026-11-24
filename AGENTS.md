@@ -384,7 +384,7 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
 - **Dependency injection** with
   `Microsoft.Extensions.DependencyInjection`. Services with
   constructor-time event subscriptions
-  (`TrackCoordinator` and `SyncCoordinator`) are eagerly resolved in
+  (`TrackCoordinator`, `TerrainProfileCoordinator` and `SyncCoordinator`) are eagerly resolved in
   `App`'s startup page-activation callback so subscriptions wire up before
   server startup or user-driven arrivals. `AppStartup` awaits mobile
   `PairingClientCoordinator.InitializeAsync` before creating pages.
