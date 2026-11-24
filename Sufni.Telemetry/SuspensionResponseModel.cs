@@ -116,7 +116,7 @@ public sealed record SuspensionResponseModel(ImmutableDictionary<ResponseTarget,
             _ => null
         };
         // Climbing response follows pedalling and rider load, not the ground law this model fits.
-        if (bands is null || value is not > 0 || window.Direction == TerrainDirection.Climbing) return false;
+        if (bands is null || value is not > 0 || window.Climbing) return false;
         row[0] = 1;
         row[1] = Math.Log(bands.LowBand);
         row[2] = Math.Log(bands.MiddleBand);

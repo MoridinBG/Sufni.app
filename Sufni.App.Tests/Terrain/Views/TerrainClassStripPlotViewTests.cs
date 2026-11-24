@@ -11,7 +11,7 @@ namespace Sufni.App.Tests.Terrain.Views;
 public class TerrainClassStripPlotViewTests
 {
     [AvaloniaFact]
-    public async Task RoughnessAndSteepnessOccupySeparateTimedBands()
+    public async Task RoughnessAndGradeOccupySeparateTimedBands()
     {
         var view = new TerrainClassStripPlotView();
         await using var mounted = await PlotViewTestSupport.MountAsync(view);

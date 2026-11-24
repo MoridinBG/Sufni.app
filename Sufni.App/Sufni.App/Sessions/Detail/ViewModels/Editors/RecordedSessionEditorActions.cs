@@ -13,7 +13,7 @@ namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 internal closed record RecordedSessionEditorIntent
 {
     public sealed record ToggleRoughness(RoughnessClass Class) : RecordedSessionEditorIntent;
-    public sealed record ToggleSteepness(SteepnessClass Class) : RecordedSessionEditorIntent;
+    public sealed record ToggleGrade(GradeBand Band) : RecordedSessionEditorIntent;
     public sealed record ClearClassFilter : RecordedSessionEditorIntent;
     public sealed record BeginSegmentComparison(Guid MatchedSessionId) : RecordedSessionEditorIntent;
     public sealed record EndSegmentComparison : RecordedSessionEditorIntent;
@@ -165,7 +165,7 @@ internal sealed class RecordedSessionEditorActions : IDisposable
     }
 
     public void ToggleRoughness(RoughnessClass value) => Emit(new RecordedSessionEditorIntent.ToggleRoughness(value));
-    public void ToggleSteepness(SteepnessClass value) => Emit(new RecordedSessionEditorIntent.ToggleSteepness(value));
+    public void ToggleGrade(GradeBand value) => Emit(new RecordedSessionEditorIntent.ToggleGrade(value));
     public void ClearClassFilter() => Emit(new RecordedSessionEditorIntent.ClearClassFilter());
     public void BeginSegmentComparison(Guid id) => Emit(new RecordedSessionEditorIntent.BeginSegmentComparison(id));
     public void EndSegmentComparison() => Emit(new RecordedSessionEditorIntent.EndSegmentComparison());

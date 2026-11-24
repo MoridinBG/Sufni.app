@@ -39,7 +39,7 @@ public partial class MapViewModel : ViewModelBase, IDisposable
     public ImmutableArray<TerrainClassRun> TerrainRuns => coloring switch
     {
         MapTrackColoring.Roughness when terrain is not null => terrain.RoughnessRuns,
-        MapTrackColoring.Steepness when terrain is not null => terrain.SteepnessRuns,
+        MapTrackColoring.Steepness when terrain is not null => terrain.GradeRuns,
         _ => []
     };
 

@@ -4,11 +4,11 @@ using MessagePack;
 namespace Sufni.Telemetry;
 
 public enum RoughnessClass { Calm, Medium, Rough }
-public enum SteepnessClass { Gentle, Moderate, Steep }
-public enum TerrainDirection { Climbing, Level, Descending }
+/// <summary>Signed ground slope over 50 m. The two climb bands come first.</summary>
+public enum GradeBand { SteepClimb, Climb, Flat, GentleDescent, Descent, SteepDescent, VerySteepDescent }
 public enum RoughnessSource { Both, FrameOnly, LowersOnly }
 public enum TerrainRoughnessState { Classified, ValuesOnly, NoSensor }
-public enum TerrainSteepnessState { Available, NoFrameSensor, NoElevation, TooShort }
+public enum TerrainGradeState { Available, NoFrameSensor, NoElevation, TooShort }
 public enum TerrainUnavailableReason { NoTrack, NoMovement }
 public enum TerrainSensor { Front, Rear, Frame, Lowers }
 
@@ -27,8 +27,10 @@ public sealed record TerrainWindow(double StartMetres, double StartSeconds, doub
     public RoughnessClass? Roughness { get; init; }
     public RoughnessSource? Source { get; init; }
     public double? Grade { get; init; }
-    public TerrainDirection? Direction { get; init; }
-    public SteepnessClass? Steepness { get; init; }
+    public GradeBand? Band { get; init; }
+
+    [IgnoreMember]
+    public bool Climbing => Band?.IsClimb() == true;
 
     [IgnoreMember]
     public double? NormalisedRoughness => Source switch
@@ -48,7 +50,7 @@ public readonly record struct TerrainMatchSample(double Metres, double Seconds, 
 [MessagePackObject(keyAsPropertyName: true)]
 public sealed record TerrainProfile(ImmutableArray<TerrainWindow> Windows,
     ImmutableArray<TerrainMatchSample> FrameMatching, ImmutableArray<TerrainMatchSample> LowersMatching,
-    TerrainRoughnessState RoughnessState, TerrainSteepnessState SteepnessState, double? FrameScale, double? LowersScale)
+    TerrainRoughnessState RoughnessState, TerrainGradeState GradeState, double? FrameScale, double? LowersScale)
 {
     /// <summary>Sensors that read zero in most measured moving windows; the profile holds no readings from them.</summary>
     public ImmutableArray<TerrainSensor> SilentSensors { get; init; } = [];

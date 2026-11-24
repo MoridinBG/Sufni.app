@@ -6,19 +6,19 @@ namespace Sufni.App.Terrain.Models;
 public readonly record struct TerrainClassFilter
 {
     private readonly int roughness;
-    private readonly int steepness;
+    private readonly int grade;
 
-    private TerrainClassFilter(int roughness, int steepness) => (this.roughness, this.steepness) = (roughness, steepness);
+    private TerrainClassFilter(int roughness, int grade) => (this.roughness, this.grade) = (roughness, grade);
 
-    public bool IsEmpty => roughness == 0 && steepness == 0;
+    public bool IsEmpty => roughness == 0 && grade == 0;
     public bool Contains(RoughnessClass value) => (roughness & (1 << (int)value)) != 0;
-    public bool Contains(SteepnessClass value) => (steepness & (1 << (int)value)) != 0;
-    public TerrainClassFilter Toggle(RoughnessClass value) => new(roughness ^ (1 << (int)value), steepness);
-    public TerrainClassFilter Toggle(SteepnessClass value) => new(roughness, steepness ^ (1 << (int)value));
+    public bool Contains(GradeBand value) => (grade & (1 << (int)value)) != 0;
+    public TerrainClassFilter Toggle(RoughnessClass value) => new(roughness ^ (1 << (int)value), grade);
+    public TerrainClassFilter Toggle(GradeBand value) => new(roughness, grade ^ (1 << (int)value));
 
     public bool Matches(TerrainWindow window) => window.Moving &&
         (roughness == 0 || window.Roughness is { } r && Contains(r)) &&
-        (steepness == 0 || window.Steepness is { } s && Contains(s));
+        (grade == 0 || window.Band is { } b && Contains(b));
 }
 
 public closed record AnalysisScope

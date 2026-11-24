@@ -11,7 +11,7 @@ internal static partial class RecordedSessionPresentationDeriver
     public static TerrainPresentation CreateTerrain(TerrainProfile profile)
     {
         var roughness = ImmutableArray.CreateBuilder<TerrainClassRun>();
-        var steepness = ImmutableArray.CreateBuilder<TerrainClassRun>();
+        var grade = ImmutableArray.CreateBuilder<TerrainClassRun>();
         var frame = new TerrainSignalSections();
         var lowers = new TerrainSignalSections();
         var grades = new TerrainSignalSections();
@@ -26,15 +26,16 @@ internal static partial class RecordedSessionPresentationDeriver
                 RoughnessClass.Calm => TerrainLevel.Low, RoughnessClass.Medium => TerrainLevel.Middle,
                 RoughnessClass.Rough => TerrainLevel.High, _ => null
             });
-            AddRun(steepness, window, window.Steepness switch
+            AddRun(grade, window, window.Band switch
             {
-                SteepnessClass.Gentle => TerrainLevel.Low, SteepnessClass.Moderate => TerrainLevel.Middle,
-                SteepnessClass.Steep => TerrainLevel.High, _ => null
+                GradeBand.Climb or GradeBand.Flat or GradeBand.GentleDescent => TerrainLevel.Low,
+                GradeBand.SteepClimb or GradeBand.Descent => TerrainLevel.Middle,
+                GradeBand.SteepDescent or GradeBand.VerySteepDescent => TerrainLevel.High, _ => null
             });
-            var grade = TerrainProfileCalculator.BaselineGrade(profile.Windows, i);
+            var baseline = TerrainProfileCalculator.BaselineGrade(profile.Windows, i);
             frame.Add(window.StartSeconds, window.EndSeconds, window.Frame?.SpeedRemoved);
             lowers.Add(window.StartSeconds, window.EndSeconds, window.Lowers?.SpeedRemoved);
-            grades.Add(window.StartSeconds, window.EndSeconds, TerrainSignalSections.Degrees(grade));
+            grades.Add(window.StartSeconds, window.EndSeconds, TerrainSignalSections.Degrees(baseline));
             switch (window.Source)
             {
                 case RoughnessSource.Both: joint++; break;
@@ -52,7 +53,7 @@ internal static partial class RecordedSessionPresentationDeriver
             }
         }
         var total = Math.Max(1d, joint + frameOnly + lowersOnly);
-        return new(roughness.ToImmutable(), steepness.ToImmutable(), frame.Build(), lowers.Build(), grades.Build(),
+        return new(roughness.ToImmutable(), grade.ToImmutable(), frame.Build(), lowers.Build(), grades.Build(),
             new(joint / total, frameOnly / total, lowersOnly / total, clipped, frameMissing, lowersMissing,
                 frameUncalibrated, lowersUncalibrated, profile.SilentSensors));
     }

@@ -18,20 +18,19 @@ public class TrailAverageTests
     }
 
     [Fact]
-    public void AveragedGradeBetweenFiveAndTenDegreesIsModerate()
+    public void AveragedGradeBetweenFiveAndTenDegreesIsDescent()
     {
         var average = Average([.. gradeSeeds.Select(seed => Measurements(seed))]);
-        Assert.All(average.Windows, w => Assert.Equal(SteepnessClass.Moderate, w.Steepness));
+        Assert.All(average.Windows, w => Assert.Equal(GradeBand.Descent, w.Band));
     }
 
     [Fact]
-    public void AveragedClimbHasDirectionAndSteepnessButNoRoughnessClass()
+    public void AveragedClimbHasAClimbBandButNoRoughnessClass()
     {
         var average = Average([.. gradeSeeds.Select(seed => Measurements(seed, grade: -GroundGrade))]);
         Assert.All(average.Windows, w =>
         {
-            Assert.Equal(TerrainDirection.Climbing, w.Direction);
-            Assert.Equal(SteepnessClass.Moderate, w.Steepness);
+            Assert.Equal(GradeBand.SteepClimb, w.Band);
             Assert.Null(w.Roughness);
         });
     }
@@ -84,7 +83,7 @@ public class TrailAverageTests
         var run = new AlignedTerrainRun(profile, TerrainProfiles.Identity(7));
         var average = Assert.IsType<TrailAverage.Averaged>(TrailAverage.Calculate(profile, new(0, 7), [run, run]));
         // Windows 0, 1, 2 and 4 give (3 × sin 3° + 0.3) / 4 ≈ 0.114, between sin 5° and sin 10°.
-        Assert.Equal(SteepnessClass.Moderate, average.Windows.Single(w => w.SourceIndex == 2).Steepness);
+        Assert.Equal(GradeBand.Descent, average.Windows.Single(w => w.SourceIndex == 2).Band);
     }
 
     [Fact]

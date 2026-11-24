@@ -39,11 +39,11 @@ public static partial class TerrainProfileCalculator
         })).ToImmutableArray();
         if (silent.Contains(TerrainSensor.Frame)) (frame, frameSeries) = (null, []);
         if (silent.Contains(TerrainSensor.Lowers)) (lowers, lowersSeries) = (null, []);
-        var steepness = MeasureGrade(motion, imu, frame, windows, cancellationToken);
+        var grade = MeasureGrade(motion, imu, frame, windows, cancellationToken);
         for (var i = 0; i < windows.Count; i++)
         {
             // Pedalling dominates climbing vibration, so the ground scale does not apply there.
-            if (!windows[i].Moving || windows[i].Direction == TerrainDirection.Climbing) continue;
+            if (!windows[i].Moving || windows[i].Climbing) continue;
             var (roughness, source) = Classify(windows[i].Frame, windows[i].Lowers);
             windows[i] = windows[i] with { Roughness = roughness, Source = source };
         }
@@ -51,7 +51,7 @@ public static partial class TerrainProfileCalculator
                          lowers != null && TerrainCalibration.For(ImuLocation.Fork, lowers.AccelLsbPerG) != null;
         var roughState = classified ? TerrainRoughnessState.Classified :
             frame != null || lowers != null ? TerrainRoughnessState.ValuesOnly : TerrainRoughnessState.NoSensor;
-        return new TerrainProfileResult.Computed(new([.. windows], frameSeries, lowersSeries, roughState, steepness,
+        return new TerrainProfileResult.Computed(new([.. windows], frameSeries, lowersSeries, roughState, grade,
             frame?.AccelLsbPerG, lowers?.AccelLsbPerG) { SilentSensors = silent });
     }
 
@@ -99,8 +99,7 @@ public static partial class TerrainProfileCalculator
         var moving = profile.Windows.Where(w => w.Moving).ToArray();
         var classified = moving.Where(w => w.Roughness.HasValue).ToArray();
         return new(WindowMetres * (double)moving.Length,
-            profile.SteepnessState == TerrainSteepnessState.Available
-                ? WindowMetres * (double)moving.Count(w => w.Direction == TerrainDirection.Climbing) : null,
+            profile.GradeState == TerrainGradeState.Available ? WindowMetres * (double)moving.Count(w => w.Climbing) : null,
             WindowMetres * (double)classified.Length,
             classified.Length == 0 ? 0 : (double)classified.Count(w => w.Roughness == RoughnessClass.Rough) / classified.Length,
             classified.GroupBy(w => w.Source).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key);

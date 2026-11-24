@@ -30,7 +30,7 @@ public sealed class TerrainClassStripPlot(Plot plot, SufniTheme? theme = null) :
         Plot.Axes.SetLimits(0, duration, 0, 2);
         AddMirroredTimeSeriesAxisRules(0, duration, 0, 2);
         DrawBand(terrain.RoughnessRuns, 1);
-        DrawBand(terrain.SteepnessRuns, 0);
+        DrawBand(terrain.GradeRuns, 0);
         var airtime = RecordedTimeRangeOverlayFactory.CreateAirtimeRegistration(telemetry.Airtimes, PlotTheme);
         SetRangeOverlaySet(airtime.Id, airtime.Set);
         SetRangeOverlayVisibility(airtime.Id, airtime.IsVisible);

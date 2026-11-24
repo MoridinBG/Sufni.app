@@ -5,6 +5,7 @@ using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Terrain.Formatting;
 using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Queries;
 using Sufni.Telemetry;
@@ -41,7 +42,7 @@ public sealed class TerrainClassFilterViewModel : ObservableObject, IDisposable
 {
     private readonly IDisposable subscription;
     public IReadOnlyList<TerrainClassChip> Roughness { get; }
-    public IReadOnlyList<TerrainClassChip> Steepness { get; }
+    public IReadOnlyList<TerrainClassChip> Grade { get; }
     public bool Available { get; private set => SetProperty(ref field, value); }
     public bool IsActive { get; private set => SetProperty(ref field, value); }
     public double SelectedMetres { get; private set => SetProperty(ref field, value); }
@@ -51,10 +52,10 @@ public sealed class TerrainClassFilterViewModel : ObservableObject, IDisposable
 
     internal TerrainClassFilterViewModel(IObservable<RecordedSessionEditorState> states, RecordedSessionEditorActions actions)
     {
-        Roughness = Enum.GetValues<RoughnessClass>().Select(value => new TerrainClassChip(value.ToString(),
+        Roughness = Enum.GetValues<RoughnessClass>().Select(value => new TerrainClassChip(TerrainClassText.Name(value),
             () => actions.ToggleRoughness(value), f => f.Contains(value), r => r.RoughnessMetres[(int)value])).ToArray();
-        Steepness = Enum.GetValues<SteepnessClass>().Select(value => new TerrainClassChip(value.ToString(),
-            () => actions.ToggleSteepness(value), f => f.Contains(value), r => r.SteepnessMetres[(int)value])).ToArray();
+        Grade = Enum.GetValues<GradeBand>().Select(value => new TerrainClassChip(TerrainClassText.Name(value),
+            () => actions.ToggleGrade(value), f => f.Contains(value), r => r.GradeMetres[(int)value])).ToArray();
         Clear = new RelayCommand(actions.ClearClassFilter);
         subscription = states.Select(state => (Available: state.Terrain is RecordedTerrainState.Loaded,
             Scope: state.Intent.Scope as AnalysisScope.ClassFilter, Result: state.TerrainSelection))
@@ -66,8 +67,8 @@ public sealed class TerrainClassFilterViewModel : ObservableObject, IDisposable
             Selection = IsActive ? result?.Selection : null;
             SelectedMetres = IsActive ? result?.SelectedMetres ?? 0 : 0;
             foreach (var chip in Roughness) chip.Update(scope?.Filter ?? default, result);
-            foreach (var chip in Steepness) chip.Update(scope?.Filter ?? default, result);
-            var selected = Roughness.Concat(Steepness).Where(chip => chip.IsChecked).Select(chip => chip.Label);
+            foreach (var chip in Grade) chip.Update(scope?.Filter ?? default, result);
+            var selected = Roughness.Concat(Grade).Where(chip => chip.IsChecked).Select(chip => chip.Label);
             BannerText = IsActive ? $"{string.Join(", ", selected)} · {SelectedMetres:0.#} m" : string.Empty;
         });
     }

@@ -4,19 +4,17 @@ public static partial class TerrainProfileCalculator
 {
     private const double MinimumGradeMetres = 800;
     private const double GradeCutoffHz = 0.08;
-    private static readonly double LevelGrade = Math.Sin(2 * Math.PI / 180);
-    private static readonly double GentleGrade = Math.Sin(5 * Math.PI / 180);
-    private static readonly double SteepGrade = Math.Sin(10 * Math.PI / 180);
+    private static readonly double[] BandEdges = [.. new[] { -6d, -2, 2, 5, 10, 15 }.Select(d => Math.Sin(d * Math.PI / 180))];
 
-    private static TerrainSteepnessState MeasureGrade(TrackMotion motion, RawImuData? imu, ImuMetaEntry? frame,
+    private static TerrainGradeState MeasureGrade(TrackMotion motion, RawImuData? imu, ImuMetaEntry? frame,
         List<TerrainWindow> windows, CancellationToken token)
     {
-        if (imu is null || frame is null) return TerrainSteepnessState.NoFrameSensor;
+        if (imu is null || frame is null) return TerrainGradeState.NoFrameSensor;
         var first = motion.At(windows.First(w => w.Moving).StartSeconds);
         var last = motion.At(windows.Last(w => w.Moving).EndSeconds);
         if (first?.Elevation is not { } startHeight || last?.Elevation is not { } endHeight)
-            return TerrainSteepnessState.NoElevation;
-        if (windows.Count(w => w.Moving) * WindowMetres < MinimumGradeMetres) return TerrainSteepnessState.TooShort;
+            return TerrainGradeState.NoElevation;
+        if (windows.Count(w => w.Moving) * WindowMetres < MinimumGradeMetres) return TerrainGradeState.TooShort;
 
         double totalGrade = 0, totalWeight = 0;
         foreach (var segment in imu.SampleSegments)
@@ -53,27 +51,26 @@ public static partial class TerrainProfileCalculator
                 windows[j] = window with { Grade = sum / weight };
             }
         }
-        if (totalWeight == 0) return TerrainSteepnessState.NoFrameSensor;
+        if (totalWeight == 0) return TerrainGradeState.NoFrameSensor;
         var zero = totalGrade / totalWeight - (startHeight - endHeight) / (last.Value.Distance - first.Value.Distance);
         for (var i = 0; i < windows.Count; i++)
             if (windows[i].Grade.HasValue) windows[i] = windows[i] with { Grade = windows[i].Grade - zero };
         for (var i = 0; i < windows.Count; i++)
         {
             if (BaselineGrade(windows, i) is not { } baseline) continue;
-            var (direction, steepness) = ClassifyGrade(baseline);
-            windows[i] = windows[i] with { Direction = direction, Steepness = steepness };
+            windows[i] = windows[i] with { Band = ClassifyGrade(baseline) };
         }
-        return TerrainSteepnessState.Available;
+        return TerrainGradeState.Available;
     }
 
-    internal static (TerrainDirection Direction, SteepnessClass Steepness) ClassifyGrade(double baseline)
+    internal static GradeBand ClassifyGrade(double baseline)
     {
-        var direction = baseline > LevelGrade ? TerrainDirection.Descending
-            : baseline < -LevelGrade ? TerrainDirection.Climbing : TerrainDirection.Level;
-        var magnitude = Math.Abs(baseline);
-        return (direction, magnitude < GentleGrade ? SteepnessClass.Gentle
-            : magnitude < SteepGrade ? SteepnessClass.Moderate : SteepnessClass.Steep);
+        var band = 0;
+        while (band < BandEdges.Length && baseline >= BandEdges[band]) band++;
+        return (GradeBand)band;
     }
+
+    public static bool IsClimb(this GradeBand band) => band <= GradeBand.Climb;
 
     /// <summary>Mean downhill grade over up to five adjacent windows, requiring three measured grades.</summary>
     public static double? BaselineGrade(IReadOnlyList<TerrainWindow> windows, int i) =>

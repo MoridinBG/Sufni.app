@@ -7,14 +7,14 @@ using Sufni.Telemetry;
 namespace Sufni.App.Terrain.Queries;
 
 public sealed record TerrainSelectionResult(TelemetryTimeSelection? Selection, double SelectedMetres,
-    ImmutableArray<double> RoughnessMetres, ImmutableArray<double> SteepnessMetres);
+    ImmutableArray<double> RoughnessMetres, ImmutableArray<double> GradeMetres);
 
 public static class TerrainSelectionQuery
 {
     public static TerrainSelectionResult Evaluate(TerrainProfile profile, TerrainClassFilter filter, TelemetryTimeRange? range)
     {
-        var roughness = new double[3];
-        var steepness = new double[3];
+        var roughness = new double[Enum.GetValues<RoughnessClass>().Length];
+        var grade = new double[Enum.GetValues<GradeBand>().Length];
         var intervals = new List<TelemetryTimeRange>();
         double start = 0, end = 0, distance = 0, selected = 0;
         foreach (var window in profile.Windows)
@@ -25,7 +25,7 @@ public static class TerrainSelectionQuery
             if (to <= from) continue;
             var metres = window.MeanSpeed * (to - from);
             if (window.Roughness is { } r) roughness[(int)r] += metres;
-            if (window.Steepness is { } s) steepness[(int)s] += metres;
+            if (window.Band is { } b) grade[(int)b] += metres;
             if (!filter.Matches(window)) continue;
             if (distance == 0 || from != end)
             {
@@ -36,7 +36,7 @@ public static class TerrainSelectionQuery
             distance += metres;
         }
         FinishInterval();
-        return new(filter.IsEmpty ? (TelemetryTimeSelection?)range : new(intervals), selected, [.. roughness], [.. steepness]);
+        return new(filter.IsEmpty ? (TelemetryTimeSelection?)range : new(intervals), selected, [.. roughness], [.. grade]);
 
         void FinishInterval()
         {

@@ -169,7 +169,7 @@ public class RecordedTerrainTests
         var editor = h.CreateRecordedEditor(session, projectionChanges: changes);
         await h.LoadAsync(editor);
         var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0)], TerrainRoughnessState.ValuesOnly,
-            TerrainSteepnessState.NoElevation, 2048, null);
+            TerrainGradeState.NoElevation, 2048, null);
         changes.OnNext(h.WithTerrain(session, profile));
         await ViewTestHelpers.FlushDispatcherAsync();
         Assert.True(editor.SignalsWorkspace.TerrainSignalState.IsReady);
@@ -237,7 +237,7 @@ public class RecordedTerrainTests
         using var h = new SessionDetailHarness();
         var session = h.CreateRecordedSession();
         var key = SessionTerrainStatusQuery.Evaluate(session, []).Key;
-        var profile = TerrainProfiles.Profile([], TerrainRoughnessState.NoSensor, TerrainSteepnessState.NoFrameSensor, null, null);
+        var profile = TerrainProfiles.Profile([], TerrainRoughnessState.NoSensor, TerrainGradeState.NoFrameSensor, null, null);
         var domain = SessionDetailHarness.DomainFromSnapshot(session);
         var current = new TerrainStatus.Current(key, TerrainProfileCalculator.Summarize(profile));
         using var changes = new BehaviorSubject<RecordedSessionDomainSnapshot>(domain with { Terrain = current });

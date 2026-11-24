@@ -236,4 +236,4 @@ The workspace view models expose the presentation states, signal-row preferences
 
 ## Recorded terrain rows
 
-The Terrain group contains a fixed-height, two-band class strip and the Roughness and Grade plots. A rectangle spans each contiguous run of equal class. The upper band shows roughness and the lower band shows steepness. Sensor values use window midpoints and reference speed 7 m/s. Grade uses the 50 m baseline in degrees, positive downhill. Missing windows break a series. All three rows share the recorded timeline, range actions, airtime and analysis-selection overlays. [Terrain profiles](terrain.md)
+The Terrain group contains a fixed-height, two-band class strip and the Roughness and Grade plots. A rectangle spans each contiguous run of equal class. The upper band shows roughness and the lower band shows grade. Sensor values use window midpoints and reference speed 7 m/s. Grade uses the 50 m baseline in degrees, positive downhill. Missing windows break a series. All three rows share the recorded timeline, range actions, airtime and analysis-selection overlays. [Terrain profiles](terrain.md)

@@ -80,7 +80,7 @@ public class SuspensionResponseModelTests
         var profile = SyntheticResponseRides.Profile(37);
         var evaluated = profile with
         {
-            Windows = [.. profile.Windows.Select(w => w.StartMetres < 1100 ? w with { Direction = TerrainDirection.Climbing } : w)]
+            Windows = [.. profile.Windows.Select(w => w.StartMetres < 1100 ? w with { Band = GradeBand.Climb } : w)]
         };
         var whole = TerrainResponse.Describe(evaluated, SuspensionResponseModel.Fit(evaluated, SyntheticResponseRides.Baseline), null)
             .Single(row => row.Class is null);
@@ -88,7 +88,7 @@ public class SuspensionResponseModelTests
     }
 
     private static TerrainProfile Climbing(TerrainProfile profile) =>
-        profile with { Windows = [.. profile.Windows.Select(w => w with { Direction = TerrainDirection.Climbing })] };
+        profile with { Windows = [.. profile.Windows.Select(w => w with { Band = GradeBand.Climb })] };
 
     private static Dictionary<ResponseTarget, ResponseCell> WholeRide(TerrainProfile evaluated) =>
         TerrainResponse.Describe(evaluated, SuspensionResponseModel.Fit(evaluated, SyntheticResponseRides.Baseline), null)

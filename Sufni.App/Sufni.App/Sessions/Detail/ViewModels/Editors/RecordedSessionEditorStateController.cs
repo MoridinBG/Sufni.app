@@ -163,8 +163,8 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         {
             RecordedSessionEditorIntent.ToggleRoughness toggle when state.Terrain is RecordedTerrainState.Loaded =>
                 AnalysisScope.For(filter.Toggle(toggle.Class)),
-            RecordedSessionEditorIntent.ToggleSteepness toggle when state.Terrain is RecordedTerrainState.Loaded =>
-                AnalysisScope.For(filter.Toggle(toggle.Class)),
+            RecordedSessionEditorIntent.ToggleGrade toggle when state.Terrain is RecordedTerrainState.Loaded =>
+                AnalysisScope.For(filter.Toggle(toggle.Band)),
             RecordedSessionEditorIntent.ClearClassFilter when scope is AnalysisScope.ClassFilter => new AnalysisScope.Whole(),
             RecordedSessionEditorIntent.BeginSegmentComparison begin => new AnalysisScope.SegmentComparison(begin.MatchedSessionId),
             RecordedSessionEditorIntent.EndSegmentComparison when scope is AnalysisScope.SegmentComparison => new AnalysisScope.Whole(),

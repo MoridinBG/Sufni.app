@@ -24,7 +24,7 @@ internal static partial class RecordedSessionPresentationDeriver
             RecordedTerrainState.Unavailable => (hidden, hidden, hidden),
             RecordedTerrainState.Loaded loaded => (ready,
                 loaded.Profile.RoughnessState == TerrainRoughnessState.NoSensor ? hidden : ready,
-                loaded.Profile.SteepnessState == TerrainSteepnessState.Available ? ready : hidden)
+                loaded.Profile.GradeState == TerrainGradeState.Available ? ready : hidden)
         };
         var display = state.Preferences.SignalDisplay;
         return state with { Presentation = state.Presentation with

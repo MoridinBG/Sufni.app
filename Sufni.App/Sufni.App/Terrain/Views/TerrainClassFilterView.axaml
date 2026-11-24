@@ -18,7 +18,7 @@
     <Panel>
         <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding !#Root.Compact}">
             <ItemsControl ItemsSource="{Binding Roughness}" ItemTemplate="{StaticResource Chip}" ItemsPanel="{StaticResource ChipRow}" />
-            <ItemsControl ItemsSource="{Binding Steepness}" ItemTemplate="{StaticResource Chip}" ItemsPanel="{StaticResource ChipRow}" />
+            <ItemsControl ItemsSource="{Binding Grade}" ItemTemplate="{StaticResource Chip}" ItemsPanel="{StaticResource ChipRow}" />
         </StackPanel>
         <Button Name="FilterButton" Content="Filter" IsVisible="{Binding #Root.Compact}" Padding="8,1" VerticalAlignment="Center">
             <Button.Flyout>
@@ -26,8 +26,8 @@
                     <StackPanel Spacing="4">
                         <TextBlock Text="Roughness" />
                         <ItemsControl ItemsSource="{Binding Roughness}" ItemTemplate="{StaticResource Chip}" ItemsPanel="{StaticResource ChipRow}" />
-                        <TextBlock Text="Steepness" Margin="0,4,0,0" />
-                        <ItemsControl ItemsSource="{Binding Steepness}" ItemTemplate="{StaticResource Chip}" ItemsPanel="{StaticResource ChipRow}" />
+                        <TextBlock Text="Grade" Margin="0,4,0,0" />
+                        <ItemsControl ItemsSource="{Binding Grade}" ItemTemplate="{StaticResource Chip}" ItemsPanel="{StaticResource ChipRow}" />
                     </StackPanel>
                 </Flyout>
             </Button.Flyout>

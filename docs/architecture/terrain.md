@@ -1,8 +1,8 @@
 # Terrain profiles
 
-A profile describes moving ten-metre windows of one recorded session. The telemetry library derives suspension figures, roughness, steepness and matching signals from processed telemetry and original GPS fixes. Roughness and steepness report their availability independently. The calculator and calibration table each have a version.
+A profile describes moving ten-metre windows of one recorded session. The telemetry library derives suspension figures, roughness, grade and matching signals from processed telemetry and original GPS fixes. Roughness and grade report their availability independently. The calculator and calibration table each have a version.
 
-A failed sensor reads zero. When a suspension or IMU sensor reads zero in more than half of its measured moving windows, the calculator drops all its readings for the ride. An IMU level below one count counts as zero, because the band-pass filter leaves a small residue next to live samples. A dropped IMU yields no matching series, scale or class evidence, and a dropped frame IMU also removes steepness. The profile lists the dropped sensors, and the terrain source note names them.
+A failed sensor reads zero. When a suspension or IMU sensor reads zero in more than half of its measured moving windows, the calculator drops all its readings for the ride. An IMU level below one count counts as zero, because the band-pass filter leaves a small residue next to live samples. A dropped IMU yields no matching series, scale or class evidence, and a dropped frame IMU also removes grade. The profile lists the dropped sensors, and the terrain source note names them.
 
 ## Materialization
 
@@ -20,7 +20,7 @@ A calculation failure is recorded for its input key. If the database write itsel
 
 The editor reads the exact profile on its background runner and derives timed runs for both axes, segmented sensor and grade signals, and distance shares for jointly classified, frame-only and lowers-only windows. The reducer accepts a loaded result only for the current domain status. A change of status immediately removes the previous plot and map data.
 
-The source label identifies both sensors when both contributed anywhere in the ride. The tooltip distinguishes separate contributions from joint classification and identifies clipping, missing samples or an uncalibrated scale. The grade trace uses the same five-window baseline as steepness classification.
+The source label identifies both sensors when both contributed anywhere in the ride. The tooltip distinguishes separate contributions from joint classification and identifies clipping, missing samples or an uncalibrated scale. The grade trace uses the same five-window baseline as the grade bands.
 
 ## Analysis selection
 

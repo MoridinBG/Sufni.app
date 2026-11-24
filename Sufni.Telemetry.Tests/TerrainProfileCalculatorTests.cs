@@ -115,10 +115,10 @@ public class TerrainProfileCalculatorTests
     }
 
     [Fact]
-    public void RideWithoutFrameSensorHasNoSteepness()
+    public void RideWithoutFrameSensorHasNoGrade()
     {
         var profile = SyntheticRide.Build([new(1000)], new RideRecording(Frame: false)).Profile();
-        Assert.Equal(TerrainSteepnessState.NoFrameSensor, profile.SteepnessState);
+        Assert.Equal(TerrainGradeState.NoFrameSensor, profile.GradeState);
     }
 
     [Theory]
@@ -203,13 +203,13 @@ public class TerrainProfileCalculatorTests
     }
 
     [Fact]
-    public void SilentFrameLeavesClassificationToLowersAndRemovesSteepness()
+    public void SilentFrameLeavesClassificationToLowersAndRemovesGrade()
     {
         var profile = SyntheticRide.Build([new(1000, GradeDegrees: 8)],
             new RideRecording(Silence: (TerrainSensor.Frame, new(0, 100)))).Profile();
         Assert.All(profile.Windows.Where(w => w.Moving), w => Assert.Equal(RoughnessSource.LowersOnly, w.Source));
         Assert.Empty(profile.FrameMatching);
-        Assert.Equal(TerrainSteepnessState.NoFrameSensor, profile.SteepnessState);
+        Assert.Equal(TerrainGradeState.NoFrameSensor, profile.GradeState);
     }
 
     [Fact]
@@ -237,34 +237,36 @@ public class TerrainProfileCalculatorTests
     {
         var course = new[] { new RideSection(400, 10, 3), new RideSection(400, 10, 8), new RideSection(400, 10, 14) };
         var windows = SyntheticRide.Build(course, new RideRecording(MountPitch: mountPitch)).Profile().Windows;
-        Assert.Equal(SteepnessClass.Gentle, windows[20].Steepness);
-        Assert.Equal(SteepnessClass.Moderate, windows[60].Steepness);
-        Assert.Equal(SteepnessClass.Steep, windows[100].Steepness);
+        Assert.Equal(GradeBand.GentleDescent, windows[20].Band);
+        Assert.Equal(GradeBand.Descent, windows[60].Band);
+        Assert.Equal(GradeBand.SteepDescent, windows[100].Band);
     }
 
-    private static readonly RideSection[] DescentLevelClimbCourse = [new(400, 7, 8), new(300, 7, 0),
-        new(400, 3, -8), new(400, 3, -14)];
+    private static readonly RideSection[] EveryBandCourse = [new(300, 3, -9), new(300, 3, -4), new(300, 7, 0),
+        new(300, 7, 3.5), new(300, 7, 7.5), new(300, 7, 12.5), new(300, 7, 18)];
 
     [Theory]
-    [InlineData(200, TerrainDirection.Descending, SteepnessClass.Moderate)]
-    [InlineData(550, TerrainDirection.Level, SteepnessClass.Gentle)]
-    [InlineData(900, TerrainDirection.Climbing, SteepnessClass.Moderate)]
-    [InlineData(1300, TerrainDirection.Climbing, SteepnessClass.Steep)]
-    public void GradeGivesDirectionAndSteepnessInBothDirections(double metres, TerrainDirection direction, SteepnessClass steepness)
+    [InlineData(150, GradeBand.SteepClimb)]
+    [InlineData(450, GradeBand.Climb)]
+    [InlineData(750, GradeBand.Flat)]
+    [InlineData(1050, GradeBand.GentleDescent)]
+    [InlineData(1350, GradeBand.Descent)]
+    [InlineData(1650, GradeBand.SteepDescent)]
+    [InlineData(1950, GradeBand.VerySteepDescent)]
+    public void GradeGivesASignedBandFromSteepClimbToVerySteepDescent(double metres, GradeBand band)
     {
-        var window = SyntheticRide.Build(DescentLevelClimbCourse).Profile().Windows.Single(w => w.StartMetres == metres);
-        Assert.Equal(direction, window.Direction);
-        Assert.Equal(steepness, window.Steepness);
+        var window = SyntheticRide.Build(EveryBandCourse).Profile().Windows.Single(w => w.StartMetres == metres);
+        Assert.Equal(band, window.Band);
     }
 
     [Fact]
     public void ClimbingWindowsKeepTheirLevelsWithoutARoughnessClass()
     {
-        var windows = SyntheticRide.Build(DescentLevelClimbCourse).Profile().Windows;
-        var climbing = windows.Where(w => w.Direction == TerrainDirection.Climbing).ToArray();
+        var windows = SyntheticRide.Build(EveryBandCourse).Profile().Windows;
+        var climbing = windows.Where(w => w.Climbing).ToArray();
         Assert.NotEmpty(climbing);
         Assert.All(climbing, w => { Assert.Null(w.Roughness); Assert.NotNull(w.Frame); });
-        Assert.All(windows.Where(w => w.Direction == TerrainDirection.Descending), w => Assert.NotNull(w.Roughness));
+        Assert.All(windows.Where(w => w.Band > GradeBand.Flat), w => Assert.NotNull(w.Roughness));
     }
 
     [Fact]
@@ -272,7 +274,7 @@ public class TerrainProfileCalculatorTests
     {
         var ride = SyntheticRide.Build([new(1600, 22, 3)], new RideRecording(FixRate: 3, Braking: new(12, 18)));
         var window = ride.Profile().Windows.First(w => w.StartSeconds >= 14);
-        Assert.Equal(SteepnessClass.Gentle, window.Steepness);
+        Assert.Equal(GradeBand.GentleDescent, window.Band);
         Assert.InRange(window.Grade!.Value, 0.025, 0.085);
     }
 
@@ -280,7 +282,7 @@ public class TerrainProfileCalculatorTests
     public void ShortRideKeepsRoughnessWithoutGrades()
     {
         var profile = SyntheticRide.Build([new(500)]).Profile();
-        Assert.Equal(TerrainSteepnessState.TooShort, profile.SteepnessState);
+        Assert.Equal(TerrainGradeState.TooShort, profile.GradeState);
         Assert.All(profile.Windows, w => { Assert.NotNull(w.Roughness); Assert.Null(w.Grade); });
     }
 
@@ -294,7 +296,7 @@ public class TerrainProfileCalculatorTests
         var index = first ? 0 : fixes.Count - 1;
         fixes[index] = fixes[index] with { Elevation = null };
         var profile = (ride with { Fixes = fixes.ToImmutable() }).Profile();
-        Assert.Equal(TerrainSteepnessState.NoElevation, profile.SteepnessState);
+        Assert.Equal(TerrainGradeState.NoElevation, profile.GradeState);
         Assert.All(profile.Windows, w => { Assert.Null(w.Grade); Assert.NotNull(w.Roughness); });
     }
 

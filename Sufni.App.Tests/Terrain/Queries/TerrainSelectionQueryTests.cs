@@ -25,7 +25,7 @@ public class TerrainSelectionQueryTests
         Assert.Equal(new TelemetryTimeRange(1, 1.25), Assert.Single(partial.Selection!.Ranges));
         Assert.Equal(2.5, partial.SelectedMetres);
         Assert.Equal(2.5, partial.RoughnessMetres[(int)RoughnessClass.Rough]);
-        Assert.Empty(TerrainSelectionQuery.Evaluate(profile, rough.Toggle(SteepnessClass.Steep), null).Selection!.Ranges);
+        Assert.Empty(TerrainSelectionQuery.Evaluate(profile, rough.Toggle(GradeBand.SteepDescent), null).Selection!.Ranges);
         Assert.Equal(range, Assert.Single(TerrainSelectionQuery.Evaluate(profile, default, range).Selection!.Ranges));
         Assert.Null(TerrainSelectionQuery.Evaluate(profile, default, null).Selection);
     }

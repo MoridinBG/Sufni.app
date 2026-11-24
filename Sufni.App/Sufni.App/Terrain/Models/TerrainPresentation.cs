@@ -25,5 +25,5 @@ public sealed record TerrainSourceCoverage(double JointShare, double FrameOnlySh
 }
 
 public sealed record TerrainPresentation(ImmutableArray<TerrainClassRun> RoughnessRuns,
-    ImmutableArray<TerrainClassRun> SteepnessRuns, ImmutableArray<TerrainSignalSection> Frame,
+    ImmutableArray<TerrainClassRun> GradeRuns, ImmutableArray<TerrainSignalSection> Frame,
     ImmutableArray<TerrainSignalSection> Lowers, ImmutableArray<TerrainSignalSection> Grade, TerrainSourceCoverage Coverage);
