@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Serilog;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Models;
@@ -110,10 +111,10 @@ internal sealed class GpsOffsetSuggestionPrompt : IAsyncDisposable
             });
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception ex)
+        catch (Exception error)
         {
             if (!token.IsCancellationRequested)
-                await ui.InvokeAsync(() => report(FailurePresentation.From(SessionEditorFailureReason.Analysis, ex.Message)));
+                Log.ForContext<GpsOffsetSuggestionPrompt>().Warning(error, "Could not suggest a GPS offset for {SessionId}", sessionId);
         }
     }
 
