@@ -27,6 +27,19 @@ public class SuspensionResponseModelTests
     }
 
     [Fact]
+    public void ResponseBeyondTheRepeatRangeIsAFindingWithItsSignedDeviation()
+    {
+        var evaluated = SyntheticResponseRides.Profile(37, gain: 0.6);
+        var rows = TerrainResponse.Describe(evaluated, SuspensionResponseModel.Fit(evaluated, SyntheticResponseRides.Baseline), null);
+        var findings = TerrainResponse.Findings(rows).Where(f => f.Group is null).ToDictionary(f => f.Target);
+        Assert.InRange(findings[ResponseTarget.RearPeakRebound].Deviation, -0.45, -0.35);
+        Assert.Equal(ResponseConfidence.Full, findings[ResponseTarget.FrontRms].Confidence);
+        Assert.DoesNotContain(ResponseTarget.Transmission, findings.Keys);
+        Assert.Empty(TerrainResponse.Findings(TerrainResponse.Describe(SyntheticResponseRides.Profile(37),
+            SuspensionResponseModel.Fit(SyntheticResponseRides.Profile(37), SyntheticResponseRides.Baseline), null)));
+    }
+
+    [Fact]
     public void RideWithoutLowersPredictsTheFrontFromTheFrame()
     {
         var model = SuspensionResponseModel.Fit(SyntheticResponseRides.Profile(37, lowers: false), SyntheticResponseRides.Baseline);

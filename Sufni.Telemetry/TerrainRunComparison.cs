@@ -3,10 +3,18 @@ using MathNet.Numerics.Statistics;
 
 namespace Sufni.Telemetry;
 
-public readonly record struct ComparisonRatio(ResponseCellState State, double? Ratio = null);
+public readonly record struct ComparisonRatio(ResponseCellState State, double? Ratio = null)
+{
+    /// <summary>Signed difference from the matched run: −0.16 is 16% lower.</summary>
+    public double? Deviation => Ratio - 1;
+}
+
 public readonly record struct PaceQuartiles(double Lower, double Median, double Upper);
 public sealed record TerrainComparisonRow(RoughnessClass? Class, double DistanceMetres, PaceQuartiles? Pace,
-    ImmutableDictionary<ResponseTarget, ComparisonRatio> Responses, ComparisonRatio FrontSamePosition, ComparisonRatio RearSamePosition);
+    ImmutableDictionary<ResponseTarget, ComparisonRatio> Responses, ComparisonRatio FrontSamePosition, ComparisonRatio RearSamePosition)
+{
+    public ResponseConfidence Confidence => TerrainResponse.ConfidenceAt(DistanceMetres);
+}
 
 public static class TerrainRunComparison
 {
@@ -62,18 +70,26 @@ public static class TerrainRunComparison
             responses[target] = !enough ? new(ResponseCellState.TooShort)
                 : fit is ResponseFit.Unavailable missing ? new(TerrainResponse.UnavailableState(missing.Reason))
                 : Ratio(pairs, p => model.LogResidual(target, p.Current) - model.LogResidual(target, p.Earlier),
-                    target switch
-                    {
-                        ResponseTarget.Transmission => TransmissionThreshold,
-                        ResponseTarget.FrontPeakRebound or ResponseTarget.RearPeakRebound => ReboundThreshold,
-                        _ => ResponseThreshold
-                    });
+                    RepeatRange(target));
         }
         return new(roughness, metres, pace, responses.ToImmutable(), SamePosition(true), SamePosition(false));
 
         ComparisonRatio SamePosition(bool front) => enough
             ? Ratio(pairs, p => p.SamePosition(front), ResponseThreshold) : new(ResponseCellState.TooShort);
     }
+
+    /// <summary>The deviation between two runs of one trail that repeat runs stay within.</summary>
+    public static double RepeatRange(ResponseTarget target) => target switch
+    {
+        ResponseTarget.Transmission => TransmissionThreshold,
+        ResponseTarget.FrontPeakRebound or ResponseTarget.RearPeakRebound => ReboundThreshold,
+        _ => ResponseThreshold
+    };
+
+    public static ImmutableArray<ResponseFinding> Findings(IEnumerable<TerrainComparisonRow> rows) =>
+        [.. rows.SelectMany(row => row.Responses.Where(response => response.Value.State == ResponseCellState.Finding)
+            .OrderBy(response => response.Key)
+            .Select(response => new ResponseFinding(response.Key, row.Class, response.Value.Deviation!.Value, row.Confidence)))];
 
     private static ComparisonRatio Ratio(List<Pair> pairs, Func<Pair, double?> residual, double threshold)
     {

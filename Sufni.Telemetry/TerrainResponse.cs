@@ -4,11 +4,23 @@ namespace Sufni.Telemetry;
 
 public enum ResponseCellState { WithinRepeatRange, Finding, TooShort, NoBaseline, InsufficientVariation, NoMeasurement }
 
+public enum ResponseConfidence { Low, Full }
+
 public sealed record ResponseCell(ResponseTarget Target, ImuLocation Predictor, ResponseCellState State, double? Ratio,
-    int BaselineSessions, int BaselineWindows);
+    int BaselineSessions, int BaselineWindows)
+{
+    /// <summary>Signed difference from the expected response: −0.16 is 16% lower.</summary>
+    public double? Deviation => Ratio - 1;
+}
 
 public sealed record TerrainResponseRow(RoughnessClass? Class, double DistanceMetres, double Share, double? MeanSpeed,
-    ImmutableArray<ResponseCell> Cells);
+    ImmutableArray<ResponseCell> Cells)
+{
+    public ResponseConfidence Confidence => TerrainResponse.ConfidenceAt(DistanceMetres);
+}
+
+/// <summary>A response outside its repeat range in one ground group; a null group is all non-climb ground.</summary>
+public sealed record ResponseFinding(ResponseTarget Target, RoughnessClass? Group, double Deviation, ResponseConfidence Confidence);
 
 public static class TerrainResponse
 {
@@ -57,9 +69,19 @@ public static class TerrainResponse
             }
         if (weight == 0) return Cell(ResponseCellState.NoMeasurement);
         var ratio = Math.Exp(sum / weight);
-        return Cell(Assess(ratio, target == ResponseTarget.Transmission ? SuspensionResponseModel.BikeTransmissionThreshold
-            : SuspensionResponseModel.BikeResponseThreshold), ratio);
+        return Cell(Assess(ratio, RepeatRange(target)), ratio);
     }
+
+    /// <summary>The deviation from the bike baseline that repeat rides stay within.</summary>
+    public static double RepeatRange(ResponseTarget target) => target == ResponseTarget.Transmission
+        ? SuspensionResponseModel.BikeTransmissionThreshold : SuspensionResponseModel.BikeResponseThreshold;
+
+    public static ImmutableArray<ResponseFinding> Findings(IEnumerable<TerrainResponseRow> rows) =>
+        [.. rows.SelectMany(row => row.Cells.Where(cell => cell.State == ResponseCellState.Finding)
+            .Select(cell => new ResponseFinding(cell.Target, row.Class, cell.Deviation!.Value, row.Confidence)))];
+
+    internal static ResponseConfidence ConfidenceAt(double metres) =>
+        metres < SuspensionResponseModel.ConfidentReportMetres ? ResponseConfidence.Low : ResponseConfidence.Full;
 
     internal static ResponseCellState UnavailableState(ResponseFitIssue reason) => reason switch
     {

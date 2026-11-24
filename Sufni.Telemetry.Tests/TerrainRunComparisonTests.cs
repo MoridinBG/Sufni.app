@@ -35,6 +35,13 @@ public class TerrainRunComparisonTests
             });
             Assert.DoesNotContain(rows.Where(row => row.Class < RoughnessClass.Rough), row => row.Responses[side].State == ResponseCellState.Finding);
         }
+        var grouped = TerrainRunComparison.Findings(rows).Where(f => f.Group is not null).ToArray();
+        Assert.NotEmpty(grouped);
+        Assert.All(grouped, finding =>
+        {
+            Assert.True(finding.Group >= RoughnessClass.Rough);
+            Assert.InRange(finding.Deviation, -0.35, -0.25);
+        });
     }
 
     [Fact]
