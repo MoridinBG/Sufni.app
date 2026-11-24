@@ -25,6 +25,10 @@ public sealed record SensorRoughness(double Level, double LowBand, double Middle
 public readonly record struct SuspensionWindowFigures(double RmsVelocity, double PeakCompression, double PeakRebound,
     double MeanTravel, double? MedianStrokeSize);
 
+/// <summary>Rear pedal rhythm in one window. Cadence (rpm) and bob (rear peak-to-peak mm) exist only when detected.</summary>
+[MessagePackObject(keyAsPropertyName: true)]
+public readonly record struct PedallingFigures(bool Detected, double? CadenceRpm, double? BobMillimetres);
+
 [MessagePackObject(keyAsPropertyName: true)]
 public sealed record TerrainWindow(double StartMetres, double StartSeconds, double EndSeconds, double MeanSpeed, bool Moving)
 {
@@ -48,6 +52,9 @@ public sealed record TerrainWindow(double StartMetres, double StartSeconds, doub
     };
     public SuspensionWindowFigures? Front { get; init; }
     public SuspensionWindowFigures? Rear { get; init; }
+
+    /// <summary>Null where the rear travel or the frame IMU does not cover the 8 s around the window.</summary>
+    public PedallingFigures? Pedalling { get; init; }
 }
 
 [MessagePackObject(keyAsPropertyName: true)]

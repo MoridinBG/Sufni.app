@@ -107,7 +107,9 @@ Grade needs a frame IMU, elevation at both moving endpoints and 800 m of moving 
 
 Each axis then merges outliers. A single window between two time-adjacent windows of one other class takes their class; a stop, a gap or an unclassified neighbour leaves it unchanged. Grade bands merge before the roughness scale is chosen. The merged class serves display, selection and statistics, while the measured values keep the outlier. A recording gap interrupts sensor coverage; windows without full sensor coverage carry no measurement for that sensor.
 
-The profile includes per-side velocity figures, mean travel and the median travel gain of compression strokes that start in each window. It stores the max travel of each end and per-metre IMU matching values. `Summarize` reports the moving and climbing distance, the classified non-climb distance and its rough share. The algorithm and calibration have independent versions. The profile has its own MessagePack contract.
+The profile includes per-side velocity figures, mean travel and the median travel gain of compression strokes that start in each window. It stores the max travel of each end and per-metre IMU matching values.
+
+Pedalling is detected from rear travel and frame vertical acceleration, both reduced to 50 Hz. For each moving window, an 8 s excerpt centred on the window is detrended and Hann-weighted. Its rhythm ratio is the share of 0.5–6 Hz power in the strongest 1.2–3.6 Hz peak. A window is pedalled when the rear and frame ratios both reach 0.5; without a frame IMU, the rear ratio must reach 0.6. Cadence is the rear peak frequency times 30 rpm. Bob is the rear 1–4 Hz peak-to-peak travel of a sine with the same RMS over the middle 4 s. Cadence and bob exist only for pedalled windows. The pedalling figures are absent where either signal does not cover the excerpt or the rear sensor is missing. `Summarize` reports the moving and climbing distance, the classified non-climb distance and its rough share. The algorithm and calibration have independent versions. The profile has its own MessagePack contract.
 
 ### Processing Parameters
 

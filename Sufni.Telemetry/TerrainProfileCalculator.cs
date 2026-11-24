@@ -39,6 +39,8 @@ public static partial class TerrainProfileCalculator
         })).ToImmutableArray();
         if (silent.Contains(TerrainSensor.Frame)) (frame, frameSeries) = (null, []);
         if (silent.Contains(TerrainSensor.Lowers)) (lowers, lowersSeries) = (null, []);
+        if (!silent.Contains(TerrainSensor.Rear))
+            MeasurePedalling(telemetry.Rear, telemetry.Metadata.SampleRate, imu, frame, windows, cancellationToken);
         var grade = MeasureGrade(motion, imu, frame, windows, cancellationToken);
         for (var i = 0; i < windows.Count; i++)
         {

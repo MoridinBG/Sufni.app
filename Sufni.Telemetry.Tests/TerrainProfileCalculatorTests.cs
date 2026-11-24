@@ -190,6 +190,40 @@ public class TerrainProfileCalculatorTests
         Assert.InRange(front.MedianStrokeSize!.Value, swing * 0.95, swing * 1.05);
     }
 
+    // Two strokes per crank turn: 2.8 Hz is 84 rpm. Little ground input leaves the rear moving mostly at the pedal rhythm.
+    private static readonly RideSection PedalledClimb = new(300, 3, -6, LowBandG: 0.03, MiddleBandG: 0.04, HighBandG: 0.05,
+        PedalHz: 2.8, BobMillimetres: 8);
+
+    private static PedallingFigures? PedallingAt150Metres(RideSection section, RideRecording? recording = null) =>
+        SyntheticRide.Build([section], recording).Profile().Windows.Single(w => w.StartMetres == 150).Pedalling;
+
+    [Fact]
+    public void PedalledClimbGivesCadenceAndRearBob()
+    {
+        var pedalling = PedallingAt150Metres(PedalledClimb)!.Value;
+        Assert.True(pedalling.Detected);
+        Assert.InRange(pedalling.CadenceRpm!.Value, 81, 87);
+        Assert.InRange(pedalling.BobMillimetres!.Value, 7.2, 8.8);
+    }
+
+    [Fact]
+    public void RearRhythmWithoutFrameRhythmIsNotPedalling()
+    {
+        Assert.Equal(new PedallingFigures(false, null, null), PedallingAt150Metres(PedalledClimb with { PedalHz = 0, BobMillimetres = 0 }));
+    }
+
+    [Fact]
+    public void WithoutFrameSensorTheRearRhythmAloneDetectsPedalling()
+    {
+        Assert.True(PedallingAt150Metres(PedalledClimb, new RideRecording(Frame: false))!.Value.Detected);
+    }
+
+    [Fact]
+    public void SilentRearSensorLeavesPedallingUnknown()
+    {
+        Assert.Null(PedallingAt150Metres(PedalledClimb, new RideRecording(Silence: (TerrainSensor.Rear, new(0, 100)))));
+    }
+
     [Fact]
     public void ContinuousSuspensionWithoutSegmentListGetsTheSameFigures()
     {

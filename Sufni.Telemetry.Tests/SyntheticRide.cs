@@ -4,7 +4,7 @@ namespace Sufni.Telemetry.Tests;
 
 public sealed record RideSection(double Length, double Speed = 7, double GradeDegrees = 0,
     double LowBandG = 0.4, double MiddleBandG = 0.6, double HighBandG = 0.7, double TurnRadius = 0,
-    double CompressionGain = 1, double ReboundGain = 1);
+    double CompressionGain = 1, double ReboundGain = 1, double PedalHz = 0, double BobMillimetres = 0);
 
 public sealed record RideRecording(
     int SampleRate = 200, double FixRate = 1, bool IrregularFixes = false, double FirstFix = 0, double TrackShift = 0,
@@ -21,6 +21,9 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
 
     /// <summary>The fork-lowers vibration level relative to the frame level at the same speed.</summary>
     public const double LowersLevelFactor = 1.75;
+
+    /// <summary>Frame vertical acceleration amplitude in g at the pedal rhythm.</summary>
+    public const double PedalFrameG = 0.1;
 
     public static SyntheticRide TurningRide(RideRecording recording) =>
         Build([new(112), new(70, TurnRadius: -26), new(91, TurnRadius: 18), new(49),
@@ -84,15 +87,17 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
                         continue;
                     }
                     var vibration = ground * sensor.LevelScale(speed) + recording.NoiseG * (2 * random.NextDouble() - 1);
+                    var pedal = sensor.Identity == TerrainSensor.Frame
+                        ? PedalFrameG * Math.Sin(2 * Math.PI * section.PedalHz * seconds) : 0;
                     sensor.Add(tick, rate, upX + (speed - lastSpeed) * rate / Gravity,
-                        upY + speed * gz / Gravity + vibration, upZ - speed * gy / Gravity,
+                        upY + speed * gz / Gravity + vibration, upZ - speed * gy / Gravity + pedal,
                         upX * yawRate / Radians, gy / Radians, gz / Radians);
                 }
                 var level = Math.Sqrt(section.LowBandG * section.LowBandG +
                     section.MiddleBandG * section.MiddleBandG + section.HighBandG * section.HighBandG);
                 var response = ResponseAmplitude(level, speed);
-                front.Add(tick, Silent(TerrainSensor.Front) ? 0 : response, section);
-                rear.Add(tick, Silent(TerrainSensor.Rear) ? 0 : response * 0.8, section);
+                front.Add(tick, Silent(TerrainSensor.Front) ? 0 : response, section, 0);
+                rear.Add(tick, Silent(TerrainSensor.Rear) ? 0 : response * 0.8, section, Silent(TerrainSensor.Rear) ? 0 : section.BobMillimetres);
             }
 
             var remaining = section.Length - (distance - sectionStart);
@@ -190,17 +195,19 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
     {
         private readonly List<double> travel = [], velocity = [];
         private readonly List<ProcessedSuspensionSegment> segments = [];
-        public void Add(int tick, double response, RideSection section)
+        public void Add(int tick, double response, RideSection section, double bob)
         {
+            var pedalAngle = 2 * Math.PI * section.PedalHz * tick / rate;
             if (segments.Count == 0 || tick != (int)segments[^1].FirstSourceIndex + travel.Count - segments[^1].FirstDenseIndex)
                 segments.Add(new() { FirstDenseIndex = travel.Count, FirstSourceIndex = (ulong)tick, StartSeconds = (double)tick / rate });
             var compressionTime = section.ReboundGain / (section.CompressionGain + section.ReboundGain);
             var cycle = (2d * tick / rate) % 1;
             var compression = cycle < compressionTime;
             var angle = Math.PI * (compression ? cycle / compressionTime : (cycle - compressionTime) / (1 - compressionTime));
-            velocity.Add(response * (compression ? section.CompressionGain : -section.ReboundGain) * Math.Sin(angle));
+            velocity.Add(response * (compression ? section.CompressionGain : -section.ReboundGain) * Math.Sin(angle)
+                + bob / 2 * 2 * Math.PI * section.PedalHz * Math.Cos(pedalAngle));
             travel.Add(35 + response * section.CompressionGain * compressionTime / (2 * Math.PI)
-                * (1 + (compression ? -1 : 1) * Math.Cos(angle)));
+                * (1 + (compression ? -1 : 1) * Math.Cos(angle)) + bob / 2 * Math.Sin(pedalAngle));
         }
 
         public Suspension Finish()
