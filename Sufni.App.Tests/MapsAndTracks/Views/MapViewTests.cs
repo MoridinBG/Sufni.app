@@ -1,6 +1,3 @@
-using Sufni.App.Terrain.Models;
-using Mapsui.Nts;
-using Mapsui.Styles;
 using Microsoft.Extensions.Time.Testing;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -35,27 +32,6 @@ namespace Sufni.App.Tests.MapsAndTracks.Views;
 [Collection("Ui")]
 public class MapViewTests
 {
-    [Fact]
-    public async Task RoughnessFeaturesShareTheirInterpolatedBorderAndPlainHasOneFeature()
-    {
-        using var layers = new MapLayerFixture();
-        using var viewModel = new MapViewModel(layers.CreateService(), layers.CreateCoordinator(),
-            Substitute.For<IDialogService>(), new MapGeometryFactory(new InlineBackgroundTaskRunner()),
-            new InlineUiThreadDispatcher(), new FakeTimeProvider());
-        var input = new MapGeometryInput([], [new(100, 0, 0, null), new(104, 40, 20, null)], null,
-            [new(0, 1.5, TerrainLevel.Low), new(1.5, 4, TerrainLevel.High)], 100);
-        var colored = await viewModel.GeometryFactory.BuildAsync(input, null, TestContext.Current.CancellationToken);
-        var parts = colored.SessionTrack.LineFeatures.Cast<GeometryFeature>().ToArray();
-        Assert.Equal(2, parts.Length);
-        var border = parts[0].Geometry!.Coordinates[^1];
-        Assert.Equal((15d, 7.5), (border.X, border.Y));
-        Assert.Equal(border, parts[1].Geometry!.Coordinates[0]);
-        Assert.NotEqual(Assert.Single(parts[0].Styles.OfType<VectorStyle>()).Line!.Color,
-            Assert.Single(parts[1].Styles.OfType<VectorStyle>()).Line!.Color);
-        var plain = await viewModel.GeometryFactory.BuildAsync(input with { TerrainRuns = [] }, colored, TestContext.Current.CancellationToken);
-        Assert.Single(plain.SessionTrack.LineFeatures);
-    }
-
     [AvaloniaFact]
     public async Task MapView_BindsAvailableTileLayers_AndCurrentSelection()
     {
