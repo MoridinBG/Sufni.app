@@ -69,7 +69,10 @@ public static partial class TerrainProfileCalculator
         bool front, CancellationToken token)
     {
         if (side is not { Present: true } || side.Velocity.IsDefaultOrEmpty || rate <= 0) return;
-        foreach (var segment in side.Segments)
+        // Older processed telemetry stores continuous data with an empty segment list.
+        var segments = side.Segments.IsDefaultOrEmpty
+            ? [new ProcessedSuspensionSegment { SampleCount = side.Velocity.Length }] : side.Segments;
+        foreach (var segment in segments)
         {
             for (var i = 0; i < windows.Count; i++)
             {

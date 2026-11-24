@@ -148,6 +148,20 @@ public class TerrainProfileCalculatorTests
     }
 
     [Fact]
+    public void ContinuousSuspensionWithoutSegmentListGetsTheSameFigures()
+    {
+        var ride = SyntheticRide.Build([new(300, LowBandG: 0.6, MiddleBandG: 0.8)]);
+        var unsegmented = ride with { Telemetry = ride.Telemetry with
+        {
+            Front = ride.Telemetry.Front with { Segments = [] },
+            Rear = ride.Telemetry.Rear with { Segments = [] },
+        } };
+        var expected = ride.Profile().Windows;
+        Assert.Equal(expected.Select(w => (w.Front, w.Rear)), unsegmented.Profile().Windows.Select(w => (w.Front, w.Rear)));
+        Assert.All(expected.Where(w => w.Moving), w => Assert.NotNull(w.Front));
+    }
+
+    [Fact]
     public void MatchingSeriesHoldsTheLogBroadbandLevelOfEachMetre()
     {
         var matching = SyntheticRide.Build([new(300, LowBandG: 0.2, MiddleBandG: 0.6, HighBandG: 0.9)]).Profile().FrameMatching;
