@@ -130,11 +130,11 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
 
     private static RecordedSessionEditorState InvalidateAnalysisResults(RecordedSessionEditorState previous, RecordedSessionEditorState next)
     {
-        var scopeChanged = previous.TelemetryData != next.TelemetryData || previous.Intent.AnalysisRange != next.Intent.AnalysisRange ||
-            previous.Intent.Scope != next.Intent.Scope || previous.Intent.Scope is AnalysisScope.ClassFilter && (previous.Terrain as RecordedTerrainState.Loaded)?.Key != (next.Terrain as RecordedTerrainState.Loaded)?.Key;
-        if (scopeChanged)
+        var selectionChanged = previous.TelemetryData != next.TelemetryData || previous.Intent.AnalysisRange != next.Intent.AnalysisRange ||
+            previous.TimeSelection != next.TimeSelection;
+        if (selectionChanged)
             next = ApplySelection(next, next.AnalysisSelection with { HighlightRanges = [] });
-        var dampingChanged = scopeChanged ||
+        var dampingChanged = selectionChanged ||
             previous.Preferences.Analysis.VelocityAverageMode != next.Preferences.Analysis.VelocityAverageMode ||
             previous.Intent.DampingSpeedCutoffs != next.Intent.DampingSpeedCutoffs;
         var insightsChanged = dampingChanged || previous.Preferences.Analysis != next.Preferences.Analysis ||
@@ -143,7 +143,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         {
             Presentation = next.Presentation with
             {
-                Analysis = scopeChanged ? CreateAnalysisPresentationFromLoadPresentation(next.Load) with
+                Analysis = selectionChanged ? CreateAnalysisPresentationFromLoadPresentation(next.Load) with
                 {
                     FullSessionBalanceAvailable = previous.TelemetryData == next.TelemetryData &&
                         previous.Presentation.Analysis.FullSessionBalanceAvailable,

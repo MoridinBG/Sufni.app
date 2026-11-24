@@ -1,4 +1,3 @@
-using Sufni.App.Terrain.Models;
 using Sufni.App.Sessions.Analysis.ViewModels.Editors;
 using System;
 using System.Collections.Immutable;
@@ -90,9 +89,8 @@ internal sealed class RecordedSessionAnalysisDemand : IAsyncDisposable
             currentState.Presentation.PlotDampingSpeedCutoffs,
             currentState.Preferences.Analysis.SessionInsightsTargetProfile)
         {
-            Scope = currentState.Intent.Scope,
+            Selection = currentState.TimeSelection,
             TerrainProfileKey = (currentState.Terrain as RecordedTerrainState.Loaded)?.Key,
-            TerrainSelection = currentState.TerrainSelection,
             TerrainProfile = (currentState.Terrain as RecordedTerrainState.Loaded)?.Profile,
             Baseline = (currentState.Terrain as RecordedTerrainState.Loaded)?.Baseline,
             TrackGeneration = trackGeneration,

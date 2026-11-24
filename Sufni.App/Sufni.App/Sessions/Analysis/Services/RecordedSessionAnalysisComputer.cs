@@ -1,4 +1,3 @@
-using Sufni.App.Terrain.Models;
 using Sufni.App.Sessions.Plots;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,7 +20,7 @@ internal sealed class RecordedSessionAnalysisComputer(
 {
     public RecordedSessionAnalysisResult Compute(RecordedSessionAnalysisKey key, TelemetryData telemetry, RecordedSessionAnalysisInputs? inputs = null)
     {
-        var timeSelection = SelectionFor(key, inputs);
+        var timeSelection = key.Selection;
         return key.Family switch
         {
             RecordedSessionAnalysisFamily.DampingPercentages => new DampingPercentagesAnalysisResult(
@@ -33,9 +32,6 @@ internal sealed class RecordedSessionAnalysisComputer(
         };
 
     }
-
-    private static TelemetryTimeSelection? SelectionFor(RecordedSessionAnalysisKey key, RecordedSessionAnalysisInputs? inputs) =>
-        key.Scope is AnalysisScope.ClassFilter ? inputs!.TerrainSelection!.Selection : key.AnalysisRange;
 
     private static AnalysisAvailabilityResult CalculateAvailability(RecordedSessionAnalysisKey key, TelemetryData telemetry, TelemetryTimeSelection? timeSelection)
     {
@@ -78,7 +74,7 @@ internal sealed class RecordedSessionAnalysisComputer(
 
     internal static RecordedSessionAnalysisResult ComputePlot(RecordedSessionAnalysisKey key, TelemetryData telemetry, RecordedSessionAnalysisInputs? inputs = null)
     {
-        var timeSelection = SelectionFor(key, inputs);
+        var timeSelection = key.Selection;
         return key.Family switch
         {
             RecordedSessionAnalysisFamily.TravelDistribution => CalculateTravelDistribution(key, telemetry, timeSelection),

@@ -35,6 +35,9 @@ internal sealed record RecordedSessionEditorState(
     /// <summary>Class distances and the filtered windows of the loaded profile inside the analysis range.</summary>
     public TerrainSelectionResult? TerrainSelection { get; init; }
 
+    public TelemetryTimeSelection? TimeSelection => Intent.Scope is AnalysisScope.ClassFilter && TerrainSelection is { } terrain
+        ? terrain.Selection : Intent.AnalysisRange;
+
     public SessionTrackTimeline? TrackTimeline => TelemetryData is { } telemetry
         ? SessionTrackTimeline.FromSessionWindow(telemetry.Metadata.Timestamp, Session?.GpsOffsetSeconds ?? 0,
             Session?.WindowStartSeconds ?? 0) : null;

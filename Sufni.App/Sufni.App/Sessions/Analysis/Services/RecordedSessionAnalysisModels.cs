@@ -1,5 +1,4 @@
 using Sufni.App.Terrain.Models;
-using Sufni.App.Terrain.Queries;
 using Sufni.App.Sessions.Plots;
 using System.Collections.Immutable;
 using Sufni.App.Shared.Models;
@@ -41,12 +40,12 @@ public sealed record RecordedSessionAnalysisInputs(
     DampingSpeedCutoffs PlotDampingSpeedCutoffs,
     SessionInsightsTargetProfile SessionInsightsTargetProfile)
 {
-    public AnalysisScope Scope { get; init; } = new AnalysisScope.Whole();
+    /// <summary>The time selection that statistics use: the analysis range, narrowed by an active class filter.</summary>
+    public TelemetryTimeSelection? Selection { get; init; }
     public TerrainProfileKey? TerrainProfileKey { get; init; }
     public long TrackGeneration { get; init; }
     public TerrainProfile? TerrainProfile { get; init; }
     public TerrainBaseline? Baseline { get; init; }
-    public TerrainSelectionResult? TerrainSelection { get; init; }
     public Lazy<ImmutableArray<TrackSample>>? TrackSamples { get; init; }
     public TelemetryRangeSelection? FrontSelection { get; init; }
     public TelemetryRangeSelection? RearSelection { get; init; }
@@ -235,12 +234,14 @@ public sealed record RecordedSessionAnalysisInputs(
             },
             _ => throw new ArgumentOutOfRangeException(nameof(family), family, null),
         };
-        return family == RecordedSessionAnalysisFamily.ImuDisplayProjection ? key : key with
+        return family switch
         {
-            Scope = Scope,
-            Baseline = family == RecordedSessionAnalysisFamily.SessionInsights ? Baseline : null,
-            TerrainProfileKey = Scope is AnalysisScope.ClassFilter || family is RecordedSessionAnalysisFamily.Availability
-                or RecordedSessionAnalysisFamily.SessionInsights ? TerrainProfileKey : null
+            RecordedSessionAnalysisFamily.ImuDisplayProjection => key,
+            RecordedSessionAnalysisFamily.SessionInsights => key with
+            {
+                Selection = Selection, TerrainProfileKey = TerrainProfileKey, Baseline = Baseline
+            },
+            _ => key with { Selection = Selection },
         };
     }
 }
@@ -260,7 +261,7 @@ public sealed record RecordedSessionAnalysisKey(
     SessionInsightsTargetProfile? SessionInsightsTargetProfile)
 {
     public TerrainBaseline? Baseline { get; init; }
-    public AnalysisScope Scope { get; init; } = new AnalysisScope.Whole();
+    public TelemetryTimeSelection? Selection { get; init; }
     public TerrainProfileKey? TerrainProfileKey { get; init; }
     public long TrackGeneration { get; init; }
     public TelemetryRangeSelection? FrontSelection { get; init; }
