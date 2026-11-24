@@ -41,6 +41,22 @@ public class AppPreferencesTests
     }
 
     [Fact]
+    public async Task SavedTerrainGroupGainsThePedalBobRowAndKeepsItsOrder()
+    {
+        using var directory = new TempDirectory();
+        var path = CreatePreferencesPath(directory);
+        var id = Guid.NewGuid();
+        await File.WriteAllTextAsync(path, """
+            {"session":{"sessions":{"SESSION":{"signalLayout":{"rows":[{"rowId":"travel"},
+                {"rowId":"terrain","children":[{"rowId":"grade"},{"rowId":"roughness","isExpanded":false}]}]}}}}}
+            """.Replace("SESSION", id.ToString("D")), TestContext.Current.CancellationToken);
+        var stored = await TestAppPreferences.Load(path).Session.GetRecordedAsync(id);
+        var terrain = stored.SignalLayout.Rows.Single(row => row.RowId == SignalRowIds.Terrain);
+        Assert.Equal([SignalRowIds.Grade, SignalRowIds.Roughness, SignalRowIds.PedalBob], terrain.Children.Select(row => row.RowId));
+        Assert.False(terrain.Children[1].IsExpanded);
+    }
+
+    [Fact]
     public async Task RecordedLayoutAppendsTerrainAndKeepsExistingRowsInTheirSavedOrder()
     {
         using var directory = new TempDirectory();
@@ -55,7 +71,8 @@ public class AppPreferencesTests
         Assert.Equal([SignalRowIds.Speed, SignalRowIds.Travel, SignalRowIds.Imu, SignalRowIds.Terrain],
             stored.SignalLayout.Rows.Select(row => row.RowId));
         Assert.False(stored.SignalLayout.Rows[0].IsExpanded);
-        Assert.Equal([SignalRowIds.Roughness, SignalRowIds.Grade], stored.SignalLayout.Rows[^1].Children.Select(row => row.RowId));
+        Assert.Equal([SignalRowIds.Roughness, SignalRowIds.Grade, SignalRowIds.PedalBob],
+            stored.SignalLayout.Rows[^1].Children.Select(row => row.RowId));
         await preferences.Session.UpdateRecordedAsync(id, current => current with
         {
             SignalDisplay = current.SignalDisplay with { Roughness = false }

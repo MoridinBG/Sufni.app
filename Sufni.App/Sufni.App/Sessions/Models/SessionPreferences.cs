@@ -129,7 +129,7 @@ public sealed record SignalLayoutPreferences
                     new SignalLayoutRowPreferences(SignalRowIds.Elevation),
                 ]),
             new SignalLayoutRowPreferences(SignalRowIds.Terrain, children:
-                [new(SignalRowIds.Roughness), new(SignalRowIds.Grade)]),
+                [new(SignalRowIds.Roughness), new(SignalRowIds.Grade), new(SignalRowIds.PedalBob)]),
         ];
     }
 }
@@ -393,4 +393,5 @@ public static class SignalRowIds
     public const string Terrain = "terrain";
     public const string Roughness = "roughness";
     public const string Grade = "grade";
+    public const string PedalBob = "pedal_bob";
 }
