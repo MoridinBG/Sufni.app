@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Sufni.Telemetry;
 
-public readonly record struct TerrainAlignmentChunk(double CentreMetres, int ShiftMetres, double Correlation);
+public readonly record struct TerrainAlignmentChunk(double CentreMetres, int ShiftMetres);
 public readonly record struct TerrainWindowPair(int SourceIndex, int MatchIndex);
 
 public closed record TerrainRunAlignment
@@ -54,7 +54,7 @@ public closed record TerrainRunAlignment
                 shift = delta;
             }
             if (best >= MinimumCorrelation && Math.Abs(shift) < MaximumShiftMetres)
-                chunks.Add(new(origin + ChunkMetres / 2d, shift, best));
+                chunks.Add(new(origin + ChunkMetres / 2d, shift));
         }
         if (chunks.Count < 2) return new Unaligned();
 
