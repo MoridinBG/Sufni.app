@@ -525,7 +525,7 @@ publish on the UI dispatcher after persistence. Initial replay and subscription
 share the document gate so a concurrent write cannot be missed. Custom map-layer
 definitions are separate synced store facts.
 
-The recorded signal and analysis workspaces expose the same tab-owned terrain filter. The roughness and grade chips report class distance within the current time range. The compact signal header opens them from a Filter button. Analysis pages expose the active classes, selected distance and clear command. Live workspaces have no terrain filter.
+The recorded signal and analysis workspaces expose the same tab-owned `TerrainScopeViewModel`. Preset and class options report their distance within the current time range and are disabled outside the current preset. Presets other than All need grade, and a profile without grade adds a note. The compact signal header opens the options from a Filter button. Analysis pages show the scope, selected distance and excluded stopped time, with a command that restores the default scope. An empty selection states that no ground matches. Live workspaces have no terrain scope.
 
 Recorded list rows append a terrain summary from a current profile, for example "Descent 3.1 km · 42% rough · Climb 1.2 km". Each part needs 300 m. Descent is all non-climb moving distance and needs grade. The rough share counts classified non-climb distance. A pending, failed or unavailable summary immediately removes that subtitle component.
 

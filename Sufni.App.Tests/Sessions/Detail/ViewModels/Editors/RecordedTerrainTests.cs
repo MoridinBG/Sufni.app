@@ -24,7 +24,7 @@ namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 public class RecordedTerrainTests
 {
     [AvaloniaFact]
-    public async Task RoughChipNarrowsTheDampingShareToTheRoughSectionAndClearingRestoresTheWholeRide()
+    public async Task RoughEntryNarrowsTheDampingShareToTheRoughSectionAndResetRestoresTheDefault()
     {
         using var h = new SessionDetailHarness();
         var ride = SyntheticRide.Build([new(140, LowBandG: 0.2, MiddleBandG: 0.2, HighBandG: 0.2),
@@ -33,21 +33,66 @@ public class RecordedTerrainTests
         var domain = h.WithTerrain(session, ride.Profile());
         var editor = h.CreateRecordedEditor(session, h.CreateLoadedResult(ride.Telemetry), Observable.Return(domain));
         await h.LoadAsync(editor);
-        var filter = editor.SignalsWorkspace.TerrainScope!;
-        var rough = filter.Roughness[(int)RoughnessClass.Rough];
+        var scope = editor.SignalsWorkspace.TerrainScope!;
+        var rough = scope.Roughness[(int)RoughnessClass.Rough];
         Assert.InRange(rough.DistanceMetres, 120, 150);
         var analysis = editor.AnalysisWorkspace;
         var full = analysis.DampingPercentages;
-        rough.Toggle.Execute(null);
-        Assert.Equal(rough.DistanceMetres, filter.SelectedMetres);
+        rough.Select.Execute(null);
+        Assert.Equal(rough.DistanceMetres, scope.SelectedMetres);
         Assert.True(analysis.DampingPercentages.FrontHscPercentage > full.FrontHscPercentage);
-        filter.Clear.Execute(null);
+        scope.Reset.Execute(null);
+        Assert.True(scope.IsDefault);
         Assert.Equal(full, analysis.DampingPercentages);
         await h.CloseAsync(editor);
     }
 
+    [AvaloniaTheory]
+    [InlineData(TerrainGradeState.Available, "Descents", 20)]
+    [InlineData(TerrainGradeState.NoElevation, "All", 30)]
+    public async Task DefaultScopeFollowsTheProfileGradeAndLeavesOutStoppedTime(TerrainGradeState grade, string label, double metres)
+    {
+        using var h = new SessionDetailHarness();
+        var session = h.CreateRecordedSession();
+        var flat = TerrainProfiles.Window(0, RoughnessClass.Calm, RoughnessSource.Both);
+        var profile = TerrainProfiles.Profile([flat, TerrainProfiles.Window(1, moving: false),
+            TerrainProfiles.Window(2, RoughnessClass.Calm, RoughnessSource.Both),
+            TerrainProfiles.Window(3) with { Band = GradeBand.Climb, Roughness = RoughnessClass.SmoothClimb }], grade: grade);
+        var editor = h.CreateRecordedEditor(session, projectionChanges: Observable.Return(h.WithTerrain(session, profile)));
+        await h.LoadAsync(editor);
+        var scope = editor.AnalysisWorkspace.TerrainScope!;
+        Assert.True(scope.IsDefault);
+        Assert.Equal(label, scope.Label);
+        Assert.Equal(metres, scope.SelectedMetres);
+        Assert.Equal(grade == TerrainGradeState.Available, scope.Presets[(int)TerrainPreset.Climbs].IsEnabled);
+        Assert.Equal(grade != TerrainGradeState.Available, scope.Note is not null);
+        await h.CloseAsync(editor);
+    }
+
     [AvaloniaFact]
-    public async Task ClassFilterAndComparisonReplaceEachOtherAndNewTelemetryClearsTheFilter()
+    public async Task ChosenPresetRefinesWithItsOwnClassesAndTheDefaultPresetKeepsTheDefault()
+    {
+        using var h = new SessionDetailHarness();
+        var session = h.CreateRecordedSession();
+        var profile = TerrainProfiles.Classified(TerrainProfiles.Window(0, RoughnessClass.Rough, RoughnessSource.Both),
+            TerrainProfiles.Window(1) with { Band = GradeBand.SteepClimb, Roughness = RoughnessClass.TechnicalClimb });
+        var editor = h.CreateRecordedEditor(session, projectionChanges: Observable.Return(h.WithTerrain(session, profile)));
+        await h.LoadAsync(editor);
+        var scope = editor.AnalysisWorkspace.TerrainScope!;
+        Assert.False(scope.Roughness[(int)RoughnessClass.TechnicalClimb].IsEnabled);
+        scope.Presets[(int)TerrainPreset.Climbs].Select.Execute(null);
+        Assert.False(scope.IsDefault);
+        Assert.Equal(10, scope.SelectedMetres);
+        Assert.False(scope.Roughness[(int)RoughnessClass.Rough].IsEnabled);
+        scope.Roughness[(int)RoughnessClass.TechnicalClimb].Select.Execute(null);
+        Assert.Equal("Climbs · Technical climb", scope.Label);
+        scope.Presets[(int)TerrainPreset.Descents].Select.Execute(null);
+        Assert.True(scope.IsDefault);
+        await h.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
+    public async Task ChosenScopeAndComparisonReplaceEachOtherAndNewTelemetryRestoresTheDefault()
     {
         using var h = new SessionDetailHarness();
         var session = h.CreateRecordedSession();
@@ -56,30 +101,29 @@ public class RecordedTerrainTests
         TestSegmentComparisons.DetailReturns(h.SegmentCoordinator, compared);
         var editor = await h.LoadMatchedEditorAsync(session, changes, compared);
         var signals = editor.SignalsWorkspace;
-        var filter = signals.TerrainScope!;
-        var chip = filter.Roughness[(int)RoughnessClass.Rough];
-        chip.Toggle.Execute(null);
-        Assert.True(filter.IsActive);
+        var scope = signals.TerrainScope!;
+        var entry = scope.Roughness[(int)RoughnessClass.Rough];
+        entry.Select.Execute(null);
+        Assert.False(scope.IsDefault);
         var comparisons = signals.SegmentComparison;
         var row = Assert.Single(comparisons.TravelRows);
         await ((IAsyncRelayCommand)row.HeaderActions.Single(a => a.Command is IAsyncRelayCommand).Command!).ExecuteAsync(null);
         Assert.True(comparisons.HasAnalysisComparison);
-        Assert.False(filter.IsActive);
-        chip.Toggle.Execute(null);
-        Assert.True(filter.IsActive);
+        Assert.False(scope.Available);
+        entry.Select.Execute(null);
+        Assert.True(scope.Available);
         comparisons.ClearAnalysisComparisonCommand.Execute(null);
-        Assert.True(filter.IsActive);
+        Assert.True(entry.IsChecked);
         var replacement = session with { ProcessedTelemetryRevision = session.ProcessedTelemetryRevision + 1 };
         h.ConfigureLoad(replacement, h.CreateLoadedResult());
         changes.OnNext(SessionDetailHarness.DomainFromSnapshot(replacement));
         await ViewTestHelpers.FlushDispatcherAsync();
-        Assert.False(filter.IsActive);
-        Assert.False(chip.IsChecked);
+        Assert.False(entry.IsChecked);
         await h.CloseAsync(editor);
     }
 
     [AvaloniaFact]
-    public async Task GpsOffsetEditEndsTheActiveClassFilter()
+    public async Task GpsOffsetEditReleasesTheChosenScope()
     {
         using var h = new SessionDetailHarness();
         var session = h.CreateRecordedSession();
@@ -87,12 +131,12 @@ public class RecordedTerrainTests
         using var changes = new BehaviorSubject<RecordedSessionDomainSnapshot>(domain);
         var editor = h.CreateRecordedEditor(session, projectionChanges: changes);
         await h.LoadAsync(editor);
-        var filter = editor.SignalsWorkspace.TerrainScope!;
-        filter.Roughness[(int)RoughnessClass.Rough].Toggle.Execute(null);
-        Assert.True(filter.IsActive);
+        var scope = editor.SignalsWorkspace.TerrainScope!;
+        scope.Roughness[(int)RoughnessClass.Rough].Select.Execute(null);
+        Assert.False(scope.IsDefault);
         changes.OnNext(domain with { Session = session with { GpsOffsetSeconds = 2 }, Terrain = new TerrainStatus.Pending() });
         await ViewTestHelpers.FlushDispatcherAsync();
-        Assert.False(filter.IsActive);
+        Assert.True(scope.IsDefault);
         await h.CloseAsync(editor);
     }
 

@@ -32,10 +32,14 @@ internal sealed record RecordedSessionEditorState(
     public RecordedTerrainState Terrain { get; init; } = new RecordedTerrainState.Unavailable(
         Sufni.App.Terrain.Models.TerrainAvailabilityReason.NoTelemetry);
 
-    /// <summary>Class distances and the filtered windows of the loaded profile inside the analysis range.</summary>
+    /// <summary>The scope the reducer applies to the loaded profile; null without a profile.</summary>
+    public TerrainScope? TerrainScope => Terrain is RecordedTerrainState.Loaded loaded
+        ? Intent.Scope is AnalysisScope.Terrain chosen ? chosen.Value : Sufni.App.Terrain.Models.TerrainScope.Default(loaded.Profile)
+        : null;
+
     public TerrainSelectionResult? TerrainSelection { get; init; }
 
-    public TelemetryTimeSelection? TimeSelection => Intent.Scope is AnalysisScope.ClassFilter && TerrainSelection is { } terrain
+    public TelemetryTimeSelection? TimeSelection => Intent.Scope is not AnalysisScope.SegmentComparison && TerrainSelection is { } terrain
         ? terrain.Selection : Intent.AnalysisRange;
 
     public SessionTrackTimeline? TrackTimeline => TelemetryData is { } telemetry
@@ -118,7 +122,7 @@ internal sealed record RecordedSessionEditorIntentState(
     double? PendingAnalysisRangeBoundary,
     DampingSpeedCutoffs DampingSpeedCutoffs)
 {
-    public AnalysisScope Scope { get; init; } = new AnalysisScope.Whole();
+    public AnalysisScope Scope { get; init; } = new AnalysisScope.Default();
 }
 
 internal sealed record RecordedSessionEditorPresentationState(

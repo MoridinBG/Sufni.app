@@ -61,14 +61,12 @@ internal static partial class RecordedSessionPresentationDeriver
     public static RecordedSessionEditorState WithTerrainSelection(RecordedSessionEditorState previous, RecordedSessionEditorState next)
     {
         var profile = (next.Terrain as RecordedTerrainState.Loaded)?.Profile;
-        var filter = next.Intent.Scope is AnalysisScope.ClassFilter selected ? selected.Filter : default;
         if (ReferenceEquals(profile, (previous.Terrain as RecordedTerrainState.Loaded)?.Profile) &&
-            filter == (previous.Intent.Scope is AnalysisScope.ClassFilter earlier ? earlier.Filter : default) &&
-            next.Intent.AnalysisRange == previous.Intent.AnalysisRange)
+            next.TerrainScope == previous.TerrainScope && next.Intent.AnalysisRange == previous.Intent.AnalysisRange)
             return next;
         return next with
         {
-            TerrainSelection = profile is null ? null : TerrainSelectionQuery.Evaluate(profile, filter, next.Intent.AnalysisRange)
+            TerrainSelection = profile is null ? null : TerrainSelectionQuery.Evaluate(profile, next.TerrainScope!, next.Intent.AnalysisRange)
         };
     }
 

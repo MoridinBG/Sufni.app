@@ -96,8 +96,8 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             {
                 var next = update(current);
                 if (current.Editor.TelemetryData != next.Editor.TelemetryData ||
-                    next.Editor.Intent.Scope is AnalysisScope.ClassFilter && next.Editor.Terrain is not RecordedTerrainState.Loaded)
-                    next = next with { Editor = next.Editor with { Intent = next.Editor.Intent with { Scope = new AnalysisScope.Whole() } } };
+                    next.Editor.Intent.Scope is AnalysisScope.Terrain && next.Editor.Terrain is not RecordedTerrainState.Loaded)
+                    next = next with { Editor = next.Editor with { Intent = next.Editor.Intent with { Scope = new AnalysisScope.Default() } } };
                 if (next.Editor.Terrain != current.Editor.Terrain || next.Editor.Preferences.SignalDisplay != current.Editor.Preferences.SignalDisplay ||
                     next.Editor.Presentation.Signals != current.Editor.Presentation.Signals ||
                     next.Editor.Presentation.SignalAvailability != current.Editor.Presentation.SignalAvailability)
@@ -158,16 +158,19 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
     {
         var state = current.Editor;
         var scope = state.Intent.Scope;
-        var filter = scope is AnalysisScope.ClassFilter selected ? selected.Filter : default;
+        var terrain = state.TerrainScope;
+        // A choice equal to the profile's default stays the default, so the banner keeps its quiet form.
+        AnalysisScope Chosen(TerrainScope value) =>
+            state.Terrain is RecordedTerrainState.Loaded loaded && value == TerrainScope.Default(loaded.Profile)
+                ? new AnalysisScope.Default() : new AnalysisScope.Terrain(value);
         var nextScope = intent switch
         {
-            RecordedSessionEditorIntent.ToggleRoughness toggle when state.Terrain is RecordedTerrainState.Loaded =>
-                AnalysisScope.For(filter.Toggle(toggle.Class)),
-            RecordedSessionEditorIntent.ToggleGrade toggle when state.Terrain is RecordedTerrainState.Loaded =>
-                AnalysisScope.For(filter.Toggle(toggle.Band)),
-            RecordedSessionEditorIntent.ClearClassFilter when scope is AnalysisScope.ClassFilter => new AnalysisScope.Whole(),
+            RecordedSessionEditorIntent.ToggleRoughness toggle when terrain is not null => Chosen(terrain.Toggle(toggle.Class)),
+            RecordedSessionEditorIntent.ToggleGrade toggle when terrain is not null => Chosen(terrain.Toggle(toggle.Band)),
+            RecordedSessionEditorIntent.SelectTerrainPreset select when terrain is not null => Chosen(new TerrainScope(select.Preset)),
+            RecordedSessionEditorIntent.ResetTerrainScope when scope is AnalysisScope.Terrain => new AnalysisScope.Default(),
             RecordedSessionEditorIntent.BeginSegmentComparison begin => new AnalysisScope.SegmentComparison(begin.MatchedSessionId),
-            RecordedSessionEditorIntent.EndSegmentComparison when scope is AnalysisScope.SegmentComparison => new AnalysisScope.Whole(),
+            RecordedSessionEditorIntent.EndSegmentComparison when scope is AnalysisScope.SegmentComparison => new AnalysisScope.Default(),
             _ => scope
         };
         if (nextScope != scope)

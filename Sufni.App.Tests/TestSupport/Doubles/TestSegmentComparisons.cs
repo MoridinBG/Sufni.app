@@ -70,7 +70,7 @@ internal static class TestSegmentComparisons
         new SegmentComparisonFactory(coordinator).Create(Guid.NewGuid(), states, setTimelineVisibleRange ?? ((_, _) => { }),
             reportError ?? (_ => { }), reportNotification ?? (_ => { }),
             id => states.OnNext(states.Value with { Scope = new AnalysisScope.SegmentComparison(id) }),
-            () => states.OnNext(states.Value with { Scope = new AnalysisScope.Whole() }));
+            () => states.OnNext(states.Value with { Scope = new AnalysisScope.Default() }));
 
     /// <summary>
     /// A comparison that shows one match; its compare action loads the matched

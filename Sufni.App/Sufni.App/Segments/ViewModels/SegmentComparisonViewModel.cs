@@ -32,7 +32,7 @@ public sealed record SegmentComparisonSessionState(
     SessionDampingPercentages DampingPercentages)
 {
     public SegmentTerrainSource? Terrain { get; init; }
-    public AnalysisScope Scope { get; init; } = new AnalysisScope.Whole();
+    public AnalysisScope Scope { get; init; } = new AnalysisScope.Default();
 
     public static SegmentComparisonSessionState Empty { get; } = new(
         null,

@@ -27,7 +27,7 @@ namespace Sufni.App.Tests.Terrain.Views;
 public class TerrainClassFilterViewTests
 {
     [AvaloniaFact]
-    public async Task CompactHeaderChipActivatesTheClassFilter()
+    public async Task CompactHeaderEntryChoosesAScope()
     {
         using var h = new SessionDetailHarness();
         var editor = await LoadAsync(h);
@@ -42,26 +42,27 @@ public class TerrainClassFilterViewTests
         var rough = filter.Roughness[(int)RoughnessClass.Rough];
         Assert.Single(Assert.IsType<StackPanel>(flyout.Content).GetVisualDescendants().OfType<ToggleButton>(),
             chip => ReferenceEquals(chip.DataContext, rough)).Command!.Execute(null);
-        Assert.True(filter.IsActive);
+        Assert.False(filter.IsDefault);
         flyout.Hide();
         await h.CloseAsync(editor);
     }
 
     [AvaloniaFact]
-    public async Task BannerShowsTheActiveFilterAndItsClearButtonEndsIt()
+    public async Task BannerDefaultButtonRestoresTheDefaultScope()
     {
         using var h = new SessionDetailHarness();
         var editor = await LoadAsync(h);
         var banner = new TerrainClassFilterBannerView { DataContext = editor.AnalysisWorkspace.TerrainScope };
         await using var mounted = await ViewTestHelpers.MountAsync(banner);
-        Assert.False(banner.IsVisible);
-        var rough = editor.AnalysisWorkspace.TerrainScope!.Roughness[(int)RoughnessClass.Rough];
-        rough.Toggle.Execute(null);
+        var scope = editor.AnalysisWorkspace.TerrainScope!;
+        var button = Assert.Single(banner.GetVisualDescendants().OfType<Button>());
+        Assert.False(button.IsVisible);
+        var rough = scope.Roughness[(int)RoughnessClass.Rough];
+        rough.Select.Execute(null);
         await ViewTestHelpers.FlushDispatcherAsync();
-        Assert.True(banner.IsVisible);
-        Click(mounted.Host, Assert.Single(banner.GetVisualDescendants().OfType<Button>()));
+        Click(mounted.Host, button);
         await ViewTestHelpers.FlushDispatcherAsync();
-        Assert.False(banner.IsVisible);
+        Assert.True(scope.IsDefault);
         Assert.False(rough.IsChecked);
         await h.CloseAsync(editor);
     }

@@ -192,7 +192,7 @@ public class SegmentComparisonViewModelTests
         await ((IAsyncRelayCommand)CompareAction(vm.TravelRows[0]).Command!).ExecuteAsync(null);
         Assert.Single(vm.TerrainTable!.Rows);
 
-        sessionState.OnNext(sessionState.Value with { Scope = AnalysisScope.For(new TerrainClassFilter().Toggle(RoughnessClass.Calm)) });
+        sessionState.OnNext(sessionState.Value with { Scope = new AnalysisScope.Default() });
         Assert.Null(vm.TerrainTable);
         Assert.Single(vm.TravelRows);
     }
@@ -310,7 +310,7 @@ public class SegmentComparisonViewModelTests
             await load.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
             Assert.True(vm.HasAnalysisComparison);
         }
-        var filter = AnalysisScope.For(new TerrainClassFilter().Toggle(RoughnessClass.Rough));
+        var filter = new AnalysisScope.Default();
         sessionState.OnNext(sessionState.Value with { Scope = filter });
         if (!finishFirst) result.SetResult(detail);
         await load.AwaitBoundedAsync(TimeSpan.FromSeconds(5));

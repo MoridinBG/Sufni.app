@@ -209,8 +209,8 @@ Recorded-session analysis result state is scoped to an open
 `IRecordedSessionAnalysisResultState` through a singleton factory and exposes it
 through `SessionAnalysisWorkspaceViewModel`; the heavy work is delegated to the
 singleton `IRecordedSessionAnalysisComputer`. The state is invalidated when the
-telemetry generation, effective time selection (the analysis range, narrowed by
-an active class filter), analysis modes, damping cutoffs, or insights target changes. Session Insights computes its damping percentages
+telemetry generation, effective time selection (the analysis range, narrowed to
+the moving ground of the terrain scope when a profile is loaded), analysis modes, damping cutoffs, or insights target changes. Session Insights computes its damping percentages
 from those inputs internally; percentages are a result, never an analysis key input. Visible analysis surfaces then
 request keyed results on demand: the demand component eagerly requests the shared damping
 percentages and optional insights records, while selected/visible analysis tabs
@@ -339,4 +339,4 @@ committing recomputed data.
 
 The session domain publishes the current terrain status. The recorded editor reducer owns the tab’s pending, loaded, unavailable or failed presentation. A loaded result carries the expected profile key. A map-colouring intent updates the device-local session preference through the existing editor preference writer.
 
-The recorded analysis scope belongs to the editor reducer. Whole session, terrain class filter and comparison with a matched session are exclusive cases. A telemetry replacement resets the scope. Losing the current terrain profile also releases a class filter.
+The recorded analysis scope belongs to the editor reducer. The default scope, a chosen terrain scope and comparison with a matched session are exclusive cases. The effective terrain scope is derived from the choice and the loaded profile. A telemetry replacement resets the choice to the default. Losing the current terrain profile also releases a chosen terrain scope.
