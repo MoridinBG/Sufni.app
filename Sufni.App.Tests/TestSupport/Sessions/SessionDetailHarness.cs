@@ -38,6 +38,7 @@ using Sufni.App.Tests.TestSupport.Harness;
 using Sufni.App.Tests.TestSupport.Persistence;
 using Sufni.App.Video.ViewModels;
 using Sufni.Telemetry;
+using Sufni.Telemetry.Tests;
 
 namespace Sufni.App.Tests.TestSupport.Sessions;
 
@@ -209,6 +210,13 @@ internal sealed class SessionDetailHarness : IDisposable
                 FullTrackId: null,
                 FullTrackPoints: null,
                 TrackPoints: trackPoints?.ToList())));
+    }
+
+    /// <summary>A loaded result for a synthetic ride with the full GPS track of its fixes.</summary>
+    public static SessionDetailLoadResult.Loaded CreateLoadedRide(SyntheticRide ride)
+    {
+        var (track, points) = SyntheticRideTracks.FullTrack(ride, new SessionTrackTimeline(ride.Telemetry.Metadata.Timestamp));
+        return new(new(new SessionTelemetryPresentationData(ride.Telemetry, track.Id, [.. points], [])));
     }
 
     private SessionDetailViewModel CreateEditor(

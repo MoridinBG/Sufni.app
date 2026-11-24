@@ -566,10 +566,9 @@ public class SessionDetailViewModelTests
         var ride = SyntheticRide.Build([new RideSection(800, Speed: 25, GradeDegrees: 10,
             LowBandG: 0, MiddleBandG: 0, HighBandG: 0)],
             new RideRecording(Braking: new TelemetryTimeRange(10, 17), FixRate: 3));
-        var timeline = new SessionTrackTimeline(ride.Telemetry.Metadata.Timestamp);
-        var (track, points) = SyntheticRideTracks.FullTrack(ride, timeline);
+        var loaded = SessionDetailHarness.CreateLoadedRide(ride);
         var snapshot = harness.CreateRecordedSession();
-        var editor = harness.CreateRecordedEditor(snapshot, harness.CreateLoadedResult(ride.Telemetry));
+        var editor = harness.CreateRecordedEditor(snapshot, loaded);
         var pending = new TaskCompletionSource<SessionDetailTrackLoadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         harness.SessionLoader.LoadTrackAsync(snapshot.Id, ride.Telemetry, Arg.Any<IProgress<SessionDetailLoadProgress>>(),
             Arg.Any<CancellationToken>()).Returns(pending.Task);
@@ -588,7 +587,9 @@ public class SessionDetailViewModelTests
         try
         {
             var withoutFixes = await PitchDuringBraking();
-            pending.SetResult(new SessionDetailTrackLoadResult.Loaded(new SessionTrackPresentationData(track.Id, [.. points], [])));
+            var track = loaded.Data.TelemetryPresentation;
+            pending.SetResult(new SessionDetailTrackLoadResult.Loaded(
+                new SessionTrackPresentationData(track.FullTrackId, track.FullTrackPoints, track.TrackPoints)));
             await load;
             Assert.NotEqual(withoutFixes, await PitchDuringBraking());
         }

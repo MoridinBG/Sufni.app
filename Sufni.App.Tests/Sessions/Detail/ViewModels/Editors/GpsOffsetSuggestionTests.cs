@@ -116,8 +116,7 @@ public class GpsOffsetSuggestionTests
 
     private static (SessionDetailLoadResult.Loaded, Guid) RideWithTrack(double shift)
     {
-        var ride = SyntheticRide.TurningRide(new RideRecording(TrackShift: shift));
-        var (track, points) = SyntheticRideTracks.FullTrack(ride, new SessionTrackTimeline(ride.Telemetry.Metadata.Timestamp));
-        return (new(new(new SessionTelemetryPresentationData(ride.Telemetry, track.Id, [.. points], []))), track.Id);
+        var loaded = SessionDetailHarness.CreateLoadedRide(SyntheticRide.TurningRide(new RideRecording(TrackShift: shift)));
+        return (loaded, loaded.Data.TelemetryPresentation.FullTrackId!.Value);
     }
 }
