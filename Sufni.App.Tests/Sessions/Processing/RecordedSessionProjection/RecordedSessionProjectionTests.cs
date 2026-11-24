@@ -27,7 +27,7 @@ namespace Sufni.App.Tests.Sessions.Processing.RecordedSessionProjection;
 public class RecordedSessionProjectionTests
 {
     [Fact]
-    public async Task OffsetEditExpiresTheListFingerprintAndTheEditorTerrain()
+    public async Task OffsetEditRepublishesTheTerrainStatusOfTheEditedSession()
     {
         var scheduler = new ManualUiThreadDispatcher();
         using var stores = new StoreFixtures();
@@ -41,13 +41,14 @@ public class RecordedSessionProjectionTests
         using var watch = projection.WatchSession(session.Id).Subscribe(domains.Add);
         await stores.AddAsync(context with { Session = session });
         await scheduler.DrainAsync();
-        Assert.IsType<TerrainStatus.Current>(Assert.Single(summaries).Terrain);
+        Assert.Equal(TestSnapshots.Terrain(session), Assert.Single(summaries).Terrain);
         Assert.Equal(context.Bike.Id, summaries[0].BikeId);
 
-        await stores.Sessions.PublishSessionsChangedAsync([session with { GpsOffsetSeconds = 1 }]);
+        var edited = session with { GpsOffsetSeconds = 1 };
+        await stores.Sessions.PublishSessionsChangedAsync([edited]);
         await scheduler.DrainAsync();
-        Assert.IsType<TerrainStatus.Pending>(Assert.Single(summaries).Terrain);
-        Assert.IsType<TerrainStatus.Pending>(domains[^1].Terrain);
+        Assert.Equal(TestSnapshots.Terrain(edited), Assert.Single(summaries).Terrain);
+        Assert.Equal(TestSnapshots.Terrain(edited), domains[^1].Terrain);
     }
 
     [Fact]

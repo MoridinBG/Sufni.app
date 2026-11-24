@@ -35,8 +35,7 @@ public class TerrainProfileRepositoryTests
         var unavailable = TerrainMaterialization.WithoutProfile(TerrainOutcome.NoTrack);
         Assert.False(await db.TerrainProfiles.TryCommitAsync(session.Id, key, unavailable));
         var edited = SessionSnapshot.From((await db.GetSessionAsync(session.Id))!);
-        var (nextKey, status) = SessionTerrainStatusQuery.Evaluate(edited, []);
-        Assert.IsType<TerrainStatus.Pending>(status);
+        var nextKey = SessionTerrainStatusQuery.Evaluate(edited, []).Key;
         Assert.Empty(await db.TerrainProfiles.ReadAsync(new Dictionary<Guid, TerrainProfileKey> { [session.Id] = nextKey }));
         Assert.True(await db.TerrainProfiles.TryCommitAsync(session.Id, nextKey, unavailable));
         Assert.Empty(await db.TerrainProfiles.ReadAsync(new Dictionary<Guid, TerrainProfileKey> { [session.Id] = key }));
