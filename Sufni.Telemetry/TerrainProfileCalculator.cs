@@ -53,6 +53,7 @@ public static partial class TerrainProfileCalculator
             var (roughness, source) = Classify(windows[i].Frame, windows[i].Lowers);
             windows[i] = windows[i] with { Roughness = roughness, Source = source };
         }
+        MergeOutliers(windows, static w => w.Roughness, static (w, level) => w with { Roughness = level }, Adjacent);
         var classified = frame != null && TerrainCalibration.For(ImuLocation.Frame, frame.AccelLsbPerG) != null ||
                          lowers != null && TerrainCalibration.For(ImuLocation.Fork, lowers.AccelLsbPerG) != null;
         var roughState = classified ? TerrainRoughnessState.Classified :
@@ -93,6 +94,24 @@ public static partial class TerrainProfileCalculator
         }
         return true;
     }
+
+    /// <summary>
+    /// A single window between two adjacent windows of one other class takes their class. A stop, a gap or an
+    /// unclassified neighbour keeps the window unchanged. Decisions use the classes before merging.
+    /// </summary>
+    internal static void MergeOutliers<T, TClass>(List<T> windows, Func<T, TClass?> read, Func<T, TClass, T> write,
+        Func<T, T, bool> adjacent) where TClass : struct, Enum
+    {
+        var classes = windows.Select(read).ToArray();
+        for (var i = 1; i + 1 < windows.Count; i++)
+        {
+            if (classes[i] is not { } own || classes[i - 1] is not { } before || !Equals(classes[i + 1], before) ||
+                Equals(own, before) || !adjacent(windows[i - 1], windows[i]) || !adjacent(windows[i], windows[i + 1])) continue;
+            windows[i] = write(windows[i], before);
+        }
+    }
+
+    private static bool Adjacent(TerrainWindow a, TerrainWindow b) => a.EndSeconds == b.StartSeconds;
 
     // The band-pass filter carries a residue from live samples into a silent stretch; below one count is no signal.
     private static double OneCount(ImuMetaEntry? meta) => meta is null ? 0 : 1d / meta.AccelLsbPerG;

@@ -54,6 +54,17 @@ public class TerrainProfileCalculatorTests
         Assert.True(section.Count(w => w.Roughness == expected) >= section.Length * 0.9);
     }
 
+    [Theory]
+    [InlineData(10, RoughnessClass.Calm)]
+    [InlineData(20, RoughnessClass.Rough)]
+    public void ShortRoughPatchJoinsCalmGroundOnlyWhenItSpansOneWindow(double length, RoughnessClass expected)
+    {
+        var rough = new RideSection(length, LowBandG: 1.4, MiddleBandG: 1.6, HighBandG: 1.8);
+        var window = SyntheticRide.Build([new(300), rough, new(300)]).Profile().Windows.Single(w => w.StartMetres == 300);
+        Assert.Equal(expected, window.Roughness);
+        Assert.True(window.NormalisedRoughness >= 1);
+    }
+
     [Fact]
     public void SummaryRoughShareFollowsTheSectionDistances()
     {

@@ -60,6 +60,7 @@ public static partial class TerrainProfileCalculator
             if (BaselineGrade(windows, i) is not { } baseline) continue;
             windows[i] = windows[i] with { Band = ClassifyGrade(baseline) };
         }
+        MergeOutliers(windows, static w => w.Band, static (w, band) => w with { Band = band }, Adjacent);
         return TerrainGradeState.Available;
     }
 

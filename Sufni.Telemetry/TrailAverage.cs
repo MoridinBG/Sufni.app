@@ -46,16 +46,19 @@ public closed record TrailAverage(int RunCount)
             climbLevels.Add(totals[i].ClimbLevel);
         }
         for (var i = 0; i < windows.Count; i++)
-        {
-            if (BaselineGrade(windows, i) is not { } baseline) continue;
-            var band = TerrainProfileCalculator.ClassifyGrade(baseline);
-            windows[i] = windows[i] with { Band = band, Roughness = band.IsClimb() ? climbLevels[i] : windows[i].Roughness };
-        }
+            if (BaselineGrade(windows, i) is { } baseline)
+                windows[i] = windows[i] with { Band = TerrainProfileCalculator.ClassifyGrade(baseline) };
+        TerrainProfileCalculator.MergeOutliers(windows, static w => w.Band, static (w, band) => w with { Band = band }, Adjacent);
+        for (var i = 0; i < windows.Count; i++)
+            if (windows[i].Band?.IsClimb() == true) windows[i] = windows[i] with { Roughness = climbLevels[i] };
+        TerrainProfileCalculator.MergeOutliers(windows, static w => w.Roughness, static (w, level) => w with { Roughness = level }, Adjacent);
         return new Averaged(count, [.. windows]);
     }
 
     public static double? BaselineGrade(IReadOnlyList<TrailAverageWindow> windows, int index) =>
-        TerrainProfileCalculator.BaselineGrade(windows, index, static w => w.Grade, static (a, b) => a.EndSeconds == b.StartSeconds);
+        TerrainProfileCalculator.BaselineGrade(windows, index, static w => w.Grade, Adjacent);
+
+    private static bool Adjacent(TrailAverageWindow a, TrailAverageWindow b) => a.EndSeconds == b.StartSeconds;
 
     private struct Mean
     {

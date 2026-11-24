@@ -21,14 +21,19 @@ public static class TerrainRunComparison
         var levels = Enum.GetValues<RoughnessClass>().Where(level => !level.IsClimb()).ToArray();
         var groups = levels.Select(_ => new List<Pair>()).Append([]).ToArray();
         var averageClasses = average?.Windows.ToDictionary(w => w.SourceIndex, w => w.Roughness);
-        foreach (var indices in alignment.Pairs)
+        var pairs = alignment.Pairs.Select(indices =>
+        {
+            var pair = new Pair(current.Windows[indices.SourceIndex], earlier.Windows[indices.MatchIndex]);
+            return new ClassifiedPair(pair, averageClasses is null ? PairClass(pair) : averageClasses.GetValueOrDefault(indices.SourceIndex));
+        }).ToList();
+        // Averaged classes arrive merged already.
+        if (averageClasses is null)
+            TerrainProfileCalculator.MergeOutliers(pairs, static p => p.Class, static (p, level) => p with { Class = level },
+                static (a, b) => a.Pair.Current.EndSeconds == b.Pair.Current.StartSeconds);
+        foreach (var (pair, roughness) in pairs)
         {
             token.ThrowIfCancellationRequested();
-            var pair = new Pair(current.Windows[indices.SourceIndex], earlier.Windows[indices.MatchIndex]);
             groups[^1].Add(pair);
-            var roughness = averageClasses is null
-                ? PairClass(pair)
-                : averageClasses.GetValueOrDefault(indices.SourceIndex);
             if (roughness is { } level && !level.IsClimb()) groups[(int)level].Add(pair);
         }
         return [.. groups.Select((pairs, index) => Describe(pairs, index < levels.Length ? levels[index] : null, model, token))];
@@ -84,6 +89,8 @@ public static class TerrainRunComparison
         var ratio = Math.Exp(sum / count);
         return new(TerrainResponse.Assess(ratio, threshold), ratio);
     }
+
+    private readonly record struct ClassifiedPair(Pair Pair, RoughnessClass? Class);
 
     private readonly record struct Pair(TerrainWindow Current, TerrainWindow Earlier)
     {

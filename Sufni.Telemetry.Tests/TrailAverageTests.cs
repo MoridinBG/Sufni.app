@@ -88,6 +88,21 @@ public class TrailAverageTests
         Assert.Equal(GradeBand.Descent, average.Windows.Single(w => w.SourceIndex == 2).Band);
     }
 
+    [Theory]
+    [InlineData(0, RoughnessClass.Calm)]
+    [InlineData(0.5, RoughnessClass.Rough)]
+    public void SingleRoughWindowJoinsCalmNeighboursOnlyWithoutAGap(double gapSeconds, RoughnessClass expected)
+    {
+        var windows = Enumerable.Range(0, 5).Select(i => TerrainProfiles.Window(i + (i >= 2 ? gapSeconds : 0)) with
+        {
+            Frame = TerrainProfiles.Sensor(1, i == 2 ? 1.5 : -0.5)
+        });
+        var profile = TerrainProfiles.Profile(windows);
+        var run = new AlignedTerrainRun(profile, TerrainProfiles.Identity(5));
+        var average = Assert.IsType<TrailAverage.Averaged>(TrailAverage.Calculate(profile, new(0, 6), [run, run]));
+        Assert.Equal(expected, average.Windows.Single(w => w.SourceIndex == 2).Roughness);
+    }
+
     [Fact]
     public void OneAlignedMatchCountsTwoRuns()
     {
