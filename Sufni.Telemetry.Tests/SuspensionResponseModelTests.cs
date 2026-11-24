@@ -36,9 +36,9 @@ public class SuspensionResponseModelTests
     [Fact]
     public void IncompatibleAndAbsentLowersDoNotMakeAnUndersizedPreferredSensorSwitchToFrame()
     {
-        var rides = SyntheticResponseRides.Baseline;
-        var baseline = rides.Select((p, i) => i < 3 ? p : p with { LowersScale = i == 3 ? 2048 : null }).ToArray();
-        var model = SuspensionResponseModel.Fit(rides[0], baseline);
+        var baseline = SyntheticResponseRides.Baseline
+            .Select((p, i) => i < 3 ? p : p with { LowersScale = i == 3 ? 2048 : null }).ToArray();
+        var model = SuspensionResponseModel.Fit(SyntheticResponseRides.Profile(37), baseline);
         var front = Assert.IsType<ResponseFit.Unavailable>(model.Fits[ResponseTarget.FrontRms]);
         Assert.Equal(ImuLocation.Fork, front.Predictor);
         Assert.Equal(3, front.Sessions);
