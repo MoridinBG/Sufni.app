@@ -16,6 +16,8 @@ internal static class TerrainResponseReports
         [ResponseTarget.FrontRms, ResponseTarget.FrontPeakCompression, ResponseTarget.FrontPeakRebound];
     private static readonly ResponseTarget[] ShockTargets =
         [ResponseTarget.RearRms, ResponseTarget.RearPeakCompression, ResponseTarget.RearPeakRebound];
+    // Vibration passed to the frame belongs to Ground & comfort, so the report leaves Transmission out.
+    private static readonly ResponseTarget[] ReportedTargets = [.. ForkTargets, .. ShockTargets];
 
     private sealed record Measurement(ResponseCellState State, double? Deviation, string? Source = null);
 
@@ -54,11 +56,12 @@ internal static class TerrainResponseReports
     private static TerrainResponseReport Build(IReadOnlyList<Group> groups, IEnumerable<ResponseFinding> findings,
         Func<ResponseTarget, double> repeatRange, string reference, string asUsual)
     {
-        var reported = groups.Where(group => group.Measurements.Values.Any(m => m.State != ResponseCellState.TooShort))
+        var reported = groups.Where(group => ReportedTargets.Any(target =>
+                group.Measurements.TryGetValue(target, out var m) && m.State != ResponseCellState.TooShort))
             .OrderBy(group => GroupOrder(group.Class)).ToArray();
         var chart = reported.Select(group => new ResponseChartRow(group.Class, GroupLabel(group.Class), group.Coverage,
             group.Confidence, Bars(group, ForkTargets), Bars(group, ShockTargets))).ToImmutableArray();
-        var verdicts = findings.Where(finding => finding.Target != ResponseTarget.Transmission)
+        var verdicts = findings.Where(finding => ReportedTargets.Contains(finding.Target))
             .OrderBy(finding => GroupOrder(finding.Group)).ThenBy(finding => finding.Target)
             .Select(finding => new ResponseVerdict(finding, Verdict(finding, reference))).ToArray();
         var deviations = chart.SelectMany(row => row.Fork.Concat(row.Shock)).Select(bar => bar.Deviation).OfType<double>().ToArray();
@@ -69,7 +72,7 @@ internal static class TerrainResponseReports
             [.. verdicts.Where(v => !TerrainResponseText.IsFork(v.Finding.Target))], summary, scale, chart,
             [.. reported.Select(group => new ResponseDetailRow(GroupLabel(group.Class),
                 [
-                    .. Enum.GetValues<ResponseTarget>().Where(group.Measurements.ContainsKey).Select(target =>
+                    .. ReportedTargets.Where(group.Measurements.ContainsKey).Select(target =>
                     {
                         var measurement = group.Measurements[target];
                         return new ResponseDetailValue(TerrainResponseText.TargetLabel(target),

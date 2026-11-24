@@ -13,12 +13,11 @@ internal static class TerrainResponseText
         ResponseTarget.FrontRms or ResponseTarget.RearRms => "Activity",
         ResponseTarget.FrontPeakCompression or ResponseTarget.RearPeakCompression => "Hardest compressions",
         ResponseTarget.FrontPeakRebound or ResponseTarget.RearPeakRebound => "Fastest rebounds",
-        ResponseTarget.Transmission => "Vibration passed to the frame",
         _ => throw new ArgumentOutOfRangeException(nameof(target))
     };
 
-    public static string TargetLabel(ResponseTarget target) => target == ResponseTarget.Transmission
-        ? Measure(target) : $"{(IsFork(target) ? "Fork" : "Shock")} {Measure(target).ToLowerInvariant()}";
+    public static string TargetLabel(ResponseTarget target) =>
+        $"{(IsFork(target) ? "Fork" : "Shock")} {Measure(target).ToLowerInvariant()}";
 
     public static string TooShort { get; } = $"Under {SuspensionResponseModel.MinimumReportMetres} m";
 
