@@ -135,7 +135,7 @@ internal sealed class RecordedSessionAnalysisComputer(
             key.SessionInsightsTargetProfile ?? SessionInsightsTargetProfile.Trail)
         {
             DampingSpeedCutoffs = key.DampingSpeedCutoffs,
-            Terrain = inputs is { TerrainProfile: { } profile, Baseline: { } baseline }
+            Terrain = inputs?.TerrainProfile is { } profile && key.Baseline is { } baseline
                 ? new(profile, baseline, key.AnalysisRange) : null,
         };
 
