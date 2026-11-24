@@ -39,21 +39,29 @@ public sealed class DeferredBackgroundTaskRunner : IBackgroundTaskRunner
     public Task RunNextAsync() => pending.Reader.TryRead(out var work)
         ? work() : throw new InvalidOperationException("No queued background work.");
 
+    /// <summary>Runs queued background work as dispatcher callbacks until the completion finishes.</summary>
     public async Task DrainUntilAsync(ManualUiThreadDispatcher dispatcher, Task completion)
     {
-        using var waiting = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        waiting.CancelAfter(TimeSpan.FromSeconds(5));
-        while (!completion.IsCompleted)
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var forwarding = ForwardAsync(dispatcher, stop.Token);
+        try
         {
-            waiting.Token.ThrowIfCancellationRequested();
-            await dispatcher.DrainAsync();
-            while (pending.Reader.TryRead(out var work)) _ = work();
-            if (completion.IsCompleted) break;
-            using var wake = CancellationTokenSource.CreateLinkedTokenSource(waiting.Token);
-            await Task.WhenAny(completion, dispatcher.WaitForWorkAsync(wake.Token),
-                pending.Reader.WaitToReadAsync(wake.Token).AsTask());
-            await wake.CancelAsync();
+            await dispatcher.DrainUntilAsync(completion);
         }
-        await completion;
+        finally
+        {
+            await stop.CancelAsync();
+            await forwarding;
+        }
+    }
+
+    private async Task ForwardAsync(ManualUiThreadDispatcher dispatcher, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (await pending.Reader.WaitToReadAsync(cancellationToken))
+                while (pending.Reader.TryRead(out var work)) dispatcher.Post(() => _ = work());
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
     }
 }
