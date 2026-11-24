@@ -388,6 +388,9 @@ mc:Ignorable="d">
                     <Panel IsVisible="{Binding SessionInsights.HasGroundComfort, FallbackValue=False}">
                         <terrainViews:GroundComfortView DataContext="{Binding SessionInsights.GroundComfort}" />
                     </Panel>
+                    <TextBlock Name="GroundComfortNote" Text="{Binding SessionInsights.GroundComfortNote, FallbackValue={x:Null}}"
+                               IsVisible="{Binding SessionInsights.HasGroundComfortNote, FallbackValue=False}"
+                               TextWrapping="Wrap" FontStyle="Italic" Opacity="0.75" />
                     <Expander Header="Stroke detail" IsExpanded="False" HorizontalAlignment="Stretch">
                         <Grid>
                             <Grid.ColumnDefinitions>

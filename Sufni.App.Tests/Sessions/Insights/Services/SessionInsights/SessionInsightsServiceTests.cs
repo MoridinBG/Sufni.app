@@ -69,6 +69,16 @@ public class SessionInsightsServiceTests
         var result = Analyze(profile, null, scope: scoped ? new TerrainScope(TerrainPreset.All) : null);
 
         Assert.Equal(scoped, result.HasGroundComfort);
+        Assert.Equal(!scoped, result.HasGroundComfortNote);
+    }
+
+    [Fact]
+    public void GroundAndComfortWithoutATerrainProfileSaysWhy()
+    {
+        var result = service.Analyze(CreateRequest(CreateTelemetry(front: BuildSide(), rear: BuildSide())));
+
+        Assert.False(result.HasGroundComfort);
+        Assert.True(result.HasGroundComfortNote);
     }
 
     [Theory]

@@ -159,6 +159,11 @@ public sealed record SessionInsightsResult(
 
     public bool HasGroundComfort => GroundComfort is not null;
 
+    /// <summary>Why a computed result has no Ground &amp; comfort summary.</summary>
+    public string? GroundComfortNote { get; init; }
+
+    public bool HasGroundComfortNote => GroundComfortNote is not null;
+
     /// <summary>The climbs in the time range; the scope does not narrow them.</summary>
     public ClimbingReport? Climbing { get; init; }
 

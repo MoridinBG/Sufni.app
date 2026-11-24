@@ -30,6 +30,9 @@ mc:Ignorable="d">
                 <terrainViews:GroundComfortView Name="GroundComfort" DataContext="{Binding Workspace.SessionInsights.GroundComfort}" />
             </Panel>
 
+            <TextBlock Name="GroundComfortNote" Text="{Binding Workspace.SessionInsights.GroundComfortNote, FallbackValue={x:Null}}"
+                       IsVisible="{Binding Workspace.SessionInsights.HasGroundComfortNote, FallbackValue=False}"
+                       TextWrapping="Wrap" FontStyle="Italic" Opacity="0.75" />
             <Expander Name="StrokeDetail" Header="Stroke detail" IsExpanded="False" HorizontalAlignment="Stretch">
                 <StackPanel Spacing="10">
                     <controls2:VibrationAnalysisHost

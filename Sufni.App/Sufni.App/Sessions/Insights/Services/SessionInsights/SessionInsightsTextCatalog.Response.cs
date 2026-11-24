@@ -20,6 +20,13 @@ internal static partial class SessionInsightsTextCatalog
         _ => string.Empty
     };
 
+    public static string? GroundComfortNote(SessionTerrainInput? terrain) => terrain switch
+    {
+        null => "Ground & comfort needs a terrain profile for this ride.",
+        { Scope: null } => "Ground & comfort is not available in a segment comparison.",
+        _ => null
+    };
+
     public static string? CharacterHint(TerrainCharacter character)
     {
         var parts = new List<string>();
