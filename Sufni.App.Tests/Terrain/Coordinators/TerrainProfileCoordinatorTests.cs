@@ -10,9 +10,9 @@ using Sufni.App.Shared.Stores;
 using Sufni.App.Terrain.Coordinators;
 using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Queries;
-using Sufni.App.Terrain.Services;
 using Sufni.App.Tests.TestSupport.Async;
 using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.App.Tests.TestSupport.Persistence;
 using Sufni.Telemetry;
 using Sufni.Telemetry.Tests;
 
@@ -40,7 +40,7 @@ public class TerrainProfileCoordinatorTests
         await h.Dispatcher.DrainAsync();
         release.SetResult();
         await h.WaitForAsync(middle, TerrainOutcome.Computed);
-        Assert.Equal([newest.Id, oldest.Id, middle.Id], h.Writes.Select(write => write.Id));
+        Assert.Equal([newest.Id, oldest.Id, middle.Id], h.Published.Select(publication => publication.Id));
         foreach (var session in new[] { oldest, middle, newest })
             Assert.True(Assert.IsType<TerrainStatus.Current>(h.Status(session.Id)).Summary.ClassifiedMetres > 0);
     }
@@ -64,7 +64,8 @@ public class TerrainProfileCoordinatorTests
         await h.DrainAsync(started.Task);
         await h.PublishAsync(session with { GpsOffsetSeconds = 1, Name = "corrected" });
         await h.WaitForAsync(session, TerrainOutcome.Computed);
-        Assert.Equal(1, Assert.Single(h.Writes).Key.Content.GpsOffsetSeconds);
+        Assert.Equal(1, Assert.Single(h.Published).Key.Content.GpsOffsetSeconds);
+        Assert.Equal(1, h.Repository.StoredKey(session.Id)!.Content.GpsOffsetSeconds);
         Assert.Equal("corrected", h.Sessions.Get(session.Id)!.Name);
     }
 
@@ -75,13 +76,11 @@ public class TerrainProfileCoordinatorTests
         var session = Session();
         var writing = new TaskCompletionSource();
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        h.Repository.TryCommitAsync(session.Id, Arg.Any<TerrainProfileKey>(), Arg.Any<TerrainMaterialization>(),
-            Arg.Any<CancellationToken>()).Returns(async call =>
-            {
-                writing.TrySetResult();
-                await release.Task.WaitAsync(call.Arg<CancellationToken>());
-                return true;
-            });
+        h.Repository.BeforeWrite = () =>
+        {
+            writing.TrySetResult();
+            return release.Task;
+        };
         await h.StartAsync([session]);
         await h.DrainAsync(writing.Task);
         await h.PublishAsync(session with { Description = "after the ride" });
@@ -124,14 +123,14 @@ public class TerrainProfileCoordinatorTests
     {
         await using var h = new Harness();
         var session = Session();
-        if (commitThrows) h.Repository.TryCommitAsync(session.Id, Arg.Is<TerrainProfileKey>(k => k.Content.GpsOffsetSeconds == 0),
-            Arg.Any<TerrainMaterialization>(), Arg.Any<CancellationToken>()).Returns<Task<bool>>(_ => throw new IOException());
+        if (commitThrows) h.Repository.WriteFailure = new IOException();
         else h.Read = (_, key, _) => Task.FromResult(h.Available(key,
             key.GpsOffsetSeconds == 0 ? new TelemetryData() : null));
 
         await h.StartAsync([session]);
         await h.WaitForAsync(session, TerrainOutcome.Failed);
         Assert.IsType<TerrainStatus.Failed>(h.Status(session.Id));
+        h.Repository.WriteFailure = null;
         var other = Session(600);
         await h.PublishAsync(other);
         await h.WaitForAsync(other, TerrainOutcome.NoTrack);
@@ -158,10 +157,12 @@ public class TerrainProfileCoordinatorTests
             await Task.Delay(Timeout.InfiniteTimeSpan, token);
             return h.Available(key);
         };
-        await h.StartAsync([Session()]);
+        var session = Session();
+        await h.StartAsync([session]);
         await h.DrainAsync(started.Task);
         await h.DrainAsync(h.Coordinator.StopAsync());
-        Assert.Empty(h.Writes);
+        Assert.Null(h.Repository.StoredKey(session.Id));
+        Assert.Empty(h.Published);
     }
 
     private static SessionSnapshot Session(long timestamp = 100) =>
@@ -174,12 +175,13 @@ public class TerrainProfileCoordinatorTests
         private readonly TrackStore tracks;
         private readonly TrackSnapshot track;
         private readonly DeferredBackgroundTaskRunner runner = new();
+        private readonly IDisposable terrainPublications;
         public ManualUiThreadDispatcher Dispatcher { get; } = new();
         public SessionStore Sessions { get; }
-        public ITerrainProfileRepository Repository { get; } = Substitute.For<ITerrainProfileRepository>();
+        public InMemoryTerrainProfileRepository Repository { get; } = new();
         public IFullTrackPointReader Points { get; } = Substitute.For<IFullTrackPointReader>();
         public TerrainProfileCoordinator Coordinator { get; }
-        public List<(Guid Id, TerrainProfileKey Key)> Writes { get; } = [];
+        public List<(Guid Id, TerrainProfileKey Key)> Published { get; } = [];
         public List<Guid> Reads { get; } = [];
         public Func<Guid, SessionContentToken, CancellationToken, Task<SessionContentSnapshotResult>> Read { get; set; }
 
@@ -199,12 +201,10 @@ public class TerrainProfileCoordinatorTests
                 Reads.Add(call.Arg<Guid>());
                 return Read(call.Arg<Guid>(), call.Arg<SessionContentToken>(), call.Arg<CancellationToken>());
             });
-            Repository.TryCommitAsync(Arg.Any<Guid>(), Arg.Any<TerrainProfileKey>(), Arg.Any<TerrainMaterialization>(),
-                Arg.Any<CancellationToken>()).Returns(call =>
-            {
-                Writes.Add((call.Arg<Guid>(), call.Arg<TerrainProfileKey>()));
-                return true;
-            });
+            terrainPublications = Sessions.Connect().Subscribe(changes => Published.AddRange(changes
+                .Where(change => change.Current.TerrainProfileKey is { } key
+                    && (!change.Previous.HasValue || change.Previous.Value.TerrainProfileKey != key))
+                .Select(change => (change.Current.Id, change.Current.TerrainProfileKey!))));
             Coordinator = new(Sessions, tracks, content, Points, Repository, runner, Dispatcher, publication);
         }
 
@@ -236,6 +236,7 @@ public class TerrainProfileCoordinatorTests
         {
             await DrainAsync(Coordinator.StopAsync());
             Coordinator.Dispose();
+            terrainPublications.Dispose();
             tracks.Dispose();
             Sessions.Dispose();
             publication.Dispose();
