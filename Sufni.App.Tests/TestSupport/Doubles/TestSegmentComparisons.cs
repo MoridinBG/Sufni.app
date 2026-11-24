@@ -41,6 +41,11 @@ internal static class TestSegmentComparisons
         coordinator.MatchAsync(Arg.Any<SegmentMatchSource>(), Arg.Any<CancellationToken>()).Returns(new SegmentMatchResult.Matched(
             comparisons.Select(c => c.Match).ToArray(), new SegmentComparisonPage(comparisons, [])));
 
+    public static void DetailReturns(ISegmentCoordinator coordinator, SegmentComparison comparison,
+        IReadOnlyList<TrackPoint>? matchedTrackPoints = null) =>
+        coordinator.LoadComparisonDetailAsync(comparison, Arg.Any<CancellationToken>()).Returns(new SegmentComparisonDetailResult.Loaded(
+            SegmentComparisonBuilder.BuildDetail(TestSegmentMatches.Telemetry(), matchedTrackPoints)));
+
     public static void WithTrailAverage(ISegmentCoordinator coordinator)
     {
         var frame = new SegmentComparisonSeries("Frame", "g", SegmentComparisonSeriesRole.FrameImu, [3, 4], [1.2, 1.4]);
@@ -63,8 +68,7 @@ internal static class TestSegmentComparisons
         var telemetry = TestSegmentMatches.Telemetry();
         var comparison = SegmentComparisonBuilder.Build(TestSegmentMatches.Match(10, 13), telemetry, telemetry.Metadata.Duration)!;
         MatchReturns(coordinator, comparison);
-        coordinator.LoadComparisonDetailAsync(comparison, Arg.Any<CancellationToken>())
-            .Returns(new SegmentComparisonDetailResult.Loaded(SegmentComparisonBuilder.BuildDetail(telemetry, [new TrackPoint(0, 0, 0, null), new TrackPoint(1, 1, 1, null)])));
+        DetailReturns(coordinator, comparison, [new TrackPoint(0, 0, 0, null), new TrackPoint(1, 1, 1, null)]);
         var sessionState = SegmentComparisonSessionState.Empty with
         {
             AnalysisRange = new TelemetryTimeRange(2, 5),

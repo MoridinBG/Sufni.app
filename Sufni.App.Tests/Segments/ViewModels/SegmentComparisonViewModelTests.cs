@@ -408,9 +408,7 @@ public class SegmentComparisonViewModelTests
 
     private void MatchReturns(params SegmentComparison[] comparisons) => TestSegmentComparisons.MatchReturns(coordinator, comparisons);
 
-    private void DetailReturns(SegmentComparison comparison) =>
-        coordinator.LoadComparisonDetailAsync(comparison, Arg.Any<CancellationToken>())
-            .Returns(new SegmentComparisonDetailResult.Loaded(SegmentComparisonBuilder.BuildDetail(TestSegmentMatches.Telemetry(), matchedTrackPoints: null)));
+    private void DetailReturns(SegmentComparison comparison) => TestSegmentComparisons.DetailReturns(coordinator, comparison);
 
     private static SignalRowAction CompareAction(SegmentComparisonRowViewModel row) =>
         row.HeaderActions.Single(action => action.Id == "compare-analysis");
