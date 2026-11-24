@@ -57,7 +57,7 @@ public class GpsOffsetSuggestionTests
     {
         using var harness = new SessionDetailHarness();
         var session = harness.CreateRecordedSession();
-        var (loaded, id) = RideWithTrack(2);
+        var (loaded, _) = RideWithTrack(2);
         harness.PublishPreferences(SessionPreferences.Default with { LastGpsOffsetTrackId = Guid.NewGuid() });
         var editor = harness.CreateRecordedEditor(session, loaded, deferDomainHandlingWhenInactive: false);
         editor.SetTabActive(false);
@@ -66,8 +66,8 @@ public class GpsOffsetSuggestionTests
         await harness.DialogService.DidNotReceiveWithAnyArgs().ShowChoiceAsync(default!, default!, default!);
         editor.SetTabActive(true);
         await ViewTestHelpers.FlushDispatcherAsync();
+        await harness.DialogService.ReceivedWithAnyArgs(1).ShowChoiceAsync(default!, default!, default!);
         await harness.CloseAsync(editor);
-        Assert.Equal(id, await HandledTrack(harness, session));
     }
 
     [AvaloniaFact]
