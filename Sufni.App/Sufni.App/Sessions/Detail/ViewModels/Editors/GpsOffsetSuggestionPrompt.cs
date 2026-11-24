@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
 using Sufni.App.Infrastructure;
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Shared.Common;
@@ -25,7 +27,7 @@ internal sealed class GpsOffsetSuggestionPrompt : IAsyncDisposable
     private readonly IDisposable subscription;
     private readonly CancellableOperation calculation = new();
     private TaskCompletionSource? activation;
-    private SessionContentToken? current;
+    private (Guid TrackId, TelemetryData Telemetry, IReadOnlyList<TrackPoint> Fixes, SessionTrackTimeline Timeline)? current;
     private Task pending = Task.CompletedTask;
 
     public GpsOffsetSuggestionPrompt(IObservable<RecordedSessionEditorState> states, ISessionCoordinator sessions,
@@ -58,17 +60,15 @@ internal sealed class GpsOffsetSuggestionPrompt : IAsyncDisposable
             current = null;
             return;
         }
-        var key = new SessionContentToken(session.ProcessedTelemetryRevision, trackId, state.Domain?.SelectedTrack?.PointsRevision,
-            telemetry.Metadata.Timestamp, telemetry.Metadata.Duration, timeline.GpsOffsetSeconds,
-            WindowOriginFraction: SessionTrackTimeline.FractionalOrigin(timeline.OwnerOriginSeconds));
-        if (key == current) return;
-        current = key;
+        var inputs = (trackId, telemetry, fixes, timeline);
+        if (inputs == current) return;
+        current = inputs;
         var token = calculation.Start(lifetime);
-        pending = RunAsync(pending, session.Id, trackId, key, () => GpsTimeOffsetEstimator.Estimate(telemetry,
+        pending = RunAsync(pending, session.Id, trackId, timeline.GpsOffsetSeconds, () => GpsTimeOffsetEstimator.Estimate(telemetry,
             TrackSampleAdapter.FromOriginalFixes(fixes, timeline, telemetry.Metadata.Duration), token), token);
     }
 
-    private async Task RunAsync(Task previous, Guid sessionId, Guid trackId, SessionContentToken key,
+    private async Task RunAsync(Task previous, Guid sessionId, Guid trackId, double offsetSeconds,
         Func<GpsTimeOffsetEstimate> estimate, CancellationToken token)
     {
         try
@@ -89,7 +89,7 @@ internal sealed class GpsOffsetSuggestionPrompt : IAsyncDisposable
                 }
                 token.ThrowIfCancellationRequested();
                 var choice = await dialogs.ShowChoiceAsync("GPS time offset",
-                    $"The current GPS offset is {key.GpsOffsetSeconds:F1} s. Aligning the track to the frame gyroscope suggests {key.GpsOffsetSeconds + suggestion.LagSeconds:F1} s.",
+                    $"The current GPS offset is {offsetSeconds:F1} s. Aligning the track to the frame gyroscope suggests {offsetSeconds + suggestion.LagSeconds:F1} s.",
                     [new("apply", "Apply", IsDefault: true), new("later", "Not now")]).WaitAsync(lifetime);
                 token.ThrowIfCancellationRequested();
                 if (choice == "apply")
