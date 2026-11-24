@@ -84,7 +84,6 @@ internal sealed partial class RecordedSessionTerrainController : IAsyncDisposabl
     {
         subscription.Dispose();
         baselineSubscription.Dispose();
-        planning.Dispose();
         fitting.Dispose();
         read.Dispose();
         await Task.WhenAll(pending, baselineTasks).ConfigureAwait(false);
