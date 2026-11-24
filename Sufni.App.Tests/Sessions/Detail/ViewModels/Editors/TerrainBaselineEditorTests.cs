@@ -1,11 +1,10 @@
-using System.ComponentModel;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Reactive.Threading.Tasks;
 using Avalonia.Headless.XUnit;
 using DynamicData;
 using NSubstitute;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
-using Sufni.App.Sessions.Insights.Services.SessionInsights;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Terrain.Models;
@@ -20,14 +19,16 @@ public class TerrainBaselineEditorTests
 {
     private readonly DeferredBackgroundTaskRunner runner = new();
     private readonly ManualUiThreadDispatcher dispatcher = new();
+    private readonly BehaviorSubject<TerrainBaseline?> analyzedBaseline = new(null);
+    private readonly List<TerrainBaseline?> analyzedBaselines = [];
 
     [AvaloniaFact]
-    public async Task FifthRideCommittedWhileOpenReportsTheResponse()
+    public async Task FifthRideCommittedWhileOpenGivesInsightsAFittedBaseline()
     {
         using var h = CreateHarness();
-        var (editor, rows) = await OpenWithBaselineAsync(h, baselineRides: 4, SessionResponseState.InsufficientBaseline);
+        var (editor, rows) = await OpenWithBaselineAsync(h, baselineRides: 4, fitted: false);
         h.SessionSummaries.AddOrUpdate(rows[4]);
-        await runner.DrainUntilAsync(dispatcher, ResponseAsync(editor, SessionResponseState.Reported, 5));
+        await runner.DrainUntilAsync(dispatcher, AnalyzedAsync(fitted: true, 5));
         await runner.DrainUntilAsync(dispatcher, h.CloseAsync(editor));
     }
 
@@ -35,9 +36,9 @@ public class TerrainBaselineEditorTests
     public async Task RideWhoseProfileBecomesPendingLeavesTheBaseline()
     {
         using var h = CreateHarness();
-        var (editor, rows) = await OpenWithBaselineAsync(h, baselineRides: 5, SessionResponseState.Reported);
+        var (editor, rows) = await OpenWithBaselineAsync(h, baselineRides: 5, fitted: true);
         h.SessionSummaries.AddOrUpdate(rows[4] with { Terrain = new TerrainStatus.Pending() });
-        await runner.DrainUntilAsync(dispatcher, ResponseAsync(editor, SessionResponseState.InsufficientBaseline, 4));
+        await runner.DrainUntilAsync(dispatcher, AnalyzedAsync(fitted: false, 4));
         await runner.DrainUntilAsync(dispatcher, h.CloseAsync(editor));
     }
 
@@ -45,26 +46,27 @@ public class TerrainBaselineEditorTests
     public async Task FitCompletedBeforeTheBaselineChangedDoesNotPublish()
     {
         using var h = CreateHarness();
-        var (editor, rows) = await OpenWithBaselineAsync(h, baselineRides: 4, SessionResponseState.InsufficientBaseline);
+        var (editor, rows) = await OpenWithBaselineAsync(h, baselineRides: 4, fitted: false);
         h.SessionSummaries.AddOrUpdate(rows[4]);
         await dispatcher.DrainAsync();
         await runner.RunNextAsync();
         await dispatcher.WaitForWorkAsync(TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         h.SessionSummaries.AddOrUpdate(rows[5]);
         await dispatcher.DrainAsync();
-        Assert.NotEqual((SessionResponseState.Reported, 5), Response(editor));
-        await runner.DrainUntilAsync(dispatcher, ResponseAsync(editor, SessionResponseState.Reported, 6));
+        await runner.DrainUntilAsync(dispatcher, AnalyzedAsync(fitted: true, 6));
+        Assert.DoesNotContain(analyzedBaselines, baseline => baseline is TerrainBaseline.Fitted { Model.Sessions: 5 });
         await runner.DrainUntilAsync(dispatcher, h.CloseAsync(editor));
     }
 
     [AvaloniaFact]
-    public async Task BaselineReadFailureShowsTheBaselineErrorAndKeepsTheRideTerrain()
+    public async Task BaselineReadFailureGivesInsightsAFailedBaselineAndKeepsTheRideTerrain()
     {
         using var h = CreateHarness();
-        var (editor, rows) = await OpenWithBaselineAsync(h, baselineRides: 4, SessionResponseState.InsufficientBaseline);
+        var (editor, rows) = await OpenWithBaselineAsync(h, baselineRides: 4, fitted: false);
         h.TerrainProfiles.ReadFailure = new IOException("Baseline unavailable.");
         h.SessionSummaries.AddOrUpdate(rows[4]);
-        await runner.DrainUntilAsync(dispatcher, ResponseAsync(editor, SessionResponseState.BaselineError, 0));
+        await runner.DrainUntilAsync(dispatcher, analyzedBaseline.FirstAsync(baseline => baseline is TerrainBaseline.Failed)
+            .ToTask(TestContext.Current.CancellationToken));
         Assert.True(editor.SignalsWorkspace.TerrainSignalState.IsReady);
         await runner.DrainUntilAsync(dispatcher, h.CloseAsync(editor));
     }
@@ -72,7 +74,7 @@ public class TerrainBaselineEditorTests
     private SessionDetailHarness CreateHarness() => new() { BackgroundRunner = runner, UiThreadDispatcher = dispatcher };
 
     private async Task<(SessionDetailViewModel Editor, RecordedSessionSummary[] Rows)> OpenWithBaselineAsync(
-        SessionDetailHarness h, int baselineRides, SessionResponseState opened)
+        SessionDetailHarness h, int baselineRides, bool fitted)
     {
         var profiles = SyntheticResponseRides.Baseline;
         var session = h.CreateRecordedSession();
@@ -83,27 +85,24 @@ public class TerrainBaselineEditorTests
         var key = ((TerrainStatus.Current)domain.Terrain).Key;
         foreach (var (index, row) in rows.Index()) h.TerrainProfiles.Seed(row.Id, key, profiles[index]);
         h.SessionInsightsService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(call =>
-            new SessionInsightsService().Analyze(call.Arg<SessionInsightsRequest>()));
+        {
+            var baseline = call.Arg<SessionInsightsRequest>().Terrain?.Baseline;
+            analyzedBaselines.Add(baseline);
+            analyzedBaseline.OnNext(baseline);
+            return SessionInsightsResult.Hidden;
+        });
         h.SessionSummaries.AddOrUpdate(rows[..baselineRides]);
         var editor = h.CreateRecordedEditor(session, projectionChanges: Observable.Return(domain));
         await runner.DrainUntilAsync(dispatcher, h.LoadAsync(editor));
         editor.AnalysisWorkspace.RequestSessionInsights();
-        await runner.DrainUntilAsync(dispatcher, ResponseAsync(editor, opened, baselineRides));
+        await runner.DrainUntilAsync(dispatcher, AnalyzedAsync(fitted, baselineRides));
         return (editor, rows);
     }
 
-    private static (SessionResponseState State, int Sessions) Response(SessionDetailViewModel editor)
+    private Task AnalyzedAsync(bool fitted, int sessions) => analyzedBaseline.FirstAsync(baseline => baseline switch
     {
-        var response = editor.AnalysisWorkspace.SessionInsights.Response;
-        return (response.State, response.BaselineSessions);
-    }
-
-    private static Task ResponseAsync(SessionDetailViewModel editor, SessionResponseState state, int sessions)
-    {
-        var workspace = (INotifyPropertyChanged)editor.AnalysisWorkspace;
-        return Observable.FromEventPattern<PropertyChangedEventHandler, PropertyChangedEventArgs>(
-                handler => workspace.PropertyChanged += handler, handler => workspace.PropertyChanged -= handler)
-            .Select(_ => Response(editor)).StartWith(Response(editor))
-            .FirstAsync(response => response == (state, sessions)).ToTask(TestContext.Current.CancellationToken);
-    }
+        TerrainBaseline.Fitted fit => fitted && fit.Model.Sessions == sessions,
+        TerrainBaseline.Insufficient limited => !fitted && limited.Model.Sessions == sessions,
+        _ => false
+    }).ToTask(TestContext.Current.CancellationToken);
 }
