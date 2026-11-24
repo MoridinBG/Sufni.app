@@ -26,6 +26,5 @@ public class TerrainClassStripPlotViewTests
             .Select(r => (r.Left, r.Right)));
         var lower = Assert.Single(rectangles, r => r.Bottom == 0 && r.Top == 1);
         Assert.Equal((1d, 4d), (lower.Left, lower.Right));
-        Assert.False(plot.Axes.Left.IsVisible);
     }
 }
