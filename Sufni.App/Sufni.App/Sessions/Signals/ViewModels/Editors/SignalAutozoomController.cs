@@ -38,6 +38,7 @@ internal sealed class SignalAutozoomController
             [SignalRowIds.Terrain] = [zoomSelection],
             [SignalRowIds.Roughness] = [zoomSelection],
             [SignalRowIds.Grade] = [zoomSelection],
+            [SignalRowIds.PedalBob] = [zoomSelection],
         };
     }
 

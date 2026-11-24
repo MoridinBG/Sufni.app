@@ -471,6 +471,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             ShowTerrainAirtime = explicitState.ShowTerrainAirtime,
             ShowRoughnessAirtime = explicitState.ShowRoughnessAirtime,
             ShowGradeAirtime = explicitState.ShowGradeAirtime,
+            ShowPedalBobAirtime = explicitState.ShowPedalBobAirtime,
             ShowAnalysisSelection = explicitState.ShowAnalysisSelection,
             ShowVelocityAnalysisSelection = explicitState.ShowVelocityAnalysisSelection,
             ShowImuAnalysisSelection = explicitState.ShowImuAnalysisSelection,
@@ -480,6 +481,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             ShowTerrainAnalysisSelection = explicitState.ShowTerrainAnalysisSelection,
             ShowRoughnessAnalysisSelection = explicitState.ShowRoughnessAnalysisSelection,
             ShowGradeAnalysisSelection = explicitState.ShowGradeAnalysisSelection,
+            ShowPedalBobAnalysisSelection = explicitState.ShowPedalBobAnalysisSelection,
         };
     }
 
@@ -638,6 +640,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                 ShowTerrainAnalysisSelection = false,
                 ShowRoughnessAnalysisSelection = false,
                 ShowGradeAnalysisSelection = false,
+                ShowPedalBobAnalysisSelection = false,
             };
         }
 
@@ -652,6 +655,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             ShowTerrainAnalysisSelection = false,
             ShowRoughnessAnalysisSelection = false,
             ShowGradeAnalysisSelection = false,
+            ShowPedalBobAnalysisSelection = false,
         };
     }
 

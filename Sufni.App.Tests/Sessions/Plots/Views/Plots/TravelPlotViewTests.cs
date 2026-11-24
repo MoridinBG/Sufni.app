@@ -391,6 +391,7 @@ public class TravelPlotViewTests
         public bool ShowTerrainAirtime => false;
         public bool ShowRoughnessAirtime => false;
         public bool ShowGradeAirtime => false;
+        public bool ShowPedalBobAirtime => false;
         public IReadOnlyList<TelemetryHighlightRange> AnalysisSelectionHighlightRanges { get; } = [];
         public bool HasAnalysisSelection => false;
         public bool ShowAnalysisSelection => false;
@@ -402,6 +403,7 @@ public class TravelPlotViewTests
         public bool ShowTerrainAnalysisSelection => false;
         public bool ShowRoughnessAnalysisSelection => false;
         public bool ShowGradeAnalysisSelection => false;
+        public bool ShowPedalBobAnalysisSelection => false;
         public IReadOnlyList<SignalRowAction> TravelHeaderActions { get; } = [];
         public IReadOnlyList<SignalRowAction> VelocityHeaderActions { get; } = [];
         public IReadOnlyList<SignalRowAction> ImuHeaderActions { get; } = [];
@@ -411,6 +413,7 @@ public class TravelPlotViewTests
         public IReadOnlyList<SignalRowAction> TerrainHeaderActions { get; } = [];
         public IReadOnlyList<SignalRowAction> RoughnessHeaderActions { get; } = [];
         public IReadOnlyList<SignalRowAction> GradeHeaderActions { get; } = [];
+        public IReadOnlyList<SignalRowAction> PedalBobHeaderActions { get; } = [];
         public IReadOnlyList<TrackPoint>? TrackPoints => null;
         public TrackTimeRange? TrackTimelineContext => null;
         public Sufni.App.Terrain.ViewModels.TerrainScopeViewModel? TerrainScope => null;
@@ -420,6 +423,7 @@ public class TravelPlotViewTests
         public SurfacePresentationState TerrainSignalState => SurfacePresentationState.Hidden;
         public SurfacePresentationState RoughnessSignalState => SurfacePresentationState.Hidden;
         public SurfacePresentationState GradeSignalState => SurfacePresentationState.Hidden;
+        public SurfacePresentationState PedalBobSignalState => SurfacePresentationState.Hidden;
         public SurfacePresentationState TravelSignalState => SurfacePresentationState.Ready;
         public SurfacePresentationState VelocitySignalState => SurfacePresentationState.Hidden;
         public SurfacePresentationState ImuSignalState => SurfacePresentationState.Hidden;

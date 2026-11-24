@@ -173,6 +173,36 @@ public class RecordedTerrainTests
         await h.CloseAsync(editor);
     }
 
+    [AvaloniaFact]
+    public async Task PedalBobRowDrawsOnlyWindowsWithDetectedPedalling()
+    {
+        using var h = new SessionDetailHarness();
+        var session = h.CreateRecordedSession();
+        PedallingFigures Pedalled(double bob) => new(true, 80, bob);
+        var profile = TerrainProfiles.Classified(TerrainProfiles.Window(0) with { Pedalling = Pedalled(7) },
+            TerrainProfiles.Window(1) with { Pedalling = Pedalled(9) },
+            TerrainProfiles.Window(2) with { Pedalling = new(false, null, null) },
+            TerrainProfiles.Window(3) with { Pedalling = Pedalled(8) });
+        var editor = h.CreateRecordedEditor(session, projectionChanges: Observable.Return(h.WithTerrain(session, profile)));
+        await h.LoadAsync(editor);
+        Assert.True(editor.SignalsWorkspace.PedalBobSignalState.IsReady);
+        var bob = editor.SignalsWorkspace.TerrainPresentation!.PedalBob;
+        Assert.Equal([[7d, 9d], [8d]], bob.Select(section => section.Values.ToArray()));
+        await h.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
+    public async Task PedalBobRowIsHiddenWithoutPedallingFigures()
+    {
+        using var h = new SessionDetailHarness();
+        var session = h.CreateRecordedSession();
+        var editor = h.CreateRecordedEditor(session, projectionChanges: Observable.Return(h.WithTerrain(session, RoughProfile())));
+        await h.LoadAsync(editor);
+        Assert.True(editor.SignalsWorkspace.TerrainSignalState.IsReady);
+        Assert.True(editor.SignalsWorkspace.PedalBobSignalState.IsHidden);
+        await h.CloseAsync(editor);
+    }
+
     [AvaloniaTheory]
     [InlineData(false)]
     [InlineData(true)]

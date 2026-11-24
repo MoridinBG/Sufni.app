@@ -23,6 +23,7 @@ internal sealed class SignalRowActionsController
     public IReadOnlyList<SignalRowAction> TerrainHeaderActions { get; }
     public IReadOnlyList<SignalRowAction> RoughnessHeaderActions { get; }
     public IReadOnlyList<SignalRowAction> GradeHeaderActions { get; }
+    public IReadOnlyList<SignalRowAction> PedalBobHeaderActions { get; }
 
     public SignalRowActionsController(Func<RecordedSignalPresentationState> getSignals, RecordedSessionEditorActions actions)
     {
@@ -73,6 +74,12 @@ internal sealed class SignalRowActionsController
         [
             Create("grade_airtime", true, state => state.ShowGradeAirtime, (state, value) => state with { ShowGradeAirtime = value }),
             Create("grade_analysis_selection", false, state => state.ShowGradeAnalysisSelection, (state, value) => state with { ShowGradeAnalysisSelection = value }),
+        ];
+
+        PedalBobHeaderActions =
+        [
+            Create("pedal_bob_airtime", true, state => state.ShowPedalBobAirtime, (state, value) => state with { ShowPedalBobAirtime = value }),
+            Create("pedal_bob_analysis_selection", false, state => state.ShowPedalBobAnalysisSelection, (state, value) => state with { ShowPedalBobAnalysisSelection = value }),
         ];
 
         SignalRowAction Create(string id, bool airtime, Func<RecordedSignalPresentationState, bool> read,

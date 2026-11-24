@@ -66,6 +66,7 @@ public interface IRecordedSessionSignalsWorkspace : ITimeSeriesPlotInteractions
     SurfacePresentationState TerrainSignalState { get; }
     SurfacePresentationState RoughnessSignalState { get; }
     SurfacePresentationState GradeSignalState { get; }
+    SurfacePresentationState PedalBobSignalState { get; }
     SurfacePresentationState TravelSignalState { get; }
     SurfacePresentationState VelocitySignalState { get; }
     SurfacePresentationState ImuSignalState { get; }
@@ -88,6 +89,7 @@ public interface IRecordedSessionSignalsWorkspace : ITimeSeriesPlotInteractions
     bool ShowTerrainAirtime { get; }
     bool ShowRoughnessAirtime { get; }
     bool ShowGradeAirtime { get; }
+    bool ShowPedalBobAirtime { get; }
     IReadOnlyList<TelemetryHighlightRange> AnalysisSelectionHighlightRanges { get; }
     bool HasAnalysisSelection { get; }
     bool ShowAnalysisSelection { get; }
@@ -99,6 +101,7 @@ public interface IRecordedSessionSignalsWorkspace : ITimeSeriesPlotInteractions
     bool ShowTerrainAnalysisSelection { get; }
     bool ShowRoughnessAnalysisSelection { get; }
     bool ShowGradeAnalysisSelection { get; }
+    bool ShowPedalBobAnalysisSelection { get; }
     IReadOnlyList<SignalRowAction> TravelHeaderActions { get; }
     IReadOnlyList<SignalRowAction> VelocityHeaderActions { get; }
     IReadOnlyList<SignalRowAction> ImuHeaderActions { get; }
@@ -108,6 +111,7 @@ public interface IRecordedSessionSignalsWorkspace : ITimeSeriesPlotInteractions
     IReadOnlyList<SignalRowAction> TerrainHeaderActions { get; }
     IReadOnlyList<SignalRowAction> RoughnessHeaderActions { get; }
     IReadOnlyList<SignalRowAction> GradeHeaderActions { get; }
+    IReadOnlyList<SignalRowAction> PedalBobHeaderActions { get; }
 }
 
 public interface ISessionMediaWorkspace

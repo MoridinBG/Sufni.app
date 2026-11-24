@@ -74,6 +74,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
     public SurfacePresentationState TerrainSignalState => currentState.Presentation.Signals.Terrain;
     public SurfacePresentationState RoughnessSignalState => currentState.Presentation.Signals.Roughness;
     public SurfacePresentationState GradeSignalState => currentState.Presentation.Signals.Grade;
+    public SurfacePresentationState PedalBobSignalState => currentState.Presentation.Signals.PedalBob;
 
     public SurfacePresentationState TravelSignalState => currentState.Presentation.Signals.Travel;
 
@@ -120,6 +121,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
     public bool ShowTerrainAirtime => currentState.Presentation.Signals.ShowTerrainAirtime;
     public bool ShowRoughnessAirtime => currentState.Presentation.Signals.ShowRoughnessAirtime;
     public bool ShowGradeAirtime => currentState.Presentation.Signals.ShowGradeAirtime;
+    public bool ShowPedalBobAirtime => currentState.Presentation.Signals.ShowPedalBobAirtime;
 
     public IReadOnlyList<TelemetryHighlightRange> AnalysisSelectionHighlightRanges =>
         currentState.AnalysisSelection.HighlightRanges;
@@ -140,6 +142,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
     public bool ShowTerrainAnalysisSelection => currentState.Presentation.Signals.ShowTerrainAnalysisSelection;
     public bool ShowRoughnessAnalysisSelection => currentState.Presentation.Signals.ShowRoughnessAnalysisSelection;
     public bool ShowGradeAnalysisSelection => currentState.Presentation.Signals.ShowGradeAnalysisSelection;
+    public bool ShowPedalBobAnalysisSelection => currentState.Presentation.Signals.ShowPedalBobAnalysisSelection;
 
     public IReadOnlyList<SignalRowAction> TravelHeaderActions => signalRowActions.TravelHeaderActions;
 
@@ -155,6 +158,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
     public IReadOnlyList<SignalRowAction> TerrainHeaderActions => signalRowActions.TerrainHeaderActions;
     public IReadOnlyList<SignalRowAction> RoughnessHeaderActions => signalRowActions.RoughnessHeaderActions;
     public IReadOnlyList<SignalRowAction> GradeHeaderActions => signalRowActions.GradeHeaderActions;
+    public IReadOnlyList<SignalRowAction> PedalBobHeaderActions => signalRowActions.PedalBobHeaderActions;
 
     public void SetAnalysisRange(double startSeconds, double endSeconds)
     {
@@ -195,6 +199,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
         NotifyChanged(previous.Presentation.Signals.Terrain, state.Presentation.Signals.Terrain, nameof(TerrainSignalState));
         NotifyChanged(previous.Presentation.Signals.Roughness, state.Presentation.Signals.Roughness, nameof(RoughnessSignalState));
         NotifyChanged(previous.Presentation.Signals.Grade, state.Presentation.Signals.Grade, nameof(GradeSignalState));
+        NotifyChanged(previous.Presentation.Signals.PedalBob, state.Presentation.Signals.PedalBob, nameof(PedalBobSignalState));
         NotifyChanged(previous.Presentation.Signals.Travel, state.Presentation.Signals.Travel, nameof(TravelSignalState));
         NotifyChanged(previous.Presentation.Signals.Velocity, state.Presentation.Signals.Velocity, nameof(VelocitySignalState));
         NotifyChanged(previous.Presentation.Signals.Imu, state.Presentation.Signals.Imu, nameof(ImuSignalState));
@@ -212,6 +217,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
         NotifyChanged(previous.Presentation.Signals.ShowTerrainAirtime, state.Presentation.Signals.ShowTerrainAirtime, nameof(ShowTerrainAirtime));
         NotifyChanged(previous.Presentation.Signals.ShowRoughnessAirtime, state.Presentation.Signals.ShowRoughnessAirtime, nameof(ShowRoughnessAirtime));
         NotifyChanged(previous.Presentation.Signals.ShowGradeAirtime, state.Presentation.Signals.ShowGradeAirtime, nameof(ShowGradeAirtime));
+        NotifyChanged(previous.Presentation.Signals.ShowPedalBobAirtime, state.Presentation.Signals.ShowPedalBobAirtime, nameof(ShowPedalBobAirtime));
         if (NotifyChanged(previous.AnalysisSelection.HighlightRanges, state.AnalysisSelection.HighlightRanges, nameof(AnalysisSelectionHighlightRanges)))
         {
             OnPropertyChanged(nameof(HasAnalysisSelection));
@@ -226,6 +232,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
         NotifyChanged(previous.Presentation.Signals.ShowTerrainAnalysisSelection, state.Presentation.Signals.ShowTerrainAnalysisSelection, nameof(ShowTerrainAnalysisSelection));
         NotifyChanged(previous.Presentation.Signals.ShowRoughnessAnalysisSelection, state.Presentation.Signals.ShowRoughnessAnalysisSelection, nameof(ShowRoughnessAnalysisSelection));
         NotifyChanged(previous.Presentation.Signals.ShowGradeAnalysisSelection, state.Presentation.Signals.ShowGradeAnalysisSelection, nameof(ShowGradeAnalysisSelection));
+        NotifyChanged(previous.Presentation.Signals.ShowPedalBobAnalysisSelection, state.Presentation.Signals.ShowPedalBobAnalysisSelection, nameof(ShowPedalBobAnalysisSelection));
     }
     private bool NotifyChanged<T>(T previous, T current, string propertyName)
     {

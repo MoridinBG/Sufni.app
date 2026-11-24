@@ -260,6 +260,22 @@ mc:Ignorable="d">
                             <overlays:SurfacePlaceholderCard Title="Grade" />
                         </sessionSignals:SignalRow.PlaceholderContent>
                     </sessionSignals:SignalRow>
+                    <sessionSignals:SignalRow RowId="{x:Static sessionPreferences:SignalRowIds.PedalBob}"
+                        Title="Pedal bob (mm)" TitleToolTip="Rear travel bob at the pedal rhythm. Drawn only where pedalling is detected."
+                        HeaderActions="{Binding PedalBobHeaderActions}" PresentationState="{Binding PedalBobSignalState}">
+                        <sessionSignals:SignalRow.PlotContent>
+                            <terrainViews:TerrainSignalPlotView SignalKind="{x:Static terrainPlots:TerrainSignalKind.PedalBob}"
+                                SignalRowId="{x:Static sessionPreferences:SignalRowIds.PedalBob}"
+                                Terrain="{Binding TerrainPresentation}" Telemetry="{Binding TelemetryData}"
+                                Timeline="{Binding Timeline}" SignalsWorkspace="{Binding}" AnalysisRange="{Binding AnalysisRange}" TerrainSelection="{Binding TerrainScope.Selection}"
+                                HideRightAxis="{Binding #Root.HideRightAxis}" ShowAirtime="{Binding ShowPedalBobAirtime}"
+                                ShowAnalysisSelection="{Binding ShowPedalBobAnalysisSelection}"
+                                AnalysisSelectionHighlightRanges="{Binding AnalysisSelectionHighlightRanges}" />
+                        </sessionSignals:SignalRow.PlotContent>
+                        <sessionSignals:SignalRow.PlaceholderContent>
+                            <overlays:SurfacePlaceholderCard Title="Pedal bob" />
+                        </sessionSignals:SignalRow.PlaceholderContent>
+                    </sessionSignals:SignalRow>
                 </sessionSignals:SignalRow.ChildRows>
             </sessionSignals:SignalRow>
         </sessionSignals:SignalRowsRoot.Rows>

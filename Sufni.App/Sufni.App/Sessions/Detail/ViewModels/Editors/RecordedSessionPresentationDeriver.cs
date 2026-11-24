@@ -17,14 +17,15 @@ internal static partial class RecordedSessionPresentationDeriver
         var hidden = SurfacePresentationState.Hidden;
         var ready = SurfacePresentationState.Ready;
         var busy = SurfacePresentationState.Loading();
-        var (strip, roughness, grade) = state.Terrain switch
+        var (strip, roughness, grade, bob) = state.Terrain switch
         {
-            RecordedTerrainState.Pending => (busy, busy, busy),
-            RecordedTerrainState.Failed => (SurfacePresentationState.Error("Terrain could not be computed"), hidden, hidden),
-            RecordedTerrainState.Unavailable => (hidden, hidden, hidden),
+            RecordedTerrainState.Pending => (busy, busy, busy, busy),
+            RecordedTerrainState.Failed => (SurfacePresentationState.Error("Terrain could not be computed"), hidden, hidden, hidden),
+            RecordedTerrainState.Unavailable => (hidden, hidden, hidden, hidden),
             RecordedTerrainState.Loaded loaded => (ready,
                 loaded.Profile.RoughnessState == TerrainRoughnessState.NoSensor ? hidden : ready,
-                loaded.Profile.GradeState == TerrainGradeState.Available ? ready : hidden)
+                loaded.Profile.GradeState == TerrainGradeState.Available ? ready : hidden,
+                loaded.Profile.Windows.Any(window => window.Pedalling is not null) ? ready : hidden)
         };
         var display = state.Preferences.SignalDisplay;
         return state with { Presentation = state.Presentation with
@@ -32,7 +33,7 @@ internal static partial class RecordedSessionPresentationDeriver
             Signals = signals with
             {
                 Terrain = strip.ApplyPlotSelection(display.Terrain), Roughness = roughness.ApplyPlotSelection(display.Roughness),
-                Grade = grade.ApplyPlotSelection(display.Grade)
+                Grade = grade.ApplyPlotSelection(display.Grade), PedalBob = bob
             },
             SignalAvailability = state.Presentation.SignalAvailability with
             {

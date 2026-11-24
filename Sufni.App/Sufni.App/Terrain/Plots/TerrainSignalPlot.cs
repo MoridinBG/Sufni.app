@@ -10,7 +10,7 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Terrain.Plots;
 
-public enum TerrainSignalKind { Roughness, Grade }
+public enum TerrainSignalKind { Roughness, Grade, PedalBob }
 
 /// <summary>
 /// A measured terrain curve over light shading in its lane colours, with guide lines at the class boundaries.
@@ -35,6 +35,10 @@ public sealed class TerrainSignalPlot(Plot plot, SufniTheme? theme = null) : Rec
                 if (!terrain.Lowers.IsEmpty) AddGuides(terrain.LowersEdges, PlotTheme.Series.ImuFork.ToScottPlotColor());
             }
         }
+        else if (kind == TerrainSignalKind.PedalBob)
+        {
+            Add(terrain.PedalBob, "Rear bob", "mm", PlotTheme.Series.SuspensionRear);
+        }
         else
         {
             Add(terrain.Grade, "Grade", "°", PlotTheme.Series.GpsElevation);
@@ -45,7 +49,8 @@ public sealed class TerrainSignalPlot(Plot plot, SufniTheme? theme = null) : Rec
                 AddGuides([0], PlotTheme.InPlotLabelText.ToScottPlotColor(), LinePattern.Solid);
             }
         }
-        LoadTimeSeries(new(kind.ToString(), "No measured windows.", telemetry.Metadata.Duration, series, MarkerSource: telemetry,
+        var empty = kind == TerrainSignalKind.PedalBob ? "No pedalling detected." : "No measured windows.";
+        LoadTimeSeries(new(kind.ToString(), empty, telemetry.Metadata.Duration, series, MarkerSource: telemetry,
             InitialRangeOverlays: [RecordedTimeRangeOverlayFactory.CreateAirtimeRegistration(telemetry.Airtimes, PlotTheme)]));
         if (kind == TerrainSignalKind.Grade && series.Count > 0)
         {

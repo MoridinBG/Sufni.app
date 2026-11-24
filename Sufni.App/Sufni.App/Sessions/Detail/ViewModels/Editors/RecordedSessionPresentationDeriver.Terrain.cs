@@ -15,6 +15,7 @@ internal static partial class RecordedSessionPresentationDeriver
         var frame = new TerrainSignalSections();
         var lowers = new TerrainSignalSections();
         var grades = new TerrainSignalSections();
+        var bob = new TerrainSignalSections();
         int joint = 0, frameOnly = 0, lowersOnly = 0;
         bool clipped = false, frameMissing = false, lowersMissing = false, frameUncalibrated = false, lowersUncalibrated = false;
         for (var i = 0; i < profile.Windows.Length; i++)
@@ -27,6 +28,7 @@ internal static partial class RecordedSessionPresentationDeriver
             frame.Add(window.StartSeconds, window.EndSeconds, window.Frame?.SpeedRemoved);
             lowers.Add(window.StartSeconds, window.EndSeconds, window.Lowers?.SpeedRemoved);
             grades.Add(window.StartSeconds, window.EndSeconds, TerrainSignalSections.Degrees(baseline));
+            bob.Add(window.StartSeconds, window.EndSeconds, window.Pedalling?.BobMillimetres);
             switch (window.Source)
             {
                 case RoughnessSource.Both: joint++; break;
@@ -49,7 +51,8 @@ internal static partial class RecordedSessionPresentationDeriver
                 frameUncalibrated, lowersUncalibrated, profile.SilentSensors))
         {
             FrameEdges = Edges(ImuLocation.Frame, profile.FrameScale),
-            LowersEdges = Edges(ImuLocation.Fork, profile.LowersScale)
+            LowersEdges = Edges(ImuLocation.Fork, profile.LowersScale),
+            PedalBob = bob.Build()
         };
 
         static ImmutableArray<double> Edges(ImuLocation location, double? scale) =>

@@ -176,9 +176,12 @@ internal sealed record RecordedSignalPresentationState(
     public bool ShowRoughnessAnalysisSelection { get; init; }
     public bool ShowGradeAirtime { get; init; }
     public bool ShowGradeAnalysisSelection { get; init; }
+    public bool ShowPedalBobAirtime { get; init; }
+    public bool ShowPedalBobAnalysisSelection { get; init; }
     public SurfacePresentationState Terrain { get; init; } = SurfacePresentationState.Hidden;
     public SurfacePresentationState Roughness { get; init; } = SurfacePresentationState.Hidden;
     public SurfacePresentationState Grade { get; init; } = SurfacePresentationState.Hidden;
+    public SurfacePresentationState PedalBob { get; init; } = SurfacePresentationState.Hidden;
 }
 
 internal sealed record RecordedAnalysisPresentationState(
