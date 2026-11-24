@@ -93,7 +93,7 @@ internal sealed class GpsOffsetSuggestionPrompt : IAsyncDisposable
                 token.ThrowIfCancellationRequested();
                 if (choice == "apply")
                 {
-                    // Applying changes the content token itself. Finish this choice against the editor lifetime.
+                    // Applying changes the content token itself.
                     var result = await sessions.ShiftGpsOffsetAsync(sessionId, suggestion.LagSeconds, lifetime);
                     lifetime.ThrowIfCancellationRequested();
                     switch (result)
