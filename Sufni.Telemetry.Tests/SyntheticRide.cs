@@ -11,13 +11,16 @@ public sealed record RideRecording(
     TelemetryTimeRange? FixLoss = null, TelemetryTimeRange? RecordingGap = null, TelemetryTimeRange? Stop = null,
     TelemetryTimeRange? Braking = null, double BrakingAcceleration = 2.94, double MountPitch = 0, double Roll = 0,
     bool Frame = true, bool Lowers = true, int AccelScale = 4096,
-    int Seed = 17, double NoiseG = 0, double SurfaceVariation = 0, int? LowersAccelScale = null);
+    int Seed = 17, double NoiseG = 0, int? LowersAccelScale = null);
 
 public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<TrackSample> Fixes)
 {
     private const double Gravity = 9.80665;
     private const double Radians = Math.PI / 180;
     private const int GyroScale = 16;
+
+    /// <summary>The fork-lowers vibration level relative to the frame level at the same speed.</summary>
+    public const double LowersLevelFactor = 1.75;
 
     public static SyntheticRide TurningRide(RideRecording recording) =>
         Build([new(112), new(70, TurnRadius: -26), new(91, TurnRadius: 18), new(49),
@@ -65,8 +68,7 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
             var upZ = Math.Cos(roll) * Math.Cos(pitch);
             var gy = upY * yawRate - Math.Cos(roll) * pitchRate;
             var gz = upZ * yawRate + Math.Sin(roll) * pitchRate;
-            var surface = 1 + recording.SurfaceVariation * (Math.Sin(distance / 7) + Math.Sin(distance / 15.7)) / 2;
-            var ground = Math.Sqrt(2) * surface * (
+            var ground = Math.Sqrt(2) * (
                 section.LowBandG * Math.Sin(2 * Math.PI * 3 * seconds + phases[0]) +
                 section.MiddleBandG * Math.Sin(2 * Math.PI * 12 * seconds + phases[1]) +
                 section.HighBandG * Math.Sin(2 * Math.PI * 45 * seconds + phases[2]));
@@ -79,7 +81,7 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
                         upY + speed * gz / Gravity + vibration, upZ - speed * gy / Gravity,
                         upX * yawRate / Radians, gy / Radians, gz / Radians);
                 }
-                var level = surface * Math.Sqrt(section.LowBandG * section.LowBandG +
+                var level = Math.Sqrt(section.LowBandG * section.LowBandG +
                     section.MiddleBandG * section.MiddleBandG + section.HighBandG * section.HighBandG);
                 var response = ResponseAmplitude(level, speed);
                 front.Add(tick, response, section);
@@ -153,7 +155,7 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
         private int first;
         private int sampleRate;
         public double LevelScale(double speed) => location == ImuLocation.Frame
-            ? Math.Pow(speed / 7, 0.7) : 1.75 * Math.Pow(speed / 7, 0.9);
+            ? Math.Pow(speed / 7, 0.7) : LowersLevelFactor * Math.Pow(speed / 7, 0.9);
 
         public void Add(int tick, int rate, double ax, double ay, double az, double gx, double gy, double gz)
         {

@@ -8,11 +8,14 @@ public class TerrainRunComparisonTests
     public void RepeatedResponseLawStaysInsideRepeatRanges()
     {
         var rows = Compare(SyntheticTrailRuns.Record(42, recordingSeed: 45));
+        var described = SyntheticTrailRuns.Describe(42);
         foreach (var row in rows)
         {
-            // The ground has calm and rough blocks only; rough windows reach the medium class only
-            // at the low end of their spread, which gives under 300 m.
-            var expected = row.Class == RoughnessClass.Medium ? ResponseCellState.TooShort : ResponseCellState.WithinRepeatRange;
+            var metres = row.Class is { } roughness
+                ? described.Count(section => section.Roughness == roughness) * SyntheticTrailRuns.SectionMetres
+                : SyntheticTrailRuns.TrailMetres;
+            var expected = metres >= SuspensionResponseModel.MinimumReportMetres
+                ? ResponseCellState.WithinRepeatRange : ResponseCellState.TooShort;
             Assert.All(row.Responses.Values, cell => Assert.Equal(expected, cell.State));
             Assert.Equal(expected, row.FrontSamePosition.State);
             Assert.Equal(expected, row.RearSamePosition.State);

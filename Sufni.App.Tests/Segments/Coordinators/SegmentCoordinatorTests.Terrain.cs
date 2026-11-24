@@ -82,7 +82,7 @@ public partial class SegmentCoordinatorTests
         var repeated = SyntheticTrailRuns.Record(8, recordingSeed: 40);
         var second = TestSegmentMatches.OnTrail(source.Profile, repeated);
         terrainProfiles.Seed(second.SessionId, source.Key, repeated);
-        var unrelated = SyntheticTrailRuns.Record(81, variedGround: false);
+        var unrelated = SyntheticTrailRuns.Record(81);
         var third = TestSegmentMatches.OnTrail(source.Profile, unrelated);
         terrainProfiles.Seed(third.SessionId, source.Key, unrelated);
 
