@@ -209,8 +209,8 @@ Recorded-session analysis result state is scoped to an open
 `IRecordedSessionAnalysisResultState` through a singleton factory and exposes it
 through `SessionAnalysisWorkspaceViewModel`; the heavy work is delegated to the
 singleton `IRecordedSessionAnalysisComputer`. The state is invalidated when the
-telemetry generation, selected analysis range, analysis modes, damping cutoffs,
-or insights target changes. Session Insights computes its damping percentages
+telemetry generation, effective time selection (the analysis range, narrowed by
+an active class filter), analysis modes, damping cutoffs, or insights target changes. Session Insights computes its damping percentages
 from those inputs internally; percentages are a result, never an analysis key input. Visible analysis surfaces then
 request keyed results on demand: the demand component eagerly requests the shared damping
 percentages and optional insights records, while selected/visible analysis tabs
