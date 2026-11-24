@@ -119,7 +119,7 @@ public class SessionCoordinatorTests
     {
         var session = TestSnapshots.Session() with { ProcessingFingerprintJson = "held-generation" };
         var coordinator = CreateCoordinator();
-        var current = new RecordedSessionDomainSnapshot(session, null, null, null, null, null, new SessionStaleness.Current());
+        var current = new RecordedSessionDomainSnapshot(session, null, null, null, null, null, new SessionStaleness.Current()) { Terrain = TestSnapshots.Terrain(session) };
         Assert.IsType<SessionStalenessReconciliation.Current>(await coordinator.ReconcileStalenessAsync(current));
 
         var stale = current with { Staleness = new SessionStaleness.Stale() };
@@ -137,7 +137,9 @@ public class SessionCoordinatorTests
     {
         SessionStaleness reason = missingSource ? new SessionStaleness.MissingRawSource()
             : new SessionStaleness.MissingDependencies(true, false);
-        var domain = new RecordedSessionDomainSnapshot(TestSnapshots.Session(), null, null, null, null, null, reason);
+        var session = TestSnapshots.Session();
+        var domain = new RecordedSessionDomainSnapshot(session, null, null, null, null, null, reason)
+            { Terrain = TestSnapshots.Terrain(session) };
 
         var result = await CreateCoordinator().ReconcileStalenessAsync(domain, SessionRecomputeChoice.ThisSession);
 
@@ -153,7 +155,9 @@ public class SessionCoordinatorTests
         var coordinator = CreateCoordinator();
         var outcomes = new List<SessionRecomputeAllOutcome>();
         coordinator.RecomputeAllFinished += (_, outcome) => outcomes.Add(outcome);
-        var domain = new RecordedSessionDomainSnapshot(TestSnapshots.Session(), null, null, null, null, null, new SessionStaleness.Stale());
+        var session = TestSnapshots.Session();
+        var domain = new RecordedSessionDomainSnapshot(session, null, null, null, null, null, new SessionStaleness.Stale())
+            { Terrain = TestSnapshots.Terrain(session) };
         var summary = new SessionRecomputeAllResult(4, 2, 0, 1, 1);
         if (fails) recomputeEngine.RequestRecomputeAllAsync().ThrowsAsync(new IOException("database inaccessible"));
         else recomputeEngine.RequestRecomputeAllAsync().Returns(summary);

@@ -73,7 +73,7 @@ public class SessionListViewTests
             snapshot.Description,
             snapshot.Timestamp,
             snapshot.HasProcessedData,
-            new SessionStaleness.Current()));
+            new SessionStaleness.Current()) { Terrain = TestSnapshots.Terrain(snapshot) });
         var projection = Substitute.For<IRecordedSessionProjection>();
         projection.ConnectSessions().Returns(cache.Connect());
         using var videos = new VideoFixture();
@@ -110,7 +110,7 @@ public class SessionListViewTests
             snapshot.Description,
             snapshot.Timestamp,
             snapshot.HasProcessedData,
-            new SessionStaleness.Stale()));
+            new SessionStaleness.Stale()) { Terrain = TestSnapshots.Terrain(snapshot) });
         var projection = Substitute.For<IRecordedSessionProjection>();
         projection.ConnectSessions().Returns(cache.Connect());
 
@@ -149,7 +149,7 @@ public class SessionListViewTests
             snapshot.Description,
             snapshot.Timestamp,
             snapshot.HasProcessedData,
-            new SessionStaleness.Current()));
+            new SessionStaleness.Current()) { Terrain = TestSnapshots.Terrain(snapshot) });
         var projection = Substitute.For<IRecordedSessionProjection>();
         projection.ConnectSessions().Returns(cache.Connect());
         using var videos = new VideoFixture();

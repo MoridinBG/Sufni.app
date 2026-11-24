@@ -4,6 +4,8 @@ using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
 using Sufni.App.Bikes.Models;
+using Sufni.App.Terrain.Models;
+using Sufni.App.Terrain.Queries;
 namespace Sufni.App.Tests.TestSupport.Fixtures;
 
 /// <summary>
@@ -100,4 +102,7 @@ public static class TestSnapshots
         RearLowSpeedRebound: null,
         RearHighSpeedRebound: null,
         Updated: updated);
+
+    /// <summary>The terrain status of a session without a selected track.</summary>
+    public static TerrainStatus Terrain(SessionSnapshot session) => SessionTerrainStatusQuery.Evaluate(session, []).Status;
 }

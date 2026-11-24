@@ -98,7 +98,7 @@ internal sealed class SessionDetailHarness : IDisposable
         null,
         null,
         null,
-        staleness ?? new SessionStaleness.Current());
+        staleness ?? new SessionStaleness.Current()) { Terrain = TestSnapshots.Terrain(snapshot) };
 
     public RecordedSessionDomainSnapshot WithTerrain(SessionSnapshot session, TerrainProfile profile)
     {

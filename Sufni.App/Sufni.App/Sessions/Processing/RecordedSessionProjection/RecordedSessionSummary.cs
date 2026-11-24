@@ -25,6 +25,5 @@ public sealed record RecordedSessionSummary(
     SessionVideoSnapshot? LatestVideo = null,
     Guid? BikeId = null)
 {
-    public TerrainStatus Terrain { get; init; } = HasProcessedData
-        ? new TerrainStatus.Pending() : new TerrainStatus.Unavailable(TerrainAvailabilityReason.NoTelemetry);
+    public required TerrainStatus Terrain { get; init; }
 }

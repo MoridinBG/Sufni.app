@@ -460,7 +460,7 @@ public class SessionListViewModelTests
         DurationSeconds: durationSeconds,
         DistanceMeters: distanceMeters,
         AscentMeters: ascentMeters,
-        DescentMeters: descentMeters);
+        DescentMeters: descentMeters) { Terrain = new TerrainStatus.Pending() };
 
     private static long ToUnixSeconds(int year, int month, int day, int hour, int minute)
     {

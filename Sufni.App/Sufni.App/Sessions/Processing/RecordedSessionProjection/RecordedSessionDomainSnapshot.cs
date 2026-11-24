@@ -21,6 +21,5 @@ public sealed record RecordedSessionDomainSnapshot(
     string? DependencyHash = null,
     TrackSnapshot? SelectedTrack = null)
 {
-    public TerrainStatus Terrain { get; init; } = Session.HasProcessedData
-        ? new TerrainStatus.Pending() : new TerrainStatus.Unavailable(TerrainAvailabilityReason.NoTelemetry);
+    public required TerrainStatus Terrain { get; init; }
 }

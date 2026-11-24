@@ -50,7 +50,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.Stale());
+            new SessionStaleness.Stale()) { Terrain = TestSnapshots.Terrain(session) };
         var reprocessor = CreateReprocessor();
 
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
@@ -102,7 +102,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.Stale());
+            new SessionStaleness.Stale()) { Terrain = TestSnapshots.Terrain(session) };
         var reprocessor = CreateReprocessor();
 
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
@@ -179,7 +179,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.Stale());
+            new SessionStaleness.Stale()) { Terrain = TestSnapshots.Terrain(session) };
         var reprocessor = CreateReprocessor();
 
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
@@ -277,7 +277,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.Stale());
+            new SessionStaleness.Stale()) { Terrain = TestSnapshots.Terrain(session) };
         var reprocessor = CreateReprocessor();
 
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
@@ -547,7 +547,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.Stale());
+            new SessionStaleness.Stale()) { Terrain = TestSnapshots.Terrain(session) };
     }
 
     private static IRecordedSessionReprocessor CreateReprocessor() =>
