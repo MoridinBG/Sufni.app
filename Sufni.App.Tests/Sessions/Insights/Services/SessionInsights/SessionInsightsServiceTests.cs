@@ -20,8 +20,8 @@ public class SessionInsightsServiceTests
     {
         var profile = TerrainProfiles.Classified(Enumerable.Range(0, 81).Select(i => i switch
         {
-            < 20 => ResponseWindow(i, RoughnessClass.Calm, 115),
-            < 50 => ResponseWindow(i, RoughnessClass.Medium, 115),
+            < 14 => ResponseWindow(i, RoughnessClass.Calm, 115),
+            < 34 => ResponseWindow(i, RoughnessClass.Medium, 115),
             _ => ResponseWindow(i, RoughnessClass.Rough, 140)
         }).ToArray());
 

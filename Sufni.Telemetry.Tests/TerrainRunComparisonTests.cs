@@ -44,15 +44,20 @@ public class TerrainRunComparisonTests
     }
 
     [Fact]
-    public void TwoHundredMatchedMetresAreTooShort()
+    public void HundredFortyMatchedMetresAreTooShort()
     {
-        var profile = earlier.Value;
-        var rows = TerrainRunComparison.Compare(profile, profile, TerrainProfiles.Identity(20), SuspensionResponseModel.FitPair(profile, profile, []));
-        var all = rows.Single(row => row.Class is null);
-        Assert.Equal(200, all.DistanceMetres);
+        var all = CompareWithItself(14);
         Assert.Null(all.Pace);
         Assert.Equal(ResponseCellState.TooShort, all.FrontSamePosition.State);
         Assert.All(all.Responses.Values, cell => Assert.Equal(ResponseCellState.TooShort, cell.State));
+    }
+
+    [Fact]
+    public void TwoHundredMatchedMetresAreReported()
+    {
+        var all = CompareWithItself(20);
+        Assert.Equal(1, all.Pace!.Value.Median, 8);
+        Assert.Equal(new ComparisonRatio(ResponseCellState.WithinRepeatRange, 1), all.FrontSamePosition);
     }
 
     [Fact]
@@ -71,6 +76,13 @@ public class TerrainRunComparisonTests
         Assert.Equal(400, rows.Single(r => r.Class == RoughnessClass.Medium).DistanceMetres);
         Assert.Equal(0, rows.Single(r => r.Class == RoughnessClass.Rough).DistanceMetres);
         Assert.Equal(600, rows.Single(r => r.Class is null).DistanceMetres);
+    }
+
+    private static TerrainComparisonRow CompareWithItself(int windows)
+    {
+        var profile = earlier.Value;
+        return TerrainRunComparison.Compare(profile, profile, TerrainProfiles.Identity(windows),
+            SuspensionResponseModel.FitPair(profile, profile, [])).Single(row => row.Class is null);
     }
 
     private static IReadOnlyList<TerrainComparisonRow> Compare(TerrainProfile current)

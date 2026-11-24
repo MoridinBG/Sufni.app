@@ -18,7 +18,9 @@ public sealed record SuspensionResponseModel(ImmutableDictionary<ResponseTarget,
 {
     public const int MinimumSessions = 5;
     public const int MinimumWindows = 1000;
-    public const int MinimumReportMetres = 300;
+    public const int MinimumReportMetres = 150;
+    /// <summary>Distance from which a reported ratio carries full confidence; shorter reports are marked as low confidence.</summary>
+    public const int ConfidentReportMetres = 300;
     public const double BikeResponseThreshold = 0.30;
     public const double BikeTransmissionThreshold = 0.10;
     public bool HasFit => Fits.Values.Any(fit => fit is ResponseFit.Fitted);
