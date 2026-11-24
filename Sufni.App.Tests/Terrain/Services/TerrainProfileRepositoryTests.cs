@@ -1,3 +1,4 @@
+using Sufni.App;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Terrain.Models;
@@ -25,8 +26,7 @@ public class TerrainProfileRepositoryTests
         Assert.True(await db.TerrainProfiles.TryCommitAsync(session.Id, key, TerrainMaterialization.Computed(profile)));
         var stored = SessionSnapshot.From(Assert.Single(await db.GetSessionsAsync()));
         var current = Assert.IsType<TerrainStatus.Current>(SessionTerrainStatusQuery.Evaluate(stored, []).Status);
-        Assert.Equal(10, current.Summary.ClassifiedMetres);
-        Assert.Equal(1, current.Summary.RoughShare);
+        Assert.Equal(TerrainProfileCalculator.Summarize(profile), current.Summary);
         var loaded = Assert.Single(await db.TerrainProfiles.ReadAsync(new Dictionary<Guid, TerrainProfileKey> { [session.Id] = key })).Value;
         Assert.Equal(window, Assert.Single(loaded.Windows));
         Assert.Equal(profile.FrameMatching[0], Assert.Single(loaded.FrameMatching));
@@ -43,5 +43,25 @@ public class TerrainProfileRepositoryTests
         var latest = SessionSnapshot.From((await db.GetSessionAsync(session.Id))!);
         Assert.Equal(new TerrainStatus.Unavailable(TerrainAvailabilityReason.NoTrack),
             SessionTerrainStatusQuery.Evaluate(latest, []).Status);
+    }
+
+    [Fact]
+    public async Task SummaryStoredByAnEarlierAlgorithmReadsAsPending()
+    {
+        using var temp = new TempDatabase();
+        await using var db = new TestPersistenceHarness(temp.DatabasePath);
+        var session = new Session(Guid.NewGuid(), "ride", "", null, 150) { ProcessedData = [1], DurationSeconds = 15 };
+        await db.PutAsync(session);
+        var key = SessionTerrainStatusQuery.Evaluate(SessionSnapshot.From((await db.GetSessionAsync(session.Id))!), []).Key;
+        var connection = await db.GetInitializedConnectionAsync();
+        await connection.ExecuteAsync("""
+            INSERT INTO session_terrain_profile (session_id, terrain_profile_key, terrain_outcome, terrain_summary, profile)
+            VALUES (?, ?, ?, ?, ?)
+            """, session.Id, AppJson.Serialize(key with { AlgorithmVersion = 4, CalibrationVersion = 1 }), (int)TerrainOutcome.Computed,
+            """{"ClassifiedMetres":590,"CalmShare":0.08,"MediumShare":0.39,"RoughShare":0.53,"GentleShare":null,"ModerateShare":null,"SteepShare":null,"DominantSource":"frame_only"}""",
+            new byte[] { 1 });
+
+        var stored = SessionSnapshot.From(Assert.Single(await db.GetSessionsAsync()));
+        Assert.IsType<TerrainStatus.Pending>(SessionTerrainStatusQuery.Evaluate(stored, []).Status);
     }
 }

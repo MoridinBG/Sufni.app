@@ -50,11 +50,26 @@ public class TerrainProfileCalculatorTests
     }
 
     [Fact]
-    public void SummarySharesFollowTheSectionDistances()
+    public void SummaryRoughShareFollowsTheSectionDistances()
     {
         var summary = TerrainProfileCalculator.Summarize(SyntheticRide.Build(CalmMediumRoughCourse).Profile());
-        Assert.InRange(summary.CalmShare, 0.55, 0.65);
         Assert.InRange(summary.RoughShare, 0.10, 0.20);
+    }
+
+    [Fact]
+    public void SummaryCountsClimbDistanceApartFromClassifiedGround()
+    {
+        var summary = TerrainProfileCalculator.Summarize(SyntheticRide.Build([new(600, 7, 8), new(400, 3, -8)]).Profile());
+        Assert.InRange(summary.MovingMetres, 990, 1000);
+        Assert.InRange(summary.ClimbMetres!.Value, 370, 430);
+        Assert.InRange(summary.ClassifiedMetres, 570, 630);
+    }
+
+    [Fact]
+    public void SummaryHasNoClimbDistanceWithoutGrade()
+    {
+        var profile = SyntheticRide.Build([new(600, 7, 8), new(400, 3, -8)], new RideRecording(Frame: false)).Profile();
+        Assert.Null(TerrainProfileCalculator.Summarize(profile).ClimbMetres);
     }
 
     [Fact]

@@ -61,6 +61,10 @@ public closed record TerrainProfileResult
     public sealed record Unavailable(TerrainUnavailableReason Reason) : TerrainProfileResult;
 }
 
+/// <summary>
+/// Ride totals for the session list. <see cref="ClimbMetres"/> is null without grade. <see cref="RoughShare"/> is the
+/// rough share of <see cref="ClassifiedMetres"/>, the non-climb distance with a roughness class.
+/// </summary>
 [MessagePackObject(keyAsPropertyName: true)]
-public sealed record TerrainSummary(double ClassifiedMetres, double CalmShare, double MediumShare, double RoughShare,
-    double? GentleShare, double? ModerateShare, double? SteepShare, RoughnessSource? DominantSource);
+public sealed record TerrainSummary(double MovingMetres, double? ClimbMetres, double ClassifiedMetres, double RoughShare,
+    RoughnessSource? DominantSource);

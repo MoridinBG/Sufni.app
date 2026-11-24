@@ -105,7 +105,7 @@ An idling stroke is marked as an air candidate during stroke categorization when
 
 Steepness needs a frame IMU, elevation at both moving endpoints and 800 m of moving distance. Forward acceleration is removed before low-pass tilt estimation. The moving distance-weighted grade is anchored to the measured elevation drop. A 50 m baseline supplies the steepness class. A recording gap interrupts sensor coverage; windows without full sensor coverage carry no measurement for that sensor.
 
-The profile includes per-side velocity figures and per-metre IMU matching values. `Summarize` reports distance shares only over windows classified on the corresponding axis. The algorithm and calibration have independent versions. The profile has its own MessagePack contract.
+The profile includes per-side velocity figures and per-metre IMU matching values. `Summarize` reports the moving and climbing distance, the classified non-climb distance and its rough share. The algorithm and calibration have independent versions. The profile has its own MessagePack contract.
 
 ### Processing Parameters
 

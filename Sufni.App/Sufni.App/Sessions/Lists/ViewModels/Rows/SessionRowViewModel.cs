@@ -4,6 +4,7 @@ using Sufni.App.Shell.Coordinators;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
@@ -15,18 +16,31 @@ using Sufni.App.Shared.Formatting;
 using Sufni.App.Video.Stores;
 namespace Sufni.App.Sessions.Lists.ViewModels.Rows;
 
-public sealed record TerrainFingerprint(int RoughPercent, int CalmPercent, int? SteepPercent)
+/// <summary>
+/// Terrain part of a session row subtitle. Descent covers all non-climb distance and needs grade; each part needs 300 m.
+/// </summary>
+public sealed record TerrainFingerprint(double? DescentMetres, int? RoughPercent, double? ClimbMetres)
 {
-    public static TerrainFingerprint? From(TerrainStatus status) =>
-        status is TerrainStatus.Current { Summary.ClassifiedMetres: >= 300 } current
-            ? new(Percent(current.Summary.RoughShare), Percent(current.Summary.CalmShare),
-                current.Summary.SteepShare is { } steep ? Percent(steep) : null)
-            : null;
+    private const double MinimumMetres = 300;
+
+    public static TerrainFingerprint? From(TerrainStatus status)
+    {
+        if (status is not TerrainStatus.Current { Summary: var summary }) return null;
+        var descent = summary.MovingMetres - summary.ClimbMetres;
+        var fingerprint = new TerrainFingerprint(descent >= MinimumMetres ? descent : null,
+            summary.ClassifiedMetres >= MinimumMetres ? Percent(summary.RoughShare) : null,
+            summary.ClimbMetres >= MinimumMetres ? summary.ClimbMetres : null);
+        return fingerprint is (null, null, null) ? null : fingerprint;
+    }
 
     private static int Percent(double share) => (int)Math.Round(share * 100, MidpointRounding.AwayFromZero);
 
-    public override string ToString() => $"Rough {RoughPercent} % · Calm {CalmPercent} %" +
-        (SteepPercent is { } steep ? $" · Steep {steep} %" : string.Empty);
+    public override string ToString() => string.Join(" · ", new[]
+    {
+        DescentMetres is { } descent ? $"Descent {UnitsFormatter.FormatDistance(descent)}" : null,
+        RoughPercent is { } rough ? $"{rough}% rough" : null,
+        ClimbMetres is { } climb ? $"Climb {UnitsFormatter.FormatDistance(climb)}" : null
+    }.OfType<string>());
 }
 
 /// <summary>

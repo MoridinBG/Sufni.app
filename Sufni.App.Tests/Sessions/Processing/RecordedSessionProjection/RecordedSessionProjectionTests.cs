@@ -35,7 +35,7 @@ public class RecordedSessionProjectionTests
         using var projection = stores.CreateProjection(fingerprints, scheduler);
         var context = CreateCurrentContext(fingerprints);
         var session = TestSnapshots.WithCurrentTerrain(context.Session, TerrainOutcome.Computed,
-            new TerrainSummary(20, 0.5, 0, 0.5, null, null, null, RoughnessSource.Both));
+            new TerrainSummary(20, null, 20, 0.5, RoughnessSource.Both));
         using var observation = projection.ConnectSessions().Bind(out var summaries).Subscribe();
         var domains = new List<RecordedSessionDomainSnapshot>();
         using var watch = projection.WatchSession(session.Id).Subscribe(domains.Add);

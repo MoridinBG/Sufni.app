@@ -4,7 +4,7 @@ namespace Sufni.Telemetry;
 
 public static partial class TerrainProfileCalculator
 {
-    public const int AlgorithmVersion = 4;
+    public const int AlgorithmVersion = 5;
     public const double ClippedShareLimit = 0.02;
     private const double SilentShareLimit = 0.5;
     private const int MinimumImuRate = 200;
@@ -96,12 +96,13 @@ public static partial class TerrainProfileCalculator
 
     public static TerrainSummary Summarize(TerrainProfile profile)
     {
-        var classified = profile.Windows.Where(w => w.Moving && w.Roughness.HasValue).ToArray();
-        var graded = profile.Windows.Where(w => w.Moving && w.Steepness.HasValue).ToArray();
-        double Share(RoughnessClass c) => classified.Length == 0 ? 0 : (double)classified.Count(w => w.Roughness == c) / classified.Length;
-        double? GradeShare(SteepnessClass c) => graded.Length == 0 ? null : (double)graded.Count(w => w.Steepness == c) / graded.Length;
-        return new(WindowMetres * (double)classified.Length, Share(RoughnessClass.Calm), Share(RoughnessClass.Medium),
-            Share(RoughnessClass.Rough), GradeShare(SteepnessClass.Gentle), GradeShare(SteepnessClass.Moderate),
-            GradeShare(SteepnessClass.Steep), classified.GroupBy(w => w.Source).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key);
+        var moving = profile.Windows.Where(w => w.Moving).ToArray();
+        var classified = moving.Where(w => w.Roughness.HasValue).ToArray();
+        return new(WindowMetres * (double)moving.Length,
+            profile.SteepnessState == TerrainSteepnessState.Available
+                ? WindowMetres * (double)moving.Count(w => w.Direction == TerrainDirection.Climbing) : null,
+            WindowMetres * (double)classified.Length,
+            classified.Length == 0 ? 0 : (double)classified.Count(w => w.Roughness == RoughnessClass.Rough) / classified.Length,
+            classified.GroupBy(w => w.Source).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key);
     }
 }

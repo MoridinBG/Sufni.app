@@ -23,22 +23,25 @@ public class SessionListViewModelTests
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
 
+    public static TheoryData<TerrainSummary, TerrainFingerprint?> FingerprintParts => new()
+    {
+        { new TerrainSummary(1500, 400, 1100, 0.424, RoughnessSource.Both), new TerrainFingerprint(1100, 42, 400) },
+        { new TerrainSummary(1500, null, 1500, 0.424, RoughnessSource.Both), new TerrainFingerprint(null, 42, null) },
+        { new TerrainSummary(1500, 250, 280, 0.424, RoughnessSource.Both), new TerrainFingerprint(1250, null, null) },
+        { new TerrainSummary(280, 0, 280, 0.424, RoughnessSource.Both), null }
+    };
+
     [Theory]
-    [InlineData(300, 0.224, 22)]
-    [InlineData(300, null, null)]
-    [InlineData(200, 0.224, null)]
-    public void RowFingerprintUsesOnlyTheClassifiedDistanceOfACurrentProfile(double metres, double? steep, int? expectedSteep)
+    [MemberData(nameof(FingerprintParts))]
+    public void RowFingerprintShowsOnlyPartsOfAtLeast300Metres(TerrainSummary terrain, TerrainFingerprint? expected)
     {
         var (projection, cache) = CreateProjection();
         using (cache)
         {
-            cache.AddOrUpdate(CreateSummary("ride") with
-            {
-                Terrain = CurrentTerrain(new TerrainSummary(metres, 0.577, 0.279, 0.144, null, null, steep, RoughnessSource.Both))
-            });
+            cache.AddOrUpdate(CreateSummary("ride") with { Terrain = CurrentTerrain(terrain) });
             var row = Assert.Single(CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher).Items);
-            Assert.Equal(metres >= 300, row.HasSubtitleText);
-            Assert.Equal(metres >= 300 ? new TerrainFingerprint(14, 58, expectedSteep) : null, row.Fingerprint);
+            Assert.Equal(expected is not null, row.HasSubtitleText);
+            Assert.Equal(expected, row.Fingerprint);
         }
     }
 
@@ -67,7 +70,7 @@ public class SessionListViewModelTests
         {
             var summary = CreateSummary("ride") with
             {
-                Terrain = CurrentTerrain(new TerrainSummary(300, 0.577, 0.279, 0.144, null, null, null, RoughnessSource.Both))
+                Terrain = CurrentTerrain(new TerrainSummary(300, null, 300, 0.144, RoughnessSource.Both))
             };
             cache.AddOrUpdate(summary);
             var row = Assert.Single(CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher).Items);
@@ -79,9 +82,9 @@ public class SessionListViewModelTests
 
             cache.AddOrUpdate(summary with
             {
-                Terrain = CurrentTerrain(new TerrainSummary(400, 0.4, 0.3, 0.3, null, null, null, RoughnessSource.FrameOnly))
+                Terrain = CurrentTerrain(new TerrainSummary(400, 0, 400, 0.3, RoughnessSource.FrameOnly))
             });
-            Assert.Equal(new TerrainFingerprint(30, 40, null), row.Fingerprint);
+            Assert.Equal(new TerrainFingerprint(400, 30, null), row.Fingerprint);
             Assert.True(row.HasSubtitleText);
         }
     }
