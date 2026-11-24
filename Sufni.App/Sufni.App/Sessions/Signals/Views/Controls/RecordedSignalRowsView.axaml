@@ -200,7 +200,7 @@ mc:Ignorable="d">
                 </sessionSignals:SignalRow.ChildRows>
             </sessionSignals:SignalRow>
             <sessionSignals:SignalRow RowId="{x:Static sessionPreferences:SignalRowIds.Terrain}"
-                Title="{Binding TerrainTitle}" FixedPlotHeight="64" TitleToolTip="{Binding TerrainSourceDescription}"
+                Title="{Binding TerrainTitle}" FixedPlotHeight="112" TitleToolTip="{Binding TerrainSourceDescription}"
                 HeaderActions="{Binding TerrainHeaderActions}" PresentationState="{Binding TerrainSignalState}">
                 <sessionSignals:SignalRow.HeaderAccessory>
                     <terrainViews:TerrainClassFilterView DataContext="{Binding TerrainScope}" Compact="{Binding #Root.CompactTerrainFilter}" />

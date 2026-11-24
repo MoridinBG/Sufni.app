@@ -12,7 +12,7 @@ namespace Sufni.App.Tests.Terrain.Views;
 public class TerrainClassStripPlotViewTests
 {
     [AvaloniaFact]
-    public async Task RoughnessAndGradeOccupySeparateTimedBands()
+    public async Task GradeAndRoughnessOccupySeparateLabelledLanes()
     {
         var view = new TerrainClassStripPlotView();
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
@@ -23,9 +23,9 @@ public class TerrainClassStripPlotViewTests
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot;
         var rectangles = plot.PlottableList.OfType<Rectangle>().Select(r => r.GetAxisLimits()).ToArray();
-        Assert.Equal([(1d, 2d), (2d, 4d), (6d, 7d)], rectangles.Where(r => r.Bottom == 1 && r.Top == 2)
-            .Select(r => (r.Left, r.Right)));
-        var lower = Assert.Single(rectangles, r => r.Bottom == 0 && r.Top == 1);
-        Assert.Equal((1d, 4d), (lower.Left, lower.Right));
+        Assert.Equal([(1d, 2d), (2d, 4d), (6d, 7d)], rectangles.Where(r => r.Top < 1).Select(r => (r.Left, r.Right)));
+        var grade = Assert.Single(rectangles, r => r.Bottom > 1);
+        Assert.Equal((1d, 4d), (grade.Left, grade.Right));
+        Assert.Equal(["Grade", "Roughness"], plot.PlottableList.OfType<Annotation>().Select(a => a.Text));
     }
 }

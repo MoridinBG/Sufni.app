@@ -36,8 +36,27 @@ public sealed class TerrainClassStripPlotView : TerrainPlotView
         InitializeCursorReadoutInteractions();
     }
 
-    protected override void LoadPlotData(TelemetryPlot plotModel) =>
+    protected override void LoadPlotData(TelemetryPlot plotModel)
+    {
         ((TerrainClassStripPlot)plotModel).Load(Terrain!, Telemetry!);
+        LayoutRunNames();
+    }
+
+    protected override void OnViewportChanged()
+    {
+        LayoutRunNames();
+        base.OnViewportChanged();
+    }
+
+    private void LayoutRunNames()
+    {
+        if (!HasPlotModel || PlotModel is not TerrainClassStripPlot strip) return;
+        var limits = PlotControl.Plot.Axes.GetLimits();
+        var width = PlotControl.Plot.LastRender.DataRect.Width;
+        // Before the first render the data area is unknown; the control width less the side chrome stands in.
+        if (width <= 0) width = (float)PlotControl.Bounds.Width - 2 * PlotSettings.TimeSeriesPlotChromePadding;
+        strip.LayoutRunNames(limits.Left, limits.Right, width);
+    }
 }
 
 public sealed class TerrainSignalPlotView : TerrainPlotView
