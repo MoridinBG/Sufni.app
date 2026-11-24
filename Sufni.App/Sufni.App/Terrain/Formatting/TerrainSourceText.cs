@@ -16,16 +16,24 @@ internal static class TerrainSourceText
 
     public static string? Description(TerrainSourceCoverage? coverage)
     {
-        if (coverage?.Source is null) return null;
-        var lines = new List<string>
-        {
-            $"Both sensors {coverage.JointShare:P0} · Frame only {coverage.FrameOnlyShare:P0} · Lowers only {coverage.LowersOnlyShare:P0}"
-        };
+        if (coverage is null) return null;
+        var lines = new List<string>();
+        if (coverage.Source is not null)
+            lines.Add($"Both sensors {coverage.JointShare:P0} · Frame only {coverage.FrameOnlyShare:P0} · Lowers only {coverage.LowersOnlyShare:P0}");
         if (coverage.LowersClipped) lines.Add("Lowers reached full scale.");
         if (coverage.FrameMissing) lines.Add("Frame data absent in part or all of the ride.");
         if (coverage.LowersMissing) lines.Add("Lowers data absent in part or all of the ride.");
         if (coverage.FrameUncalibrated) lines.Add("Frame scale has no calibration.");
         if (coverage.LowersUncalibrated) lines.Add("Lowers scale has no calibration.");
-        return string.Join("\n", lines);
+        foreach (var sensor in coverage.Silent) lines.Add($"{SensorName(sensor)} sensor ignored: no movement recorded.");
+        return lines.Count == 0 ? null : string.Join("\n", lines);
     }
+
+    private static string SensorName(TerrainSensor sensor) => sensor switch
+    {
+        TerrainSensor.Front => "Front suspension",
+        TerrainSensor.Rear => "Rear suspension",
+        TerrainSensor.Frame => "Frame",
+        _ => "Lowers"
+    };
 }

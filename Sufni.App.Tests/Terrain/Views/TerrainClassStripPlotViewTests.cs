@@ -17,7 +17,7 @@ public class TerrainClassStripPlotViewTests
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
         view.Telemetry = TestTelemetryData.CreateProcessed(sampleRate: 20);
         view.Terrain = new([new(1, 2, TerrainLevel.Low), new(2, 4, TerrainLevel.Middle), new(6, 7, TerrainLevel.High)],
-            [new(1, 4, TerrainLevel.High)], [], [], [], new(1, 0, 0, false, false, false, false, false));
+            [new(1, 4, TerrainLevel.High)], [], [], [], new(1, 0, 0, false, false, false, false, false, []));
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot;

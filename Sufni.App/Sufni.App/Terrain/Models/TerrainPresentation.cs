@@ -12,7 +12,8 @@ public readonly record struct TerrainClassRun(double StartSeconds, double EndSec
 public sealed record TerrainSignalSection(ImmutableArray<double> Seconds, ImmutableArray<double> Values);
 
 public sealed record TerrainSourceCoverage(double JointShare, double FrameOnlyShare, double LowersOnlyShare,
-    bool LowersClipped, bool FrameMissing, bool LowersMissing, bool FrameUncalibrated, bool LowersUncalibrated)
+    bool LowersClipped, bool FrameMissing, bool LowersMissing, bool FrameUncalibrated, bool LowersUncalibrated,
+    ImmutableArray<TerrainSensor> Silent)
 {
     public RoughnessSource? Source => (JointShare + FrameOnlyShare > 0, JointShare + LowersOnlyShare > 0) switch
     {

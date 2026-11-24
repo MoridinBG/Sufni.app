@@ -54,7 +54,7 @@ internal static partial class RecordedSessionPresentationDeriver
         var total = Math.Max(1d, joint + frameOnly + lowersOnly);
         return new(roughness.ToImmutable(), steepness.ToImmutable(), frame.Build(), lowers.Build(), grades.Build(),
             new(joint / total, frameOnly / total, lowersOnly / total, clipped, frameMissing, lowersMissing,
-                frameUncalibrated, lowersUncalibrated));
+                frameUncalibrated, lowersUncalibrated, profile.SilentSensors));
     }
 
     public static RecordedSessionEditorState WithTerrainSelection(RecordedSessionEditorState previous, RecordedSessionEditorState next)
