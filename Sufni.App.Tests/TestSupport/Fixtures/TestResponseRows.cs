@@ -28,4 +28,9 @@ internal static class TestResponseRows
         return new(group, metres, pace, Enum.GetValues<ResponseTarget>().ToImmutableDictionary(target => target,
             target => named.GetValueOrDefault(target, within)), within, within);
     }
+
+    /// <summary>A usual that predicts the same response for every target on any ground.</summary>
+    public static SuspensionResponseModel Usual(double predicted = 100) =>
+        new(Enum.GetValues<ResponseTarget>().ToImmutableDictionary(target => target,
+            target => (ResponseFit)new ResponseFit.Fitted(ImuLocation.Frame, 6, 1200, [Math.Log(predicted), 0, 0, 0, 0])), 6, 1200);
 }

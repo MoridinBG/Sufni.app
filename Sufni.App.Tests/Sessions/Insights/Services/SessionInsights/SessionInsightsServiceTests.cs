@@ -256,9 +256,7 @@ public class SessionInsightsServiceTests
     private SessionResponsePanel Response(TerrainProfile profile, TelemetryTimeRange? analysisRange,
         TelemetryTimeSelection? selection = null)
     {
-        var model = new SuspensionResponseModel(Enum.GetValues<ResponseTarget>().ToImmutableDictionary(target => target,
-            target => (ResponseFit)new ResponseFit.Fitted(ImuLocation.Frame, 6, 1200, [Math.Log(100), 0, 0, 0, 0])), 6, 1200);
-        var input = new SessionTerrainInput(profile, new TerrainBaseline.Fitted(TerrainBaselineIdentity.Empty, model), analysisRange);
+        var input = new SessionTerrainInput(profile, new TerrainBaseline.Fitted(TerrainBaselineIdentity.Empty, TestResponseRows.Usual()), analysisRange);
         var request = CreateRequest(CreateTelemetry(front: BuildSide(), rear: BuildSide()), terrain: input);
         return service.Analyze(selection is null ? request : request with { Selection = selection }).Response;
     }
