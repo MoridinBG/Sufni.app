@@ -61,7 +61,7 @@ mc:Ignorable="d">
             ClipToBounds="True"
             Spacing="16">
                 <segmentViews:SegmentAnalysisComparisonBannerView DataContext="{Binding SegmentComparison}" />
-                <terrainViews:TerrainClassFilterBannerView DataContext="{Binding TerrainFilter}" />
+                <terrainViews:TerrainClassFilterBannerView DataContext="{Binding TerrainScope}" />
 
                 <ItemsControl Name="AnalysisContentHost">
                     <ItemsControl.ItemsPanel>

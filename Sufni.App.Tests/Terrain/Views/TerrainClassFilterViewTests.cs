@@ -31,7 +31,7 @@ public class TerrainClassFilterViewTests
     {
         using var h = new SessionDetailHarness();
         var editor = await LoadAsync(h);
-        var filter = editor.SignalsWorkspace.TerrainFilter!;
+        var filter = editor.SignalsWorkspace.TerrainScope!;
         var header = new TerrainClassFilterView { DataContext = filter, Compact = true };
         await using var mounted = await ViewTestHelpers.MountAsync(header);
         var button = header.FindControl<Button>("FilterButton")!;
@@ -52,10 +52,10 @@ public class TerrainClassFilterViewTests
     {
         using var h = new SessionDetailHarness();
         var editor = await LoadAsync(h);
-        var banner = new TerrainClassFilterBannerView { DataContext = editor.AnalysisWorkspace.TerrainFilter };
+        var banner = new TerrainClassFilterBannerView { DataContext = editor.AnalysisWorkspace.TerrainScope };
         await using var mounted = await ViewTestHelpers.MountAsync(banner);
         Assert.False(banner.IsVisible);
-        var rough = editor.AnalysisWorkspace.TerrainFilter!.Roughness[(int)RoughnessClass.Rough];
+        var rough = editor.AnalysisWorkspace.TerrainScope!.Roughness[(int)RoughnessClass.Rough];
         rough.Toggle.Execute(null);
         await ViewTestHelpers.FlushDispatcherAsync();
         Assert.True(banner.IsVisible);

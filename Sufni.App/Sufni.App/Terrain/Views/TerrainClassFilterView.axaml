@@ -2,7 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Sufni.App.Terrain.ViewModels"
              x:Class="Sufni.App.Terrain.Views.TerrainClassFilterView"
-             x:Name="Root" x:DataType="vm:TerrainClassFilterViewModel" IsVisible="{Binding Available, FallbackValue=False}">
+             x:Name="Root" x:DataType="vm:TerrainScopeViewModel" IsVisible="{Binding Available, FallbackValue=False}">
     <UserControl.Resources>
         <DataTemplate x:Key="Chip" x:DataType="vm:TerrainClassChip">
             <ToggleButton IsChecked="{Binding IsChecked, Mode=OneWay}" Command="{Binding Toggle}" Padding="4,1" Margin="1"

@@ -24,7 +24,7 @@ mc:Ignorable="d">
         ClipToBounds="True"
         Spacing="10">
             <segmentViews:SegmentAnalysisComparisonBannerView DataContext="{Binding Workspace.SegmentComparison}" />
-            <terrainViews:TerrainClassFilterBannerView DataContext="{Binding Workspace.TerrainFilter}" />
+            <terrainViews:TerrainClassFilterBannerView DataContext="{Binding Workspace.TerrainScope}" />
 
             <controls2:VibrationAnalysisHost
             HostName="FrontForkVibrationHost"

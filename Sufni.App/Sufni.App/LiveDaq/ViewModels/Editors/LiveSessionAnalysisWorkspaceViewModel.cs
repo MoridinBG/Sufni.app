@@ -70,7 +70,7 @@ public sealed class LiveSessionAnalysisWorkspaceViewModel : ObservableObject, IS
     public ISessionAnalysisResultSource AnalysisResultState => results;
     public TelemetryData? TelemetryData => receivedAnalysis?.Telemetry;
     public SessionDampingPercentages DampingPercentages => results.Current?.DampingPercentages ?? SessionDampingPercentages.Empty;
-    public TerrainClassFilterViewModel? TerrainFilter => null;
+    public TerrainScopeViewModel? TerrainScope => null;
     public SegmentComparisonViewModel? SegmentComparison => null;
     public IRelayCommand<TelemetryRangeSelection?> SelectAnalysisRangeCommand { get; } = new RelayCommand<TelemetryRangeSelection?>(_ => { });
     public TelemetryRangeSelection? ActiveFrontAnalysisSelection => null;

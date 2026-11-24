@@ -413,7 +413,7 @@ public class TravelPlotViewTests
         public IReadOnlyList<SignalRowAction> GradeHeaderActions { get; } = [];
         public IReadOnlyList<TrackPoint>? TrackPoints => null;
         public TrackTimeRange? TrackTimelineContext => null;
-        public Sufni.App.Terrain.ViewModels.TerrainClassFilterViewModel? TerrainFilter => null;
+        public Sufni.App.Terrain.ViewModels.TerrainScopeViewModel? TerrainScope => null;
         public TerrainPresentation? TerrainPresentation => null;
         public string TerrainTitle => "Terrain";
         public string? TerrainSourceDescription => null;

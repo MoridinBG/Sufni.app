@@ -38,7 +38,7 @@ mc:Ignorable="d">
                 <sessionSignals:SignalRow.PlotContent>
                     <plots2:TravelPlotView
                     Name="Travel"
-                    AnalysisRange="{Binding AnalysisRange}" TerrainSelection="{Binding TerrainFilter.Selection}"
+                    AnalysisRange="{Binding AnalysisRange}" TerrainSelection="{Binding TerrainScope.Selection}"
                     SignalsWorkspace="{Binding}"
                     HideRightAxis="{Binding #Root.HideRightAxis}"
                     MaximumDisplayHz="{Binding #Root.MaximumDisplayHz}"
@@ -65,7 +65,7 @@ mc:Ignorable="d">
                         <sessionSignals:SignalRow.PlotContent>
                             <plots2:VelocityPlotView
                             Name="Velocity"
-                            AnalysisRange="{Binding AnalysisRange}" TerrainSelection="{Binding TerrainFilter.Selection}"
+                            AnalysisRange="{Binding AnalysisRange}" TerrainSelection="{Binding TerrainScope.Selection}"
                             SignalsWorkspace="{Binding}"
                             HideRightAxis="{Binding #Root.HideRightAxis}"
                             MaximumDisplayHz="{Binding #Root.MaximumDisplayHz}"
@@ -96,7 +96,7 @@ mc:Ignorable="d">
                 <sessionSignals:SignalRow.PlotContent>
                     <recordedImuPlots:ImuPlotView
                     Name="Imu"
-                    AnalysisRange="{Binding AnalysisRange}" TerrainSelection="{Binding TerrainFilter.Selection}"
+                    AnalysisRange="{Binding AnalysisRange}" TerrainSelection="{Binding TerrainScope.Selection}"
                     AnalysisResultState="{Binding AnalysisResultState}"
                     SignalsWorkspace="{Binding}"
                     HideRightAxis="{Binding #Root.HideRightAxis}"
@@ -123,7 +123,7 @@ mc:Ignorable="d">
                         <sessionSignals:SignalRow.PlotContent>
                             <recordedImuPlots:FramePitchRollPlotView
                             Name="PitchRoll"
-                            AnalysisRange="{Binding AnalysisRange}" TerrainSelection="{Binding TerrainFilter.Selection}"
+                            AnalysisRange="{Binding AnalysisRange}" TerrainSelection="{Binding TerrainScope.Selection}"
                             AnalysisResultState="{Binding AnalysisResultState}"
                             SignalsWorkspace="{Binding}"
                             HideRightAxis="{Binding #Root.HideRightAxis}"
@@ -153,7 +153,7 @@ mc:Ignorable="d">
                 <sessionSignals:SignalRow.PlotContent>
                     <plots3:TrackSignalPlotView
                     Name="Speed"
-                    AnalysisRange="{Binding AnalysisRange}" TerrainSelection="{Binding TerrainFilter.Selection}"
+                    AnalysisRange="{Binding AnalysisRange}" TerrainSelection="{Binding TerrainScope.Selection}"
                     SignalsWorkspace="{Binding}"
                     HideRightAxis="{Binding #Root.HideRightAxis}"
                     SignalRowId="{x:Static sessionPreferences:SignalRowIds.Speed}"
@@ -179,7 +179,7 @@ mc:Ignorable="d">
                         <sessionSignals:SignalRow.PlotContent>
                             <plots3:TrackSignalPlotView
                             Name="Elevation"
-                            AnalysisRange="{Binding AnalysisRange}" TerrainSelection="{Binding TerrainFilter.Selection}"
+                            AnalysisRange="{Binding AnalysisRange}" TerrainSelection="{Binding TerrainScope.Selection}"
                             SignalsWorkspace="{Binding}"
                             HideRightAxis="{Binding #Root.HideRightAxis}"
                             SignalRowId="{x:Static sessionPreferences:SignalRowIds.Elevation}"
@@ -203,13 +203,13 @@ mc:Ignorable="d">
                 Title="{Binding TerrainTitle}" FixedPlotHeight="64" TitleToolTip="{Binding TerrainSourceDescription}"
                 HeaderActions="{Binding TerrainHeaderActions}" PresentationState="{Binding TerrainSignalState}">
                 <sessionSignals:SignalRow.HeaderAccessory>
-                    <terrainViews:TerrainClassFilterView DataContext="{Binding TerrainFilter}" Compact="{Binding #Root.CompactTerrainFilter}" />
+                    <terrainViews:TerrainClassFilterView DataContext="{Binding TerrainScope}" Compact="{Binding #Root.CompactTerrainFilter}" />
                 </sessionSignals:SignalRow.HeaderAccessory>
                 <sessionSignals:SignalRow.PlotContent>
                     <terrainViews:TerrainClassStripPlotView
                         SignalRowId="{x:Static sessionPreferences:SignalRowIds.Terrain}"
                         Terrain="{Binding TerrainPresentation}" Telemetry="{Binding TelemetryData}"
-                        Timeline="{Binding Timeline}" SignalsWorkspace="{Binding}" AnalysisRange="{Binding AnalysisRange}" TerrainSelection="{Binding TerrainFilter.Selection}"
+                        Timeline="{Binding Timeline}" SignalsWorkspace="{Binding}" AnalysisRange="{Binding AnalysisRange}" TerrainSelection="{Binding TerrainScope.Selection}"
                         HideRightAxis="{Binding #Root.HideRightAxis}" ShowAirtime="{Binding ShowTerrainAirtime}"
                         ShowAnalysisSelection="{Binding ShowTerrainAnalysisSelection}"
                         AnalysisSelectionHighlightRanges="{Binding AnalysisSelectionHighlightRanges}" />
@@ -227,7 +227,7 @@ mc:Ignorable="d">
                             <terrainViews:TerrainSignalPlotView SignalKind="{x:Static terrainPlots:TerrainSignalKind.Roughness}"
                                 SignalRowId="{x:Static sessionPreferences:SignalRowIds.Roughness}"
                                 Terrain="{Binding TerrainPresentation}" Telemetry="{Binding TelemetryData}"
-                                Timeline="{Binding Timeline}" SignalsWorkspace="{Binding}" AnalysisRange="{Binding AnalysisRange}" TerrainSelection="{Binding TerrainFilter.Selection}"
+                                Timeline="{Binding Timeline}" SignalsWorkspace="{Binding}" AnalysisRange="{Binding AnalysisRange}" TerrainSelection="{Binding TerrainScope.Selection}"
                                 HideRightAxis="{Binding #Root.HideRightAxis}" ShowAirtime="{Binding ShowRoughnessAirtime}"
                                 ShowAnalysisSelection="{Binding ShowRoughnessAnalysisSelection}"
                                 AnalysisSelectionHighlightRanges="{Binding AnalysisSelectionHighlightRanges}" />
@@ -245,7 +245,7 @@ mc:Ignorable="d">
                             <terrainViews:TerrainSignalPlotView SignalKind="{x:Static terrainPlots:TerrainSignalKind.Grade}"
                                 SignalRowId="{x:Static sessionPreferences:SignalRowIds.Grade}"
                                 Terrain="{Binding TerrainPresentation}" Telemetry="{Binding TelemetryData}"
-                                Timeline="{Binding Timeline}" SignalsWorkspace="{Binding}" AnalysisRange="{Binding AnalysisRange}" TerrainSelection="{Binding TerrainFilter.Selection}"
+                                Timeline="{Binding Timeline}" SignalsWorkspace="{Binding}" AnalysisRange="{Binding AnalysisRange}" TerrainSelection="{Binding TerrainScope.Selection}"
                                 HideRightAxis="{Binding #Root.HideRightAxis}" ShowAirtime="{Binding ShowGradeAirtime}"
                                 ShowAnalysisSelection="{Binding ShowGradeAnalysisSelection}"
                                 AnalysisSelectionHighlightRanges="{Binding AnalysisSelectionHighlightRanges}" />

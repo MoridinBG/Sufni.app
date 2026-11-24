@@ -38,7 +38,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
         RecordedSessionEditorActions actions,
         SegmentPickerViewModel segmentPicker,
         SegmentComparisonViewModel segmentComparison,
-        SignalPlotContextActions contextActions, TerrainClassFilterViewModel terrainFilter)
+        SignalPlotContextActions contextActions, TerrainScopeViewModel terrainScope)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(analysisResultState);
@@ -51,7 +51,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
         Timeline = timeline;
         this.actions = actions;
         SegmentPicker = segmentPicker;
-        TerrainFilter = terrainFilter;
+        TerrainScope = terrainScope;
         SegmentComparison = segmentComparison;
         this.contextActions = contextActions;
         signalRowActions = new SignalRowActionsController(() => currentState.Presentation.Signals, actions);
@@ -100,7 +100,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
     public SessionTimelineLinkViewModel Timeline { get; }
 
     public SegmentPickerViewModel SegmentPicker { get; }
-    public TerrainClassFilterViewModel TerrainFilter { get; }
+    public TerrainScopeViewModel TerrainScope { get; }
     public SegmentComparisonViewModel SegmentComparison { get; }
 
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId =>

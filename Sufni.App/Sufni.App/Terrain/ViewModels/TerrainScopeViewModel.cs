@@ -38,7 +38,7 @@ public sealed class TerrainClassChip : ObservableObject
     }
 }
 
-public sealed class TerrainClassFilterViewModel : ObservableObject, IDisposable
+public sealed class TerrainScopeViewModel : ObservableObject, IDisposable
 {
     private readonly IDisposable subscription;
     public IReadOnlyList<TerrainClassChip> Roughness { get; }
@@ -50,7 +50,7 @@ public sealed class TerrainClassFilterViewModel : ObservableObject, IDisposable
     public string BannerText { get; private set => SetProperty(ref field, value); } = string.Empty;
     public IRelayCommand Clear { get; }
 
-    internal TerrainClassFilterViewModel(IObservable<RecordedSessionEditorState> states, RecordedSessionEditorActions actions)
+    internal TerrainScopeViewModel(IObservable<RecordedSessionEditorState> states, RecordedSessionEditorActions actions)
     {
         Roughness = Enum.GetValues<RoughnessClass>().Select(value => new TerrainClassChip(TerrainClassText.Name(value),
             () => actions.ToggleRoughness(value), f => f.Contains(value), r => r.RoughnessMetres[(int)value])).ToArray();

@@ -32,7 +32,7 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
         DampingCutoffWorkflow dampingCutoffs,
         RecordedSessionAnalysisDemand analysisDemand,
         RecordedSessionEditorActions actions,
-        SegmentComparisonViewModel segmentComparison, TerrainClassFilterViewModel terrainFilter)
+        SegmentComparisonViewModel segmentComparison, TerrainScopeViewModel terrainScope)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(actions);
@@ -46,7 +46,7 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
             else actions.SelectAnalysisRange(selection);
         });
         AnalysisResultState = analysisDemand.ResultState;
-        TerrainFilter = terrainFilter;
+        TerrainScope = terrainScope;
         SegmentComparison = segmentComparison;
         PositionVelocity = new PositionVelocityPageViewModel(this);
         stateSubscription = state.Subscribe(ApplyState);
@@ -86,7 +86,7 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
         set => actions.SetSessionInsightsTargetProfile(value);
     }
 
-    public TerrainClassFilterViewModel TerrainFilter { get; }
+    public TerrainScopeViewModel TerrainScope { get; }
     public SegmentComparisonViewModel SegmentComparison { get; }
 
     public IReadOnlyList<TravelDistributionModeOption> TravelDistributionModeOptions { get; } =

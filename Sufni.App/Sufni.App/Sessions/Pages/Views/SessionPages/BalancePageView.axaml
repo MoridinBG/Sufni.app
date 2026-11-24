@@ -25,7 +25,7 @@ mc:Ignorable="d">
         Orientation="Vertical"
         Spacing="8">
             <segmentViews:SegmentAnalysisComparisonBannerView DataContext="{Binding AnalysisWorkspace.SegmentComparison}" />
-            <terrainViews:TerrainClassFilterBannerView DataContext="{Binding AnalysisWorkspace.TerrainFilter}" />
+            <terrainViews:TerrainClassFilterBannerView DataContext="{Binding AnalysisWorkspace.TerrainScope}" />
 
             <StackPanel
             Name="MobileBalanceModeRadioButtons"

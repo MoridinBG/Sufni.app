@@ -33,7 +33,7 @@ public class RecordedTerrainTests
         var domain = h.WithTerrain(session, ride.Profile());
         var editor = h.CreateRecordedEditor(session, h.CreateLoadedResult(ride.Telemetry), Observable.Return(domain));
         await h.LoadAsync(editor);
-        var filter = editor.SignalsWorkspace.TerrainFilter!;
+        var filter = editor.SignalsWorkspace.TerrainScope!;
         var rough = filter.Roughness[(int)RoughnessClass.Rough];
         Assert.InRange(rough.DistanceMetres, 120, 150);
         var analysis = editor.AnalysisWorkspace;
@@ -56,7 +56,7 @@ public class RecordedTerrainTests
         TestSegmentComparisons.DetailReturns(h.SegmentCoordinator, compared);
         var editor = await h.LoadMatchedEditorAsync(session, changes, compared);
         var signals = editor.SignalsWorkspace;
-        var filter = signals.TerrainFilter!;
+        var filter = signals.TerrainScope!;
         var chip = filter.Roughness[(int)RoughnessClass.Rough];
         chip.Toggle.Execute(null);
         Assert.True(filter.IsActive);
@@ -87,7 +87,7 @@ public class RecordedTerrainTests
         using var changes = new BehaviorSubject<RecordedSessionDomainSnapshot>(domain);
         var editor = h.CreateRecordedEditor(session, projectionChanges: changes);
         await h.LoadAsync(editor);
-        var filter = editor.SignalsWorkspace.TerrainFilter!;
+        var filter = editor.SignalsWorkspace.TerrainScope!;
         filter.Roughness[(int)RoughnessClass.Rough].Toggle.Execute(null);
         Assert.True(filter.IsActive);
         changes.OnNext(domain with { Session = session with { GpsOffsetSeconds = 2 }, Terrain = new TerrainStatus.Pending() });

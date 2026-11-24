@@ -27,7 +27,7 @@ mc:Ignorable="d">
         ClipToBounds="True"
         Spacing="10">
             <segmentViews:SegmentAnalysisComparisonBannerView DataContext="{Binding Workspace.SegmentComparison}" />
-            <terrainViews:TerrainClassFilterBannerView DataContext="{Binding Workspace.TerrainFilter}" />
+            <terrainViews:TerrainClassFilterBannerView DataContext="{Binding Workspace.TerrainScope}" />
 
             <StackPanel Name="MobileAnalysisHeader" Spacing="4">
                 <TextBlock FontSize="16" FontWeight="SemiBold" Text="Insights" />
