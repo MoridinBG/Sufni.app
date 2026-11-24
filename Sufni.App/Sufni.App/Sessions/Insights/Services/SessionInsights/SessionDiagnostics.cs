@@ -69,7 +69,7 @@ internal static class SessionDiagnostics
             calculateVibration);
         AddVibrationFindings(telemetryData, frontVibration, rearVibration, findings);
 
-        return new SessionDiagnosticsReport(front, rear, frontVibration, rearVibration, findings)
+        return new SessionDiagnosticsReport(front, rear, findings)
         {
             Response = DescribeResponse(context.Request.Terrain)
         };
