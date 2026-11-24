@@ -10,8 +10,7 @@ public sealed record TelemetryTimeSelection
     public TelemetryTimeSelection(IEnumerable<TelemetryTimeRange> ranges)
     {
         var merged = ImmutableArray.CreateBuilder<TelemetryTimeRange>();
-        foreach (var range in ranges.Where(r => r.DurationSeconds >= TelemetryTimeRange.MinimumDurationSeconds)
-                     .OrderBy(r => r.StartSeconds))
+        foreach (var range in ranges.OrderBy(r => r.StartSeconds))
         {
             if (merged.Count == 0 || merged[^1].EndSeconds < range.StartSeconds) merged.Add(range);
             else if (range.EndSeconds > merged[^1].EndSeconds)
