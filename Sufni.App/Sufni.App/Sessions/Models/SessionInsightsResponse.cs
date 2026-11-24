@@ -3,7 +3,9 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Models;
 
-public sealed record SessionTerrainInput(TerrainProfile Profile, TerrainBaseline Baseline, TelemetryTimeRange? AnalysisRange);
+/// <summary>The terrain that Insights reads. A null scope leaves out the ground and comfort summary.</summary>
+public sealed record SessionTerrainInput(TerrainProfile Profile, TerrainBaseline Baseline, TelemetryTimeRange? AnalysisRange,
+    TerrainScope? Scope);
 
 public enum SessionResponseState { NoTerrain, InsufficientBaseline, Reported, BaselineError }
 

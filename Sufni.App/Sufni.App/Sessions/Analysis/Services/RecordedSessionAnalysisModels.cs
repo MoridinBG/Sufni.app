@@ -46,6 +46,9 @@ public sealed record RecordedSessionAnalysisInputs(
     public long TrackGeneration { get; init; }
     public TerrainProfile? TerrainProfile { get; init; }
     public TerrainBaseline? Baseline { get; init; }
+
+    /// <summary>The terrain scope of the selection; null when a segment comparison replaces it.</summary>
+    public TerrainScope? TerrainScope { get; init; }
     public Lazy<ImmutableArray<TrackSample>>? TrackSamples { get; init; }
     public TelemetryRangeSelection? FrontSelection { get; init; }
     public TelemetryRangeSelection? RearSelection { get; init; }
@@ -239,7 +242,7 @@ public sealed record RecordedSessionAnalysisInputs(
             RecordedSessionAnalysisFamily.ImuDisplayProjection => key,
             RecordedSessionAnalysisFamily.SessionInsights => key with
             {
-                Selection = Selection, TerrainProfileKey = TerrainProfileKey, Baseline = Baseline
+                Selection = Selection, TerrainProfileKey = TerrainProfileKey, Baseline = Baseline, TerrainScope = TerrainScope
             },
             _ => key with { Selection = Selection },
         };
@@ -261,6 +264,7 @@ public sealed record RecordedSessionAnalysisKey(
     SessionInsightsTargetProfile? SessionInsightsTargetProfile)
 {
     public TerrainBaseline? Baseline { get; init; }
+    public TerrainScope? TerrainScope { get; init; }
     public TelemetryTimeSelection? Selection { get; init; }
     public TerrainProfileKey? TerrainProfileKey { get; init; }
     public long TrackGeneration { get; init; }

@@ -102,16 +102,11 @@ mc:Ignorable="d">
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <ContentControl
-                        Name="SessionInsightsVibrationPanel"
-                        Content="{Binding SessionInsights.Vibration}"
-                        IsVisible="{Binding SessionInsights.HasVibration}">
-                            <ContentControl.ContentTemplate>
-                                <DataTemplate x:DataType="models:SessionInsightsVibrationPanel">
-                                    <controls2:SessionInsightsVibrationPanel />
-                                </DataTemplate>
-                            </ContentControl.ContentTemplate>
-                        </ContentControl>
+                        <Panel IsVisible="{Binding SessionInsights.HasGroundComfort}">
+
+                            <controls2:SessionInsightsGroundComfortPanel Name="SessionInsightsGroundComfortPanel" DataContext="{Binding SessionInsights.GroundComfort}" />
+
+                        </Panel>
                         <segments:SegmentTerrainComparisonView DataContext="{Binding SegmentComparison}" />
                         <controls2:SessionInsightsResponsePanel DataContext="{Binding SessionInsights.Response}" />
                     </StackPanel>

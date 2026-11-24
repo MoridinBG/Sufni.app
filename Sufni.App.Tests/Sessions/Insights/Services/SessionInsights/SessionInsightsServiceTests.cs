@@ -59,6 +59,18 @@ public class SessionInsightsServiceTests
         Assert.Equal(hinted, panel.Hint is not null);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void GroundAndComfortSummaryNeedsATerrainScope(bool scoped)
+    {
+        var profile = TerrainProfiles.Classified([.. Enumerable.Range(0, 20).Select(i => ResponseWindow(i, RoughnessClass.Rough, 100))]);
+
+        var result = Analyze(profile, null, scope: scoped ? new TerrainScope(TerrainPreset.All) : null);
+
+        Assert.Equal(scoped, result.HasGroundComfort);
+    }
+
     [Fact]
     public void Analyze_ReturnsHidden_WhenTelemetryIsMissing()
     {
@@ -254,11 +266,15 @@ public class SessionInsightsServiceTests
     }
 
     private SessionResponsePanel Response(TerrainProfile profile, TelemetryTimeRange? analysisRange,
-        TelemetryTimeSelection? selection = null)
+        TelemetryTimeSelection? selection = null) => Analyze(profile, analysisRange, selection).Response;
+
+    private SessionInsightsResult Analyze(TerrainProfile profile, TelemetryTimeRange? analysisRange,
+        TelemetryTimeSelection? selection = null, TerrainScope? scope = null)
     {
-        var input = new SessionTerrainInput(profile, new TerrainBaseline.Fitted(TerrainBaselineIdentity.Empty, TestResponseRows.Usual()), analysisRange);
+        var input = new SessionTerrainInput(profile, new TerrainBaseline.Fitted(TerrainBaselineIdentity.Empty, TestResponseRows.Usual()), analysisRange,
+            scope);
         var request = CreateRequest(CreateTelemetry(front: BuildSide(), rear: BuildSide()), terrain: input);
-        return service.Analyze(selection is null ? request : request with { Selection = selection }).Response;
+        return service.Analyze(selection is null ? request : request with { Selection = selection });
     }
 
     private static TerrainWindow ResponseWindow(int index, RoughnessClass roughness, double frontRms) =>

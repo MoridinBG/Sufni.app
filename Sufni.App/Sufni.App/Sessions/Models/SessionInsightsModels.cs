@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.Models;
 using System.Collections.Generic;
 using Sufni.Telemetry;
 using Sufni.App.Bikes.Models;
@@ -132,7 +133,7 @@ public sealed record SessionInsightsResult(
     SurfacePresentationState State,
     IReadOnlyList<SessionInsightsStep> Steps,
     IReadOnlyList<SessionInsightsFinding> DataQualityFindings,
-    SessionInsightsVibrationPanel? Vibration,
+    GroundComfortReport? GroundComfort,
     IReadOnlyList<SessionInsightsFinding> AllFindings)
 {
     public SessionInsightsResult(
@@ -156,7 +157,7 @@ public sealed record SessionInsightsResult(
 
     public SessionResponsePanel Response { get; init; } = SessionResponsePanel.Hidden;
 
-    public bool HasVibration => Vibration is not null;
+    public bool HasGroundComfort => GroundComfort is not null;
 }
 
 // The headline "Try this next" recommendation: which area it belongs to, the
@@ -376,13 +377,6 @@ public sealed record SessionInsightsStep(
     public bool HasGatingMessage => !string.IsNullOrWhiteSpace(GatingMessage);
 
     public bool HasFindings => Findings.Count > 0;
-}
-
-public sealed record SessionInsightsVibrationPanel(
-    IReadOnlyList<SessionInsightsMetric> Metrics,
-    string Caveat)
-{
-    public bool HasMetrics => Metrics.Count > 0;
 }
 
 public sealed record SessionInsightsEvidence(

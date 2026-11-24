@@ -11,6 +11,7 @@ using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Shared.Models;
+using Sufni.App.Terrain.Models;
 
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
@@ -93,6 +94,7 @@ internal sealed class RecordedSessionAnalysisDemand : IAsyncDisposable
             TerrainProfileKey = (currentState.Terrain as RecordedTerrainState.Loaded)?.Key,
             TerrainProfile = (currentState.Terrain as RecordedTerrainState.Loaded)?.Profile,
             Baseline = (currentState.Terrain as RecordedTerrainState.Loaded)?.Baseline,
+            TerrainScope = currentState.Intent.Scope is AnalysisScope.SegmentComparison ? null : currentState.TerrainScope,
             TrackGeneration = trackGeneration,
             TrackSamples = trackSamples,
             FrontSelection = currentState.AnalysisSelection.ActiveFront,

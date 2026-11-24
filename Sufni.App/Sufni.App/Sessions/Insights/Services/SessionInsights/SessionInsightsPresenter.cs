@@ -6,6 +6,7 @@ using Sufni.App.Shared.Common;
 
 using Sufni.App.Sessions.Models;
 using Sufni.App.Terrain.Formatting;
+using Sufni.App.Terrain.Models;
 namespace Sufni.App.Sessions.Insights.Services.SessionInsights;
 
 /// <summary>
@@ -28,7 +29,7 @@ internal static class SessionInsightsPresenter
             SurfacePresentationState.Ready,
             BuildSteps(telemetryData, report.Front, report.Rear, context, presented),
             displayFindings.Where(finding => finding.Category == SessionInsightsCategory.DataQuality).ToArray(),
-            BuildVibrationPanel(report.FrontVibration, report.RearVibration),
+            PresentGroundComfort(context.Request.Terrain),
             displayFindings)
         {
             NextStep = BuildNextStep(presented),
@@ -393,37 +394,9 @@ internal static class SessionInsightsPresenter
         return (FormatNumber(delta, 1), WithinThresholdStatus(delta, watchThresholdPercent));
     }
 
-    private static SessionInsightsVibrationPanel? BuildVibrationPanel(
-        VibrationStats? frontVibration,
-        VibrationStats? rearVibration)
-    {
-        var metrics = new List<SessionInsightsMetric>();
-        AddVibrationMetrics(metrics, frontVibration, SuspensionType.Front);
-        AddVibrationMetrics(metrics, rearVibration, SuspensionType.Rear);
-
-        return metrics.Count == 0
-            ? null
-            : new SessionInsightsVibrationPanel(
-                metrics,
-                "Compare vibration only side-by-side on the same trail at the same pace.");
-    }
-
-    private static void AddVibrationMetrics(
-        List<SessionInsightsMetric> metrics,
-        VibrationStats? vibration,
-        SuspensionType suspensionType)
-    {
-        if (vibration is null)
-        {
-            return;
-        }
-
-        var sideName = SessionInsightsTextCatalog.SideName(suspensionType);
-        metrics.Add(CreateMetric("Magic carpet ratio", FormatNumber(vibration.MagicCarpet, 2), null, sideName, null, tooltip: MagicCarpetTooltip));
-        metrics.Add(CreateMetric("Average g", FormatNumber(vibration.AverageGOverall, 2), "g", sideName, null));
-        metrics.Add(CreateMetric("Compression vibration", FormatNumber(vibration.CompressionPercent, 1), "%", sideName, null));
-        metrics.Add(CreateMetric("Rebound vibration", FormatNumber(vibration.ReboundPercent, 1), "%", sideName, null));
-    }
+    private static GroundComfortReport? PresentGroundComfort(SessionTerrainInput? terrain) => terrain?.Scope is { } scope
+        ? GroundComfortReports.Build(terrain.Profile, scope, terrain.AnalysisRange, (terrain.Baseline as TerrainBaseline.Fitted)?.Model)
+        : null;
 
     private static SessionInsightsMetric CreateMetric(
         string label,
@@ -493,9 +466,6 @@ internal static class SessionInsightsPresenter
 
     private const string SlopeDeltaTooltip =
         "Balance slope delta: how differently the front and rear speed-vs-travel trend lines are tilted. Smaller means the ends move more alike.";
-
-    private const string MagicCarpetTooltip =
-        "Magic-carpet ratio: suspension movement per unit of vibration reaching the rider. Higher is smoother. Only compare against another run on the same trail.";
 
     private static string FormatBand(SpeedBand band) => SessionInsightsTextCatalog.FormatBand(band);
 

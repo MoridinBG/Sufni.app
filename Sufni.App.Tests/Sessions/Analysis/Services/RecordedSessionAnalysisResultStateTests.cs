@@ -6,6 +6,7 @@ using Sufni.App.Sessions.Models;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.Telemetry;
 using Sufni.App.Shared.Models;
+using Sufni.App.Terrain.Models;
 
 namespace Sufni.App.Tests.Sessions.Analysis.Services;
 
@@ -116,6 +117,22 @@ public class RecordedSessionAnalysisResultStateTests
         Assert.Equal(3, changes.Count);
         var result = Assert.IsType<DampingPercentagesAnalysisResult>(changes[^1].Result);
         Assert.Equal(11, result.Percentages.FrontHscPercentage);
+    }
+
+    [Fact]
+    public async Task Invalidate_DropsCachedInsights_WhenOnlyTheTerrainScopeChanges()
+    {
+        using var state = new RecordedSessionAnalysisResultState(new TestAnalysisComputer(), new InlineBackgroundTaskRunner(),
+            new InlineUiThreadDispatcher(), () => new TelemetryData());
+        var inputs = CreateInputs(range: null) with { TerrainScope = new TerrainScope(TerrainPreset.Descents) };
+        state.Invalidate(inputs);
+        await state.RequestAsync(inputs.SessionInsightsKey, cancellationToken: TestContext.Current.CancellationToken);
+        Assert.NotNull(state.Get(inputs.SessionInsightsKey));
+
+        var climbs = inputs with { TerrainScope = new TerrainScope(TerrainPreset.Climbs) };
+        state.Invalidate(climbs);
+
+        Assert.Null(state.Get(climbs.SessionInsightsKey));
     }
 
     [Fact]
