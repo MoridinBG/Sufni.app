@@ -80,15 +80,6 @@ public sealed record SuspensionResponseModel(ImmutableDictionary<ResponseTarget,
         return residual;
     }
 
-    public double? Ratio(ResponseTarget target, IEnumerable<TerrainWindow> windows)
-    {
-        double sum = 0;
-        var count = 0;
-        foreach (var window in windows)
-            if (LogResidual(target, window) is { } residual) { sum += residual; count++; }
-        return count == 0 ? null : Math.Exp(sum / count);
-    }
-
     private static ImuLocation SelectPredictor(ResponseTarget target, TerrainProfile evaluated, TerrainProfile? paired, IReadOnlyCollection<TerrainProfile> baseline)
     {
         if (target == ResponseTarget.Transmission) return ImuLocation.Fork;

@@ -12,9 +12,10 @@ public class SuspensionResponseModelTests
         var model = SuspensionResponseModel.Fit(evaluated, SyntheticResponseRides.Baseline);
         var fit = Assert.IsType<ResponseFit.Fitted>(model.Fits[ResponseTarget.FrontRms]);
         Assert.Equal(lowers ? ImuLocation.Fork : ImuLocation.Frame, fit.Predictor);
-        Assert.InRange(model.Ratio(ResponseTarget.FrontRms, evaluated.Windows)!.Value, gain - 0.05, gain + 0.05);
-        Assert.InRange(model.Ratio(ResponseTarget.RearPeakRebound, evaluated.Windows)!.Value, gain - 0.05, gain + 0.05);
-        if (lowers) Assert.InRange(model.Ratio(ResponseTarget.Transmission, evaluated.Windows)!.Value, 0.95, 1.05);
+        var cells = WholeRide(evaluated, model);
+        Assert.InRange(cells[ResponseTarget.FrontRms].Ratio!.Value, gain - 0.05, gain + 0.05);
+        Assert.InRange(cells[ResponseTarget.RearPeakRebound].Ratio!.Value, gain - 0.05, gain + 0.05);
+        if (lowers) Assert.InRange(cells[ResponseTarget.Transmission].Ratio!.Value, 0.95, 1.05);
     }
 
     [Fact]
@@ -43,4 +44,7 @@ public class SuspensionResponseModelTests
         Assert.True(failed.Windows >= SuspensionResponseModel.MinimumWindows);
         Assert.Equal(ResponseFitIssue.InsufficientVariation, failed.Reason);
     }
+
+    private static Dictionary<ResponseTarget, ResponseCell> WholeRide(TerrainProfile evaluated, SuspensionResponseModel model) =>
+        TerrainResponse.Describe(evaluated, model, null).Single(row => row.Class is null).Cells.ToDictionary(cell => cell.Target);
 }
