@@ -69,7 +69,7 @@ internal sealed class SessionDetailHarness : IDisposable
 
     public InMemoryTerrainProfileRepository TerrainProfiles { get; } = new();
     public ITerrainProfileCoordinator TerrainCoordinator { get; } = Substitute.For<ITerrainProfileCoordinator>();
-    public IBackgroundTaskRunner GpsBackgroundRunner { get; set; } = new InlineBackgroundTaskRunner();
+    public IBackgroundTaskRunner BackgroundRunner { get; set; } = new InlineBackgroundTaskRunner();
     public IBikeCoordinator BikeCoordinator { get; } = TestCoordinatorSubstitutes.Bike();
     public ISessionCoordinator SessionCoordinator { get; } = TestCoordinatorSubstitutes.Session();
     public ISessionLoader SessionLoader { get; } = TestCoordinatorSubstitutes.SessionLoader();
@@ -219,7 +219,7 @@ internal sealed class SessionDetailHarness : IDisposable
             TestSegmentComparisons.CreateFactory(SegmentCoordinator),
             OperationRunner,
             videoPaneFactory: VideoPaneFactory,
-            timeProvider: new FakeTimeProvider(), bikeCoordinator: BikeCoordinator, backgroundTaskRunner: GpsBackgroundRunner,
+            timeProvider: new FakeTimeProvider(), bikeCoordinator: BikeCoordinator, backgroundTaskRunner: BackgroundRunner,
             terrainProfiles: TerrainProfiles, terrainCoordinator: TerrainCoordinator);
         editor.SetTabActive(true);
         return editor;

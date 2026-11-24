@@ -88,7 +88,7 @@ public class GpsOffsetSuggestionTests
     public async Task ClosingWhileTheEstimateIsQueuedDropsTheOffer()
     {
         var runner = new DeferredBackgroundTaskRunner();
-        using var harness = new SessionDetailHarness { GpsBackgroundRunner = runner };
+        using var harness = new SessionDetailHarness { BackgroundRunner = runner };
         var session = harness.CreateRecordedSession();
         var (loaded, _) = RideWithTrack(2);
         var editor = harness.CreateRecordedEditor(session, loaded);
