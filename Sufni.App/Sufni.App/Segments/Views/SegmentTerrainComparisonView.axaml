@@ -1,48 +1,17 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:Sufni.App.Segments.ViewModels" x:DataType="vm:SegmentComparisonViewModel"
+             xmlns:vm="using:Sufni.App.Segments.ViewModels"
+             xmlns:terrain="using:Sufni.App.Terrain.Views"
+             x:DataType="vm:SegmentComparisonViewModel"
              x:Class="Sufni.App.Segments.Views.SegmentTerrainComparisonView"
              IsVisible="{Binding HasAnalysisComparison, FallbackValue=False}">
-    <UserControl.Styles>
-        <Style Selector="TextBlock.muted"><Setter Property="Opacity" Value="0.65" /></Style>
-        <Style Selector="ItemsControl.horizontal">
-            <Setter Property="ItemsPanel"><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></Setter>
-        </Style>
-        <Style Selector="TextBlock.heading">
-            <Setter Property="Width" Value="122" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-        </Style>
-    </UserControl.Styles>
     <StackPanel Spacing="6" Margin="0,6,0,12">
         <TextBlock Text="Same-trail comparison" FontWeight="SemiBold" />
-        <TextBlock Text="{Binding TerrainTable.Message}" IsVisible="{Binding TerrainTable.HasMessage}" TextWrapping="Wrap" />
-        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" IsVisible="{Binding TerrainTable.HasRows}">
-            <StackPanel Spacing="6">
-                <ItemsControl Classes="horizontal" ItemsSource="{x:Static vm:SegmentTerrainTable.Headers}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="x:String"><TextBlock Classes="heading" Text="{Binding}" /></DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-                <ItemsControl ItemsSource="{Binding TerrainTable.Rows}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:SegmentTerrainTableRow">
-                            <ItemsControl Classes="horizontal" ItemsSource="{Binding Columns}" Margin="0,3">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:SegmentTerrainColumn">
-                                        <ItemsControl Width="122" ItemsSource="{Binding Values}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:SegmentTerrainValue">
-                                                    <TextBlock Classes.muted="{Binding Muted}" Text="{Binding Text}" ToolTip.Tip="{Binding Hint}" TextWrapping="Wrap" />
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </StackPanel>
-        </ScrollViewer>
+        <TextBlock Name="Message" Text="{Binding TerrainReport.Message}" IsVisible="{Binding TerrainReport.HasMessage, FallbackValue=False}"
+                   TextWrapping="Wrap" />
+        <TextBlock Name="Pace" Text="{Binding TerrainReport.Pace}" IsVisible="{Binding TerrainReport.HasPace, FallbackValue=False}"
+                   TextWrapping="Wrap" />
+        <Panel IsVisible="{Binding TerrainReport.HasResponse, FallbackValue=False}">
+            <terrain:TerrainResponseReportView Name="Report" DataContext="{Binding TerrainReport.Response}" />
+        </Panel>
     </StackPanel>
 </UserControl>

@@ -1,14 +1,13 @@
-using System.Collections.Immutable;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.VisualTree;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Segments.Models;
 using Sufni.App.Segments.ViewModels;
 using Sufni.App.Segments.Views;
+using Sufni.App.Terrain.Views;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Harness;
-using Sufni.Telemetry;
+using static Sufni.App.Tests.TestSupport.Fixtures.TestResponseRows;
 
 namespace Sufni.App.Tests.Segments.Views;
 
@@ -16,28 +15,38 @@ namespace Sufni.App.Tests.Segments.Views;
 public class SegmentTerrainComparisonViewTests
 {
     [AvaloniaFact]
-    public async Task SamePositionColumnGivesEachSideItsOwnRepeatRangeStyle()
+    public async Task ComparedRunsShowThePaceLineAndTheResponseReport()
     {
-        var within = new ComparisonRatio(ResponseCellState.WithinRepeatRange, 1.03);
-        var outside = new ComparisonRatio(ResponseCellState.Finding, 1.48);
-        TerrainComparisonRow row = new(null, 550, new(0.81, 0.93, 1.03),
-            Enum.GetValues<ResponseTarget>().ToImmutableDictionary(t => t, _ => within), within, outside);
-        await using var vm = await TestSegmentComparisons.CreateWithMatchAsync(new SegmentTerrainComparison.Compared([row], 4));
+        await using var vm = await TestSegmentComparisons.CreateWithMatchAsync(new SegmentTerrainComparison.Compared([Compared(null, 600, new(0.9, 1.06, 1.12))]));
+        await using var mounted = await CompareAsync(vm);
+        var view = mounted.View;
+
+        Assert.True(view.FindControl<TextBlock>("Pace")!.IsVisible);
+        Assert.True(view.FindControl<TerrainResponseReportView>("Report")!.IsEffectivelyVisible);
+        Assert.False(view.FindControl<TextBlock>("Message")!.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task UnavailableComparisonShowsOnlyItsReason()
+    {
+        await using var vm = await TestSegmentComparisons.CreateWithMatchAsync(new SegmentTerrainComparison.Unavailable(SegmentTerrainUnavailable.Unaligned));
+        await using var mounted = await CompareAsync(vm);
+        var view = mounted.View;
+
+        Assert.True(view.FindControl<TextBlock>("Message")!.IsVisible);
+        Assert.False(view.FindControl<TextBlock>("Pace")!.IsVisible);
+        Assert.False(view.FindControl<TerrainResponseReportView>("Report")!.IsEffectivelyVisible);
+    }
+
+    private static async Task<MountedView<SegmentTerrainComparisonView>> CompareAsync(SegmentComparisonViewModel vm)
+    {
         ViewTestHelpers.EnsureFluentTheme();
         ViewTestHelpers.EnsureViewTestResources();
         var view = new SegmentTerrainComparisonView { DataContext = vm };
-        await using var mounted = await ViewTestHelpers.MountAsync(view);
-        Assert.False(view.IsVisible);
+        var mounted = await ViewTestHelpers.MountAsync(view);
         var compare = Assert.Single(vm.TravelRows[0].HeaderActions.Where(a => a.Command is IAsyncRelayCommand));
         await ((IAsyncRelayCommand)compare.Command!).ExecuteAsync(null);
         await ViewTestHelpers.FlushDispatcherAsync();
-
-        var column = Assert.Single(view.GetVisualDescendants().OfType<ItemsControl>()
-            .Where(c => c.DataContext is SegmentTerrainColumn { Values.Length: 2 }));
-        var cells = column.GetVisualDescendants().OfType<TextBlock>().Where(t => t.DataContext is SegmentTerrainValue).ToArray();
-        Assert.Equal(2, cells.Length);
-        Assert.True(cells[0].Opacity < cells[1].Opacity);
-        Assert.NotNull(ToolTip.GetTip(cells[0]));
-        Assert.Null(ToolTip.GetTip(cells[1]));
+        return mounted;
     }
 }

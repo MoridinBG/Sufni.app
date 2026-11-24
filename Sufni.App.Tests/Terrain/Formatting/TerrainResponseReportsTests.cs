@@ -63,4 +63,25 @@ public class TerrainResponseReportsTests
         Assert.Empty(report.Chart);
         Assert.NotNull(report.Summary);
     }
+
+    [Fact]
+    public void AgainstMatchedRun_JudgesEachTargetByTheTrailRepeatRange()
+    {
+        var report = TerrainResponseReports.AgainstMatchedRun([Compared(null, 600, new(0.9, 1, 1.1))]);
+
+        var row = Assert.Single(report.Chart);
+        Assert.Equal(0.20, row.Fork.Single(bar => bar.Target == ResponseTarget.FrontRms).RepeatRange);
+        Assert.Equal(0.25, row.Shock.Single(bar => bar.Target == ResponseTarget.RearPeakRebound).RepeatRange);
+    }
+
+    [Fact]
+    public void AgainstMatchedRun_ReportsFindingsAsVerdicts()
+    {
+        var report = TerrainResponseReports.AgainstMatchedRun([
+            Compared(null, 600, new(0.9, 1, 1.1), (ResponseTarget.RearRms, new(ResponseCellState.Finding, 1.3)))
+        ]);
+
+        Assert.Equal(ResponseTarget.RearRms, Assert.Single(report.Shock).Finding.Target);
+        Assert.Empty(report.Fork);
+    }
 }

@@ -23,7 +23,7 @@ The slice lives in `Sufni.App/Sufni.App/Segments/`:
 - `Services/` — `ISessionSegmentRepository`, `IStravaSegmentService`, the comparison builders, and `Matching/` (`ISegmentMatcher` and the DTW scoring).
 - `Stores/` — `SessionSegmentStore` behind `ISessionSegmentStore` and `ISessionSegmentStoreWriter`.
 - `Coordinators/` — `SegmentCoordinator` behind `ISegmentCoordinator`.
-- `ViewModels/` — `SegmentPickerViewModel` with its factory and rows, `SegmentComparisonViewModel` with its factory and rows, the `ISegmentPlotRow` plot-row contract with `TrailAverageRow`, the `SegmentTerrainTable` projection, `SegmentNamePromptViewModel`, and `StravaConnectDialogViewModel`.
+- `ViewModels/` — `SegmentPickerViewModel` with its factory and rows, `SegmentComparisonViewModel` with its factory and rows, the `ISegmentPlotRow` plot-row contract with `TrailAverageRow`, the `SegmentTerrainReport` projection, `SegmentNamePromptViewModel`, and `StravaConnectDialogViewModel`.
 - `Plots/` — `SegmentComparisonPlot`.
 - `Views/` and `DesktopViews/` — the picker panel, the mobile bottom-sheet button, the desktop flyout button, the match toolbar, the comparison rows and plot view, the analysis comparison banner, `SegmentTerrainComparisonView`, and the two dialog views.
 
@@ -108,7 +108,7 @@ The recorded editor owns the analysis scope. Starting a comparison requests the 
 
 The editor projects the current terrain profile, its key and its baseline identity into the segment state. After the match detail loads, the view model asks `ISegmentCoordinator.BuildTerrainComparisonAsync` for the terrain comparison as a separate request. The match, the source profile key, the baseline identity and the trail average identify that request. A change of one of them cancels the request, removes the table and starts a new request. A change of the travel or damping settings keeps the table and does not read profiles again. The segment coordinator reads the matched profile at the exact key from the match and fits the bike baseline with both runs held out. Missing profiles, disjoint sensors, an unaligned pair ([terrain.md](terrain.md#same-trail-comparison)) and an unexpected read or computation failure have distinct outcomes. Travel and damping results remain available in each case.
 
-Both Insights layouts show the comparison in the matched-session scope, above the bike response panel. Each class row reports matched metres, pace quartiles, suspension and transmission ratios, and separate front and rear same-position values. Leaving that scope releases the table along with the other comparison results.
+Both Insights layouts show the comparison in the matched-session scope, above the bike response panel. A pace line comes first: the median pace of all matched ground against the matched run, with the middle half of the windows. `TerrainResponseReports.AgainstMatchedRun` then builds the shared response report with the trail repeat ranges: verdicts per end against the matched run, the deviation chart and collapsed details. The details add pace and the front and rear same-position values per group. Leaving that scope releases the report along with the other comparison results.
 
 ### Trail average
 

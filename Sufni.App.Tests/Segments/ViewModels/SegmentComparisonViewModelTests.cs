@@ -190,10 +190,10 @@ public class SegmentComparisonViewModelTests
         DetailReturns(compared);
         await vm.MatchCommand.ExecuteAsync(null);
         await ((IAsyncRelayCommand)CompareAction(vm.TravelRows[0]).Command!).ExecuteAsync(null);
-        Assert.Single(vm.TerrainTable!.Rows);
+        Assert.Single(vm.TerrainReport!.Response!.Chart);
 
         sessionState.OnNext(sessionState.Value with { Scope = new AnalysisScope.Default() });
-        Assert.Null(vm.TerrainTable);
+        Assert.Null(vm.TerrainReport);
         Assert.Single(vm.TravelRows);
     }
 
@@ -230,12 +230,12 @@ public class SegmentComparisonViewModelTests
         DetailReturns(compared);
         await vm.MatchCommand.ExecuteAsync(null);
         await ((IAsyncRelayCommand)CompareAction(vm.TravelRows[0]).Command!).ExecuteAsync(null);
-        var table = vm.TerrainTable;
+        var report = vm.TerrainReport;
 
         sessionState.OnNext(sessionState.Value with { VelocityAverageMode = VelocityAverageMode.StrokePeakAveraged });
 
-        Assert.NotNull(table);
-        Assert.Same(table, vm.TerrainTable);
+        Assert.NotNull(report);
+        Assert.Same(report, vm.TerrainReport);
     }
 
     [Fact]
@@ -250,8 +250,8 @@ public class SegmentComparisonViewModelTests
         await ((IAsyncRelayCommand)CompareAction(vm.TravelRows[0]).Command!).ExecuteAsync(null);
 
         Assert.True(vm.HasAnalysisComparison);
-        Assert.True(vm.TerrainTable!.HasMessage);
-        Assert.False(vm.TerrainTable.HasRows);
+        Assert.True(vm.TerrainReport!.HasMessage);
+        Assert.False(vm.TerrainReport.HasResponse);
     }
 
     [Fact]
@@ -458,12 +458,7 @@ public class SegmentComparisonViewModelTests
     private static SegmentTerrainSource TerrainSource() => new(Guid.NewGuid(), TerrainProfileKey.From(TestSegmentMatches.Token),
         TerrainProfiles.Classified(TerrainProfiles.Window(0, RoughnessClass.Calm, RoughnessSource.FrameOnly)), TerrainBaselineIdentity.Empty);
 
-    private static TerrainComparisonRow RoughRow()
-    {
-        var measurable = new ComparisonRatio(ResponseCellState.WithinRepeatRange, 1.01);
-        return new(RoughnessClass.Rough, 500, new(0.97, 1.01, 1.04),
-            Enum.GetValues<ResponseTarget>().ToImmutableDictionary(t => t, _ => measurable), measurable, measurable);
-    }
+    private static TerrainComparisonRow RoughRow() => TestResponseRows.Compared(RoughnessClass.Rough, 500, new(0.97, 1.01, 1.04));
 
     private SegmentComparisonViewModel CreateComparison(SegmentTerrainComparison? terrain = null)
     {

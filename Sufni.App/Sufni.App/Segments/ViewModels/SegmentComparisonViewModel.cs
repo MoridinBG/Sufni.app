@@ -105,7 +105,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
     [NotifyPropertyChangedFor(nameof(HasAnalysisComparison), nameof(AnalysisComparisonText))]
     public partial SegmentAnalysisComparison? AnalysisComparison { get; private set; }
 
-    [ObservableProperty] public partial SegmentTerrainTable? TerrainTable { get; private set; }
+    [ObservableProperty] public partial SegmentTerrainReport? TerrainReport { get; private set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasMultiplePages))]
@@ -307,7 +307,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         if (request == terrainRequest) return;
         terrainRequest = request;
         Cancel(ref terrainLoad);
-        TerrainTable = null;
+        TerrainReport = null;
         if (request is not null) _ = TrackAsync(BuildTerrainComparisonAsync(request.Match, state.Terrain, average));
     }
 
@@ -317,7 +317,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         try
         {
             var result = await segmentCoordinator.BuildTerrainComparisonAsync(match, source, average, cancellation.Token);
-            if (!cancellation.IsCancellationRequested) TerrainTable = SegmentTerrainTable.From(result);
+            if (!cancellation.IsCancellationRequested) TerrainReport = SegmentTerrainReport.From(result);
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {

@@ -1,8 +1,9 @@
+using System.Collections.Immutable;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.TestSupport.Fixtures;
 
-/// <summary>Response rows against a fitted baseline, for report and view tests. Unnamed targets match the baseline.</summary>
+/// <summary>Response rows against a baseline or a matched run, for report and view tests. Unnamed targets match their reference.</summary>
 internal static class TestResponseRows
 {
     public static TerrainResponseRow Row(RoughnessClass? group, double metres, params ResponseCell[] cells) =>
@@ -18,4 +19,13 @@ internal static class TestResponseRows
 
     public static ResponseCell Finding(ResponseTarget target, double ratio) =>
         new(target, ImuLocation.Frame, ResponseCellState.Finding, ratio, 6, 1200);
+
+    public static TerrainComparisonRow Compared(RoughnessClass? group, double metres, PaceQuartiles? pace,
+        params (ResponseTarget Target, ComparisonRatio Ratio)[] ratios)
+    {
+        var within = new ComparisonRatio(ResponseCellState.WithinRepeatRange, 1.01);
+        var named = ratios.ToDictionary(r => r.Target, r => r.Ratio);
+        return new(group, metres, pace, Enum.GetValues<ResponseTarget>().ToImmutableDictionary(target => target,
+            target => named.GetValueOrDefault(target, within)), within, within);
+    }
 }
