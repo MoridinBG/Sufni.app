@@ -713,26 +713,45 @@ public class TelemetryDataTests
     }
 
     [Fact]
-    public void DisjointSelectionPoolsSamplesFromLongStrokesAndCountsTheirWholePeaks()
+    public void DisjointSelectionPoolsTravelSamplesFromLongStrokesAndKeepsTheirWholePeaks()
     {
-        var data = CreateTelemetry([0, 10, 20, 90, 90, 90, 30, 40, 99, 99], 100, 10,
-            compressions: [CreateStroke(1, 4, maxVelocity: 90, maxTravel: 90),
-                CreateStroke(6, 9, maxVelocity: 99, maxTravel: 99)],
-            rebounds: [CreateStroke(0, 2, maxVelocity: -200)],
-            velocity: [0, 10, 20, 90, 90, 90, 30, 40, 99, 99]);
-        var selected = new TelemetryTimeSelection([new(0.1, 0.3), new(0.6, 0.8)]);
-        var travel = TelemetryStatistics.CalculateTravelStatistics(data, SuspensionType.Front, selected);
+        var travel = TelemetryStatistics.CalculateTravelStatistics(TwoLongCompressions(), SuspensionType.Front, DisjointSelection);
         Assert.Equal(99, travel.Max);
         Assert.Equal(25, travel.Average);
-        var velocities = TelemetryStatistics.CalculateVelocityStatistics(data, SuspensionType.Front, selected);
+    }
+
+    [Fact]
+    public void DisjointSelectionPoolsVelocitySamplesAndCountsStrokesStartingInside()
+    {
+        var velocities = TelemetryStatistics.CalculateVelocityStatistics(TwoLongCompressions(), SuspensionType.Front, DisjointSelection);
         Assert.Equal(25, velocities.AverageCompression);
         Assert.Equal(99, velocities.MaxCompression);
         Assert.Equal(2, velocities.CompressionStrokeCount);
         Assert.Equal(0, velocities.ReboundStrokeCount);
-        var histogram = TelemetryStatistics.CalculateTravelHistogram(data, SuspensionType.Front, selected);
-        Assert.Equal(4, histogram.Values.Count(v => v == 25));
-        Assert.Equal(0, TelemetryStatistics.CalculateTravelStatistics(data, SuspensionType.Front, new TelemetryTimeSelection([])).Max);
     }
+
+    [Fact]
+    public void DisjointSelectionHistogramsOnlySelectedSamplesOfCountedStrokes()
+    {
+        var histogram = TelemetryStatistics.CalculateTravelHistogram(TwoLongCompressions(), SuspensionType.Front, DisjointSelection);
+        Assert.Equal(4, histogram.Values.Count(v => v == 25));
+    }
+
+    [Fact]
+    public void EmptySelectionGivesNoTravelData()
+    {
+        var travel = TelemetryStatistics.CalculateTravelStatistics(TwoLongCompressions(), SuspensionType.Front, new TelemetryTimeSelection([]));
+        Assert.Equal(0, travel.Max);
+    }
+
+    private static TelemetryData TwoLongCompressions() =>
+        CreateTelemetry([0, 10, 20, 90, 90, 90, 30, 40, 99, 99], 100, 10,
+            compressions: [CreateStroke(1, 4, maxVelocity: 90, maxTravel: 90),
+                CreateStroke(6, 9, maxVelocity: 99, maxTravel: 99)],
+            rebounds: [CreateStroke(0, 2, maxVelocity: -200)],
+            velocity: [0, 10, 20, 90, 90, 90, 30, 40, 99, 99]);
+
+    private static TelemetryTimeSelection DisjointSelection => new([new(0.1, 0.3), new(0.6, 0.8)]);
 
     [Theory]
     [InlineData(false)]

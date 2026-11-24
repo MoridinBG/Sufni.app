@@ -5,14 +5,22 @@ public class TrailAverageTests
     private const int WindowCount = 180;
     private const double GroundGrade = 0.12;
 
+    private static readonly int[] gradeSeeds = [17, 53, 31, 29];
+
     [Fact]
     public void FourIndependentGradeReadingsImproveOnEverySingleRideAcrossMostOfTheTrail()
     {
-        var runs = new[] { 17, 53, 31, 29 }.Select(seed => Measurements(seed)).ToArray();
+        var runs = gradeSeeds.Select(seed => Measurements(seed)).ToArray();
         var average = Average(runs);
         var improved = average.Windows.Count(w => Math.Abs(w.Grade!.Value - GroundGrade) <
             runs.Min(ride => Math.Abs(ride.Windows[w.SourceIndex].Grade!.Value - GroundGrade)));
         Assert.True(improved >= 0.80 * WindowCount, $"{improved} of {WindowCount} windows improved");
+    }
+
+    [Fact]
+    public void AveragedGradeBetweenFiveAndTenDegreesIsModerate()
+    {
+        var average = Average([.. gradeSeeds.Select(seed => Measurements(seed))]);
         Assert.All(average.Windows, w => Assert.Equal(SteepnessClass.Moderate, w.Steepness));
     }
 
