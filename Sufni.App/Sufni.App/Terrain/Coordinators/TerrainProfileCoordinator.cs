@@ -41,7 +41,6 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
     private readonly CancellationTokenSource lifetime = new();
     private readonly List<Request> queue = [];
     private readonly List<Guid> priorities = [];
-    private readonly Dictionary<Guid, TerrainProfileKey> writeFailures = [];
     private Request? active;
     private CancellationTokenSource? activeCancellation;
     private Task? computation;
@@ -130,20 +129,16 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
         activeCancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         computation = completion.Task;
-        var failedWrite = writeFailures.TryGetValue(request.Id, out var failed) && failed == request.Key;
-        if (!failedWrite) writeFailures.Remove(request.Id);
-        _ = RunAsync(request, failedWrite, activeCancellation.Token, completion);
+        _ = RunAsync(request, activeCancellation.Token, completion);
     }
 
-    private async Task RunAsync(Request request, bool failedWrite, CancellationToken token, TaskCompletionSource completion)
+    private async Task RunAsync(Request request, CancellationToken token, TaskCompletionSource completion)
     {
         try
         {
-            var (result, writeFailed) = failedWrite
-                ? (TerrainMaterialization.WithoutProfile(TerrainOutcome.Failed), true)
-                : await background.RunAsync(() => ComputeAndCommitAsync(request, token), token).ConfigureAwait(false);
+            var result = await background.RunAsync(() => ComputeAndCommitAsync(request, token), token).ConfigureAwait(false);
             if (result is null) return;
-            await PublishAsync(request, result, writeFailed, token).ConfigureAwait(false);
+            await PublishAsync(request, result, token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         finally
@@ -160,7 +155,7 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
         }
     }
 
-    private async Task PublishAsync(Request request, TerrainMaterialization result, bool writeFailed, CancellationToken token)
+    private async Task PublishAsync(Request request, TerrainMaterialization result, CancellationToken token)
     {
         while (!token.IsCancellationRequested)
         {
@@ -170,7 +165,6 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
                 // A newer publication may still be selecting the track on the worker.
                 validation = planning;
                 if (validation is not null || token.IsCancellationRequested || sessions.Get(request.Id) is not { } session) return;
-                if (writeFailed) writeFailures[request.Id] = request.Key;
                 await sessions.PublishSessionsChangedAsync([session with
                 {
                     TerrainProfileKey = request.Key, TerrainOutcome = result.Outcome, TerrainSummary = result.Summary
@@ -181,21 +175,20 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
         }
     }
 
-    private async Task<(TerrainMaterialization? Result, bool WriteFailed)> ComputeAndCommitAsync(
-        Request request, CancellationToken token)
+    private async Task<TerrainMaterialization?> ComputeAndCommitAsync(Request request, CancellationToken token)
     {
         var value = await CalculateAsync(request, token).ConfigureAwait(false);
         token.ThrowIfCancellationRequested();
-        if (value is null) return (null, false);
+        if (value is null) return null;
         try
         {
-            var written = await repository.TryCommitAsync(request.Id, request.Key, value, token).ConfigureAwait(false);
-            return (written ? value : null, false);
+            return await repository.TryCommitAsync(request.Id, request.Key, value, token).ConfigureAwait(false)
+                ? value : null;
         }
         catch (Exception error) when (!token.IsCancellationRequested)
         {
             Logger.Warning(error, "Could not persist terrain for {SessionId}", request.Id);
-            return (TerrainMaterialization.WithoutProfile(TerrainOutcome.Failed), true);
+            return TerrainMaterialization.WithoutProfile(TerrainOutcome.Failed);
         }
     }
 

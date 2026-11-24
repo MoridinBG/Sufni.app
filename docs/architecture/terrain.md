@@ -12,7 +12,7 @@ The content token identifies the processed telemetry revision, selected full tra
 
 `SessionTerrainStatusQuery` derives the list and editor status from the session snapshot and track catalog. A session without processed telemetry is unavailable. A new key is pending. With matching inputs, the status exposes the current summary or the stored outcome. A recording with no selected track reaches `NoTrack` without a telemetry read. Missing original track fixes yield `ContentMissing`. A stale or missing telemetry read means the run is superseded, so it writes nothing.
 
-A calculation failure is recorded for its input key. If the database write itself fails, the coordinator publishes the failed status for the current app run. Reopening the database allows backfill to retry. Authored metadata and sync clocks are independent of profile materialization.
+A calculation failure is recorded for its input key. If the database write itself fails, the coordinator logs it once and publishes `Failed` for that key without a stored row. The next publication of the session from the database, or the next app start, runs it again. Authored metadata and sync clocks are independent of profile materialization.
 
 ## Recorded editor
 

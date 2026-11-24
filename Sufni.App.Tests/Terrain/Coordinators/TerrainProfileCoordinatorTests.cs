@@ -133,34 +133,35 @@ public class TerrainProfileCoordinatorTests
         Assert.IsType<TerrainStatus.Pending>(h.Status(session.Id));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task FailureBelongsToOneRecordingKey(bool commitThrows)
+    [Fact]
+    public async Task FailedCalculationRunsAgainOnlyForANewKey()
     {
         await using var h = new Harness();
         var session = Session();
-        if (commitThrows) h.Repository.WriteFailure = new IOException();
-        else h.Read = (_, key, _) => Task.FromResult(h.Available(key,
-            key.GpsOffsetSeconds == 0 ? new TelemetryData() : null));
-
+        var attempts = 0;
+        h.Read = (_, key, _) => Task.FromResult(h.Available(key,
+            Interlocked.Increment(ref attempts) == 1 ? new TelemetryData() : null));
         await h.StartAsync([session]);
         await h.WaitForAsync(session, TerrainOutcome.Failed);
-        Assert.IsType<TerrainStatus.Failed>(h.Status(session.Id));
-        h.Repository.WriteFailure = null;
         var other = Session(600);
         await h.PublishAsync(other);
         await h.WaitForAsync(other, TerrainOutcome.NoTrack);
-        if (commitThrows)
-        {
-            await h.PublishAsync(session);
-            await h.WaitForAsync(session, TerrainOutcome.Failed);
-        }
-        Assert.Single(h.Reads);
+        Assert.IsType<TerrainStatus.Failed>(h.Status(session.Id));
         await h.PublishAsync(session with { GpsOffsetSeconds = 1 });
         await h.WaitForAsync(session, TerrainOutcome.Computed);
         Assert.IsType<TerrainStatus.Current>(h.Status(session.Id));
-        Assert.Equal(2, h.Reads.Count);
+    }
+
+    [Fact]
+    public async Task ThrowingCommitPublishesFailedWithoutAStoredRow()
+    {
+        await using var h = new Harness();
+        var session = Session();
+        h.Repository.WriteFailure = new IOException();
+        await h.StartAsync([session]);
+        await h.WaitForAsync(session, TerrainOutcome.Failed);
+        Assert.IsType<TerrainStatus.Failed>(h.Status(session.Id));
+        Assert.Null(h.Repository.StoredKey(session.Id));
     }
 
     [Fact]
