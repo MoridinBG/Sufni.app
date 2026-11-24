@@ -832,6 +832,18 @@ public class TelemetryDataTests
     }
 
     [Fact]
+    public void DynamicSagRangeStartsAtTheFirstSampleAtOrAfterItsStart()
+    {
+        var telemetry = CreateTelemetry([0, 10, 20, 30, 40, 50], maxTravel: 100, sampleRate: 10);
+        var options = new TravelStatisticsOptions(new TelemetryTimeRange(0.15, 0.45), TravelDistributionMode.DynamicSag);
+
+        var statistics = TelemetryStatistics.CalculateTravelStatistics(telemetry, SuspensionType.Front, options);
+
+        // Samples at 0.2, 0.3 and 0.4 s; the sample at 0.1 s lies before the range.
+        Assert.Equal(30, statistics.Average, 6);
+    }
+
+    [Fact]
     public void CalculateTravelStatistics_WithGappedDynamicSagRange_UsesSegmentTimes()
     {
         var telemetry = CreateTelemetry([1.0, 2.0, 10.0, 20.0], maxTravel: 100, sampleRate: 10);
