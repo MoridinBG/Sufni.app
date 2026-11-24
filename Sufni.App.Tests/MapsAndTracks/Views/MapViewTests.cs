@@ -30,6 +30,7 @@ using Sufni.App.Tests.TestSupport.Extensions;
 namespace Sufni.App.Tests.MapsAndTracks.Views;
 
 [Collection("Ui")]
+[MapsuiSettle]
 public class MapViewTests
 {
     [AvaloniaFact]
@@ -538,7 +539,11 @@ public class MapViewTests
         Assert.DoesNotContain(failure.Details, failure.Summary);
     }
 
-    private sealed class TrackingTileLayer() : TileLayer(new HttpTileSource(new GlobalSphericalMercator(), "https://example.com/{z}/{x}/{y}.png"))
+    // Mapsui fetches tiles on its own threads and posts the result to the UI dispatcher. A refused local port settles
+    // those fetches within the test; a remote host can answer after the next headless session has started.
+    private const string UnreachableTiles = "http://127.0.0.1:9/{z}/{x}/{y}.png";
+
+    private sealed class TrackingTileLayer() : TileLayer(new HttpTileSource(new GlobalSphericalMercator(), UnreachableTiles))
     {
         public bool IsDisposed { get; private set; }
         protected override void Dispose(bool disposing)
@@ -551,7 +556,7 @@ public class MapViewTests
     private static TileLayerConfig CreateLayer(string name) => new()
     {
         Name = name,
-        UrlTemplate = "https://example.com/{z}/{x}/{y}.png",
+        UrlTemplate = UnreachableTiles,
         AttributionText = "Example",
         AttributionUrl = "https://example.com",
         MaxZoom = 18,

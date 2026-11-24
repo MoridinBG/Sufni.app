@@ -224,6 +224,7 @@ The following patterns are easy to get wrong in Avalonia headless tests:
 - Do not assume flyouts, popups, ComboBox dropdowns, or selected-item presenters will be realized in the same way they are in a full app host. When necessary, assert the bound template or content structure directly, or render the real template inside the test tree.
 - Do not rely on detached flyout content having a usable parent namescope. If named lookup fails there, inspect the content tree directly.
 - Do not mistake missing resources or templates for product regressions. Headless tests often fail because the app-level setup was not reproduced.
+- Mapsui map controls post to the UI dispatcher from the thread pool, also shortly after disposal. Map view test classes carry `[MapsuiSettle]` so a late post cannot land while the next headless session resets the dispatcher, and their tile layers use a refused local port so no tile fetch reaches the network.
 
 These are test-environment constraints. Design the test around them rather than fighting them.
 
