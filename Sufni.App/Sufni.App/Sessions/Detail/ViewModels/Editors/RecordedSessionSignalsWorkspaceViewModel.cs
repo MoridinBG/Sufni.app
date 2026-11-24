@@ -68,6 +68,8 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
     public TrackTimeRange? TrackTimelineContext => currentState.TrackTimelineContext;
 
     public TerrainPresentation? TerrainPresentation => (currentState.Terrain as RecordedTerrainState.Loaded)?.Presentation;
+    public string TerrainTitle => TerrainSourceText.StripTitle(TerrainPresentation?.Coverage);
+    public string? TerrainSourceDescription => TerrainSourceText.Description(TerrainPresentation?.Coverage);
     public SurfacePresentationState TerrainSignalState => currentState.Presentation.Signals.Terrain;
     public SurfacePresentationState RoughnessSignalState => currentState.Presentation.Signals.Roughness;
     public SurfacePresentationState GradeSignalState => currentState.Presentation.Signals.Grade;
@@ -185,7 +187,10 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
         NotifyChanged(previous.Intent.AnalysisRange, state.Intent.AnalysisRange, nameof(AnalysisRange));
         NotifyChanged(previous.TrackPoints, state.TrackPoints, nameof(TrackPoints));
         NotifyChanged(previous.TrackTimelineContext, state.TrackTimelineContext, nameof(TrackTimelineContext));
+        var previousCoverage = (previous.Terrain as RecordedTerrainState.Loaded)?.Presentation.Coverage;
         NotifyChanged((previous.Terrain as RecordedTerrainState.Loaded)?.Presentation, TerrainPresentation, nameof(TerrainPresentation));
+        NotifyChanged(TerrainSourceText.StripTitle(previousCoverage), TerrainTitle, nameof(TerrainTitle));
+        NotifyChanged(TerrainSourceText.Description(previousCoverage), TerrainSourceDescription, nameof(TerrainSourceDescription));
         NotifyChanged(previous.Presentation.Signals.Terrain, state.Presentation.Signals.Terrain, nameof(TerrainSignalState));
         NotifyChanged(previous.Presentation.Signals.Roughness, state.Presentation.Signals.Roughness, nameof(RoughnessSignalState));
         NotifyChanged(previous.Presentation.Signals.Grade, state.Presentation.Signals.Grade, nameof(GradeSignalState));

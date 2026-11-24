@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Collections.Generic;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Terrain.Models;
@@ -22,34 +21,8 @@ public sealed record TerrainSourceCoverage(double JointShare, double FrameOnlySh
         (false, true) => RoughnessSource.LowersOnly,
         _ => null
     };
-
-    public string? Label => Source switch
-    {
-        RoughnessSource.Both => "Both sensors",
-        RoughnessSource.FrameOnly => "Frame sensor",
-        RoughnessSource.LowersOnly => "Lowers sensor",
-        _ => null
-    };
-
-    public string? Description
-    {
-        get
-        {
-            if (Source is null) return null;
-            var lines = new List<string> { $"Both sensors {JointShare:P0} · Frame only {FrameOnlyShare:P0} · Lowers only {LowersOnlyShare:P0}" };
-            if (LowersClipped) lines.Add("Lowers reached full scale.");
-            if (FrameMissing) lines.Add("Frame data absent in part or all of the ride.");
-            if (LowersMissing) lines.Add("Lowers data absent in part or all of the ride.");
-            if (FrameUncalibrated) lines.Add("Frame scale has no calibration.");
-            if (LowersUncalibrated) lines.Add("Lowers scale has no calibration.");
-            return string.Join("\n", lines);
-        }
-    }
 }
 
 public sealed record TerrainPresentation(ImmutableArray<TerrainClassRun> RoughnessRuns,
     ImmutableArray<TerrainClassRun> SteepnessRuns, ImmutableArray<TerrainSignalSection> Frame,
-    ImmutableArray<TerrainSignalSection> Lowers, ImmutableArray<TerrainSignalSection> Grade, TerrainSourceCoverage Coverage)
-{
-    public string StripTitle => Coverage.Label is { } source ? $"Terrain · {source}" : "Terrain";
-}
+    ImmutableArray<TerrainSignalSection> Lowers, ImmutableArray<TerrainSignalSection> Grade, TerrainSourceCoverage Coverage);

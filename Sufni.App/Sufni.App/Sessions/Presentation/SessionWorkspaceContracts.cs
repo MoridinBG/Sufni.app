@@ -61,6 +61,8 @@ public interface IRecordedSessionSignalsWorkspace : ITimeSeriesPlotInteractions
     IReadOnlyList<TrackPoint>? TrackPoints { get; }
     TrackTimeRange? TrackTimelineContext { get; }
     TerrainPresentation? TerrainPresentation { get; }
+    string TerrainTitle { get; }
+    string? TerrainSourceDescription { get; }
     SurfacePresentationState TerrainSignalState { get; }
     SurfacePresentationState RoughnessSignalState { get; }
     SurfacePresentationState GradeSignalState { get; }

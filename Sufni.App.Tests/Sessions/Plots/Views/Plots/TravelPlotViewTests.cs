@@ -415,6 +415,8 @@ public class TravelPlotViewTests
         public TrackTimeRange? TrackTimelineContext => null;
         public Sufni.App.Terrain.ViewModels.TerrainClassFilterViewModel? TerrainFilter => null;
         public TerrainPresentation? TerrainPresentation => null;
+        public string TerrainTitle => "Terrain";
+        public string? TerrainSourceDescription => null;
         public SurfacePresentationState TerrainSignalState => SurfacePresentationState.Hidden;
         public SurfacePresentationState RoughnessSignalState => SurfacePresentationState.Hidden;
         public SurfacePresentationState GradeSignalState => SurfacePresentationState.Hidden;
