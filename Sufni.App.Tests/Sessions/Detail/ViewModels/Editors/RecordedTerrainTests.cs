@@ -2,7 +2,7 @@ using Sufni.App.Segments.Models;
 using Sufni.App.Segments.Services;
 using Sufni.App.Segments.Coordinators;
 using CommunityToolkit.Mvvm.Input;
-using Sufni.App.Sessions.Analysis.Services;
+using Sufni.App.Sessions.Coordination;
 using Sufni.Telemetry.Tests;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Fixtures;
@@ -112,7 +112,19 @@ public class RecordedTerrainTests
     }
 
     [AvaloniaFact]
-    public async Task OpenEditorPrioritizesPendingAndShowsTheProfileWhenPublished()
+    public async Task PendingTerrainIsPrioritizedAndShowsBusyRows()
+    {
+        using var h = new SessionDetailHarness();
+        var session = h.CreateRecordedSession();
+        var editor = h.CreateRecordedEditor(session, projectionChanges: Observable.Return(SessionDetailHarness.DomainFromSnapshot(session)));
+        await h.LoadAsync(editor);
+        h.TerrainCoordinator.Received().Prioritize(session.Id);
+        Assert.True(editor.SignalsWorkspace.TerrainSignalState.ShowSpinner);
+        await h.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
+    public async Task PublishedProfileReplacesTheBusyRows()
     {
         using var h = new SessionDetailHarness();
         var session = h.CreateRecordedSession();
@@ -120,34 +132,66 @@ public class RecordedTerrainTests
         using var changes = new BehaviorSubject<RecordedSessionDomainSnapshot>(domain);
         var editor = h.CreateRecordedEditor(session, projectionChanges: changes);
         await h.LoadAsync(editor);
-        h.TerrainCoordinator.Received().Prioritize(session.Id);
-        Assert.True(editor.SignalsWorkspace.TerrainSignalState.ShowSpinner);
-
-        var key = SessionTerrainStatusQuery.Evaluate(session, []).Key;
         var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0)], TerrainRoughnessState.ValuesOnly,
             TerrainSteepnessState.NoElevation, 2048, null);
-        h.TerrainProfiles.Seed(session.Id, key, profile);
-        changes.OnNext(domain with { Terrain = new TerrainStatus.Current(key, TerrainProfileCalculator.Summarize(profile)) });
+        changes.OnNext(h.WithTerrain(session, profile));
         await ViewTestHelpers.FlushDispatcherAsync();
         Assert.True(editor.SignalsWorkspace.TerrainSignalState.IsReady);
         Assert.True(editor.SignalsWorkspace.RoughnessSignalState.IsReady);
         Assert.True(editor.SignalsWorkspace.GradeSignalState.IsHidden);
+        await h.CloseAsync(editor);
+    }
 
+    [AvaloniaFact]
+    public async Task MapColouringChoiceIsStoredAndColoursTheTrack()
+    {
+        using var h = new SessionDetailHarness();
+        var session = h.CreateRecordedSession();
+        var editor = h.CreateRecordedEditor(session, projectionChanges: Observable.Return(h.WithTerrain(session, RoughProfile())));
+        await h.LoadAsync(editor);
         var map = editor.MediaWorkspace.MapViewModel!;
-        Assert.True(map.HasTerrain);
         map.TrackColoring = MapTrackColoring.Roughness;
         await ViewTestHelpers.FlushDispatcherAsync();
-        Assert.Equal(MapTrackColoring.Roughness, map.TrackColoring);
+        var stored = Assert.IsType<SessionPreferenceLoadResult.Loaded>(await h.SessionCoordinator.LoadPreferencesAsync(session.Id));
+        Assert.Equal(MapTrackColoring.Roughness, stored.Preferences.MapTrackColoring);
+        Assert.NotEmpty(map.TerrainRuns);
+        await h.CloseAsync(editor);
+    }
 
+    [AvaloniaFact]
+    public async Task FailedTerrainShowsTheErrorRowAndClearsTheMap()
+    {
+        using var h = new SessionDetailHarness();
+        var session = h.CreateRecordedSession();
+        var domain = h.WithTerrain(session, RoughProfile());
+        using var changes = new BehaviorSubject<RecordedSessionDomainSnapshot>(domain);
+        var editor = h.CreateRecordedEditor(session, projectionChanges: changes);
+        await h.LoadAsync(editor);
+        var map = editor.MediaWorkspace.MapViewModel!;
+        map.TrackColoring = MapTrackColoring.Roughness;
+        await ViewTestHelpers.FlushDispatcherAsync();
         changes.OnNext(domain with { Terrain = new TerrainStatus.Failed() });
         await ViewTestHelpers.FlushDispatcherAsync();
         Assert.False(map.HasTerrain);
         Assert.Empty(map.TerrainRuns);
         Assert.Equal(SurfaceStateKind.Error, editor.SignalsWorkspace.TerrainSignalState.Kind);
         Assert.True(editor.SignalsWorkspace.RoughnessSignalState.IsHidden);
-        changes.OnNext(domain with { Terrain = new TerrainStatus.Unavailable(TerrainAvailabilityReason.NoTrack) });
-        await ViewTestHelpers.FlushDispatcherAsync();
+        await h.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
+    public async Task UnavailableTerrainHidesTheRows()
+    {
+        using var h = new SessionDetailHarness();
+        var session = h.CreateRecordedSession();
+        var domain = SessionDetailHarness.DomainFromSnapshot(session) with
+        {
+            Terrain = new TerrainStatus.Unavailable(TerrainAvailabilityReason.NoTrack)
+        };
+        var editor = h.CreateRecordedEditor(session, projectionChanges: Observable.Return(domain));
+        await h.LoadAsync(editor);
         Assert.True(editor.SignalsWorkspace.TerrainSignalState.IsHidden);
+        Assert.True(editor.SignalsWorkspace.RoughnessSignalState.IsHidden);
         await h.CloseAsync(editor);
     }
 
@@ -173,4 +217,7 @@ public class RecordedTerrainTests
         Assert.True(editor.SignalsWorkspace.TerrainSignalState.ShowSpinner);
         await h.CloseAsync(editor);
     }
+
+    private static TerrainProfile RoughProfile() =>
+        TerrainProfiles.Classified(TerrainProfiles.Window(0, RoughnessClass.Rough, RoughnessSource.Both));
 }
