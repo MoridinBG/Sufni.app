@@ -39,7 +39,7 @@ public sealed record SegmentTerrainTable(string? Message, ImmutableArray<Segment
     {
         static SegmentTerrainColumn Text(string value) => new([new(value)]);
         static SegmentTerrainValue Ratio(ComparisonRatio value, string prefix = "") =>
-            new(prefix + TerrainResponseText.Value(value.State, value.Ratio), value.State == ResponseCellState.WithinRepeatRange);
+            new(prefix + TerrainResponseText.Value(value.State, value.Deviation), value.State == ResponseCellState.WithinRepeatRange);
         return new([
             Text(row.Class is { } level ? TerrainClassText.Name(level) : "All"), Text(TerrainResponseText.Distance(row.DistanceMetres)),
             Text(row.Pace is { } pace ? $"{pace.Median:0.00}× ({pace.Lower:0.00}–{pace.Upper:0.00})" : TerrainResponseText.TooShort),

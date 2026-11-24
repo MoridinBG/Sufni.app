@@ -1,10 +1,11 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.VisualTree;
 using Sufni.App.Sessions.Insights.Views.Controls;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Terrain.Formatting;
+using Sufni.App.Terrain.Views;
 using Sufni.App.Tests.TestSupport.Harness;
-using Sufni.Telemetry;
+using static Sufni.App.Tests.TestSupport.Fixtures.TestResponseRows;
 
 namespace Sufni.App.Tests.Sessions.Insights.Views.Controls;
 
@@ -12,32 +13,31 @@ namespace Sufni.App.Tests.Sessions.Insights.Views.Controls;
 public class SessionInsightsResponsePanelTests
 {
     [AvaloniaFact]
-    public async Task InsufficientBaselineShowsItsCoverageWithoutRows()
+    public async Task InsufficientBaselineShowsItsProgressWithoutAReport()
     {
         await using var mounted = await MountAsync(SessionResponsePanel.Hidden);
         var view = mounted.View;
         Assert.False(view.IsVisible);
-        var insufficient = new SessionResponsePanel(SessionResponseState.InsufficientBaseline,
-            "Baseline coverage is 4 rides and 3,200 usable windows.", 4, 3200, []);
+        var insufficient = new SessionResponsePanel(SessionResponseState.InsufficientBaseline, "Your usual needs 5 rides on this bike: 3 of 5 so far.");
 
         view.DataContext = insufficient;
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.True(view.IsVisible);
-        Assert.Contains(view.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == insufficient.Description);
-        Assert.Empty(RenderedRows(view));
+        Assert.Equal(insufficient.Description, view.FindControl<TextBlock>("Description")!.Text);
+        Assert.False(view.FindControl<TerrainResponseReportView>("Report")!.IsEffectivelyVisible);
     }
 
     [AvaloniaFact]
-    public async Task ReportedPanelShowsOneRowPerClass()
+    public async Task ReportedPanelShowsItsReport()
     {
-        RoughnessClass?[] classes = [null, RoughnessClass.Calm, RoughnessClass.Medium, RoughnessClass.Rough];
-        var reported = new SessionResponsePanel(SessionResponseState.Reported, "Ratios compare this ride with 5 other rides.", 5, 6000,
-            [.. classes.Select(c => new SessionResponseRow(c?.ToString() ?? "All", "300 m", new TerrainResponseRow(c, 300, 0.25, 5, []), []))]);
+        var report = TerrainResponseReports.AgainstUsual([Row(null, 900)]);
 
-        await using var mounted = await MountAsync(reported);
+        await using var mounted = await MountAsync(new SessionResponsePanel(SessionResponseState.Reported, "Your usual comes from 6 other rides.", report));
 
-        Assert.Equal(classes, RenderedRows(mounted.View).Select(row => row.Measurement.Class));
+        var view = mounted.View.FindControl<TerrainResponseReportView>("Report")!;
+        Assert.True(view.IsEffectivelyVisible);
+        Assert.Same(report, view.DataContext);
     }
 
     private static Task<MountedView<SessionInsightsResponsePanel>> MountAsync(SessionResponsePanel panel)
@@ -46,7 +46,4 @@ public class SessionInsightsResponsePanelTests
         ViewTestHelpers.EnsureViewTestResources();
         return ViewTestHelpers.MountAsync(new SessionInsightsResponsePanel { DataContext = panel });
     }
-
-    private static IEnumerable<SessionResponseRow> RenderedRows(Control view) =>
-        view.GetVisualDescendants().OfType<StackPanel>().Select(panel => panel.DataContext).OfType<SessionResponseRow>().Distinct();
 }

@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using Sufni.App.Terrain.Models;
 using Sufni.Telemetry;
 
@@ -8,17 +7,9 @@ public sealed record SessionTerrainInput(TerrainProfile Profile, TerrainBaseline
 
 public enum SessionResponseState { NoTerrain, InsufficientBaseline, Reported, BaselineError }
 
-public sealed record SessionResponsePanel(SessionResponseState State, string Description, int BaselineSessions, int BaselineWindows,
-    ImmutableArray<SessionResponseRow> Rows)
+/// <summary>The bike response panel: the state of your usual in one sentence, and the report once it is fitted.</summary>
+public sealed record SessionResponsePanel(SessionResponseState State, string Description, TerrainResponseReport? Report = null)
 {
-    public static SessionResponsePanel Hidden { get; } = new(SessionResponseState.NoTerrain, string.Empty, 0, 0, []);
+    public static SessionResponsePanel Hidden { get; } = new(SessionResponseState.NoTerrain, string.Empty);
     public bool IsVisible => State != SessionResponseState.NoTerrain;
-}
-
-public sealed record SessionResponseRow(string Label, string Coverage, TerrainResponseRow Measurement,
-    ImmutableArray<SessionResponseCell> Cells);
-
-public sealed record SessionResponseCell(string Label, string Value, string Detail, ResponseCell Measurement)
-{
-    public bool IsFinding => Measurement.State == ResponseCellState.Finding;
 }

@@ -37,10 +37,9 @@ internal static class SessionInsightsPresenter
     }
 
     private static SessionResponsePanel PresentResponse(TerrainResponseDiagnostics? response) => response is null
-        ? SessionResponsePanel.Hidden : new(response.State, SessionInsightsTextCatalog.ResponseDescription(response),
-            response.Sessions, response.Windows, [.. response.Rows.Select(row => new SessionResponseRow(
-                row.Class is { } level ? TerrainClassText.Name(level) : "Whole session", SessionInsightsTextCatalog.ResponseCoverage(row), row,
-                [.. row.Cells.Select(SessionInsightsTextCatalog.ResponseCell)]))]);
+        ? SessionResponsePanel.Hidden
+        : new(response.State, SessionInsightsTextCatalog.ResponseDescription(response),
+            response.State == SessionResponseState.Reported ? TerrainResponseReports.AgainstUsual(response.Rows) : null);
 
     private const string SagTitle = "Sag & travel use";
     private const string ForkTitle = "Fork";

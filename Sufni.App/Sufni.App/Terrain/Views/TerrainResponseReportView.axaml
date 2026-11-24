@@ -1,0 +1,95 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="using:Sufni.App.Terrain.Models"
+             xmlns:views="using:Sufni.App.Terrain.Views"
+             x:Class="Sufni.App.Terrain.Views.TerrainResponseReportView" x:DataType="models:TerrainResponseReport">
+    <UserControl.Styles>
+        <Style Selector="views|DeviationBar">
+            <Setter Property="Height" Value="12" />
+            <Setter Property="BandBrush" Value="{DynamicResource SufniSelectionSurfaceSubtle}" />
+            <Setter Property="BarBrush" Value="{DynamicResource SufniTextSecondary}" />
+            <Setter Property="LineBrush" Value="{DynamicResource SufniLineDefaultBrush}" />
+        </Style>
+        <Style Selector="views|DeviationBar.finding">
+            <Setter Property="BarBrush" Value="{DynamicResource SufniAccentPrimary}" />
+        </Style>
+        <Style Selector="StackPanel.lowConfidence">
+            <Setter Property="Opacity" Value="0.7" />
+        </Style>
+        <Style Selector="TextBlock.small">
+            <Setter Property="FontSize" Value="{StaticResource SufniFontSizeSmall}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </UserControl.Styles>
+    <UserControl.DataTemplates>
+        <DataTemplate DataType="models:ResponseVerdict">
+            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
+        </DataTemplate>
+        <DataTemplate DataType="models:ResponseBar">
+            <StackPanel Spacing="1" Margin="0,2">
+                <TextBlock Classes="small" Text="{Binding Label}" />
+                <Grid ColumnDefinitions="*,52" ColumnSpacing="6">
+                    <views:DeviationBar Classes.finding="{Binding IsFinding}" Deviation="{Binding Deviation}"
+                                        RepeatRange="{Binding RepeatRange}"
+                                        Scale="{Binding $parent[views:TerrainResponseReportView].((models:TerrainResponseReport)DataContext).Scale, FallbackValue=1}" />
+                    <TextBlock Grid.Column="1" Classes="small" Text="{Binding Value}" HorizontalAlignment="Right" />
+                </Grid>
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.DataTemplates>
+    <StackPanel Spacing="8">
+        <TextBlock Name="Summary" Text="{Binding Summary}" IsVisible="{Binding Summary, Converter={x:Static ObjectConverters.IsNotNull}}"
+                   TextWrapping="Wrap" />
+        <StackPanel Name="ForkVerdicts" Spacing="2" IsVisible="{Binding HasForkVerdicts}">
+            <TextBlock Text="Fork" FontWeight="SemiBold" />
+            <ItemsControl ItemsSource="{Binding Fork}" />
+        </StackPanel>
+        <StackPanel Name="ShockVerdicts" Spacing="2" IsVisible="{Binding HasShockVerdicts}">
+            <TextBlock Text="Shock" FontWeight="SemiBold" />
+            <ItemsControl ItemsSource="{Binding Shock}" />
+        </StackPanel>
+        <ItemsControl Name="Chart" ItemsSource="{Binding Chart}" IsVisible="{Binding HasChart}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="models:ResponseChartRow">
+                    <StackPanel Margin="0,4" Spacing="2" Classes.lowConfidence="{Binding IsLowConfidence}">
+                        <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
+                        <TextBlock Classes="small" Text="{Binding Coverage}" />
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                            <StackPanel>
+                                <TextBlock Classes="small" Text="Fork" FontWeight="SemiBold" />
+                                <ItemsControl ItemsSource="{Binding Fork}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Classes="small" Text="Shock" FontWeight="SemiBold" />
+                                <ItemsControl ItemsSource="{Binding Shock}" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Expander Name="Details" Header="Details" IsExpanded="False" HorizontalAlignment="Stretch" IsVisible="{Binding HasChart}">
+            <ItemsControl ItemsSource="{Binding Details}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="models:ResponseDetailRow">
+                        <StackPanel Margin="0,4" Spacing="2">
+                            <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
+                            <ItemsControl ItemsSource="{Binding Values}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="models:ResponseDetailValue">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                            <TextBlock Classes="small">
+                                                <Run Text="{Binding Label}" />
+                                                <Run Text="{Binding Source, StringFormat=' · {0}'}" />
+                                            </TextBlock>
+                                            <TextBlock Grid.Column="1" Classes="small" Text="{Binding Value}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Expander>
+    </StackPanel>
+</UserControl>

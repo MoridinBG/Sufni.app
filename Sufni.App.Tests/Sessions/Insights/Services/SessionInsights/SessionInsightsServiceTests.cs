@@ -16,7 +16,7 @@ public class SessionInsightsServiceTests
     private readonly SessionInsightsService service = new();
 
     [Fact]
-    public void ResponsePanelComparesClassRatiosAgainstRepeatThresholds()
+    public void ResponsePanelComparesClassesAgainstRepeatRanges()
     {
         var profile = TerrainProfiles.Classified(Enumerable.Range(0, 81).Select(i => i switch
         {
@@ -28,10 +28,9 @@ public class SessionInsightsServiceTests
         var panel = Response(profile, analysisRange: null);
 
         Assert.Equal(SessionResponseState.Reported, panel.State);
-        Assert.Equal(ResponseCellState.TooShort, FrontRms(panel, RoughnessClass.Calm).State);
+        Assert.DoesNotContain(panel.Report!.Chart, row => row.Group == RoughnessClass.Calm);
         Assert.Equal(ResponseCellState.WithinRepeatRange, FrontRms(panel, RoughnessClass.Medium).State);
-        Assert.Equal(ResponseCellState.Finding, FrontRms(panel, RoughnessClass.Rough).State);
-        Assert.Equal(1.4, FrontRms(panel, RoughnessClass.Rough).Ratio!.Value, 8);
+        Assert.Equal(0.4, FrontRms(panel, RoughnessClass.Rough).Deviation!.Value, 8);
     }
 
     [Fact]
@@ -43,8 +42,7 @@ public class SessionInsightsServiceTests
 
         var panel = Response(profile, new TelemetryTimeRange(0.5, 31), new TelemetryTimeSelection([new(0, 1)]));
 
-        Assert.Equal(305, panel.Rows.Single(r => r.Measurement.Class is null).Measurement.DistanceMetres);
-        Assert.Equal(1, FrontRms(panel, null).Ratio!.Value, 8);
+        Assert.Equal(0, FrontRms(panel, null).Deviation!.Value, 8);
     }
 
     [Fact]
@@ -254,6 +252,6 @@ public class SessionInsightsServiceTests
     private static TerrainWindow ResponseWindow(int index, RoughnessClass roughness, double frontRms) =>
         TerrainProfiles.Window(index, roughness, RoughnessSource.Both) with { Front = new(frontRms, 150, 105, 40, null) };
 
-    private static ResponseCell FrontRms(SessionResponsePanel panel, RoughnessClass? roughness) =>
-        panel.Rows.Single(r => r.Measurement.Class == roughness).Cells.Single(c => c.Measurement.Target == ResponseTarget.FrontRms).Measurement;
+    private static ResponseBar FrontRms(SessionResponsePanel panel, RoughnessClass? roughness) =>
+        panel.Report!.Chart.Single(r => r.Group == roughness).Fork.Single(b => b.Target == ResponseTarget.FrontRms);
 }

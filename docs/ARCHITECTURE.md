@@ -73,7 +73,7 @@ layering rules apply across slices in the same way.
 | **Acquisition** | `Acquisition/` | Telemetry import + DAQ management (`Services/Management`), data-store models, import UI |
 | **SyncAndPairing** | `SyncAndPairing/` | Client sync + pairing coordinators/services/VMs (desktop sync server stays in `Sufni.App.Desktop`) |
 | **MapsAndTracks** | `MapsAndTracks/` | Map view + interaction/viewport controllers, track geometry, track signal plot |
-| **Terrain** | `Terrain/` | Device-local terrain profiles: profile coordinator and repository, status, baseline and selection queries, analysis scope and terrain presentation models, the terrain scope VM with its chip, banner and legend views, class strip and signal plots, and the terrain display text in `Formatting/`. [Terrain profiles](architecture/terrain.md) |
+| **Terrain** | `Terrain/` | Device-local terrain profiles: profile coordinator and repository, status, baseline and selection queries, analysis scope and terrain presentation models, the terrain scope VM with its chip, banner and legend views, the shared response report view, class strip and signal plots, and the terrain display text and response reports in `Formatting/`. [Terrain profiles](architecture/terrain.md) |
 | **Video** | `Video/` | Session video: clip links, store, import/alignment coordinator, video pane and playback, player contracts |
 | **Segments** | `Segments/` | Saved segments of recorded sessions: model, repository, store, coordinator, segments picker, Strava segment efforts |
 | **Shell** | `Shell/` | App shell: `ShellRootViewModel`, `ShellWorkspaceViewModel`, `MainPagesViewModel`, shell coordinator, profile shell views, navigation behaviors, keyboard shortcuts, installation preferences and shell-dependent list/editor bases |
