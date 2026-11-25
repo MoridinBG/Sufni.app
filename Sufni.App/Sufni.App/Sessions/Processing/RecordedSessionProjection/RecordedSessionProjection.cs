@@ -333,7 +333,9 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                                 session.Id, session.Updated, session.Name, session.Description,
                                 session.Timestamp, session.HasProcessedData, domain.Staleness,
                                 session.DurationSeconds, session.DistanceMeters, session.AscentMeters, session.DescentMeters, video,
-                                domain.Setup?.BikeId, session.SetupId) { Terrain = domain.Terrain, TerrainScale = domain.TerrainScale?.Key });
+                                domain.Setup?.BikeId, session.SetupId) {
+                                Terrain = domain.Terrain, TerrainScale = domain.TerrainScale?.Key, TerrainClasses = domain.TerrainClasses
+                            });
                         }
                     })).GetAwaiter().GetResult();
                     foreach (var (_, domain, _) in current)

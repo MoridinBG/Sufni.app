@@ -29,4 +29,5 @@ public sealed record RecordedSessionSummary(
 {
     public required TerrainStatus Terrain { get; init; }
     public TerrainScaleKey? TerrainScale { get; init; }
+    public TerrainClassState TerrainClasses { get; init; } = new TerrainClassState.Unavailable();
 }

@@ -1,4 +1,5 @@
 using Sufni.App.MapsAndTracks.Stores;
+using Sufni.App.Sessions.Store;
 using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Queries;
 using Sufni.App.Tests.TestSupport.Fixtures;
@@ -47,4 +48,49 @@ public class SessionTerrainStatusQueryTests
         Assert.Equal(new TerrainStatus.Unavailable(TerrainAvailabilityReason.NoTelemetry),
             SessionTerrainStatusQuery.Evaluate(session with { HasProcessedData = false }, []).Status);
     }
+    [Fact]
+    public void ClassSummaryStoredUnderTheCurrentProfileAndScaleIsClassified()
+    {
+        var (session, status) = Current();
+        var summary = new TerrainClassSummary(400, 0.25);
+        var classified = session with { TerrainClassKey = ClassKey(status), TerrainClassSummary = summary };
+        Assert.Equal(new TerrainClassState.Classified(summary),
+            SessionTerrainStatusQuery.EvaluateClasses(classified, status, Scale));
+    }
+
+    [Fact]
+    public void MissingOrOutdatedClassKeyIsPending()
+    {
+        var (session, status) = Current();
+        var summary = new TerrainClassSummary(400, 0.25);
+        var key = ClassKey(status);
+        foreach (var stored in new TerrainClassKey?[] { null, key with { Scale = Scale with { FrameImu = 1 } },
+                     key with { ClassifierVersion = key.ClassifierVersion - 1 },
+                     key with { Profile = key.Profile with { AlgorithmVersion = key.Profile.AlgorithmVersion - 1 } } })
+            Assert.IsType<TerrainClassState.Pending>(SessionTerrainStatusQuery.EvaluateClasses(
+                session with { TerrainClassKey = stored, TerrainClassSummary = summary }, status, Scale));
+    }
+
+    [Fact]
+    public void ClassesAreUnavailableWithoutACurrentProfileOrAReadyScale()
+    {
+        var (session, status) = Current();
+        var classified = session with { TerrainClassKey = ClassKey(status), TerrainClassSummary = new(400, 0.25) };
+        Assert.IsType<TerrainClassState.Unavailable>(SessionTerrainStatusQuery.EvaluateClasses(classified, status, null));
+        Assert.IsType<TerrainClassState.Unavailable>(
+            SessionTerrainStatusQuery.EvaluateClasses(classified, status, TerrainScaleKey.None));
+        Assert.IsType<TerrainClassState.Unavailable>(
+            SessionTerrainStatusQuery.EvaluateClasses(classified, new TerrainStatus.Pending(), Scale));
+    }
+
+    private static readonly TerrainScaleKey Scale = new(0, null, null, null);
+
+    private static (SessionSnapshot Session, TerrainStatus.Current Status) Current()
+    {
+        var session = TestSnapshots.WithCurrentTerrain(TestSnapshots.Session(hasProcessedData: true),
+            TerrainOutcome.Computed, new TerrainSummary(10, null));
+        return (session, Assert.IsType<TerrainStatus.Current>(SessionTerrainStatusQuery.Evaluate(session, []).Status));
+    }
+
+    private static TerrainClassKey ClassKey(TerrainStatus.Current status) => new(status.Key, Scale, TerrainClassifier.Version);
 }

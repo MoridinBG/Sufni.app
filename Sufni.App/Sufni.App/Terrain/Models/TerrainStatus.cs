@@ -24,3 +24,16 @@ public closed record TerrainStatus
     public sealed record Unavailable(TerrainAvailabilityReason Reason) : TerrainStatus;
     public sealed record Failed : TerrainStatus;
 }
+
+/// <summary>
+/// The ride class summary of a session on the scale of its setup. <see cref="Pending"/> asks for class work;
+/// <see cref="Unavailable"/> covers a profile that is not current and a setup scale without a ready bin.
+/// </summary>
+public closed record TerrainClassState
+{
+    private TerrainClassState() { }
+
+    public sealed record Classified(TerrainClassSummary Summary) : TerrainClassState;
+    public sealed record Pending : TerrainClassState;
+    public sealed record Unavailable : TerrainClassState;
+}

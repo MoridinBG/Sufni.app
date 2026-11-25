@@ -309,6 +309,39 @@ public class RecordedSessionProjectionTests
         Assert.Equal(new TerrainScaleKey(5, null, null, null), Assert.Single(domains).TerrainScale?.Key);
     }
 
+    [Fact]
+    public async Task StoredClassesClassifyOnlyTheirOwnSessionSummary()
+    {
+        var scheduler = new ManualUiThreadDispatcher();
+        using var stores = new StoreFixtures();
+        var fingerprints = new ProcessingFingerprintService();
+        using var projection = stores.CreateProjection(fingerprints, scheduler);
+        var first = Measured(CreateCurrentContext(fingerprints));
+        var sibling = Measured(Sibling(first));
+        using var observation = projection.ConnectSessions().Bind(out var summaries).Subscribe();
+        await stores.AddAsync(first);
+        await stores.AddAsync(sibling);
+        await stores.AddAsync(Measured(Sibling(first)));
+        await scheduler.DrainAsync();
+        Assert.All(summaries, summary => Assert.IsType<TerrainClassState.Pending>(summary.TerrainClasses));
+        var siblingDomains = new List<RecordedSessionDomainSnapshot>();
+        using var watch = projection.WatchSession(sibling.Session.Id).Subscribe(siblingDomains.Add);
+        siblingDomains.Clear();
+
+        var status = Assert.IsType<TerrainStatus.Current>(summaries.Single(summary => summary.Id == first.Session.Id).Terrain);
+        var classes = new TerrainClassSummary(400, 0.25);
+        await stores.Sessions.PublishSessionsChangedAsync([first.Session with
+        {
+            TerrainClassKey = new(status.Key, new TerrainScaleKey(5, null, null, null), TerrainClassifier.Version),
+            TerrainClassSummary = classes
+        }]);
+        await scheduler.DrainAsync();
+
+        Assert.Equal(new TerrainClassState.Classified(classes),
+            summaries.Single(summary => summary.Id == first.Session.Id).TerrainClasses);
+        Assert.Empty(siblingDomains);
+    }
+
     private static TestContext Sibling(TestContext context)
     {
         var id = Guid.NewGuid();

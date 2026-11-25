@@ -77,6 +77,10 @@ internal static class RecordedSessionDomainSnapshotFactory
             source,
             evaluation.Staleness,
             effectiveDependencyHash,
-            selectedTrack) { Terrain = terrain.Status, TerrainScale = terrainScale };
+            selectedTrack)
+        {
+            Terrain = terrain.Status, TerrainScale = terrainScale,
+            TerrainClasses = SessionTerrainStatusQuery.EvaluateClasses(session, terrain.Status, terrainScale?.Key)
+        };
     }
 }

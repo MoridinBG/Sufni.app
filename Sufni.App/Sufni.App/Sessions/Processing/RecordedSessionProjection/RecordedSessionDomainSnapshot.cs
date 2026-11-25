@@ -25,4 +25,6 @@ public sealed record RecordedSessionDomainSnapshot(
 
     /// <summary>The terrain scale of the session's setup; null without a setup.</summary>
     public SetupTerrainScale? TerrainScale { get; init; }
+
+    public TerrainClassState TerrainClasses { get; init; } = new TerrainClassState.Unavailable();
 }

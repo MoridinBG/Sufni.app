@@ -3,6 +3,7 @@ using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Terrain.Models;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Terrain.Queries;
 
@@ -30,5 +31,16 @@ public static class SessionTerrainStatusQuery
             _ => new TerrainStatus.Pending()
         };
         return (key, status);
+    }
+
+    /// <summary>The class state of a session with the given profile status on the scale of its setup.</summary>
+    public static TerrainClassState EvaluateClasses(SessionSnapshot session, TerrainStatus status, TerrainScaleKey? scale)
+    {
+        if (status is not TerrainStatus.Current current || scale is not { } ready || ready == TerrainScaleKey.None)
+            return new TerrainClassState.Unavailable();
+        return session.TerrainClassKey == new TerrainClassKey(current.Key, ready, TerrainClassifier.Version) &&
+               session.TerrainClassSummary is { } summary
+            ? new TerrainClassState.Classified(summary)
+            : new TerrainClassState.Pending();
     }
 }
