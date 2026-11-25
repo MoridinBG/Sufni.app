@@ -38,11 +38,18 @@ internal static partial class SessionInsightsTextCatalog
 
         void Add(IEnumerable<ResponseCell> end, string name)
         {
-            var sensors = end.Select(cell => cell.Predictor).Distinct().ToArray();
-            if (sensors.Length == 1)
-                parts.Add($"the {(sensors[0] == ImuLocation.Fork ? "fork" : "frame")} IMU for {name}");
+            var sensors = end.Select(cell => cell.Predictors).Distinct().ToArray();
+            if (sensors.Length == 1) parts.Add($"{SensorName(sensors[0])} for {name}");
         }
     }
+
+    private static string SensorName(GroundSensors sensors) => sensors switch
+    {
+        GroundSensors.ForkAndRearAxle => "the fork and rear axle IMUs",
+        GroundSensors.Fork => "the fork IMU",
+        GroundSensors.RearAxle => "the rear axle IMU",
+        _ => "the frame IMU"
+    };
 
     public static string? GroundComfortNote(SessionTerrainInput? terrain) => terrain switch
     {

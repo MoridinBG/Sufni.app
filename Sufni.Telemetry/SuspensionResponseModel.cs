@@ -6,12 +6,12 @@ namespace Sufni.Telemetry;
 public enum ResponseTarget { FrontRms, FrontPeakCompression, FrontPeakRebound, RearRms, RearPeakCompression, RearPeakRebound, PassedToFrame }
 public enum ResponseFitIssue { InsufficientData, InsufficientVariation, MissingSensor }
 
-public closed record ResponseFit(ImuLocation Predictor, int Sessions, int Windows)
+public closed record ResponseFit(GroundSensors Predictors, int Sessions, int Windows)
 {
-    public sealed record Fitted(ImuLocation Predictor, int Sessions, int Windows, ImmutableArray<double> Coefficients)
-        : ResponseFit(Predictor, Sessions, Windows);
-    public sealed record Unavailable(ImuLocation Predictor, int Sessions, int Windows, ResponseFitIssue Reason)
-        : ResponseFit(Predictor, Sessions, Windows);
+    public sealed record Fitted(GroundSensors Predictors, int Sessions, int Windows, ImmutableArray<double> Coefficients)
+        : ResponseFit(Predictors, Sessions, Windows);
+    public sealed record Unavailable(GroundSensors Predictors, int Sessions, int Windows, ResponseFitIssue Reason)
+        : ResponseFit(Predictors, Sessions, Windows);
 }
 
 public sealed record SuspensionResponseModel(ImmutableDictionary<ResponseTarget, ResponseFit> Fits, int Sessions, int Windows)
@@ -23,6 +23,7 @@ public sealed record SuspensionResponseModel(ImmutableDictionary<ResponseTarget,
     public const int ConfidentReportMetres = 300;
     public const double BikeResponseThreshold = 0.30;
     public const double BikePassedToFrameThreshold = 0.10;
+    private const int MaximumRow = 1 + 3 * 2 + 1 + 1;
     public bool HasFit => Fits.Values.Any(fit => fit is ResponseFit.Fitted);
 
     public static SuspensionResponseModel Fit(TerrainProfile evaluated, IReadOnlyCollection<TerrainProfile> baseline,
@@ -32,78 +33,121 @@ public sealed record SuspensionResponseModel(ImmutableDictionary<ResponseTarget,
         IReadOnlyCollection<TerrainProfile> baseline, CancellationToken cancellationToken = default) =>
         FitCore(current, earlier, baseline, cancellationToken);
 
+    /// <summary>The predictor sets of a target in order of preference.</summary>
+    private static ImmutableArray<GroundSensors> PredictorSets(ResponseTarget target) => target switch
+    {
+        ResponseTarget.PassedToFrame => [GroundSensors.ForkAndRearAxle, GroundSensors.Fork, GroundSensors.RearAxle],
+        ResponseTarget.FrontRms or ResponseTarget.FrontPeakCompression or ResponseTarget.FrontPeakRebound =>
+            [GroundSensors.Fork, GroundSensors.Frame],
+        _ => [GroundSensors.RearAxle, GroundSensors.Frame]
+    };
+
+    // Every candidate set of every target is fitted in one pass; each target keeps its first fitted set.
     private static SuspensionResponseModel FitCore(TerrainProfile evaluated, TerrainProfile? paired,
         IReadOnlyCollection<TerrainProfile> baseline, CancellationToken cancellationToken)
     {
         var targets = Enum.GetValues<ResponseTarget>();
-        var predictors = targets.Select(target => SelectPredictor(target, evaluated, paired, baseline)).ToArray();
-        var scales = targets.Select((target, i) => AvailableScale(target, predictors[i], evaluated, paired)).ToArray();
-        var regressions = targets.Select(_ => new Regression()).ToArray();
-        int sessions = 0, windows = 0;
-        Span<double> observation = stackalloc double[6];
+        var candidates = targets.SelectMany(target => PredictorSets(target)
+                .Where(set => IsCandidate(target, set, evaluated, paired))
+                .Select(set => new Candidate(target, set, new Regression(Columns(set)))))
+            .ToArray();
+        var windowUses = new List<ulong>();
+        var sessionUses = new List<ulong>();
+        Span<double> observation = stackalloc double[MaximumRow];
         foreach (var profile in baseline)
         {
-            var compatible = scales.Select((scale, i) => scale.HasValue && Scale(profile, predictors[i]) == scale &&
-                (paired is null || Scale(paired, predictors[i]) == scale)).ToArray();
-            var contributed = new bool[targets.Length];
+            var compatible = candidates.Select(c => Compatible(c.Set, profile, evaluated)).ToArray();
+            ulong sessionUse = 0;
             foreach (var window in profile.Windows)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (!window.Moving) continue;
-                var used = false;
-                for (var i = 0; i < targets.Length; i++)
+                ulong windowUse = 0;
+                for (var i = 0; i < candidates.Length; i++)
                 {
-                    if (!compatible[i] || !TryObservation(window, targets[i], predictors[i], observation)) continue;
-                    regressions[i].Add(observation);
-                    contributed[i] = used = true;
+                    var row = observation[..(candidates[i].Regression.Columns + 1)];
+                    if (!compatible[i] || !TryObservation(window, candidates[i].Target, candidates[i].Set, row)) continue;
+                    candidates[i].Regression.Add(row);
+                    windowUse |= 1UL << i;
                 }
-                if (used) windows++;
+                if (windowUse != 0) windowUses.Add(windowUse);
+                sessionUse |= windowUse;
             }
-            if (contributed.Any(value => value)) sessions++;
-            for (var i = 0; i < targets.Length; i++) if (contributed[i]) regressions[i].Sessions++;
+            if (sessionUse == 0) continue;
+            sessionUses.Add(sessionUse);
+            for (var i = 0; i < candidates.Length; i++) if ((sessionUse & 1UL << i) != 0) candidates[i].Regression.Sessions++;
         }
         var results = ImmutableDictionary.CreateBuilder<ResponseTarget, ResponseFit>();
-        for (var i = 0; i < targets.Length; i++)
+        ulong kept = 0;
+        foreach (var target in targets)
         {
-            results.Add(targets[i], scales[i] is null
-                ? new ResponseFit.Unavailable(predictors[i], 0, 0, ResponseFitIssue.MissingSensor)
-                : regressions[i].Finish(predictors[i]));
+            ResponseFit fit = new ResponseFit.Unavailable(PredictorSets(target)[0], 0, 0, ResponseFitIssue.MissingSensor);
+            var chosen = -1;
+            for (var i = 0; i < candidates.Length; i++)
+            {
+                if (candidates[i].Target != target) continue;
+                fit = candidates[i].Regression.Finish(candidates[i].Set);
+                chosen = i;
+                if (fit is ResponseFit.Fitted) break;
+            }
+            if (chosen >= 0) kept |= 1UL << chosen;
+            results.Add(target, fit);
         }
-        return new(results.ToImmutable(), sessions, windows);
+        return new(results.ToImmutable(), sessionUses.Count(use => (use & kept) != 0), windowUses.Count(use => (use & kept) != 0));
     }
 
     public double? LogResidual(ResponseTarget target, TerrainWindow window)
     {
         if (!window.Moving || Fits[target] is not ResponseFit.Fitted fit) return null;
-        Span<double> row = stackalloc double[6];
-        if (!TryObservation(window, target, fit.Predictor, row)) return null;
-        var residual = row[5];
+        Span<double> row = stackalloc double[Columns(fit.Predictors) + 1];
+        if (!TryObservation(window, target, fit.Predictors, row)) return null;
+        var residual = row[^1];
         for (var i = 0; i < fit.Coefficients.Length; i++) residual -= fit.Coefficients[i] * row[i];
         return residual;
     }
 
-    private static ImuLocation SelectPredictor(ResponseTarget target, TerrainProfile evaluated, TerrainProfile? paired, IReadOnlyCollection<TerrainProfile> baseline)
+    private sealed record Candidate(ResponseTarget Target, GroundSensors Set, Regression Regression);
+
+    /// <summary>The judged rides carry every sensor of the set; passed-to-frame also needs their frame IMU.</summary>
+    private static bool IsCandidate(ResponseTarget target, GroundSensors set, TerrainProfile evaluated, TerrainProfile? paired) =>
+        Sensors(set).All(sensor => Scale(evaluated, sensor) is not null && (paired is null || Scale(paired, sensor) is not null)) &&
+        (target != ResponseTarget.PassedToFrame || evaluated.FrameScale is not null && paired is not { FrameScale: null });
+
+    private static bool Compatible(GroundSensors set, TerrainProfile profile, TerrainProfile evaluated) =>
+        Sensors(set).All(sensor => Scale(profile, sensor) == Scale(evaluated, sensor));
+
+    private static int Columns(GroundSensors set) => 1 + 3 * Sensors(set).Length + 1;
+
+    private static ImuLocation[] Sensors(GroundSensors set) => set switch
     {
-        if (target == ResponseTarget.PassedToFrame) return ImuLocation.Fork;
-        var front = target is ResponseTarget.FrontRms or ResponseTarget.FrontPeakCompression or ResponseTarget.FrontPeakRebound;
-        var preferred = front ? ImuLocation.Fork : ImuLocation.Frame;
-        if (Scale(evaluated, preferred).HasValue && (paired is null || Scale(paired, preferred).HasValue) &&
-            baseline.Any(p => Scale(p, preferred).HasValue)) return preferred;
-        return front ? ImuLocation.Frame : ImuLocation.Fork;
-    }
+        GroundSensors.ForkAndRearAxle => ForkAndRearAxle,
+        GroundSensors.Fork => ForkOnly,
+        GroundSensors.RearAxle => RearAxleOnly,
+        _ => FrameOnly
+    };
 
-    /// <summary>The predictor scale of the evaluated ride, or null when a judged ride lacks a sensor the target needs.</summary>
-    private static double? AvailableScale(ResponseTarget target, ImuLocation predictor, TerrainProfile evaluated, TerrainProfile? paired) =>
-        paired is not null && Scale(paired, predictor) is null ||
-        target == ResponseTarget.PassedToFrame && (evaluated.FrameScale is null || paired is { FrameScale: null })
-            ? null : Scale(evaluated, predictor);
+    private static readonly ImuLocation[] ForkAndRearAxle = [ImuLocation.Fork, ImuLocation.RearAxle];
+    private static readonly ImuLocation[] ForkOnly = [ImuLocation.Fork];
+    private static readonly ImuLocation[] RearAxleOnly = [ImuLocation.RearAxle];
+    private static readonly ImuLocation[] FrameOnly = [ImuLocation.Frame];
 
-    private static double? Scale(TerrainProfile profile, ImuLocation sensor) =>
-        sensor == ImuLocation.Frame ? profile.FrameScale : profile.ForkScale;
-
-    private static bool TryObservation(TerrainWindow window, ResponseTarget target, ImuLocation predictor, Span<double> row)
+    private static double? Scale(TerrainProfile profile, ImuLocation sensor) => sensor switch
     {
-        var bands = predictor == ImuLocation.Frame ? window.Frame : window.Fork;
+        ImuLocation.Frame => profile.FrameScale,
+        ImuLocation.Fork => profile.ForkScale,
+        _ => profile.RearAxleScale
+    };
+
+    private static SensorRoughness? Reading(TerrainWindow window, ImuLocation sensor) => sensor switch
+    {
+        ImuLocation.Frame => window.Frame,
+        ImuLocation.Fork => window.Fork,
+        _ => window.RearAxle
+    };
+
+    /// <summary>Fills the intercept, three log bands per sensor, log speed and the log target value.</summary>
+    private static bool TryObservation(TerrainWindow window, ResponseTarget target, GroundSensors set, Span<double> row)
+    {
         var value = target switch
         {
             ResponseTarget.FrontRms => window.Front?.RmsVelocity,
@@ -116,22 +160,27 @@ public sealed record SuspensionResponseModel(ImmutableDictionary<ResponseTarget,
             _ => null
         };
         // Climbing response follows pedalling and rider load, not the ground law this model fits.
-        if (bands is null || value is not > 0 || window.Climbing) return false;
+        if (value is not > 0 || window.Climbing) return false;
         row[0] = 1;
-        row[1] = Math.Log(bands.LowBand);
-        row[2] = Math.Log(bands.MiddleBand);
-        row[3] = Math.Log(bands.HighBand);
-        row[4] = Math.Log(window.MeanSpeed);
-        row[5] = Math.Log(value.Value);
+        var column = 1;
+        foreach (var sensor in Sensors(set))
+        {
+            if (Reading(window, sensor) is not { } bands) return false;
+            row[column++] = Math.Log(bands.LowBand);
+            row[column++] = Math.Log(bands.MiddleBand);
+            row[column++] = Math.Log(bands.HighBand);
+        }
+        row[column++] = Math.Log(window.MeanSpeed);
+        row[column] = Math.Log(value.Value);
         foreach (var entry in row) if (!double.IsFinite(entry)) return false;
         return true;
     }
 
     // Incremental QR keeps the working matrix bounded independently of the number of rides.
-    private sealed class Regression
+    private sealed class Regression(int columns)
     {
-        private const int Columns = 5;
-        private readonly double[,] upper = new double[Columns, Columns + 1];
+        private readonly double[,] upper = new double[columns, columns + 1];
+        public int Columns => columns;
         public int Sessions { get; set; }
         private int windows;
 
@@ -154,17 +203,17 @@ public sealed record SuspensionResponseModel(ImmutableDictionary<ResponseTarget,
             }
         }
 
-        public ResponseFit Finish(ImuLocation predictor)
+        public ResponseFit Finish(GroundSensors predictors)
         {
             if (Sessions < MinimumSessions || windows < MinimumWindows)
-                return new ResponseFit.Unavailable(predictor, Sessions, windows, ResponseFitIssue.InsufficientData);
+                return new ResponseFit.Unavailable(predictors, Sessions, windows, ResponseFitIssue.InsufficientData);
             var r = Matrix<double>.Build.Dense(Columns, Columns, (i, j) => upper[i, j]);
             var svd = r.Svd(true);
             var tolerance = svd.S[0] * windows * (Math.BitIncrement(1d) - 1);
             if (svd.S[Columns - 1] <= tolerance)
-                return new ResponseFit.Unavailable(predictor, Sessions, windows, ResponseFitIssue.InsufficientVariation);
+                return new ResponseFit.Unavailable(predictors, Sessions, windows, ResponseFitIssue.InsufficientVariation);
             var coefficients = svd.Solve(Vector<double>.Build.Dense(Columns, i => upper[i, Columns]));
-            return new ResponseFit.Fitted(predictor, Sessions, windows, [.. coefficients]);
+            return new ResponseFit.Fitted(predictors, Sessions, windows, [.. coefficients]);
         }
     }
 }

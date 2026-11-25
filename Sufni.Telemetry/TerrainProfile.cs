@@ -8,6 +8,8 @@ public enum RoughnessClass { Smooth, Calm, Medium, Rough, VeryRough, SmoothClimb
 /// <summary>Signed ground slope over 50 m. The two climb bands come first.</summary>
 public enum GradeBand { SteepClimb, Climb, Flat, GentleDescent, Descent, SteepDescent, VerySteepDescent }
 public enum RoughnessSource { Both, FrameOnly, ForkOnly }
+/// <summary>The IMUs that read the ground for a response fit, unsprung first.</summary>
+public enum GroundSensors { ForkAndRearAxle, Fork, RearAxle, Frame }
 public enum TerrainRoughnessState { Classified, ValuesOnly, NoSensor }
 public enum TerrainGradeState { Available, NoFrameSensor, NoElevation, TooShort }
 public enum TerrainUnavailableReason { NoTrack, NoMovement }

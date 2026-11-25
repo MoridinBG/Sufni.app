@@ -12,13 +12,13 @@ internal static class TestResponseRows
 
     public static TerrainResponseRow TooShort(RoughnessClass? group) =>
         new(group, 100, 0.1, 5, [.. Enum.GetValues<ResponseTarget>().Select(target =>
-            new ResponseCell(target, ImuLocation.Frame, ResponseCellState.TooShort, null, 6, 1200))]);
+            new ResponseCell(target, GroundSensors.Frame, ResponseCellState.TooShort, null, 6, 1200))]);
 
     public static ResponseCell Cell(ResponseTarget target, double ratio) =>
-        new(target, ImuLocation.Frame, ResponseCellState.WithinRepeatRange, ratio, 6, 1200);
+        new(target, GroundSensors.Frame, ResponseCellState.WithinRepeatRange, ratio, 6, 1200);
 
     public static ResponseCell Finding(ResponseTarget target, double ratio) =>
-        new(target, ImuLocation.Frame, ResponseCellState.Finding, ratio, 6, 1200);
+        new(target, GroundSensors.Frame, ResponseCellState.Finding, ratio, 6, 1200);
 
     public static TerrainComparisonRow Compared(RoughnessClass? group, double metres, PaceQuartiles? pace,
         params (ResponseTarget Target, ComparisonRatio Ratio)[] ratios)
@@ -32,5 +32,5 @@ internal static class TestResponseRows
     /// <summary>A usual that predicts the same response for every target on any ground.</summary>
     public static SuspensionResponseModel Usual(double predicted = 100) =>
         new(Enum.GetValues<ResponseTarget>().ToImmutableDictionary(target => target,
-            target => (ResponseFit)new ResponseFit.Fitted(ImuLocation.Frame, 6, 1200, [Math.Log(predicted), 0, 0, 0, 0])), 6, 1200);
+            target => (ResponseFit)new ResponseFit.Fitted(GroundSensors.Frame, 6, 1200, [Math.Log(predicted), 0, 0, 0, 0])), 6, 1200);
 }

@@ -6,7 +6,7 @@ public enum ResponseCellState { WithinRepeatRange, Finding, TooShort, NoBaseline
 
 public enum ResponseConfidence { Low, Full }
 
-public sealed record ResponseCell(ResponseTarget Target, ImuLocation Predictor, ResponseCellState State, double? Ratio,
+public sealed record ResponseCell(ResponseTarget Target, GroundSensors Predictors, ResponseCellState State, double? Ratio,
     int BaselineSessions, int BaselineWindows)
 {
     /// <summary>Signed difference from the expected response: −0.16 is 16% lower.</summary>
@@ -56,7 +56,7 @@ public static class TerrainResponse
     {
         var fit = model.Fits[target];
         ResponseCell Cell(ResponseCellState state, double? ratio = null) =>
-            new(target, fit.Predictor, state, ratio, fit.Sessions, fit.Windows);
+            new(target, fit.Predictors, state, ratio, fit.Sessions, fit.Windows);
         if (distance < SuspensionResponseModel.MinimumReportMetres) return Cell(ResponseCellState.TooShort);
         if (fit is ResponseFit.Unavailable unavailable)
             return Cell(UnavailableState(unavailable.Reason));

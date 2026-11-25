@@ -9,7 +9,7 @@ public static class SyntheticResponseRides
 
     public static ImmutableArray<TerrainProfile> Baseline => baseline.Value;
 
-    public static TerrainProfile Profile(int seed, double gain = 1, bool fork = true)
+    public static TerrainProfile Profile(int seed, double gain = 1, bool frame = true, bool fork = true, bool rearAxle = true)
     {
         RideSection[] sections =
         [
@@ -18,7 +18,7 @@ public static class SyntheticResponseRides
             new(440, 8, 12, 1.3, 1.7, 1.3)
         ];
         var ride = SyntheticRide.Build(sections.Select(s => s with { CompressionGain = gain, ReboundGain = gain }).ToArray(),
-            new(Seed: seed, Fork: fork, NoiseG: 0.002));
+            new(Seed: seed, Frame: frame, Fork: fork, RearAxle: rearAxle, NoiseG: 0.002));
         return ride.Profile();
     }
 }

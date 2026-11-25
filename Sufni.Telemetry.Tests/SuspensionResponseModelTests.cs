@@ -39,24 +39,43 @@ public class SuspensionResponseModelTests
             SuspensionResponseModel.Fit(SyntheticResponseRides.Profile(37), SyntheticResponseRides.Baseline), null)));
     }
 
-    [Fact]
-    public void RideWithoutForkPredictsTheFrontFromTheFrame()
+    [Theory]
+    [InlineData(true, true, GroundSensors.Fork, GroundSensors.RearAxle, GroundSensors.ForkAndRearAxle)]
+    [InlineData(true, false, GroundSensors.Fork, GroundSensors.Frame, GroundSensors.Fork)]
+    [InlineData(false, true, GroundSensors.Frame, GroundSensors.RearAxle, GroundSensors.RearAxle)]
+    [InlineData(false, false, GroundSensors.Frame, GroundSensors.Frame, null)]
+    public void EachTargetReadsTheGroundFromTheFirstSetTheRideCarries(bool fork, bool rearAxle, GroundSensors front,
+        GroundSensors rear, GroundSensors? passedToFrame)
     {
-        var model = SuspensionResponseModel.Fit(SyntheticResponseRides.Profile(37, fork: false), SyntheticResponseRides.Baseline);
-        Assert.Equal(ImuLocation.Frame, Assert.IsType<ResponseFit.Fitted>(model.Fits[ResponseTarget.FrontRms]).Predictor);
+        var model = SuspensionResponseModel.Fit(SyntheticResponseRides.Profile(37, fork: fork, rearAxle: rearAxle),
+            SyntheticResponseRides.Baseline);
+        Assert.Equal(front, Assert.IsType<ResponseFit.Fitted>(model.Fits[ResponseTarget.FrontRms]).Predictors);
+        Assert.Equal(rear, Assert.IsType<ResponseFit.Fitted>(model.Fits[ResponseTarget.RearRms]).Predictors);
+        if (passedToFrame is { } sensors)
+            Assert.Equal(sensors, Assert.IsType<ResponseFit.Fitted>(model.Fits[ResponseTarget.PassedToFrame]).Predictors);
+        else
+            Assert.Equal(ResponseFitIssue.MissingSensor,
+                Assert.IsType<ResponseFit.Unavailable>(model.Fits[ResponseTarget.PassedToFrame]).Reason);
     }
 
     [Fact]
-    public void IncompatibleAndAbsentForkDoNotMakeAnUndersizedPreferredSensorSwitchToFrame()
+    public void SetWithTooFewBaselineRidesPassesToTheNextSet()
     {
         var baseline = SyntheticResponseRides.Baseline
-            .Select((p, i) => i < 3 ? p : p with { ForkScale = i == 3 ? 2048 : null }).ToArray();
+            .Select((p, i) => i < 3 ? p : p with { RearAxleScale = i == 3 ? 2048 : null }).ToArray();
         var model = SuspensionResponseModel.Fit(SyntheticResponseRides.Profile(37), baseline);
-        var front = Assert.IsType<ResponseFit.Unavailable>(model.Fits[ResponseTarget.FrontRms]);
-        Assert.Equal(ImuLocation.Fork, front.Predictor);
-        Assert.Equal(3, front.Sessions);
-        Assert.Equal(ResponseFitIssue.InsufficientData, front.Reason);
-        Assert.IsType<ResponseFit.Fitted>(model.Fits[ResponseTarget.RearRms]);
+        Assert.Equal(GroundSensors.Frame, Assert.IsType<ResponseFit.Fitted>(model.Fits[ResponseTarget.RearRms]).Predictors);
+        Assert.Equal(GroundSensors.Fork, Assert.IsType<ResponseFit.Fitted>(model.Fits[ResponseTarget.PassedToFrame]).Predictors);
+    }
+
+    [Fact]
+    public void ShockWithoutRearAxleOrFrameHasNoForkFallback()
+    {
+        var model = SuspensionResponseModel.Fit(SyntheticResponseRides.Profile(37, frame: false, rearAxle: false),
+            SyntheticResponseRides.Baseline);
+        var rear = Assert.IsType<ResponseFit.Unavailable>(model.Fits[ResponseTarget.RearRms]);
+        Assert.Equal(ResponseFitIssue.MissingSensor, rear.Reason);
+        Assert.IsType<ResponseFit.Fitted>(model.Fits[ResponseTarget.FrontRms]);
     }
 
     [Fact]
