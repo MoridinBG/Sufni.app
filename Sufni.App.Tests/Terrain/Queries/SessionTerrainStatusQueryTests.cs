@@ -43,7 +43,7 @@ public class SessionTerrainStatusQueryTests
         else
             Assert.IsType<TerrainStatus.Failed>(status);
         Assert.IsType<TerrainStatus.Pending>(SessionTerrainStatusQuery.Evaluate(
-            session with { TerrainProfileKey = key with { CalibrationVersion = key.CalibrationVersion - 1 } }, []).Status);
+            session with { TerrainProfileKey = key with { AlgorithmVersion = key.AlgorithmVersion - 1 } }, []).Status);
         Assert.Equal(new TerrainStatus.Unavailable(TerrainAvailabilityReason.NoTelemetry),
             SessionTerrainStatusQuery.Evaluate(session with { HasProcessedData = false }, []).Status);
     }

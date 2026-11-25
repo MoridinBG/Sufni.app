@@ -265,10 +265,9 @@ public class TerrainProfileCalculatorTests
     }
 
     [Fact]
-    public void UncalibratedSensorStillProvidesPhysicalBandLevelsAndMatchingSeries()
+    public void SensorAtAnotherAccelerometerScaleProvidesBandLevelsAndMatchingSeries()
     {
         var profile = SyntheticRide.Build([new(350)], new RideRecording(AccelScale: 2048, Fork: false)).Profile();
-        Assert.Equal(TerrainRoughnessState.ValuesOnly, profile.RoughnessState);
         Assert.True(profile.Windows[15].Frame!.MiddleBand > 0);
         Assert.True(profile.FrameMatching.Length >= 340);
     }

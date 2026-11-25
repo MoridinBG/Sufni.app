@@ -8,9 +8,8 @@ public static class TerrainProfiles
     public static ClassifiedProfile Classified(params TerrainWindow[] windows) => TerrainClassifier.Classify(Profile(windows), Scale);
 
     public static TerrainProfile Profile(IEnumerable<TerrainWindow> windows,
-        TerrainRoughnessState roughness = TerrainRoughnessState.Classified,
         TerrainGradeState grade = TerrainGradeState.Available, double? frameScale = 4096, double? forkScale = 4096) =>
-        new([.. windows], [], [], roughness, grade, frameScale, forkScale);
+        new([.. windows], [], [], grade, frameScale, forkScale);
 
     /// <summary>The ten-metre window that starts at <paramref name="start"/> seconds and lasts one second.</summary>
     public static TerrainWindow Window(double start, bool moving = true) => new(10 * start, start, start + 1, 10, moving);
@@ -43,8 +42,8 @@ public static class TerrainProfiles
     });
 
     /// <summary>A sensor reading with every band and the speed-removed value at <paramref name="level"/>.</summary>
-    public static SensorRoughness Sensor(double level, double? normalised = null, double clippedShare = 0) =>
-        new(level, level, level, level, level, normalised, clippedShare);
+    public static SensorRoughness Sensor(double level, double clippedShare = 0) =>
+        new(level, level, level, level, level, clippedShare);
 
     /// <summary>Pairs each of the first <paramref name="windows"/> windows with the window of the same index.</summary>
     public static TerrainRunAlignment.Aligned Identity(int windows) =>

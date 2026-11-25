@@ -9,14 +9,13 @@ public enum RoughnessClass { Smooth, Calm, Medium, Rough, VeryRough, SmoothClimb
 public enum GradeBand { SteepClimb, Climb, Flat, GentleDescent, Descent, SteepDescent, VerySteepDescent }
 /// <summary>The IMUs that read the ground for a response fit, unsprung first.</summary>
 public enum GroundSensors { ForkAndRearAxle, Fork, RearAxle, Frame }
-public enum TerrainRoughnessState { Classified, ValuesOnly, NoSensor }
 public enum TerrainGradeState { Available, NoFrameSensor, NoElevation, TooShort }
 public enum TerrainUnavailableReason { NoTrack, NoMovement }
 public enum TerrainSensor { ForkTravel, ShockTravel, FrameImu, ForkImu, RearAxleImu }
 
 [MessagePackObject(keyAsPropertyName: true)]
 public sealed record SensorRoughness(double Level, double LowBand, double MiddleBand, double HighBand,
-    double SpeedRemoved, double? Normalised, double ClippedShare);
+    double SpeedRemoved, double ClippedShare);
 
 /// <summary>
 /// One end's motion in a window. Velocities are in mm/s. Mean travel and the median travel gain of compression strokes
@@ -63,13 +62,16 @@ public readonly record struct TerrainMatchSample(double Metres, double Seconds, 
 [MessagePackObject(keyAsPropertyName: true)]
 public sealed record TerrainProfile(ImmutableArray<TerrainWindow> Windows,
     ImmutableArray<TerrainMatchSample> FrameMatching, ImmutableArray<TerrainMatchSample> ForkMatching,
-    TerrainRoughnessState RoughnessState, TerrainGradeState GradeState, double? FrameScale, double? ForkScale)
+    TerrainGradeState GradeState, double? FrameScale, double? ForkScale)
 {
     /// <summary>Sensors that read zero in most measured moving windows; the profile holds no readings from them.</summary>
     public ImmutableArray<TerrainSensor> SilentSensors { get; init; } = [];
     public double? RearAxleScale { get; init; }
     public double? FrontMaxTravel { get; init; }
     public double? RearMaxTravel { get; init; }
+
+    [IgnoreMember]
+    public bool HasImu => FrameScale is not null || ForkScale is not null || RearAxleScale is not null;
 }
 
 public closed record TerrainProfileResult

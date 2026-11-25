@@ -3,10 +3,9 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Terrain.Models;
 
-public sealed record TerrainProfileKey(SessionContentToken Content, int AlgorithmVersion, int CalibrationVersion)
+public sealed record TerrainProfileKey(SessionContentToken Content, int AlgorithmVersion)
 {
-    public static TerrainProfileKey From(SessionContentToken content) =>
-        new(content, TerrainProfileCalculator.AlgorithmVersion, TerrainCalibration.Version);
+    public static TerrainProfileKey From(SessionContentToken content) => new(content, TerrainProfileCalculator.AlgorithmVersion);
 }
 
 public enum TerrainOutcome { Computed = 0, NoTrack = 1, NoMovement = 2, ContentMissing = 3, Failed = 4 }

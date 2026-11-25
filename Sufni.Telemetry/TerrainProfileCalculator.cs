@@ -47,11 +47,7 @@ public static partial class TerrainProfileCalculator
         if (!silent.Contains(TerrainSensor.ShockTravel))
             MeasurePedalling(telemetry.Rear, telemetry.Metadata.SampleRate, imu, frame, windows, cancellationToken);
         var grade = MeasureGrade(motion, imu, frame, windows, cancellationToken);
-        var classified = frame != null && TerrainCalibration.For(ImuLocation.Frame, frame.AccelLsbPerG) != null ||
-                         fork != null && TerrainCalibration.For(ImuLocation.Fork, fork.AccelLsbPerG) != null;
-        var roughState = classified ? TerrainRoughnessState.Classified :
-            frame != null || fork != null || rearAxle != null ? TerrainRoughnessState.ValuesOnly : TerrainRoughnessState.NoSensor;
-        return new TerrainProfileResult.Computed(new([.. windows], frameSeries, forkSeries, roughState, grade,
+        return new TerrainProfileResult.Computed(new([.. windows], frameSeries, forkSeries, grade,
             frame?.AccelLsbPerG, fork?.AccelLsbPerG)
         {
             SilentSensors = silent,

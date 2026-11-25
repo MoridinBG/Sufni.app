@@ -23,7 +23,7 @@ internal static partial class RecordedSessionPresentationDeriver
             RecordedTerrainState.Failed => (SurfacePresentationState.Error("Terrain could not be computed"), hidden, hidden, hidden),
             RecordedTerrainState.Unavailable => (hidden, hidden, hidden, hidden),
             RecordedTerrainState.Loaded loaded => (ready,
-                loaded.Classified.Profile.RoughnessState == TerrainRoughnessState.NoSensor ? hidden : ready,
+                loaded.Classified.Profile.HasImu ? ready : hidden,
                 loaded.Classified.Profile.GradeState == TerrainGradeState.Available ? ready : hidden,
                 loaded.Classified.Profile.Windows.Any(window => window.Pedalling is not null) ? ready : hidden)
         };

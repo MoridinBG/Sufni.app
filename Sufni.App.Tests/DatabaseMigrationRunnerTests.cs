@@ -71,8 +71,8 @@ public class DatabaseMigrationRunnerTests
     {
         using var temp = new TempDatabase();
         var session = new Session(Guid.NewGuid(), "ride", "", null, 100) { ProcessedData = [1], DurationSeconds = 10 };
-        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0)], TerrainRoughnessState.NoSensor,
-            TerrainGradeState.NoFrameSensor, null, null);
+        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0)], TerrainGradeState.NoFrameSensor,
+            null, null);
         TerrainProfileKey key;
         await using (var db = new TestPersistenceHarness(temp.DatabasePath))
         {

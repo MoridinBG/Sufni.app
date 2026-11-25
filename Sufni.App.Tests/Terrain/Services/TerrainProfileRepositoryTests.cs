@@ -57,7 +57,7 @@ public class TerrainProfileRepositoryTests
         await connection.ExecuteAsync("""
             INSERT INTO session_terrain_profile (session_id, terrain_profile_key, terrain_outcome, terrain_summary, profile)
             VALUES (?, ?, ?, ?, ?)
-            """, session.Id, AppJson.Serialize(key with { AlgorithmVersion = 4, CalibrationVersion = 1 }), (int)TerrainOutcome.Computed,
+            """, session.Id, AppJson.Serialize(key with { AlgorithmVersion = 4 }), (int)TerrainOutcome.Computed,
             """{"ClassifiedMetres":590,"CalmShare":0.08,"MediumShare":0.39,"RoughShare":0.53,"GentleShare":null,"ModerateShare":null,"SteepShare":null,"DominantSource":"frame_only"}""",
             new byte[] { 1 });
 

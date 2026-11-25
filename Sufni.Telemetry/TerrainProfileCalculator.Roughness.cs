@@ -12,7 +12,6 @@ public static partial class TerrainProfileCalculator
         if (imu is null || meta is null) return [];
         var matching = ImmutableArray.CreateBuilder<TerrainMatchSample>();
         var location = (ImuLocation)meta.LocationId;
-        var calibration = TerrainCalibration.For(location, meta.AccelLsbPerG);
         var exponent = location switch
         {
             ImuLocation.Frame => FrameSpeedExponent,
@@ -45,7 +44,7 @@ public static partial class TerrainProfileCalculator
                     {
                         var scaled = levels[0, i] * Math.Pow(ReferenceSpeed / w.MeanSpeed, exponent);
                         var measured = new SensorRoughness(levels[0, i], levels[1, i], levels[2, i], levels[3, i],
-                            scaled, calibration?.Normalise(scaled), (double)(clipped[b] - clipped[a]) / (b - a));
+                            scaled, (double)(clipped[b] - clipped[a]) / (b - a));
                         windows[i] = location switch
                         {
                             ImuLocation.Frame => w with { Frame = measured },

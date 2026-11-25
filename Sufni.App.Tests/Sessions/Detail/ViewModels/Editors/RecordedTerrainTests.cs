@@ -210,7 +210,7 @@ public class RecordedTerrainTests
         using var h = new SessionDetailHarness();
         var session = h.CreateRecordedSession();
         var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0), TerrainProfiles.Window(1)],
-            TerrainRoughnessState.NoSensor, frameScale: null, forkScale: null) with
+            frameScale: null, forkScale: null) with
         {
             SilentSensors = silent ? [TerrainSensor.FrameImu] : []
         };
@@ -232,8 +232,10 @@ public class RecordedTerrainTests
         await h.CloseAsync(editor);
     }
 
-    [AvaloniaFact]
-    public async Task PublishedProfileReplacesTheBusyRows()
+    [AvaloniaTheory]
+    [InlineData(2048d, true)]
+    [InlineData(null, false)]
+    public async Task PublishedProfileReplacesTheBusyRowsAndShowsRoughnessOnlyWithAnImu(double? frameScale, bool roughness)
     {
         using var h = new SessionDetailHarness();
         var session = h.CreateRecordedSession();
@@ -241,12 +243,13 @@ public class RecordedTerrainTests
         using var changes = new BehaviorSubject<RecordedSessionDomainSnapshot>(domain);
         var editor = h.CreateRecordedEditor(session, projectionChanges: changes);
         await h.LoadAsync(editor);
-        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0)], TerrainRoughnessState.ValuesOnly,
-            TerrainGradeState.NoElevation, 2048, null);
+        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0)], TerrainGradeState.NoElevation,
+            frameScale, null);
         changes.OnNext(h.WithTerrain(session, profile));
         await ViewTestHelpers.FlushDispatcherAsync();
         Assert.True(editor.SignalsWorkspace.TerrainSignalState.IsReady);
-        Assert.True(editor.SignalsWorkspace.RoughnessSignalState.IsReady);
+        Assert.Equal(roughness, editor.SignalsWorkspace.RoughnessSignalState.IsReady);
+        Assert.Equal(!roughness, editor.SignalsWorkspace.RoughnessSignalState.IsHidden);
         Assert.True(editor.SignalsWorkspace.GradeSignalState.IsHidden);
         await h.CloseAsync(editor);
     }
@@ -328,7 +331,7 @@ public class RecordedTerrainTests
         using var h = new SessionDetailHarness();
         var session = h.CreateRecordedSession();
         var key = SessionTerrainStatusQuery.Evaluate(session, []).Key;
-        var profile = TerrainProfiles.Profile([], TerrainRoughnessState.NoSensor, TerrainGradeState.NoFrameSensor, null, null);
+        var profile = TerrainProfiles.Profile([], TerrainGradeState.NoFrameSensor, null, null);
         var domain = SessionDetailHarness.DomainFromSnapshot(session);
         var current = new TerrainStatus.Current(key, TerrainProfileCalculator.Summarize(profile));
         using var changes = new BehaviorSubject<RecordedSessionDomainSnapshot>(domain with { Terrain = current });
