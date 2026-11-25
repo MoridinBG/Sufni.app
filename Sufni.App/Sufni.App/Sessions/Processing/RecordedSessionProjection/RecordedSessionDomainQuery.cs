@@ -2,6 +2,8 @@ using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.MapsAndTracks.Models;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Queries;
 using Sufni.Telemetry;
 
@@ -30,16 +32,21 @@ public sealed class RecordedSessionDomainQuery(
         var setup = session?.SetupId is { } setupId
             ? setupStore.Get(setupId)
             : null;
-        return session is null
-            ? null
-            : RecordedSessionDomainSnapshotFactory.Create(
-                session,
-                setup,
-                setup is null ? null : bikeStore.Get(setup.BikeId),
-                sourceStore.Get(session.RecordingSourceSessionId),
-                fingerprintService,
-                setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id),
-                trackStore.GetAll());
+        if (session is null) return null;
+        var tracks = trackStore.GetAll();
+        var scale = session.SetupId is { } id
+            ? SetupTerrainScaleQuery.Evaluate(sessionStore.GetAll()
+                .Where(other => other.SetupId == id && other.Id != session.Id).Append(session), tracks)[id]
+            : null;
+        return RecordedSessionDomainSnapshotFactory.Create(
+            session,
+            setup,
+            setup is null ? null : bikeStore.Get(setup.BikeId),
+            sourceStore.Get(session.RecordingSourceSessionId),
+            fingerprintService,
+            setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id),
+            tracks,
+            scale);
     }
 }
 
@@ -52,7 +59,8 @@ internal static class RecordedSessionDomainSnapshotFactory
         RecordedSessionSourceSnapshot? source,
         IProcessingFingerprintService fingerprintService,
         string? dependencyHash,
-        IReadOnlyList<TrackSnapshot> tracks)
+        IReadOnlyList<TrackSnapshot> tracks,
+        SetupTerrainScale? terrainScale)
     {
         var effectiveDependencyHash = setup is null || bike is null
             ? null
@@ -69,6 +77,6 @@ internal static class RecordedSessionDomainSnapshotFactory
             source,
             evaluation.Staleness,
             effectiveDependencyHash,
-            selectedTrack) { Terrain = terrain.Status };
+            selectedTrack) { Terrain = terrain.Status, TerrainScale = terrainScale };
     }
 }

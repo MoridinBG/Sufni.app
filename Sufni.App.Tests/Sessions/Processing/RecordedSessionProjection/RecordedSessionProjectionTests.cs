@@ -260,6 +260,71 @@ public class RecordedSessionProjectionTests
         Assert.Null(unavailable.CurrentFingerprint);
     }
 
+    [Fact]
+    public async Task MeasurementSummaryChangeRepublishesTheScaleOfEverySessionOfTheSetup()
+    {
+        var scheduler = new ManualUiThreadDispatcher();
+        using var stores = new StoreFixtures();
+        var fingerprints = new ProcessingFingerprintService();
+        using var projection = stores.CreateProjection(fingerprints, scheduler);
+        var first = CreateCurrentContext(fingerprints);
+        var third = Sibling(first);
+        using var observation = projection.ConnectSessions().Bind(out var summaries).Subscribe();
+        await stores.AddAsync(first with { Session = Measured(first.Session) });
+        await stores.AddAsync(Sibling(first) with { Session = Measured(Sibling(first).Session) });
+        await stores.AddAsync(third);
+        await scheduler.DrainAsync();
+        Assert.Equal(TerrainScaleKey.None, summaries.Single(summary => summary.Id == first.Session.Id).TerrainScale);
+
+        await stores.Sessions.PublishSessionsChangedAsync([Measured(third.Session)]);
+        await scheduler.DrainAsync();
+        Assert.Equal(new TerrainScaleKey(5, null, null, null), summaries.Single(summary => summary.Id == first.Session.Id).TerrainScale);
+    }
+
+    [Fact]
+    public async Task EvaluationOverAnEarlierSetupScaleIsRecomputed()
+    {
+        var scheduler = new ManualUiThreadDispatcher();
+        var runner = new DeferredBackgroundTaskRunner();
+        using var stores = new StoreFixtures();
+        var fingerprints = new ProcessingFingerprintService();
+        using var projection = stores.CreateProjection(fingerprints, scheduler, runner);
+        var first = Measured(CreateCurrentContext(fingerprints));
+        var third = Sibling(first);
+        await stores.AddAsync(first);
+        await stores.AddAsync(Measured(Sibling(first)));
+        await stores.AddAsync(third);
+        await scheduler.DrainAsync();
+        await CompleteEvaluationAsync(runner, scheduler);
+        var domains = new List<RecordedSessionDomainSnapshot>();
+        using var watch = projection.WatchSession(first.Session.Id).Subscribe(domains.Add);
+        domains.Clear();
+
+        await stores.Sessions.PublishSessionsChangedAsync([first.Session with { Name = "renamed" }]);
+        await scheduler.DrainAsync();
+        await stores.Sessions.PublishSessionsChangedAsync([Measured(third.Session)]);
+        await CompleteEvaluationAsync(runner, scheduler);
+        Assert.Empty(domains);
+        await CompleteEvaluationAsync(runner, scheduler);
+        Assert.Equal(new TerrainScaleKey(5, null, null, null), Assert.Single(domains).TerrainScale?.Key);
+    }
+
+    private static TestContext Sibling(TestContext context)
+    {
+        var id = Guid.NewGuid();
+        return context with { Session = context.Session with { Id = id, TerrainProfileKey = null }, Source = context.Source with { SessionId = id } };
+    }
+
+    private static TestContext Measured(TestContext context) => context with { Session = Measured(context.Session) };
+
+    /// <summary>The session with a current profile of 2 km of frame readings in level bin 5.</summary>
+    private static SessionSnapshot Measured(SessionSnapshot session)
+    {
+        var frame = new LevelDistribution(System.Collections.Immutable.ImmutableSortedDictionary<int, double>.Empty.Add(5, 2000));
+        return TestSnapshots.WithCurrentTerrain(session, TerrainOutcome.Computed,
+            new TerrainSummary(2000, null, 0, 0, null, FrameImu: frame));
+    }
+
     private static async Task CompleteEvaluationAsync(DeferredBackgroundTaskRunner runner, ManualUiThreadDispatcher scheduler)
     {
         await runner.RunNextAsync();

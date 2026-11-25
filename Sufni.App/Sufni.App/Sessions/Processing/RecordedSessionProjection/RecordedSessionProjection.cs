@@ -15,6 +15,8 @@ using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
 using Sufni.App.Shared.Stores;
+using Sufni.App.Terrain.Models;
+using Sufni.App.Terrain.Queries;
 
 namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
@@ -37,6 +39,8 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
     private readonly StorePublication publication;
     private readonly SourceCache<RecordedSessionSummary, Guid> summaries = new(summary => summary.Id);
     private readonly Dictionary<Guid, Guid?> sessionToSetup = [];
+    // The terrain scale of a setup reads every session of the setup, so a sibling change advances its generation.
+    private readonly Dictionary<Guid, long> terrainGenerations = [];
     private readonly Dictionary<Guid, RecordedSessionDomainSnapshot> domains = [];
     private readonly Dictionary<Guid, SessionWatch> watches = [];
     private readonly CompositeDisposable subscriptions = [];
@@ -151,6 +155,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
             pendingRecomputeIds.Clear();
             removedSessionIds.Clear();
             sessionToSetup.Clear();
+            terrainGenerations.Clear();
             domains.Clear();
             completed = watches.Values.ToArray();
             watches.Clear();
@@ -172,15 +177,36 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                     sessionToSetup.Remove(change.Key);
                     pendingRecomputeIds.Remove(change.Key);
                     removedSessionIds.Add(change.Key);
+                    AdvanceTerrain(change.Current.SetupId);
                 }
                 else if (change.Reason != ChangeReason.Moved)
                 {
                     sessionToSetup[change.Key] = change.Current.SetupId;
                     removedSessionIds.Remove(change.Key);
                     pendingRecomputeIds.Add(change.Key);
+                    if (change.Reason == ChangeReason.Add || !change.Previous.HasValue)
+                        AdvanceTerrain(change.Current.SetupId);
+                    else if (change.Previous.Value.SetupId != change.Current.SetupId)
+                    {
+                        AdvanceTerrain(change.Previous.Value.SetupId);
+                        AdvanceTerrain(change.Current.SetupId);
+                    }
+                    else if (TerrainChanged(change.Previous.Value, change.Current))
+                        AdvanceTerrain(change.Current.SetupId);
                 }
             }
         }
+    }
+
+    private static bool TerrainChanged(SessionSnapshot previous, SessionSnapshot current) =>
+        previous.TerrainProfileKey != current.TerrainProfileKey || previous.TerrainOutcome != current.TerrainOutcome ||
+        previous.TerrainSummary != current.TerrainSummary;
+
+    private void AdvanceTerrain(Guid? setupId)
+    {
+        if (setupId is not { } id) return;
+        terrainGenerations[id] = terrainGenerations.GetValueOrDefault(id) + 1;
+        pendingRecomputeIds.UnionWith(sessionToSetup.Where(pair => pair.Value == id).Select(pair => pair.Key));
     }
 
     private void QueueForSetups(IEnumerable<Guid> setupIds)
@@ -247,27 +273,39 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
     private async void FlushPendingRecomputes()
     {
         ProjectionInput[] inputs;
+        SessionSnapshot[] setupSessions;
+        IReadOnlyList<TrackSnapshot> tracks;
         lock (stateGate)
         {
             if (disposed) return;
-            var tracks = trackStore.GetAll();
+            tracks = trackStore.GetAll();
             var clips = videoStore.GetAll();
             inputs = pendingRecomputeIds.Select(id => Capture(id, tracks, clips)).OfType<ProjectionInput>().ToArray();
             pendingRecomputeIds.Clear();
+            var setupIds = inputs.Select(input => input.Session.SetupId).OfType<Guid>().ToHashSet();
+            setupSessions = sessionToSetup
+                .Where(pair => pair.Value is { } setupId && setupIds.Contains(setupId))
+                .Select(pair => sessionStore.Get(pair.Key))
+                .OfType<SessionSnapshot>()
+                .ToArray();
         }
         (ProjectionInput Input, RecordedSessionDomainSnapshot Domain, SessionVideoSnapshot? Video)[] results;
         try
         {
-            results = await backgroundTaskRunner.RunAsync(() => inputs.Select(input =>
+            results = await backgroundTaskRunner.RunAsync(() =>
             {
-                var domain = RecordedSessionDomainSnapshotFactory.Create(
-                    input.Session, input.Setup, input.Bike, input.Source, fingerprintService, input.DependencyHash,
-                    input.Tracks);
-                var video = SessionVideoSelection.ForWindow(input.Clips, input.Source?.SourceHash,
-                    new SessionTrackTimeline(0, OwnerOriginSeconds: input.Session.WindowStartSeconds), input.Session.DurationSeconds)
-                    .MaxBy(clip => clip.Added);
-                return (Input: input, Domain: domain, Video: video);
-            }).ToArray()).ConfigureAwait(false);
+                var scales = SetupTerrainScaleQuery.Evaluate(setupSessions, tracks);
+                return inputs.Select(input =>
+                {
+                    var domain = RecordedSessionDomainSnapshotFactory.Create(
+                        input.Session, input.Setup, input.Bike, input.Source, fingerprintService, input.DependencyHash,
+                        input.Tracks, input.Session.SetupId is { } setupId ? scales.GetValueOrDefault(setupId) : null);
+                    var video = SessionVideoSelection.ForWindow(input.Clips, input.Source?.SourceHash,
+                        new SessionTrackTimeline(0, OwnerOriginSeconds: input.Session.WindowStartSeconds), input.Session.DurationSeconds)
+                        .MaxBy(clip => clip.Added);
+                    return (Input: input, Domain: domain, Video: video);
+                }).ToArray();
+            }).ConfigureAwait(false);
         }
         catch
         {
@@ -295,7 +333,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                                 session.Id, session.Updated, session.Name, session.Description,
                                 session.Timestamp, session.HasProcessedData, domain.Staleness,
                                 session.DurationSeconds, session.DistanceMeters, session.AscentMeters, session.DescentMeters, video,
-                                domain.Setup?.BikeId) { Terrain = domain.Terrain });
+                                domain.Setup?.BikeId, session.SetupId) { Terrain = domain.Terrain, TerrainScale = domain.TerrainScale?.Key });
                         }
                     })).GetAwaiter().GetResult();
                     foreach (var (_, domain, _) in current)
@@ -321,14 +359,16 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         var setup = session.SetupId is { } setupId ? setupStore.Get(setupId) : null;
         var bike = setup is null ? null : bikeStore.Get(setup.BikeId);
         return new ProjectionInput(session, setup, bike, sourceStore.Get(session.RecordingSourceSessionId),
-            setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id), tracks, trackGeneration, clips, videoGeneration);
+            setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id), tracks, trackGeneration, clips, videoGeneration,
+            session.SetupId is { } terrainSetupId ? terrainGenerations.GetValueOrDefault(terrainSetupId) : 0);
     }
 
     private bool IsCurrent(ProjectionInput input)
     {
         var current = Capture(input.Session.Id, input.Tracks, input.Clips);
         if (current is null) return false;
-        if (input.VideoGeneration == current.VideoGeneration && input.TrackGeneration == current.TrackGeneration && input.Session == current.Session && input.Setup == current.Setup &&
+        if (input.VideoGeneration == current.VideoGeneration && input.TrackGeneration == current.TrackGeneration &&
+            input.TerrainGeneration == current.TerrainGeneration && input.Session == current.Session && input.Setup == current.Setup &&
             input.Bike == current.Bike && input.Source == current.Source && input.DependencyHash == current.DependencyHash)
             return true;
         pendingRecomputeIds.Add(input.Session.Id);
@@ -352,7 +392,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
 
     private sealed record ProjectionInput(SessionSnapshot Session, SetupSnapshot? Setup, BikeSnapshot? Bike,
         RecordedSessionSourceSnapshot? Source, string? DependencyHash, IReadOnlyList<TrackSnapshot> Tracks, long TrackGeneration,
-        IReadOnlyList<SessionVideoSnapshot> Clips, long VideoGeneration);
+        IReadOnlyList<SessionVideoSnapshot> Clips, long VideoGeneration, long TerrainGeneration);
 
 
 }

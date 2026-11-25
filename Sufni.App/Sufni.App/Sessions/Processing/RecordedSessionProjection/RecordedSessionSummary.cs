@@ -2,6 +2,7 @@ using Sufni.App.Video.Stores;
 using System;
 
 using Sufni.App.Terrain.Models;
+using Sufni.Telemetry;
 namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
 /// <summary>
@@ -23,7 +24,9 @@ public sealed record RecordedSessionSummary(
     double? AscentMeters = null,
     double? DescentMeters = null,
     SessionVideoSnapshot? LatestVideo = null,
-    Guid? BikeId = null)
+    Guid? BikeId = null,
+    Guid? SetupId = null)
 {
     public required TerrainStatus Terrain { get; init; }
+    public TerrainScaleKey? TerrainScale { get; init; }
 }

@@ -22,4 +22,7 @@ public sealed record RecordedSessionDomainSnapshot(
     TrackSnapshot? SelectedTrack = null)
 {
     public required TerrainStatus Terrain { get; init; }
+
+    /// <summary>The terrain scale of the session's setup; null without a setup.</summary>
+    public SetupTerrainScale? TerrainScale { get; init; }
 }
