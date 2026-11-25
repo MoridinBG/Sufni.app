@@ -105,11 +105,6 @@ mc:Ignorable="d">
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <Panel IsVisible="{Binding Workspace.SessionInsights.HasGroundComfort}">
-
-                            <controls2:SessionInsightsGroundComfortPanel Name="MobileSessionInsightsGroundComfortPanel" DataContext="{Binding Workspace.SessionInsights.GroundComfort}" />
-
-                        </Panel>
                         <Panel IsVisible="{Binding Workspace.SessionInsights.HasClimbing}">
                             <controls2:SessionInsightsClimbingPanel Name="MobileSessionInsightsClimbingPanel" DataContext="{Binding Workspace.SessionInsights.Climbing}" />
                         </Panel>

@@ -6,15 +6,16 @@
              x:Class="Sufni.App.Sessions.Insights.Views.Items.SessionBikeResponseView"
              x:DataType="vm:ISessionAnalysisWorkspace">
     <StackPanel Spacing="8">
-        <StackPanel>
-            <TextBlock FontSize="16" FontWeight="SemiBold" Text="Bike response" />
-            <TextBlock FontSize="12" Opacity="0.75" Text="{Binding SessionAnalysisRangeText}" />
-        </StackPanel>
+        <TextBlock FontSize="16" FontWeight="SemiBold" Text="{Binding SessionAnalysisRangeText}" />
         <overlays:PlaceholderOverlayContainer PresentationState="{Binding SessionInsights.State}">
             <overlays:PlaceholderOverlayContainer.ReadyContent>
                 <StackPanel Spacing="8">
                     <segments:SegmentTerrainComparisonView Name="TrailComparison" DataContext="{Binding SegmentComparison}" />
                     <insightControls:SessionInsightsResponsePanel Name="ResponsePanel" DataContext="{Binding SessionInsights.Response}" />
+                    <Panel IsVisible="{Binding SessionInsights.HasGroundComfort}">
+                        <insightControls:SessionInsightsGroundComfortPanel Name="GroundComfortPanel"
+                                                                           DataContext="{Binding SessionInsights.GroundComfort}" />
+                    </Panel>
                 </StackPanel>
             </overlays:PlaceholderOverlayContainer.ReadyContent>
             <overlays:PlaceholderOverlayContainer.PlaceholderContent>
