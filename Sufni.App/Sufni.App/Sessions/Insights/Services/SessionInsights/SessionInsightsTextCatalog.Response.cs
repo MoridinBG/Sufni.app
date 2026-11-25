@@ -23,6 +23,9 @@ internal static partial class SessionInsightsTextCatalog
         _ => string.Empty
     };
 
+    public const string ResponseWithoutTerrain = "Bike response needs a terrain profile for this ride.";
+    public const string ResponseBaselineLoading = "Your usual is still loading.";
+
     private static string Riding(int windows) => UnitsFormatter.FormatDistance(windows * TerrainProfileCalculator.WindowMetres);
 
     private static string Sensors(IEnumerable<TerrainResponseRow> rows)

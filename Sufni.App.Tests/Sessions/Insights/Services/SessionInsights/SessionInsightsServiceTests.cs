@@ -82,6 +82,19 @@ public class SessionInsightsServiceTests
     }
 
     [Theory]
+    [InlineData(false, SessionResponseState.NoTerrain)]
+    [InlineData(true, SessionResponseState.BaselineLoading)]
+    public void BikeResponseWithoutAFittedUsualSaysWhy(bool hasTerrain, SessionResponseState state)
+    {
+        var result = hasTerrain
+            ? Analyze(TerrainProfiles.Classified(TerrainProfiles.Window(0)), null,
+                baseline: new TerrainBaseline.NotLoaded(TerrainBaselineIdentity.Empty))
+            : service.Analyze(CreateRequest(CreateTelemetry(front: BuildSide(), rear: BuildSide())));
+
+        Assert.Equal((state, true), (result.Response.State, result.Response.IsVisible));
+    }
+
+    [Theory]
     [InlineData(null, true)]
     [InlineData(100d, false)]
     public void ClimbingCardFollowsTheTimeRangeNotTheScope(double? rangeEnd, bool shown)
@@ -292,10 +305,10 @@ public class SessionInsightsServiceTests
         TelemetryTimeSelection? selection = null) => Analyze(profile, analysisRange, selection).Response;
 
     private SessionInsightsResult Analyze(TerrainProfile profile, TelemetryTimeRange? analysisRange,
-        TelemetryTimeSelection? selection = null, TerrainScope? scope = null)
+        TelemetryTimeSelection? selection = null, TerrainScope? scope = null, TerrainBaseline? baseline = null)
     {
-        var input = new SessionTerrainInput(profile, new TerrainBaseline.Fitted(TerrainBaselineIdentity.Empty, TestResponseRows.Usual()), analysisRange,
-            scope);
+        var input = new SessionTerrainInput(profile,
+            baseline ?? new TerrainBaseline.Fitted(TerrainBaselineIdentity.Empty, TestResponseRows.Usual()), analysisRange, scope);
         var request = CreateRequest(CreateTelemetry(front: BuildSide(), rear: BuildSide()), terrain: input);
         return service.Analyze(selection is null ? request : request with { Selection = selection });
     }

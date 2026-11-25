@@ -4,13 +4,16 @@
              x:DataType="models:SessionResponsePanel"
              x:Class="Sufni.App.Sessions.Insights.Views.Controls.SessionInsightsResponsePanel"
              IsVisible="{Binding IsVisible, FallbackValue=False}">
-    <StackPanel Spacing="6">
-        <TextBlock Text="Bike response against your usual" FontWeight="SemiBold" />
-        <TextBlock Name="Description" Text="{Binding Description}" TextWrapping="Wrap" />
-        <TextBlock Name="Hint" Text="{Binding Hint}" IsVisible="{Binding Hint, Converter={x:Static ObjectConverters.IsNotNull}}"
-                   TextWrapping="Wrap" FontStyle="Italic" />
-        <Panel IsVisible="{Binding Report, Converter={x:Static ObjectConverters.IsNotNull}}">
-            <terrain:TerrainResponseReportView Name="Report" DataContext="{Binding Report}" />
-        </Panel>
-    </StackPanel>
+    <Border Padding="10" BorderBrush="{DynamicResource SufniLineDefaultBrush}" BorderThickness="1" CornerRadius="6">
+        <StackPanel Spacing="8">
+            <TextBlock FontSize="15" FontWeight="SemiBold" Text="Bike response against your usual"
+                       ToolTip.Tip="Your usual is fitted on your other rides on this bike. It predicts how the fork and shock respond to the ground roughness and your speed. Climbs are left out." />
+            <TextBlock Name="Description" Text="{Binding Description}" TextWrapping="Wrap" />
+            <TextBlock Name="Hint" Text="{Binding Hint}" IsVisible="{Binding Hint, Converter={x:Static ObjectConverters.IsNotNull}}"
+                       TextWrapping="Wrap" FontStyle="Italic" Opacity="0.75" />
+            <Panel IsVisible="{Binding Report, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <terrain:TerrainResponseReportView Name="Report" DataContext="{Binding Report}" />
+            </Panel>
+        </StackPanel>
+    </Border>
 </UserControl>

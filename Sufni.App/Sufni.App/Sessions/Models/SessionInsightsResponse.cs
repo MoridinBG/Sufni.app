@@ -7,15 +7,15 @@ namespace Sufni.App.Sessions.Models;
 public sealed record SessionTerrainInput(TerrainProfile Profile, TerrainBaseline Baseline, TelemetryTimeRange? AnalysisRange,
     TerrainScope? Scope);
 
-public enum SessionResponseState { NoTerrain, InsufficientBaseline, Reported, BaselineError }
+public enum SessionResponseState { NoTerrain, BaselineLoading, InsufficientBaseline, Reported, BaselineError }
 
 /// <summary>
 /// The bike response panel: the state of your usual in one sentence, the report once it is fitted, and the experimental
-/// character hint, which needs no baseline.
+/// character hint, which needs no baseline. A panel without a sentence is hidden.
 /// </summary>
 public sealed record SessionResponsePanel(SessionResponseState State, string Description, TerrainResponseReport? Report = null,
     string? Hint = null)
 {
     public static SessionResponsePanel Hidden { get; } = new(SessionResponseState.NoTerrain, string.Empty);
-    public bool IsVisible => State != SessionResponseState.NoTerrain;
+    public bool IsVisible => Description.Length > 0;
 }

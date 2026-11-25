@@ -33,14 +33,16 @@ internal static class SessionInsightsPresenter
             displayFindings)
         {
             NextStep = BuildNextStep(presented),
-            Response = PresentResponse(report.Response),
+            Response = PresentResponse(report.Response, context.Request.Terrain),
             GroundComfortNote = SessionInsightsTextCatalog.GroundComfortNote(context.Request.Terrain),
             Climbing = context.Request.Terrain is { } terrain ? ClimbingReports.Build(terrain.Profile, terrain.AnalysisRange) : null,
         };
     }
 
-    private static SessionResponsePanel PresentResponse(TerrainResponseDiagnostics? response) => response is null
-        ? SessionResponsePanel.Hidden
+    private static SessionResponsePanel PresentResponse(TerrainResponseDiagnostics? response, SessionTerrainInput? terrain) => response is null
+        ? terrain is null
+            ? new(SessionResponseState.NoTerrain, SessionInsightsTextCatalog.ResponseWithoutTerrain)
+            : new(SessionResponseState.BaselineLoading, SessionInsightsTextCatalog.ResponseBaselineLoading)
         : new(response.State, SessionInsightsTextCatalog.ResponseDescription(response),
             response.State == SessionResponseState.Reported ? TerrainResponseReports.AgainstUsual(response.Rows) : null,
             SessionInsightsTextCatalog.CharacterHint(response.Character));

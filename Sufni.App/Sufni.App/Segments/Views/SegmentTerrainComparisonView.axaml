@@ -4,14 +4,17 @@
              x:DataType="vm:SegmentComparisonViewModel"
              x:Class="Sufni.App.Segments.Views.SegmentTerrainComparisonView"
              IsVisible="{Binding HasAnalysisComparison, FallbackValue=False}">
-    <StackPanel Spacing="6" Margin="0,6,0,12">
-        <TextBlock Text="Same-trail comparison" FontWeight="SemiBold" />
-        <TextBlock Name="Message" Text="{Binding TerrainReport.Message}" IsVisible="{Binding TerrainReport.HasMessage, FallbackValue=False}"
-                   TextWrapping="Wrap" />
-        <TextBlock Name="Pace" Text="{Binding TerrainReport.Pace}" IsVisible="{Binding TerrainReport.HasPace, FallbackValue=False}"
-                   TextWrapping="Wrap" />
-        <Panel IsVisible="{Binding TerrainReport.HasResponse, FallbackValue=False}">
-            <terrain:TerrainResponseReportView Name="Report" DataContext="{Binding TerrainReport.Response}" />
-        </Panel>
-    </StackPanel>
+    <Border Padding="10" BorderBrush="{DynamicResource SufniLineDefaultBrush}" BorderThickness="1" CornerRadius="6">
+        <StackPanel Spacing="8">
+            <TextBlock FontSize="15" FontWeight="SemiBold" Text="Same-trail comparison"
+                       ToolTip.Tip="Compares this run with the matched run of the segment on the same stretches of trail." />
+            <TextBlock Name="Message" Text="{Binding TerrainReport.Message}" IsVisible="{Binding TerrainReport.HasMessage, FallbackValue=False}"
+                       TextWrapping="Wrap" />
+            <TextBlock Name="Pace" Text="{Binding TerrainReport.Pace}" IsVisible="{Binding TerrainReport.HasPace, FallbackValue=False}"
+                       TextWrapping="Wrap" />
+            <Panel IsVisible="{Binding TerrainReport.HasResponse, FallbackValue=False}">
+                <terrain:TerrainResponseReportView Name="Report" DataContext="{Binding TerrainReport.Response}" />
+            </Panel>
+        </StackPanel>
+    </Border>
 </UserControl>
