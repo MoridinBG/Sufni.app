@@ -28,6 +28,7 @@ public sealed class TerrainSignalPlot(Plot plot, SufniTheme? theme = null) : Rec
         {
             Add(terrain.Frame, "Frame", "g", PlotTheme.Series.ImuFrame);
             Add(terrain.Fork, "Fork", "g", PlotTheme.Series.ImuFork);
+            Add(terrain.RearAxle, "Rear axle", "g", PlotTheme.Series.ImuRearAxle);
             if (series.Count > 0)
             {
                 Shade(terrain.RoughnessRuns.Colour(scales.ColorFor));

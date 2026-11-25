@@ -13,7 +13,10 @@ public class TerrainClassStripPlotTests
         [new(0, 1, RoughnessClass.Smooth), new(1, 9, RoughnessClass.VeryRough)],
         [new(0, 9, GradeBand.SteepDescent)],
         [new([0.5, 1.5, 2.5], [0.8, 3.6, 3.7])], [], [new([0.5, 1.5, 2.5], [11, 12.4, 13])],
-        new(1, 0, 0, false, false, false, false, false, []));
+        new(1, 0, 0, false, false, false, false, false, []))
+    {
+        RearAxle = [new([0.5, 1.5, 2.5], [1.9, 2.1, 2.2])]
+    };
 
     [Fact]
     public void ReadoutNamesTheBandAndLevelUnderTheCursorWithTheMeasuredValues()
@@ -26,6 +29,7 @@ public class TerrainClassStripPlotTests
         Assert.Contains("Grade: Steep descent · 12.4°", text);
         Assert.Contains("Roughness: Very rough", text);
         Assert.Contains("Frame: 3.6 g", text);
+        Assert.Contains("Rear axle: 2.1 g", text);
     }
 
     [Fact]

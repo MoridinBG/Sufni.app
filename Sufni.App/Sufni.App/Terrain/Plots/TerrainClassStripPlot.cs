@@ -78,6 +78,8 @@ public sealed class TerrainClassStripPlot(Plot plot, SufniTheme? theme = null) :
             lines.Add(new("Frame", frame, "g", PlotTheme.Series.ImuFrame.ToScottPlotColor()));
         if (ValueAt(terrain.Fork, position) is { } fork)
             lines.Add(new("Fork", fork, "g", PlotTheme.Series.ImuFork.ToScottPlotColor()));
+        if (ValueAt(terrain.RearAxle, position) is { } rearAxle)
+            lines.Add(new("Rear axle", rearAxle, "g", PlotTheme.Series.ImuRearAxle.ToScottPlotColor()));
         return lines.Count == 0 ? null : new CursorReadout(position, position, 1, lines);
     }
 

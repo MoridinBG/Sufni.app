@@ -34,6 +34,7 @@ internal static class TerrainSourceText
         TerrainSensor.ForkTravel => "Front suspension",
         TerrainSensor.ShockTravel => "Rear suspension",
         TerrainSensor.FrameImu => "Frame",
-        _ => "Fork"
+        TerrainSensor.ForkImu => "Fork",
+        _ => "Rear axle"
     };
 }

@@ -19,16 +19,19 @@ public closed record SegmentTrailAverage
         var average = (TrailAverage.Averaged)measurement;
         var frame = new TerrainSignalSections();
         var fork = new TerrainSignalSections();
+        var rearAxle = new TerrainSignalSections();
         var grade = new TerrainSignalSections();
         for (var i = 0; i < average.Windows.Length; i++)
         {
             var w = average.Windows[i];
             frame.Add(w.StartSeconds, w.EndSeconds, w.FrameLevel);
             fork.Add(w.StartSeconds, w.EndSeconds, w.ForkLevel);
+            rearAxle.Add(w.StartSeconds, w.EndSeconds, w.RearAxleLevel);
             grade.Add(w.StartSeconds, w.EndSeconds, TerrainSignalSections.Degrees(TrailAverage.BaselineGrade(average.Windows, i)));
         }
         return new Averaged(average, [.. Series(frame, "Frame", "g", SegmentComparisonSeriesRole.FrameImu),
-            .. Series(fork, "Fork", "g", SegmentComparisonSeriesRole.ForkImu)], [.. Series(grade, "Grade", "°", SegmentComparisonSeriesRole.Grade)]);
+            .. Series(fork, "Fork", "g", SegmentComparisonSeriesRole.ForkImu),
+            .. Series(rearAxle, "Rear axle", "g", SegmentComparisonSeriesRole.RearAxleImu)], [.. Series(grade, "Grade", "°", SegmentComparisonSeriesRole.Grade)]);
     }
 
     private static ImmutableArray<SegmentComparisonSeries> Series(TerrainSignalSections sections, string label, string unit,

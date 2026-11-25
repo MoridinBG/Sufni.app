@@ -36,6 +36,7 @@ public sealed record TerrainPresentation(ImmutableArray<TerrainRun<RoughnessClas
     /// <summary>Speed-removed frame levels at the descent level boundaries; empty without a calibrated frame scale.</summary>
     public ImmutableArray<double> FrameEdges { get; init; } = [];
     public ImmutableArray<double> ForkEdges { get; init; } = [];
+    public ImmutableArray<TerrainSignalSection> RearAxle { get; init; } = [];
     /// <summary>Rear bob in mm, only in windows where pedalling is detected.</summary>
     public ImmutableArray<TerrainSignalSection> PedalBob { get; init; } = [];
 }

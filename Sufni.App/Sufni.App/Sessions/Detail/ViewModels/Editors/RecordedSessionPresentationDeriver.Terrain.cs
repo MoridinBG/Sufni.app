@@ -14,6 +14,7 @@ internal static partial class RecordedSessionPresentationDeriver
         var grade = ImmutableArray.CreateBuilder<TerrainRun<GradeBand>>();
         var frame = new TerrainSignalSections();
         var fork = new TerrainSignalSections();
+        var rearAxle = new TerrainSignalSections();
         var grades = new TerrainSignalSections();
         var bob = new TerrainSignalSections();
         int joint = 0, frameOnly = 0, forkOnly = 0;
@@ -27,6 +28,7 @@ internal static partial class RecordedSessionPresentationDeriver
             var baseline = TerrainProfileCalculator.BaselineGrade(profile.Windows, i);
             frame.Add(window.StartSeconds, window.EndSeconds, window.Frame?.SpeedRemoved);
             fork.Add(window.StartSeconds, window.EndSeconds, window.Fork?.SpeedRemoved);
+            rearAxle.Add(window.StartSeconds, window.EndSeconds, window.RearAxle?.SpeedRemoved);
             grades.Add(window.StartSeconds, window.EndSeconds, TerrainSignalSections.Degrees(baseline));
             bob.Add(window.StartSeconds, window.EndSeconds, window.Pedalling?.BobMillimetres);
             switch (window.Source)
@@ -52,6 +54,7 @@ internal static partial class RecordedSessionPresentationDeriver
         {
             FrameEdges = Edges(ImuLocation.Frame, profile.FrameScale),
             ForkEdges = Edges(ImuLocation.Fork, profile.ForkScale),
+            RearAxle = rearAxle.Build(),
             PedalBob = bob.Build()
         };
 
