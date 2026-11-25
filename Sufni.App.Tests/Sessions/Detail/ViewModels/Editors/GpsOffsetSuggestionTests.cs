@@ -58,6 +58,12 @@ public class GpsOffsetSuggestionTests
         using var harness = new SessionDetailHarness();
         var session = harness.CreateRecordedSession();
         var (loaded, _) = RideWithTrack(2);
+        var offered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        harness.DialogService.ShowChoiceAsync(default!, default!, default!).ReturnsForAnyArgs(_ =>
+        {
+            offered.TrySetResult();
+            return Task.FromResult<string?>(null);
+        });
         harness.PublishPreferences(SessionPreferences.Default with { LastGpsOffsetTrackId = Guid.NewGuid() });
         var editor = harness.CreateRecordedEditor(session, loaded, deferDomainHandlingWhenInactive: false);
         editor.SetTabActive(false);
@@ -65,7 +71,8 @@ public class GpsOffsetSuggestionTests
         await ViewTestHelpers.FlushDispatcherAsync();
         await harness.DialogService.DidNotReceiveWithAnyArgs().ShowChoiceAsync(default!, default!, default!);
         editor.SetTabActive(true);
-        await ViewTestHelpers.FlushDispatcherAsync();
+        // The resumed offer reaches the dispatcher through the thread pool, so one flush can precede it.
+        await offered.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         await harness.DialogService.ReceivedWithAnyArgs(1).ShowChoiceAsync(default!, default!, default!);
         await harness.CloseAsync(editor);
     }
