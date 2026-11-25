@@ -1,3 +1,4 @@
+using NSubstitute;
 using System.Collections.Immutable;
 using Sufni.App.Segments.Coordinators;
 using Sufni.App.Segments.Models;
@@ -120,6 +121,35 @@ public partial class SegmentCoordinatorTests
         Assert.IsType<SegmentTrailAverage.Failed>(result);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task MatchedRunTakesItsClassesFromTheScaleOfItsSetup(bool catalogueNamesItsSetup)
+    {
+        var (source, match) = TerrainComparisonInputs(0);
+        var compared = await CompareTerrain(source with { Catalog = CatalogueFor(match, catalogueNamesItsSetup) }, match);
+        var classed = Assert.IsType<SegmentTerrainComparison.Compared>(compared).Rows.Where(r => r.Class is not null);
+        Assert.Equal(catalogueNamesItsSetup, classed.Sum(r => r.DistanceMetres) > 0);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task EachAveragedRunTakesItsClassesFromTheScaleOfItsSetup(bool catalogueNamesItsSetup)
+    {
+        var (source, first) = TerrainComparisonInputs(0);
+        var repeated = SyntheticTrailRuns.Record(8, recordingSeed: 40);
+        var second = TestSegmentMatches.OnTrail(source.Classified.Profile, repeated);
+        terrainProfiles.Seed(second.SessionId, source.Key, repeated);
+        var catalog = new TerrainScaleCatalog(CatalogueFor(first, catalogueNamesItsSetup).Keys
+            .AddRange(CatalogueFor(second, catalogueNamesItsSetup).Keys));
+
+        var average = Assert.IsType<SegmentTrailAverage.Averaged>(await CreateCoordinator().BuildTrailAverageAsync(
+            source with { Catalog = catalog }, new(0, source.Classified.Profile.Windows[^1].EndSeconds), [first, second],
+            TestContext.Current.CancellationToken));
+        Assert.Equal(catalogueNamesItsSetup, average.Measurement.Windows.Any(w => w.Roughness is not null));
+    }
+
     [Fact]
     public async Task OneMatchGivesTooFewRunsWithoutReadingProfiles()
     {
@@ -168,6 +198,14 @@ public partial class SegmentCoordinatorTests
             return new SessionProfileReference(id, key);
         }).ToImmutableArray();
         return (new(sourceId, key, TerrainClassifier.Classify(current, SyntheticRide.Scale), new(references), TerrainScaleCatalog.Empty), match);
+    }
+
+    // The matched session belongs to a setup; the catalogue holds the synthetic scale under that setup or under another one.
+    private TerrainScaleCatalog CatalogueFor(SegmentMatch match, bool namesItsSetup)
+    {
+        var setupId = Guid.NewGuid();
+        sessionStore.Get(match.SessionId).Returns(TestSnapshots.Session(id: match.SessionId, setupId: setupId));
+        return new(ImmutableDictionary<Guid, TerrainScaleKey>.Empty.Add(namesItsSetup ? setupId : Guid.NewGuid(), SyntheticRide.Scale));
     }
 
     private static SegmentTerrainSource IncludeMatch(SegmentTerrainSource source, SegmentMatch match) =>

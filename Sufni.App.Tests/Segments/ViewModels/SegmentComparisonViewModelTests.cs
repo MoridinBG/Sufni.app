@@ -239,6 +239,29 @@ public class SegmentComparisonViewModelTests
     }
 
     [Fact]
+    public async Task ChangedScaleCatalogueStartsANewAverageAndANewTerrainComparison()
+    {
+        await using var vm = CreateComparison(new SegmentTerrainComparison.Compared([RoughRow()]));
+        var catalogue = new TerrainScaleCatalog(ImmutableDictionary<Guid, TerrainScaleKey>.Empty.Add(Guid.NewGuid(), TerrainProfiles.Scale));
+        coordinator.BuildTrailAverageAsync(Arg.Any<SegmentTerrainSource>(), Arg.Any<TelemetryTimeRange>(),
+                Arg.Any<IReadOnlyList<SegmentMatch>>(), Arg.Any<CancellationToken>())
+            .Returns(call => new SegmentTrailAverage.Averaged(new(call.Arg<SegmentTerrainSource>().Catalog == catalogue ? 4 : 3, []), [], []));
+        var compared = Comparison(TestSegmentMatches.Match(10, 13));
+        sessionState.OnNext(State() with { Terrain = TerrainSource() });
+        MatchReturns(compared, Comparison(TestSegmentMatches.Match(6, 12)));
+        DetailReturns(compared);
+        await vm.MatchCommand.ExecuteAsync(null);
+        await ((IAsyncRelayCommand)CompareAction(vm.TravelRows[0]).Command!).ExecuteAsync(null);
+        var report = vm.TerrainReport;
+
+        sessionState.OnNext(sessionState.Value with { Terrain = sessionState.Value.Terrain! with { Catalog = catalogue } });
+
+        Assert.Equal(4, Assert.IsType<SegmentTrailAverage.Averaged>(vm.TrailAverage).Measurement.RunCount);
+        Assert.NotNull(vm.TerrainReport);
+        Assert.NotSame(report, vm.TerrainReport);
+    }
+
+    [Fact]
     public async Task FailedTerrainComparisonKeepsTheAnalysisComparison()
     {
         await using var vm = CreateComparison(new SegmentTerrainComparison.Failed());

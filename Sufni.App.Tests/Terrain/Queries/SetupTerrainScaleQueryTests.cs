@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Queries;
@@ -53,6 +54,23 @@ public class SetupTerrainScaleQueryTests
         var session = Ride((5, 6000)) with { SetupId = null };
         Assert.Empty(SetupTerrainScaleQuery.Evaluate([session], []));
     }
+
+    [Fact]
+    public void CatalogueHoldsTheScaleKeyOfEachSetup()
+    {
+        var other = Guid.NewGuid();
+        var key = new TerrainScaleKey(3, null, 5, null);
+        var catalog = SetupTerrainScaleQuery.Catalog([Summary(SetupId, key), Summary(other, TerrainScaleKey.None),
+            Summary(null, key), Summary(Guid.NewGuid(), null)]);
+        Assert.Equal(new TerrainScaleCatalog(ImmutableDictionary<Guid, TerrainScaleKey>.Empty
+            .Add(SetupId, key).Add(other, TerrainScaleKey.None)), catalog);
+    }
+
+    private static RecordedSessionSummary Summary(Guid? setupId, TerrainScaleKey? scale) =>
+        new(Guid.NewGuid(), 0, "ride", "", null, true, new SessionStaleness.Current(), SetupId: setupId)
+        {
+            Terrain = new TerrainStatus.Pending(), TerrainScale = scale
+        };
 
     private static SetupTerrainScale Evaluate(params SessionSnapshot[] sessions) =>
         SetupTerrainScaleQuery.Evaluate(sessions, [])[SetupId];
