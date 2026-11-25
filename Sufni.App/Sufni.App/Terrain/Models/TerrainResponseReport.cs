@@ -3,7 +3,11 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Terrain.Models;
 
-public sealed record ResponseVerdict(ResponseFinding Finding, string Text);
+/// <summary>One finding in words; a confidence note says why its ground gives an unsteady figure, if it does.</summary>
+public sealed record ResponseVerdict(ResponseFinding Finding, string Text, string? ConfidenceNote)
+{
+    public bool IsLowConfidence => ConfidenceNote is not null;
+}
 
 /// <summary>
 /// One response of a chart row against the repeat range that its reference allows. A null target is activity at the
@@ -15,11 +19,14 @@ public sealed record ResponseBar(ResponseTarget? Target, string Label, string Ex
     public bool IsFinding => State == ResponseCellState.Finding;
 }
 
-/// <summary>One ground group of the chart; the coverage note adds what the coverage line cannot show, if anything.</summary>
+/// <summary>
+/// One ground group of the chart. The coverage note adds what the coverage line cannot show, and the confidence note
+/// says why the group gives unsteady figures, if it does.
+/// </summary>
 public sealed record ResponseChartRow(RoughnessClass? Group, string Label, string Coverage, string? CoverageNote,
-    ResponseConfidence Confidence, ImmutableArray<ResponseBar> Fork, ImmutableArray<ResponseBar> Shock)
+    string? ConfidenceNote, ImmutableArray<ResponseBar> Fork, ImmutableArray<ResponseBar> Shock)
 {
-    public bool IsLowConfidence => Confidence == ResponseConfidence.Low;
+    public bool IsLowConfidence => ConfidenceNote is not null;
 }
 
 /// <summary>

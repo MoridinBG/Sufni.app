@@ -25,7 +25,7 @@ internal static class TerrainResponseReports
         IReadOnlyDictionary<ResponseTarget, Measurement> Measurements, ResponseBar? ForkExtra = null, ResponseBar? ShockExtra = null);
 
     public static TerrainResponseReport AgainstUsual(IReadOnlyCollection<TerrainResponseRow> rows) => Build(
-        [.. rows.Select(row => new Group(row.Class, row.Confidence, Coverage(row), ConfidenceNote(row.Confidence),
+        [.. rows.Select(row => new Group(row.Class, row.Confidence, Coverage(row), null,
             row.Cells.ToDictionary(cell => cell.Target, cell => new Measurement(cell.State, cell.Deviation))))],
         TerrainResponse.Findings(rows), TerrainResponse.RepeatRange, "your usual", "The bike behaved as usual.",
         "Each bar compares this ride with what your usual predicts on the same ground at the same speed. " +
@@ -35,8 +35,7 @@ internal static class TerrainResponseReports
         [.. rows.Select(row => new Group(row.Class, row.Confidence,
             row.Pace is { } pace ? $"{TerrainResponseText.Distance(row.DistanceMetres)} · pace {TerrainResponseText.Percent(pace.Median - 1)}"
                 : TerrainResponseText.Distance(row.DistanceMetres),
-            Join(row.Pace is { } range ? $"The middle half of this ground was {PaceRange(range)} against the matched run." : null,
-                ConfidenceNote(row.Confidence)),
+            row.Pace is { } range ? $"The middle half of this ground was {PaceRange(range)} against the matched run." : null,
             row.Responses.ToDictionary(pair => pair.Key, pair => new Measurement(pair.Value.State, pair.Value.Deviation)),
             SamePosition(row.FrontSamePosition), SamePosition(row.RearSamePosition)))],
         TerrainRunComparison.Findings(rows), TerrainRunComparison.RepeatRange, "the matched run",
@@ -62,9 +61,6 @@ internal static class TerrainResponseReports
     private static string? ConfidenceNote(ResponseConfidence confidence) =>
         confidence == ResponseConfidence.Low ? TerrainResponseText.LowConfidenceNote : null;
 
-    private static string? Join(string? first, string? second) =>
-        first is null ? second : second is null ? first : $"{first} {second}";
-
     private static TerrainResponseReport Build(IReadOnlyList<Group> groups, IEnumerable<ResponseFinding> findings,
         Func<ResponseTarget, double> repeatRange, string reference, string asUsual, string guide)
     {
@@ -72,11 +68,11 @@ internal static class TerrainResponseReports
                 group.Measurements.TryGetValue(target, out var m) && m.State != ResponseCellState.TooShort))
             .OrderBy(group => GroupOrder(group.Class)).ToArray();
         var chart = reported.Select(group => new ResponseChartRow(group.Class, GroupLabel(group.Class), group.Coverage,
-            group.CoverageNote, group.Confidence, Bars(group, ForkTargets, group.ForkExtra),
+            group.CoverageNote, ConfidenceNote(group.Confidence), Bars(group, ForkTargets, group.ForkExtra),
             Bars(group, ShockTargets, group.ShockExtra))).ToImmutableArray();
         var verdicts = findings.Where(finding => ReportedTargets.Contains(finding.Target))
             .OrderBy(finding => GroupOrder(finding.Group)).ThenBy(finding => finding.Target)
-            .Select(finding => new ResponseVerdict(finding, Verdict(finding, reference))).ToArray();
+            .Select(finding => new ResponseVerdict(finding, Verdict(finding, reference), ConfidenceNote(finding.Confidence))).ToArray();
         var deviations = chart.SelectMany(row => row.Fork.Concat(row.Shock)).Select(bar => bar.Deviation).OfType<double>().ToArray();
         var summary = verdicts.Length > 0 ? null : deviations.Length > 0 ? asUsual
             : $"No response could be measured on {SuspensionResponseModel.MinimumReportMetres} m or more.";
@@ -107,8 +103,7 @@ internal static class TerrainResponseReports
             ? finding.Deviation > 0 ? "higher" : "lower"
             : finding.Deviation > 0 ? "faster" : "slower";
         var group = finding.Group is { } level ? $" on {TerrainClassText.Name(level).ToLowerInvariant()} ground" : string.Empty;
-        var confidence = finding.Confidence == ResponseConfidence.Low ? " (low confidence)" : string.Empty;
-        return $"{end} {measure}{group} {verb} {Math.Round(Math.Abs(finding.Deviation) * 100):0}% {direction} than {reference}{confidence}.";
+        return $"{end} {measure}{group} {verb} {Math.Round(Math.Abs(finding.Deviation) * 100):0}% {direction} than {reference}.";
     }
 
     private static int GroupOrder(RoughnessClass? group) => group is { } level ? (int)level : -1;

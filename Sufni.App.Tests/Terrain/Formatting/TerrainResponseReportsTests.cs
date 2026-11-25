@@ -38,8 +38,18 @@ public class TerrainResponseReportsTests
             TooShort(RoughnessClass.Calm), Row(RoughnessClass.Rough, 200), Row(null, 900)
         ]);
 
-        Assert.Equal([(null, false, false), (RoughnessClass.Rough, true, true)],
-            report.Chart.Select(row => (row.Group, row.IsLowConfidence, row.CoverageNote is not null)));
+        Assert.Equal([(null, false), (RoughnessClass.Rough, true)], report.Chart.Select(row => (row.Group, row.IsLowConfidence)));
+    }
+
+    [Fact]
+    public void AgainstUsual_MarksVerdictsFromShortGroundAsLowConfidence()
+    {
+        var report = TerrainResponseReports.AgainstUsual([
+            Row(RoughnessClass.Rough, 200, Finding(ResponseTarget.FrontRms, 0.6)), Row(null, 900, Finding(ResponseTarget.FrontRms, 0.6))
+        ]);
+
+        Assert.Equal([(null, false), (RoughnessClass.Rough, true)],
+            report.Fork.Select(verdict => (verdict.Finding.Group, verdict.IsLowConfidence)));
     }
 
     [Theory]

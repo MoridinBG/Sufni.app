@@ -29,13 +29,11 @@ internal static class TerrainResponseText
     public const string SamePositionExplanation = "Activity at the same places on the trail, with the pace difference taken out.";
 
     public static string LowConfidenceNote { get; } =
-        $"Under {SuspensionResponseModel.ConfidentReportMetres} m of this ground, so these figures can change a lot between rides.";
+        $"This ride has under {SuspensionResponseModel.ConfidentReportMetres} m of this ground. On so little ground, the figures can change a lot between rides.";
 
     public static string TooShort { get; } = $"Under {SuspensionResponseModel.MinimumReportMetres} m";
 
-    public static string Distance(double metres) =>
-        metres is >= SuspensionResponseModel.MinimumReportMetres and < SuspensionResponseModel.ConfidentReportMetres
-            ? $"{UnitsFormatter.FormatDistance(metres)} · low confidence" : UnitsFormatter.FormatDistance(metres);
+    public static string Distance(double metres) => UnitsFormatter.FormatDistance(metres);
 
     /// <summary>A signed whole percent with a true minus sign: "−16%".</summary>
     public static string Percent(double deviation)

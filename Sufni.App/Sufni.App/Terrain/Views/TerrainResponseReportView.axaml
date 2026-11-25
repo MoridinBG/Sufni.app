@@ -22,15 +22,28 @@
         <Style Selector="views|DeviationBar">
             <Setter Property="Height" Value="12" />
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="BandBrush" Value="{DynamicResource SufniSelectionSurfaceSubtle}" />
+            <Setter Property="TrackBrush" Value="{DynamicResource SufniSelectionSurfaceSubtleBrush}" />
+            <Setter Property="BandBrush" Value="{DynamicResource SufniLineSubtleBrush}" />
             <Setter Property="BarBrush" Value="{DynamicResource SufniTextSecondary}" />
             <Setter Property="LineBrush" Value="{DynamicResource SufniLineDefaultBrush}" />
         </Style>
         <Style Selector="views|DeviationBar.finding">
             <Setter Property="BarBrush" Value="{DynamicResource SufniAccentPrimary}" />
         </Style>
-        <Style Selector="StackPanel.lowConfidence">
+        <Style Selector="Grid.lowConfidence">
             <Setter Property="Opacity" Value="0.7" />
+        </Style>
+        <Style Selector="Border.badge">
+            <Setter Property="Padding" Value="6,0" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SufniStatusWarningBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.badge > TextBlock">
+            <Setter Property="FontSize" Value="{StaticResource SufniFontSizeCaption}" />
+            <Setter Property="Foreground" Value="{DynamicResource SufniStatusWarningBrush}" />
         </Style>
         <Style Selector="TextBlock.small">
             <Setter Property="FontSize" Value="{StaticResource SufniFontSizeSmall}" />
@@ -45,7 +58,13 @@
     </UserControl.Styles>
     <UserControl.DataTemplates>
         <DataTemplate DataType="models:ResponseVerdict">
-            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
+            <WrapPanel>
+                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                <Border Name="LowConfidence" Classes="badge" Margin="8,0,0,0" IsVisible="{Binding IsLowConfidence}"
+                        ToolTip.Tip="{Binding ConfidenceNote}">
+                    <TextBlock Text="Low confidence" />
+                </Border>
+            </WrapPanel>
         </DataTemplate>
         <DataTemplate DataType="models:ResponseBar">
             <Grid Margin="0,2" ColumnSpacing="8">
@@ -74,23 +93,31 @@
             <ItemsControl ItemsSource="{Binding Shock}" />
         </StackPanel>
         <TextBlock Name="Guide" Classes="small secondary" Text="{Binding Guide}" TextWrapping="Wrap" IsVisible="{Binding HasChart}" />
+        <Grid Name="ChartEnds" ColumnDefinitions="*,*" ColumnSpacing="24" IsVisible="{Binding HasChart}">
+            <TextBlock Text="Fork" FontWeight="SemiBold" />
+            <TextBlock Grid.Column="1" Text="Shock" FontWeight="SemiBold" />
+        </Grid>
         <ItemsControl Name="Chart" ItemsSource="{Binding Chart}" IsVisible="{Binding HasChart}" Grid.IsSharedSizeScope="True">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="models:ResponseChartRow">
-                    <StackPanel Margin="0,6" Spacing="4" Classes.lowConfidence="{Binding IsLowConfidence}">
-                        <TextBlock TextWrapping="Wrap" ToolTip.Tip="{Binding CoverageNote}">
-                            <Run Text="{Binding Label}" FontWeight="SemiBold" />
-                            <Run Text="{Binding Coverage, Mode=OneWay, StringFormat=' · {0}'}" FontSize="{StaticResource SufniFontSizeSmall}"
-                                 Foreground="{DynamicResource SufniTextSecondary}" />
-                        </TextBlock>
-                        <Grid ColumnDefinitions="*,*" ColumnSpacing="24">
+                    <StackPanel Margin="0,6" Spacing="4">
+                        <WrapPanel>
+                            <TextBlock TextWrapping="Wrap" VerticalAlignment="Center" ToolTip.Tip="{Binding CoverageNote}">
+                                <Run Text="{Binding Label}" FontWeight="SemiBold" />
+                                <Run Text="{Binding Coverage, Mode=OneWay, StringFormat=' · {0}'}" FontSize="{StaticResource SufniFontSizeSmall}"
+                                     Foreground="{DynamicResource SufniTextSecondary}" />
+                            </TextBlock>
+                            <Border Name="LowConfidence" Classes="badge" Margin="8,0,0,0" IsVisible="{Binding IsLowConfidence}"
+                                    ToolTip.Tip="{Binding ConfidenceNote}">
+                                <TextBlock Text="Low confidence" />
+                            </Border>
+                        </WrapPanel>
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="24" Classes.lowConfidence="{Binding IsLowConfidence}">
                             <StackPanel>
-                                <TextBlock Classes="small" Text="Fork" FontWeight="SemiBold" />
                                 <ItemsControl ItemsSource="{Binding Fork}" />
                                 <ContentControl Content="{Binding $parent[views:TerrainResponseReportView].DataContext}" ContentTemplate="{StaticResource ResponseScale}" />
                             </StackPanel>
                             <StackPanel Grid.Column="1">
-                                <TextBlock Classes="small" Text="Shock" FontWeight="SemiBold" />
                                 <ItemsControl ItemsSource="{Binding Shock}" />
                                 <ContentControl Content="{Binding $parent[views:TerrainResponseReportView].DataContext}" ContentTemplate="{StaticResource ResponseScale}" />
                             </StackPanel>
