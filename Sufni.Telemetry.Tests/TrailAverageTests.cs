@@ -75,6 +75,19 @@ public class TrailAverageTests
         Assert.NotNull(window.ForkLevel);
     }
 
+    // Three readings of 1, 2 and 4 g give the geometric mean 2 g; two readings give no level.
+    [Theory]
+    [InlineData(3, 2.0)]
+    [InlineData(2, null)]
+    public void RearAxleLevelIsTheGeometricMeanOfAtLeastThreeReadings(int readings, double? expected)
+    {
+        double[] levels = [1, 2, 4];
+        var profiles = Enumerable.Range(0, 4).Select(i => Measurements(i, rearAxleLevel: i < readings ? levels[i] : null)).ToArray();
+        var level = Average(profiles).Windows[0].RearAxleLevel;
+        if (expected is { } value) Assert.Equal(value, level!.Value, 0.0005);
+        else Assert.Null(level);
+    }
+
     [Fact]
     public void GradeBaselineReachesPastAStop()
     {
@@ -118,7 +131,7 @@ public class TrailAverageTests
     private static AlignedTerrainRun Aligned(TerrainProfile profile) => new(profile, TerrainProfiles.Identity(WindowCount));
 
     private static TerrainProfile Measurements(int seed, double frameLevel = 2.31, bool calibrated = true,
-        double? forkLevel = null, bool clipped = false, double grade = GroundGrade)
+        double? forkLevel = null, bool clipped = false, double grade = GroundGrade, double? rearAxleLevel = null)
     {
         var random = new Random(seed);
         var windows = Enumerable.Range(0, WindowCount).Select(i =>
@@ -129,7 +142,8 @@ public class TrailAverageTests
                 Grade = grade + noise,
                 Frame = TerrainProfiles.Sensor(frameLevel, calibrated ? Math.Log(frameLevel / 1.4) / Math.Log(2.2 / 1.4) : null),
                 Fork = forkLevel is { } l
-                    ? TerrainProfiles.Sensor(l, Math.Log(l / 2.5) / Math.Log(3.8 / 2.5), clipped ? 0.10 : 0) : null
+                    ? TerrainProfiles.Sensor(l, Math.Log(l / 2.5) / Math.Log(3.8 / 2.5), clipped ? 0.10 : 0) : null,
+                RearAxle = rearAxleLevel is { } r ? TerrainProfiles.Sensor(r) : null
             };
         });
         return TerrainProfiles.Profile(windows, calibrated ? TerrainRoughnessState.Classified : TerrainRoughnessState.ValuesOnly,

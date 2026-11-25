@@ -11,7 +11,7 @@ public enum RoughnessSource { Both, FrameOnly, ForkOnly }
 public enum TerrainRoughnessState { Classified, ValuesOnly, NoSensor }
 public enum TerrainGradeState { Available, NoFrameSensor, NoElevation, TooShort }
 public enum TerrainUnavailableReason { NoTrack, NoMovement }
-public enum TerrainSensor { ForkTravel, ShockTravel, FrameImu, ForkImu }
+public enum TerrainSensor { ForkTravel, ShockTravel, FrameImu, ForkImu, RearAxleImu }
 
 [MessagePackObject(keyAsPropertyName: true)]
 public sealed record SensorRoughness(double Level, double LowBand, double MiddleBand, double HighBand,
@@ -34,6 +34,7 @@ public sealed record TerrainWindow(double StartMetres, double StartSeconds, doub
 {
     public SensorRoughness? Frame { get; init; }
     public SensorRoughness? Fork { get; init; }
+    public SensorRoughness? RearAxle { get; init; }
     public RoughnessClass? Roughness { get; init; }
     public RoughnessSource? Source { get; init; }
     public double? Grade { get; init; }
@@ -75,6 +76,7 @@ public sealed record TerrainProfile(ImmutableArray<TerrainWindow> Windows,
 {
     /// <summary>Sensors that read zero in most measured moving windows; the profile holds no readings from them.</summary>
     public ImmutableArray<TerrainSensor> SilentSensors { get; init; } = [];
+    public double? RearAxleScale { get; init; }
     public double? FrontMaxTravel { get; init; }
     public double? RearMaxTravel { get; init; }
 }

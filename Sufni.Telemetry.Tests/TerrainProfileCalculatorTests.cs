@@ -118,6 +118,17 @@ public class TerrainProfileCalculatorTests
     }
 
     [Theory]
+    [InlineData(5)]
+    [InlineData(9)]
+    public void RearAxleSpeedRemovalRestoresItsGroundLevelAtReferenceSpeed(double speed)
+    {
+        var ground = new RideSection(900, speed, LowBandG: 1, MiddleBandG: 1, HighBandG: 1);
+        var groundLevel = SyntheticRide.RearAxleLevelFactor * Math.Sqrt(3);
+        var window = SyntheticRide.Build([ground], new RideRecording(RearAxle: true)).Profile().Windows[20];
+        Assert.InRange(window.RearAxle!.SpeedRemoved, groundLevel * 0.97, groundLevel * 1.03);
+    }
+
+    [Theory]
     [InlineData(true, true, 4096, 4096, RoughnessSource.Both)]
     [InlineData(true, false, 4096, 4096, RoughnessSource.FrameOnly)]
     [InlineData(false, true, 4096, 4096, RoughnessSource.ForkOnly)]
@@ -243,16 +254,18 @@ public class TerrainProfileCalculatorTests
     [InlineData(TerrainSensor.ShockTravel)]
     [InlineData(TerrainSensor.FrameImu)]
     [InlineData(TerrainSensor.ForkImu)]
+    [InlineData(TerrainSensor.RearAxleImu)]
     public void SensorReadingZeroInMostMovingWindowsIsIgnored(TerrainSensor sensor)
     {
-        var profile = SyntheticRide.Build([new(600)], new RideRecording(Silence: (sensor, new(0, 55)))).Profile();
+        var profile = SyntheticRide.Build([new(600)], new RideRecording(RearAxle: true, Silence: (sensor, new(0, 55)))).Profile();
         Assert.Equal([sensor], profile.SilentSensors);
         Assert.All(profile.Windows, w => Assert.Null(sensor switch
         {
             TerrainSensor.ForkTravel => w.Front,
             TerrainSensor.ShockTravel => w.Rear,
             TerrainSensor.FrameImu => (object?)w.Frame,
-            _ => w.Fork
+            TerrainSensor.ForkImu => w.Fork,
+            _ => w.RearAxle
         }));
     }
 

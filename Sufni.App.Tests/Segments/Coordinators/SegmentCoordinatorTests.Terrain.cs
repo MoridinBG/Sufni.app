@@ -72,7 +72,7 @@ public partial class SegmentCoordinatorTests
     {
         var (source, match) = TerrainComparisonInputs(0);
         var allRough = new TrailAverage.Averaged(4, [.. source.Profile.Windows.Select((w, i) =>
-            new TrailAverageWindow(i, w.StartSeconds, w.EndSeconds, null, null, null, RoughnessClass.Rough, null))]);
+            new TrailAverageWindow(i, w.StartSeconds, w.EndSeconds, null, null, null, null, RoughnessClass.Rough, null))]);
         var compared = Assert.IsType<SegmentTerrainComparison.Compared>(await CompareTerrain(source, match, allRough));
         Assert.Equal(4, compared.AverageRunCount);
         var all = compared.Rows.Single(r => r.Class is null);

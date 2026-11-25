@@ -5,7 +5,7 @@ namespace Sufni.Telemetry;
 public sealed record AlignedTerrainRun(TerrainProfile Profile, TerrainRunAlignment.Aligned Alignment);
 
 public sealed record TrailAverageWindow(int SourceIndex, double StartSeconds, double EndSeconds, double? FrameLevel,
-    double? ForkLevel, double? Grade, RoughnessClass? Roughness, GradeBand? Band);
+    double? ForkLevel, double? RearAxleLevel, double? Grade, RoughnessClass? Roughness, GradeBand? Band);
 
 public closed record TrailAverage(int RunCount)
 {
@@ -37,7 +37,7 @@ public closed record TrailAverage(int RunCount)
             if (!w.Moving)
             {
                 // A stop stays in the list so the grade baseline walks past it, as it does for a single ride.
-                windows.Add(new(i, w.StartSeconds, w.EndSeconds, null, null, null, null, null));
+                windows.Add(new(i, w.StartSeconds, w.EndSeconds, null, null, null, null, null, null));
                 climbLevels.Add(null);
                 continue;
             }
@@ -76,12 +76,13 @@ public closed record TrailAverage(int RunCount)
 
     private struct WindowTotals
     {
-        private Mean logFrame, logFork, normalisedFrame, normalisedFork, grade, logClimbFrame;
+        private Mean logFrame, logFork, logRearAxle, normalisedFrame, normalisedFork, grade, logClimbFrame;
 
         public void Add(TerrainWindow window)
         {
             if (window.Frame is { } frame) logFrame.Add(Math.Log(frame.SpeedRemoved));
             if (window.Fork is { } fork) logFork.Add(Math.Log(fork.SpeedRemoved));
+            if (window.RearAxle is { } rearAxle) logRearAxle.Add(Math.Log(rearAxle.SpeedRemoved));
             if (window.Frame is { Normalised: not null } calibrated) logClimbFrame.Add(Math.Log(calibrated.Level));
             normalisedFrame.Add(window.Frame?.Normalised);
             normalisedFork.Add(TerrainProfileCalculator.ForkClassValue(window.Frame, window.Fork));
@@ -93,7 +94,7 @@ public closed record TrailAverage(int RunCount)
             var frame = normalisedFrame.Value;
             var fork = normalisedFork.Value;
             var normalised = (frame + fork) / 2 ?? frame ?? fork;
-            return new(index, source.StartSeconds, source.EndSeconds, Exp(logFrame.Value), Exp(logFork.Value),
+            return new(index, source.StartSeconds, source.EndSeconds, Exp(logFrame.Value), Exp(logFork.Value), Exp(logRearAxle.Value),
                 grade.Value, normalised.HasValue ? TerrainCalibration.Classify(normalised.Value) : null, null);
         }
 

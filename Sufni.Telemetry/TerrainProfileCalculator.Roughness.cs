@@ -11,9 +11,14 @@ public static partial class TerrainProfileCalculator
     {
         if (imu is null || meta is null) return [];
         var matching = ImmutableArray.CreateBuilder<TerrainMatchSample>();
-        var frame = meta.LocationId == (byte)ImuLocation.Frame;
-        var calibration = TerrainCalibration.For((ImuLocation)meta.LocationId, meta.AccelLsbPerG);
-        var exponent = frame ? FrameSpeedExponent : ForkSpeedExponent;
+        var location = (ImuLocation)meta.LocationId;
+        var calibration = TerrainCalibration.For(location, meta.AccelLsbPerG);
+        var exponent = location switch
+        {
+            ImuLocation.Frame => FrameSpeedExponent,
+            ImuLocation.Fork => ForkSpeedExponent,
+            _ => RearAxleSpeedExponent
+        };
         foreach (var segment in imu.SampleSegments)
         {
             if (segment.LocationId != meta.LocationId || segment.Count == 0) continue;
@@ -41,10 +46,16 @@ public static partial class TerrainProfileCalculator
                         var scaled = levels[0, i] * Math.Pow(ReferenceSpeed / w.MeanSpeed, exponent);
                         var measured = new SensorRoughness(levels[0, i], levels[1, i], levels[2, i], levels[3, i],
                             scaled, calibration?.Normalise(scaled), (double)(clipped[b] - clipped[a]) / (b - a));
-                        windows[i] = frame ? w with { Frame = measured } : w with { Fork = measured };
+                        windows[i] = location switch
+                        {
+                            ImuLocation.Frame => w with { Frame = measured },
+                            ImuLocation.Fork => w with { Fork = measured },
+                            _ => w with { RearAxle = measured }
+                        };
                     }
                 }
-                if (band != 0) continue;
+                // Run alignment reads the frame, then the fork, so the rear axle needs no matching series.
+                if (band != 0 || location == ImuLocation.RearAxle) continue;
                 foreach (var m in positions)
                     if (SampleRange(m.Start, m.End, origin, imu.SampleRate, segment.Count, out var a, out var b) && Rms(a, b) is > 0 and var level)
                         matching.Add(new(m.Metres, m.Seconds, Math.Log(level)));

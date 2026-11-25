@@ -4,13 +4,14 @@ namespace Sufni.Telemetry;
 
 public static partial class TerrainProfileCalculator
 {
-    public const int AlgorithmVersion = 6;
+    public const int AlgorithmVersion = 7;
     public const double ClippedShareLimit = 0.02;
     private const double SilentShareLimit = 0.5;
     private const int MinimumImuRate = 200;
     private const double ReferenceSpeed = 7;
     private const double FrameSpeedExponent = 0.7;
     private const double ForkSpeedExponent = 0.9;
+    private const double RearAxleSpeedExponent = 0.9;
     private const int FullScaleCount = 32760;
 
     public static TerrainProfileResult Calculate(TelemetryData telemetry, IReadOnlyList<TrackSample> fixes,
@@ -27,18 +28,22 @@ public static partial class TerrainProfileCalculator
             ? imu.Meta.FirstOrDefault(m => m.LocationId == (byte)location && m.AccelLsbPerG > 0) : null;
         var frame = Sensor(ImuLocation.Frame);
         var fork = Sensor(ImuLocation.Fork);
+        var rearAxle = Sensor(ImuLocation.RearAxle);
         var frameSeries = MeasureSensor(imu, frame, windows, positions, cancellationToken);
         var forkSeries = MeasureSensor(imu, fork, windows, positions, cancellationToken);
+        MeasureSensor(imu, rearAxle, windows, positions, cancellationToken);
         MeasureSuspension(telemetry.Front, telemetry.Metadata.SampleRate, windows, true, cancellationToken);
         MeasureSuspension(telemetry.Rear, telemetry.Metadata.SampleRate, windows, false, cancellationToken);
         var silent = Enum.GetValues<TerrainSensor>().Where(sensor => DropIfSilent(windows, sensor, sensor switch
         {
             TerrainSensor.FrameImu => OneCount(frame),
             TerrainSensor.ForkImu => OneCount(fork),
+            TerrainSensor.RearAxleImu => OneCount(rearAxle),
             _ => 0
         })).ToImmutableArray();
         if (silent.Contains(TerrainSensor.FrameImu)) (frame, frameSeries) = (null, []);
         if (silent.Contains(TerrainSensor.ForkImu)) (fork, forkSeries) = (null, []);
+        if (silent.Contains(TerrainSensor.RearAxleImu)) rearAxle = null;
         if (!silent.Contains(TerrainSensor.ShockTravel))
             MeasurePedalling(telemetry.Rear, telemetry.Metadata.SampleRate, imu, frame, windows, cancellationToken);
         var grade = MeasureGrade(motion, imu, frame, windows, cancellationToken);
@@ -59,11 +64,12 @@ public static partial class TerrainProfileCalculator
         var classified = frame != null && TerrainCalibration.For(ImuLocation.Frame, frame.AccelLsbPerG) != null ||
                          fork != null && TerrainCalibration.For(ImuLocation.Fork, fork.AccelLsbPerG) != null;
         var roughState = classified ? TerrainRoughnessState.Classified :
-            frame != null || fork != null ? TerrainRoughnessState.ValuesOnly : TerrainRoughnessState.NoSensor;
+            frame != null || fork != null || rearAxle != null ? TerrainRoughnessState.ValuesOnly : TerrainRoughnessState.NoSensor;
         return new TerrainProfileResult.Computed(new([.. windows], frameSeries, forkSeries, roughState, grade,
             frame?.AccelLsbPerG, fork?.AccelLsbPerG)
         {
             SilentSensors = silent,
+            RearAxleScale = rearAxle?.AccelLsbPerG,
             FrontMaxTravel = telemetry.Front is { Present: true } ? telemetry.Front.MaxTravel : null,
             RearMaxTravel = telemetry.Rear is { Present: true } ? telemetry.Rear.MaxTravel : null
         });
@@ -78,7 +84,8 @@ public static partial class TerrainProfileCalculator
             TerrainSensor.ForkTravel => w.Front?.RmsVelocity,
             TerrainSensor.ShockTravel => w.Rear?.RmsVelocity,
             TerrainSensor.FrameImu => w.Frame?.Level,
-            _ => w.Fork?.Level
+            TerrainSensor.ForkImu => w.Fork?.Level,
+            _ => w.RearAxle?.Level
         };
         int measured = 0, zero = 0;
         foreach (var window in windows)
@@ -96,7 +103,8 @@ public static partial class TerrainProfileCalculator
                 TerrainSensor.ForkTravel => w with { Front = null },
                 TerrainSensor.ShockTravel => w with { Rear = null },
                 TerrainSensor.FrameImu => w with { Frame = null },
-                _ => w with { Fork = null }
+                TerrainSensor.ForkImu => w with { Fork = null },
+                _ => w with { RearAxle = null }
             };
         }
         return true;

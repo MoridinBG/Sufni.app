@@ -77,7 +77,7 @@ public class TerrainRunComparisonTests
         var windows = alignment.Pairs.Take(50).Select((pair, i) =>
         {
             var w = profile.Windows[pair.SourceIndex];
-            return new TrailAverageWindow(pair.SourceIndex, w.StartSeconds, w.EndSeconds, 1.7, null, null,
+            return new TrailAverageWindow(pair.SourceIndex, w.StartSeconds, w.EndSeconds, 1.7, null, null, null,
                 i < 40 ? RoughnessClass.Medium : null, null);
         });
         var rows = TerrainRunComparison.Compare(profile, profile, alignment, SuspensionResponseModel.FitPair(profile, profile, []),
