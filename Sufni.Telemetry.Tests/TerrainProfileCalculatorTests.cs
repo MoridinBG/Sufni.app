@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using MessagePack;
 
 namespace Sufni.Telemetry.Tests;
@@ -86,6 +87,42 @@ public class TerrainProfileCalculatorTests
     {
         var profile = SyntheticRide.Build([new(600, 7, 8), new(400, 3, -8)], new RideRecording(Frame: false)).Profile();
         Assert.Null(TerrainProfileCalculator.Summarize(profile).ClimbMetres);
+    }
+
+    [Fact]
+    public void SummaryDistributesTheEligibleDistanceOfEachSensorOverLevelBins()
+    {
+        var climb = TerrainProfiles.Window(3) with { Band = GradeBand.Climb, Frame = Reading(level: 7, speedRemoved: 4) };
+        var profile = TerrainProfiles.Profile(
+        [
+            TerrainProfiles.Window(0) with { Frame = Reading(level: 9, speedRemoved: 3), Fork = Reading(10), RearAxle = Reading(-5) },
+            TerrainProfiles.Window(1) with { Frame = Reading(level: 9, speedRemoved: 3) },
+            TerrainProfiles.Window(2) with { Frame = Reading(3, clippedShare: 0.05), Fork = Reading(10) with { Level = 0 } },
+            climb,
+            TerrainProfiles.Window(4, moving: false) with { Frame = Reading(3) }
+        ]);
+        var summary = TerrainProfileCalculator.Summarize(profile);
+        Assert.Equal(Distribution((3, 20)), summary.FrameImu);
+        Assert.Equal(Distribution((10, 10)), summary.ForkImu);
+        Assert.Equal(Distribution((-5, 10)), summary.RearAxleImu);
+        Assert.Equal(Distribution((7, 10)), summary.FrameClimb);
+    }
+
+    [Fact]
+    public void SummaryHasNoDistributionForASensorWithoutAnEligibleReading()
+    {
+        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0) with { Fork = Reading(4, clippedShare: 0.05) }]);
+        var summary = TerrainProfileCalculator.Summarize(profile);
+        Assert.Null(summary.ForkImu);
+        Assert.Null(summary.FrameImu);
+    }
+
+    [Fact]
+    public void SummariesWithEqualDistributionsAreEqual()
+    {
+        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0) with { Frame = Reading(2), RearAxle = Reading(8) }]);
+        Assert.Equal(TerrainProfileCalculator.Summarize(profile), TerrainProfileCalculator.Summarize(profile));
+        Assert.NotEqual(Distribution((2, 10)), Distribution((2, 20)));
     }
 
     [Fact]
@@ -412,4 +449,18 @@ public class TerrainProfileCalculatorTests
         Assert.Equal(profile.FrameMatching.ToArray(), restored.FrameMatching.ToArray());
         Assert.Equal([TerrainSensor.ShockTravel], restored.SilentSensors);
     }
+
+    /// <summary>A reading whose level lies in the middle of level bin <paramref name="bin"/>.</summary>
+    private static SensorRoughness Reading(int bin, double clippedShare = 0) =>
+        TerrainProfiles.Sensor(BinCentre(bin), clippedShare: clippedShare);
+
+    /// <summary>A reading whose raw and speed-removed levels lie in two different bins.</summary>
+    private static SensorRoughness Reading(int level, int speedRemoved) =>
+        TerrainProfiles.Sensor(BinCentre(level)) with { SpeedRemoved = BinCentre(speedRemoved) };
+
+    // Twenty bins span one 1.5× class step.
+    private static double BinCentre(int bin) => Math.Pow(1.5, (bin + 0.5) / 20);
+
+    private static LevelDistribution Distribution(params (int Bin, double Metres)[] bins) =>
+        new(bins.ToImmutableSortedDictionary(b => b.Bin, b => b.Metres));
 }

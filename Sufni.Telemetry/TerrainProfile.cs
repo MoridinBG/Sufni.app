@@ -93,7 +93,28 @@ public closed record TerrainProfileResult
 /// <summary>
 /// Ride totals for the session list. <see cref="ClimbMetres"/> is null without grade. <see cref="RoughShare"/> is the
 /// rough and very rough share of <see cref="ClassifiedMetres"/>, the non-climb distance with a roughness class.
+/// The distributions hold the unclipped readings above zero: the speed-removed levels of each IMU on descents and the
+/// raw frame level on climbs. A distribution is null without such a reading.
 /// </summary>
 [MessagePackObject(keyAsPropertyName: true)]
 public sealed record TerrainSummary(double MovingMetres, double? ClimbMetres, double ClassifiedMetres, double RoughShare,
-    RoughnessSource? DominantSource);
+    RoughnessSource? DominantSource, LevelDistribution? FrameImu = null, LevelDistribution? ForkImu = null,
+    LevelDistribution? RearAxleImu = null, LevelDistribution? FrameClimb = null);
+
+/// <summary>Moving distance in metres per <see cref="TerrainLevels.Bin"/> of a reading level.</summary>
+[MessagePackObject(keyAsPropertyName: true)]
+public sealed record LevelDistribution(ImmutableSortedDictionary<int, double> MetresByBin)
+{
+    public bool Equals(LevelDistribution? other) => other is not null && MetresByBin.SequenceEqual(other.MetresByBin);
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        foreach (var (bin, metres) in MetresByBin)
+        {
+            hash.Add(bin);
+            hash.Add(metres);
+        }
+        return hash.ToHashCode();
+    }
+}

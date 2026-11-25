@@ -4,7 +4,7 @@ namespace Sufni.Telemetry;
 
 public static partial class TerrainProfileCalculator
 {
-    public const int AlgorithmVersion = 7;
+    public const int AlgorithmVersion = 8;
     public const double ClippedShareLimit = 0.02;
     private const double SilentShareLimit = 0.5;
     private const int MinimumImuRate = 200;
@@ -142,6 +142,23 @@ public static partial class TerrainProfileCalculator
             profile.GradeState == TerrainGradeState.Available ? WindowMetres * (double)moving.Count(w => w.Climbing) : null,
             WindowMetres * (double)classified.Length,
             classified.Length == 0 ? 0 : (double)classified.Count(w => w.Roughness is RoughnessClass.Rough or RoughnessClass.VeryRough) / classified.Length,
-            classified.GroupBy(w => w.Source).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key);
+            classified.GroupBy(w => w.Source).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key,
+            Distribution(moving, w => w.Climbing ? null : w.Frame, r => r.SpeedRemoved),
+            Distribution(moving, w => w.Climbing ? null : w.Fork, r => r.SpeedRemoved),
+            Distribution(moving, w => w.Climbing ? null : w.RearAxle, r => r.SpeedRemoved),
+            Distribution(moving, w => w.Climbing ? w.Frame : null, r => r.Level));
+    }
+
+    private static LevelDistribution? Distribution(IEnumerable<TerrainWindow> windows, Func<TerrainWindow, SensorRoughness?> reading,
+        Func<SensorRoughness, double> level)
+    {
+        var bins = new SortedDictionary<int, double>();
+        foreach (var window in windows)
+        {
+            if (reading(window) is not { Level: > 0 } measured || measured.ClippedShare > ClippedShareLimit) continue;
+            var bin = TerrainLevels.Bin(level(measured));
+            bins[bin] = bins.GetValueOrDefault(bin) + WindowMetres;
+        }
+        return bins.Count == 0 ? null : new(bins.ToImmutableSortedDictionary());
     }
 }
