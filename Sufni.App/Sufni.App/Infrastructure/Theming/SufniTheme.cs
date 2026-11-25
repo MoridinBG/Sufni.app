@@ -260,7 +260,7 @@ public sealed record SufniSeriesTheme(
 /// <summary>
 /// Terrain class colours: a diverging grade scale from steep climb to very steep descent, a single-hue
 /// roughness scale from smooth to very rough, two neutral climb roughness steps, and the colour of ground
-/// without a class on a terrain-coloured map.
+/// without a class and of hidden classes on a terrain-coloured map.
 /// </summary>
 public sealed record SufniTerrainScales(IReadOnlyList<Color> Grade, IReadOnlyList<Color> Roughness,
     IReadOnlyList<Color> ClimbRoughness, Color Unclassified);
