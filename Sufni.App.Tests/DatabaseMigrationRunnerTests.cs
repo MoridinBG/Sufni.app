@@ -44,6 +44,29 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
+    public async Task UpgradeDiscardsTerrainSummariesThatNameTheLowersSource()
+    {
+        using var temp = new TempDatabase();
+        var session = new Session(Guid.NewGuid(), "ride", "", null, 100) { ProcessedData = [1], DurationSeconds = 10 };
+        await using (var db = new TestPersistenceHarness(temp.DatabasePath))
+        {
+            await db.PutAsync(session);
+            var key = SessionTerrainStatusQuery.Evaluate(SessionSnapshot.From((await db.GetSessionAsync(session.Id))!), []).Key;
+            var connection = await db.GetInitializedConnectionAsync();
+            await connection.ExecuteAsync("DELETE FROM core_migration WHERE id = 'terrain-fork-names'");
+            await connection.ExecuteAsync("""
+                INSERT INTO session_terrain_profile (session_id, terrain_profile_key, terrain_outcome, terrain_summary, profile)
+                VALUES (?, ?, ?, ?, ?)
+                """, session.Id, AppJson.Serialize(key), (int)TerrainOutcome.Computed,
+                """{"MovingMetres":600,"ClimbMetres":null,"ClassifiedMetres":590,"RoughShare":0.53,"DominantSource":"lowers_only"}""",
+                new byte[] { 1 });
+        }
+        await using var reopened = new TestPersistenceHarness(temp.DatabasePath);
+        var stored = SessionSnapshot.From(Assert.Single(await reopened.GetSessionsAsync()));
+        Assert.IsType<TerrainStatus.Pending>(SessionTerrainStatusQuery.Evaluate(stored, []).Status);
+    }
+
+    [Fact]
     public async Task CleanupRemovesTheTerrainProfileOfADeletedSession()
     {
         using var temp = new TempDatabase();

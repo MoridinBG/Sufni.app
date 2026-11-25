@@ -7,11 +7,11 @@ namespace Sufni.Telemetry;
 public enum RoughnessClass { Smooth, Calm, Medium, Rough, VeryRough, SmoothClimb, TechnicalClimb }
 /// <summary>Signed ground slope over 50 m. The two climb bands come first.</summary>
 public enum GradeBand { SteepClimb, Climb, Flat, GentleDescent, Descent, SteepDescent, VerySteepDescent }
-public enum RoughnessSource { Both, FrameOnly, LowersOnly }
+public enum RoughnessSource { Both, FrameOnly, ForkOnly }
 public enum TerrainRoughnessState { Classified, ValuesOnly, NoSensor }
 public enum TerrainGradeState { Available, NoFrameSensor, NoElevation, TooShort }
 public enum TerrainUnavailableReason { NoTrack, NoMovement }
-public enum TerrainSensor { Front, Rear, Frame, Lowers }
+public enum TerrainSensor { ForkTravel, ShockTravel, FrameImu, ForkImu }
 
 [MessagePackObject(keyAsPropertyName: true)]
 public sealed record SensorRoughness(double Level, double LowBand, double MiddleBand, double HighBand,
@@ -33,7 +33,7 @@ public readonly record struct PedallingFigures(bool Detected, double? CadenceRpm
 public sealed record TerrainWindow(double StartMetres, double StartSeconds, double EndSeconds, double MeanSpeed, bool Moving)
 {
     public SensorRoughness? Frame { get; init; }
-    public SensorRoughness? Lowers { get; init; }
+    public SensorRoughness? Fork { get; init; }
     public RoughnessClass? Roughness { get; init; }
     public RoughnessSource? Source { get; init; }
     public double? Grade { get; init; }
@@ -45,9 +45,9 @@ public sealed record TerrainWindow(double StartMetres, double StartSeconds, doub
     [IgnoreMember]
     public double? NormalisedRoughness => Source switch
     {
-        RoughnessSource.Both => (Frame?.Normalised + Lowers?.Normalised) / 2,
+        RoughnessSource.Both => (Frame?.Normalised + Fork?.Normalised) / 2,
         RoughnessSource.FrameOnly => Frame?.Normalised,
-        RoughnessSource.LowersOnly => Lowers?.Normalised,
+        RoughnessSource.ForkOnly => Fork?.Normalised,
         _ => null
     };
     public SuspensionWindowFigures? Front { get; init; }
@@ -70,8 +70,8 @@ public readonly record struct TerrainMatchSample(double Metres, double Seconds, 
 
 [MessagePackObject(keyAsPropertyName: true)]
 public sealed record TerrainProfile(ImmutableArray<TerrainWindow> Windows,
-    ImmutableArray<TerrainMatchSample> FrameMatching, ImmutableArray<TerrainMatchSample> LowersMatching,
-    TerrainRoughnessState RoughnessState, TerrainGradeState GradeState, double? FrameScale, double? LowersScale)
+    ImmutableArray<TerrainMatchSample> FrameMatching, ImmutableArray<TerrainMatchSample> ForkMatching,
+    TerrainRoughnessState RoughnessState, TerrainGradeState GradeState, double? FrameScale, double? ForkScale)
 {
     /// <summary>Sensors that read zero in most measured moving windows; the profile holds no readings from them.</summary>
     public ImmutableArray<TerrainSensor> SilentSensors { get; init; } = [];

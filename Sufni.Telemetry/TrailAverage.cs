@@ -5,7 +5,7 @@ namespace Sufni.Telemetry;
 public sealed record AlignedTerrainRun(TerrainProfile Profile, TerrainRunAlignment.Aligned Alignment);
 
 public sealed record TrailAverageWindow(int SourceIndex, double StartSeconds, double EndSeconds, double? FrameLevel,
-    double? LowersLevel, double? Grade, RoughnessClass? Roughness, GradeBand? Band);
+    double? ForkLevel, double? Grade, RoughnessClass? Roughness, GradeBand? Band);
 
 public closed record TrailAverage(int RunCount)
 {
@@ -76,24 +76,24 @@ public closed record TrailAverage(int RunCount)
 
     private struct WindowTotals
     {
-        private Mean logFrame, logLowers, normalisedFrame, normalisedLowers, grade, logClimbFrame;
+        private Mean logFrame, logFork, normalisedFrame, normalisedFork, grade, logClimbFrame;
 
         public void Add(TerrainWindow window)
         {
             if (window.Frame is { } frame) logFrame.Add(Math.Log(frame.SpeedRemoved));
-            if (window.Lowers is { } lowers) logLowers.Add(Math.Log(lowers.SpeedRemoved));
+            if (window.Fork is { } fork) logFork.Add(Math.Log(fork.SpeedRemoved));
             if (window.Frame is { Normalised: not null } calibrated) logClimbFrame.Add(Math.Log(calibrated.Level));
             normalisedFrame.Add(window.Frame?.Normalised);
-            normalisedLowers.Add(TerrainProfileCalculator.LowersClassValue(window.Frame, window.Lowers));
+            normalisedFork.Add(TerrainProfileCalculator.ForkClassValue(window.Frame, window.Fork));
             grade.Add(window.Grade);
         }
 
         public readonly TrailAverageWindow Window(int index, TerrainWindow source)
         {
             var frame = normalisedFrame.Value;
-            var lowers = normalisedLowers.Value;
-            var normalised = (frame + lowers) / 2 ?? frame ?? lowers;
-            return new(index, source.StartSeconds, source.EndSeconds, Exp(logFrame.Value), Exp(logLowers.Value),
+            var fork = normalisedFork.Value;
+            var normalised = (frame + fork) / 2 ?? frame ?? fork;
+            return new(index, source.StartSeconds, source.EndSeconds, Exp(logFrame.Value), Exp(logFork.Value),
                 grade.Value, normalised.HasValue ? TerrainCalibration.Classify(normalised.Value) : null, null);
         }
 

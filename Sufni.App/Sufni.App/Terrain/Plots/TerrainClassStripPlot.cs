@@ -76,8 +76,8 @@ public sealed class TerrainClassStripPlot(Plot plot, SufniTheme? theme = null) :
                 DisplayValue: TerrainClassText.Name(level)));
         if (ValueAt(terrain.Frame, position) is { } frame)
             lines.Add(new("Frame", frame, "g", PlotTheme.Series.ImuFrame.ToScottPlotColor()));
-        if (ValueAt(terrain.Lowers, position) is { } lowers)
-            lines.Add(new("Lowers", lowers, "g", PlotTheme.Series.ImuFork.ToScottPlotColor()));
+        if (ValueAt(terrain.Fork, position) is { } fork)
+            lines.Add(new("Fork", fork, "g", PlotTheme.Series.ImuFork.ToScottPlotColor()));
         return lines.Count == 0 ? null : new CursorReadout(position, position, 1, lines);
     }
 

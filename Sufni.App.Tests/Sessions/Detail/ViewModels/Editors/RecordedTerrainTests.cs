@@ -147,11 +147,11 @@ public class RecordedTerrainTests
     {
         using var h = new SessionDetailHarness();
         var session = h.CreateRecordedSession();
-        var first = jointlyRecorded ? RoughnessSource.Both : RoughnessSource.LowersOnly;
+        var first = jointlyRecorded ? RoughnessSource.Both : RoughnessSource.ForkOnly;
         var window = TerrainProfiles.Window(0, RoughnessClass.Calm, first);
         var clipped = TerrainProfiles.Window(3, RoughnessClass.Rough, RoughnessSource.FrameOnly) with
         {
-            Lowers = jointlyRecorded ? window.Lowers! with { ClippedShare = 0.12 } : null
+            Fork = jointlyRecorded ? window.Fork! with { ClippedShare = 0.12 } : null
         };
         var profile = TerrainProfiles.Classified(window, TerrainProfiles.Window(1, RoughnessClass.Rough, first),
             TerrainProfiles.Window(2, RoughnessClass.Rough, first) with { Moving = false, Grade = null }, clipped,
@@ -167,7 +167,7 @@ public class RecordedTerrainTests
         Assert.Equal(RoughnessSource.Both, presentation.Coverage.Source);
         Assert.Equal(0.6, presentation.Coverage.FrameOnlyShare);
         Assert.Equal(jointlyRecorded ? 0.4 : 0, presentation.Coverage.JointShare);
-        Assert.Equal(jointlyRecorded, presentation.Coverage.LowersClipped);
+        Assert.Equal(jointlyRecorded, presentation.Coverage.ForkClipped);
         Assert.Equal(4.5, presentation.Grade[^1].Seconds[^2]);
         Assert.Equal(Math.Asin(0.1) * 180 / Math.PI, presentation.Grade[^1].Values[^2], 8);
         await h.CloseAsync(editor);
@@ -211,9 +211,9 @@ public class RecordedTerrainTests
         using var h = new SessionDetailHarness();
         var session = h.CreateRecordedSession();
         var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0), TerrainProfiles.Window(1)],
-            TerrainRoughnessState.NoSensor, frameScale: null, lowersScale: null) with
+            TerrainRoughnessState.NoSensor, frameScale: null, forkScale: null) with
         {
-            SilentSensors = silent ? [TerrainSensor.Frame] : []
+            SilentSensors = silent ? [TerrainSensor.FrameImu] : []
         };
         var editor = h.CreateRecordedEditor(session, projectionChanges: Observable.Return(h.WithTerrain(session, profile)));
         await h.LoadAsync(editor);

@@ -33,14 +33,14 @@ public class TerrainRunAlignmentTests
     [Fact]
     public void DisjointSensorLocationsCannotAlign()
     {
-        var frame = SyntheticTrailRuns.Record(11, lowers: false);
-        var lowers = SyntheticTrailRuns.Record(11, frame: false);
-        Assert.IsType<TerrainRunAlignment.NoCommonSensor>(TerrainRunAlignment.Calculate(frame, lowers,
-            SyntheticTrailRuns.Map(frame, lowers)));
+        var frame = SyntheticTrailRuns.Record(11, fork: false);
+        var fork = SyntheticTrailRuns.Record(11, frame: false);
+        Assert.IsType<TerrainRunAlignment.NoCommonSensor>(TerrainRunAlignment.Calculate(frame, fork,
+            SyntheticTrailRuns.Map(frame, fork)));
     }
 
     [Fact]
-    public void FrameMissingFromOneRunUsesLowers()
+    public void FrameMissingFromOneRunUsesFork()
     {
         var aligned = Align(SyntheticTrailRuns.Record(11, frame: false));
         Assert.Equal(ImuLocation.Fork, aligned.Sensor);

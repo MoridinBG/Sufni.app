@@ -34,7 +34,7 @@ public class GroundComfortReportsTests
     [Theory]
     [InlineData(RoughnessSource.Both, false)]
     [InlineData(RoughnessSource.FrameOnly, true)]
-    [InlineData(RoughnessSource.LowersOnly, true)]
+    [InlineData(RoughnessSource.ForkOnly, true)]
     public void AMissingImuIsNamed(RoughnessSource source, bool noted)
     {
         var report = GroundComfortReports.Build(Ride(source), new TerrainScope(TerrainPreset.All), null, Usual());

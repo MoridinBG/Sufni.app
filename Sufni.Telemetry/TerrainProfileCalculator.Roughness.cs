@@ -13,7 +13,7 @@ public static partial class TerrainProfileCalculator
         var matching = ImmutableArray.CreateBuilder<TerrainMatchSample>();
         var frame = meta.LocationId == (byte)ImuLocation.Frame;
         var calibration = TerrainCalibration.For((ImuLocation)meta.LocationId, meta.AccelLsbPerG);
-        var exponent = frame ? FrameSpeedExponent : LowersSpeedExponent;
+        var exponent = frame ? FrameSpeedExponent : ForkSpeedExponent;
         foreach (var segment in imu.SampleSegments)
         {
             if (segment.LocationId != meta.LocationId || segment.Count == 0) continue;
@@ -41,7 +41,7 @@ public static partial class TerrainProfileCalculator
                         var scaled = levels[0, i] * Math.Pow(ReferenceSpeed / w.MeanSpeed, exponent);
                         var measured = new SensorRoughness(levels[0, i], levels[1, i], levels[2, i], levels[3, i],
                             scaled, calibration?.Normalise(scaled), (double)(clipped[b] - clipped[a]) / (b - a));
-                        windows[i] = frame ? w with { Frame = measured } : w with { Lowers = measured };
+                        windows[i] = frame ? w with { Frame = measured } : w with { Fork = measured };
                     }
                 }
                 if (band != 0) continue;
@@ -73,14 +73,14 @@ public static partial class TerrainProfileCalculator
         return power;
     }
 
-    private static (RoughnessClass?, RoughnessSource?) Classify(SensorRoughness? frame, SensorRoughness? lowers)
+    private static (RoughnessClass?, RoughnessSource?) Classify(SensorRoughness? frame, SensorRoughness? fork)
     {
-        var fork = LowersClassValue(frame, lowers);
-        var (value, source) = (frame?.Normalised, fork) switch
+        var forkValue = ForkClassValue(frame, fork);
+        var (value, source) = (frame?.Normalised, forkValue) switch
         {
             ({ } a, { } b) => ((a + b) / 2, RoughnessSource.Both),
             ({ } a, null) => (a, RoughnessSource.FrameOnly),
-            (null, { } b) => (b, RoughnessSource.LowersOnly),
+            (null, { } b) => (b, RoughnessSource.ForkOnly),
             _ => (double.NaN, default)
         };
         if (double.IsNaN(value)) return (null, null);

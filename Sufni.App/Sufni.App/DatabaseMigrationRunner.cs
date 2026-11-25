@@ -64,6 +64,9 @@ internal sealed class DatabaseMigrationRunner(
                 CHECK ((terrain_outcome = 0) = (profile IS NOT NULL)),
                 CHECK ((terrain_outcome = 0) = (terrain_summary IS NOT NULL)))
             """));
+        // Stored summaries name the former lowers source, which no longer parses; the profiles recompute.
+        await coreMigrations.ApplyAsync("terrain-fork-names", transaction =>
+            transaction.Execute("DELETE FROM session_terrain_profile"));
         await MigrateSyncAuthorityAsync();
         await EnsureSessionBlobSwapRequestIntegrityAsync();
         await coreMigrations.MarkAppliedAsync("session-segment");

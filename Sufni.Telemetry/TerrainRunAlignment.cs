@@ -24,10 +24,10 @@ public closed record TerrainRunAlignment
         IReadOnlyList<(double SourceSeconds, double MatchSeconds)> timeMap, CancellationToken token = default)
     {
         var frame = !source.FrameMatching.IsEmpty && !match.FrameMatching.IsEmpty;
-        if (!frame && (source.LowersMatching.IsEmpty || match.LowersMatching.IsEmpty)) return new NoCommonSensor();
+        if (!frame && (source.ForkMatching.IsEmpty || match.ForkMatching.IsEmpty)) return new NoCommonSensor();
         if (timeMap.Count < 2) return new Unaligned();
-        IReadOnlyList<TerrainMatchSample> sourceSignal = frame ? source.FrameMatching : source.LowersMatching;
-        IReadOnlyList<TerrainMatchSample> matchSignal = frame ? match.FrameMatching : match.LowersMatching;
+        IReadOnlyList<TerrainMatchSample> sourceSignal = frame ? source.FrameMatching : source.ForkMatching;
+        IReadOnlyList<TerrainMatchSample> matchSignal = frame ? match.FrameMatching : match.ForkMatching;
         IReadOnlyList<TerrainWindow> sourceWindows = source.Windows, matchWindows = match.Windows;
         var first = source.Windows.FirstOrDefault(w => w.EndSeconds > timeMap[0].SourceSeconds);
         var last = source.Windows.LastOrDefault(w => w.StartSeconds < timeMap[^1].SourceSeconds);

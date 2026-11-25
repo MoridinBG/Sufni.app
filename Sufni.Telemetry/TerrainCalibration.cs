@@ -6,12 +6,12 @@ public sealed record TerrainCalibration(double CalmBoundary, double RoughBoundar
     /// <summary>Frame 1–80 Hz RMS in g, without speed correction, from which a climb is technical. Provisional.</summary>
     public const double TechnicalClimbLevel = 0.26;
     private static readonly TerrainCalibration Frame = new(1.4, 2.2);
-    private static readonly TerrainCalibration Lowers = new(2.5, 3.8);
+    private static readonly TerrainCalibration Fork = new(2.5, 3.8);
 
     public static TerrainCalibration? For(ImuLocation location, double scale) => (location, scale) switch
     {
         (ImuLocation.Frame, 4096) => Frame,
-        (ImuLocation.Fork, 4096) => Lowers,
+        (ImuLocation.Fork, 4096) => Fork,
         _ => null
     };
 

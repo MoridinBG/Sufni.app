@@ -4,13 +4,13 @@ namespace Sufni.Telemetry;
 
 public static partial class TerrainProfileCalculator
 {
-    public const int AlgorithmVersion = 5;
+    public const int AlgorithmVersion = 6;
     public const double ClippedShareLimit = 0.02;
     private const double SilentShareLimit = 0.5;
     private const int MinimumImuRate = 200;
     private const double ReferenceSpeed = 7;
     private const double FrameSpeedExponent = 0.7;
-    private const double LowersSpeedExponent = 0.9;
+    private const double ForkSpeedExponent = 0.9;
     private const int FullScaleCount = 32760;
 
     public static TerrainProfileResult Calculate(TelemetryData telemetry, IReadOnlyList<TrackSample> fixes,
@@ -26,20 +26,20 @@ public static partial class TerrainProfileCalculator
             imu.ActiveLocations.Contains((byte)location)
             ? imu.Meta.FirstOrDefault(m => m.LocationId == (byte)location && m.AccelLsbPerG > 0) : null;
         var frame = Sensor(ImuLocation.Frame);
-        var lowers = Sensor(ImuLocation.Fork);
+        var fork = Sensor(ImuLocation.Fork);
         var frameSeries = MeasureSensor(imu, frame, windows, positions, cancellationToken);
-        var lowersSeries = MeasureSensor(imu, lowers, windows, positions, cancellationToken);
+        var forkSeries = MeasureSensor(imu, fork, windows, positions, cancellationToken);
         MeasureSuspension(telemetry.Front, telemetry.Metadata.SampleRate, windows, true, cancellationToken);
         MeasureSuspension(telemetry.Rear, telemetry.Metadata.SampleRate, windows, false, cancellationToken);
         var silent = Enum.GetValues<TerrainSensor>().Where(sensor => DropIfSilent(windows, sensor, sensor switch
         {
-            TerrainSensor.Frame => OneCount(frame),
-            TerrainSensor.Lowers => OneCount(lowers),
+            TerrainSensor.FrameImu => OneCount(frame),
+            TerrainSensor.ForkImu => OneCount(fork),
             _ => 0
         })).ToImmutableArray();
-        if (silent.Contains(TerrainSensor.Frame)) (frame, frameSeries) = (null, []);
-        if (silent.Contains(TerrainSensor.Lowers)) (lowers, lowersSeries) = (null, []);
-        if (!silent.Contains(TerrainSensor.Rear))
+        if (silent.Contains(TerrainSensor.FrameImu)) (frame, frameSeries) = (null, []);
+        if (silent.Contains(TerrainSensor.ForkImu)) (fork, forkSeries) = (null, []);
+        if (!silent.Contains(TerrainSensor.ShockTravel))
             MeasurePedalling(telemetry.Rear, telemetry.Metadata.SampleRate, imu, frame, windows, cancellationToken);
         var grade = MeasureGrade(motion, imu, frame, windows, cancellationToken);
         for (var i = 0; i < windows.Count; i++)
@@ -52,16 +52,16 @@ public static partial class TerrainProfileCalculator
                     windows[i] = windows[i] with { Roughness = TerrainCalibration.ClassifyClimb(climbFrame.Level) };
                 continue;
             }
-            var (roughness, source) = Classify(windows[i].Frame, windows[i].Lowers);
+            var (roughness, source) = Classify(windows[i].Frame, windows[i].Fork);
             windows[i] = windows[i] with { Roughness = roughness, Source = source };
         }
         MergeOutliers(windows, static w => w.Roughness, static (w, level) => w with { Roughness = level }, Adjacent);
         var classified = frame != null && TerrainCalibration.For(ImuLocation.Frame, frame.AccelLsbPerG) != null ||
-                         lowers != null && TerrainCalibration.For(ImuLocation.Fork, lowers.AccelLsbPerG) != null;
+                         fork != null && TerrainCalibration.For(ImuLocation.Fork, fork.AccelLsbPerG) != null;
         var roughState = classified ? TerrainRoughnessState.Classified :
-            frame != null || lowers != null ? TerrainRoughnessState.ValuesOnly : TerrainRoughnessState.NoSensor;
-        return new TerrainProfileResult.Computed(new([.. windows], frameSeries, lowersSeries, roughState, grade,
-            frame?.AccelLsbPerG, lowers?.AccelLsbPerG)
+            frame != null || fork != null ? TerrainRoughnessState.ValuesOnly : TerrainRoughnessState.NoSensor;
+        return new TerrainProfileResult.Computed(new([.. windows], frameSeries, forkSeries, roughState, grade,
+            frame?.AccelLsbPerG, fork?.AccelLsbPerG)
         {
             SilentSensors = silent,
             FrontMaxTravel = telemetry.Front is { Present: true } ? telemetry.Front.MaxTravel : null,
@@ -75,10 +75,10 @@ public static partial class TerrainProfileCalculator
     {
         double? Reading(TerrainWindow w) => sensor switch
         {
-            TerrainSensor.Front => w.Front?.RmsVelocity,
-            TerrainSensor.Rear => w.Rear?.RmsVelocity,
-            TerrainSensor.Frame => w.Frame?.Level,
-            _ => w.Lowers?.Level
+            TerrainSensor.ForkTravel => w.Front?.RmsVelocity,
+            TerrainSensor.ShockTravel => w.Rear?.RmsVelocity,
+            TerrainSensor.FrameImu => w.Frame?.Level,
+            _ => w.Fork?.Level
         };
         int measured = 0, zero = 0;
         foreach (var window in windows)
@@ -93,10 +93,10 @@ public static partial class TerrainProfileCalculator
             var w = windows[i];
             windows[i] = sensor switch
             {
-                TerrainSensor.Front => w with { Front = null },
-                TerrainSensor.Rear => w with { Rear = null },
-                TerrainSensor.Frame => w with { Frame = null },
-                _ => w with { Lowers = null }
+                TerrainSensor.ForkTravel => w with { Front = null },
+                TerrainSensor.ShockTravel => w with { Rear = null },
+                TerrainSensor.FrameImu => w with { Frame = null },
+                _ => w with { Fork = null }
             };
         }
         return true;
@@ -123,8 +123,8 @@ public static partial class TerrainProfileCalculator
     // The band-pass filter carries a residue from live samples into a silent stretch; below one count is no signal.
     private static double OneCount(ImuMetaEntry? meta) => meta is null ? 0 : 1d / meta.AccelLsbPerG;
 
-    internal static double? LowersClassValue(SensorRoughness? frame, SensorRoughness? lowers) =>
-        frame is not null && lowers?.ClippedShare > ClippedShareLimit ? null : lowers?.Normalised;
+    internal static double? ForkClassValue(SensorRoughness? frame, SensorRoughness? fork) =>
+        frame is not null && fork?.ClippedShare > ClippedShareLimit ? null : fork?.Normalised;
 
     public static TerrainSummary Summarize(TerrainProfile profile)
     {

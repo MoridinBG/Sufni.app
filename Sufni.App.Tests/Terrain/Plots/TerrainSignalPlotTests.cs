@@ -18,7 +18,7 @@ public class TerrainSignalPlotTests
         new(0, 1, 0, false, false, true, false, false, []))
     {
         FrameEdges = [0.9, 1.4, 2.2, 3.5],
-        LowersEdges = [1.6, 2.5, 3.8, 5.8]
+        ForkEdges = [1.6, 2.5, 3.8, 5.8]
     };
 
     [Fact]

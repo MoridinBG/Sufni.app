@@ -34,10 +34,10 @@ internal static class GroundComfortReports
                 Usual(ResponseTarget.Transmission));
         }).ToImmutableArray();
         var hasFrame = profile.Windows.Any(window => window.Frame is not null);
-        var hasLowers = profile.Windows.Any(window => window.Lowers is not null);
+        var hasFork = profile.Windows.Any(window => window.Fork is not null);
         return new(levels,
             usual is null ? "Comparisons with your usual appear once it is ready." : null,
             !hasFrame ? "Frame vibration needs a frame IMU."
-            : !hasLowers ? "Vibration passed to the frame needs a lowers IMU as well." : null);
+            : !hasFork ? "Vibration passed to the frame needs a fork IMU as well." : null);
     }
 }

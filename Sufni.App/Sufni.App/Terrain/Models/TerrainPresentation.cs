@@ -16,26 +16,26 @@ public readonly record struct TerrainColourRun(double StartSeconds, double EndSe
 
 public sealed record TerrainSignalSection(ImmutableArray<double> Seconds, ImmutableArray<double> Values);
 
-public sealed record TerrainSourceCoverage(double JointShare, double FrameOnlyShare, double LowersOnlyShare,
-    bool LowersClipped, bool FrameMissing, bool LowersMissing, bool FrameUncalibrated, bool LowersUncalibrated,
+public sealed record TerrainSourceCoverage(double JointShare, double FrameOnlyShare, double ForkOnlyShare,
+    bool ForkClipped, bool FrameMissing, bool ForkMissing, bool FrameUncalibrated, bool ForkUncalibrated,
     ImmutableArray<TerrainSensor> Silent)
 {
-    public RoughnessSource? Source => (JointShare + FrameOnlyShare > 0, JointShare + LowersOnlyShare > 0) switch
+    public RoughnessSource? Source => (JointShare + FrameOnlyShare > 0, JointShare + ForkOnlyShare > 0) switch
     {
         (true, true) => RoughnessSource.Both,
         (true, false) => RoughnessSource.FrameOnly,
-        (false, true) => RoughnessSource.LowersOnly,
+        (false, true) => RoughnessSource.ForkOnly,
         _ => null
     };
 }
 
 public sealed record TerrainPresentation(ImmutableArray<TerrainRun<RoughnessClass>> RoughnessRuns,
     ImmutableArray<TerrainRun<GradeBand>> GradeRuns, ImmutableArray<TerrainSignalSection> Frame,
-    ImmutableArray<TerrainSignalSection> Lowers, ImmutableArray<TerrainSignalSection> Grade, TerrainSourceCoverage Coverage)
+    ImmutableArray<TerrainSignalSection> Fork, ImmutableArray<TerrainSignalSection> Grade, TerrainSourceCoverage Coverage)
 {
     /// <summary>Speed-removed frame levels at the descent level boundaries; empty without a calibrated frame scale.</summary>
     public ImmutableArray<double> FrameEdges { get; init; } = [];
-    public ImmutableArray<double> LowersEdges { get; init; } = [];
+    public ImmutableArray<double> ForkEdges { get; init; } = [];
     /// <summary>Rear bob in mm, only in windows where pedalling is detected.</summary>
     public ImmutableArray<TerrainSignalSection> PedalBob { get; init; } = [];
 }

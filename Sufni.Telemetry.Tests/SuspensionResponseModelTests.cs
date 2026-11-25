@@ -5,9 +5,9 @@ public class SuspensionResponseModelTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void HeldOutRideWithTheBaselineLawRespondsAsPredicted(bool lowers)
+    public void HeldOutRideWithTheBaselineLawRespondsAsPredicted(bool fork)
     {
-        var cells = WholeRide(SyntheticResponseRides.Profile(37, lowers: lowers));
+        var cells = WholeRide(SyntheticResponseRides.Profile(37, fork: fork));
         Assert.InRange(cells[ResponseTarget.FrontRms].Ratio!.Value, 0.95, 1.05);
         Assert.InRange(cells[ResponseTarget.RearPeakRebound].Ratio!.Value, 0.95, 1.05);
     }
@@ -40,17 +40,17 @@ public class SuspensionResponseModelTests
     }
 
     [Fact]
-    public void RideWithoutLowersPredictsTheFrontFromTheFrame()
+    public void RideWithoutForkPredictsTheFrontFromTheFrame()
     {
-        var model = SuspensionResponseModel.Fit(SyntheticResponseRides.Profile(37, lowers: false), SyntheticResponseRides.Baseline);
+        var model = SuspensionResponseModel.Fit(SyntheticResponseRides.Profile(37, fork: false), SyntheticResponseRides.Baseline);
         Assert.Equal(ImuLocation.Frame, Assert.IsType<ResponseFit.Fitted>(model.Fits[ResponseTarget.FrontRms]).Predictor);
     }
 
     [Fact]
-    public void IncompatibleAndAbsentLowersDoNotMakeAnUndersizedPreferredSensorSwitchToFrame()
+    public void IncompatibleAndAbsentForkDoNotMakeAnUndersizedPreferredSensorSwitchToFrame()
     {
         var baseline = SyntheticResponseRides.Baseline
-            .Select((p, i) => i < 3 ? p : p with { LowersScale = i == 3 ? 2048 : null }).ToArray();
+            .Select((p, i) => i < 3 ? p : p with { ForkScale = i == 3 ? 2048 : null }).ToArray();
         var model = SuspensionResponseModel.Fit(SyntheticResponseRides.Profile(37), baseline);
         var front = Assert.IsType<ResponseFit.Unavailable>(model.Fits[ResponseTarget.FrontRms]);
         Assert.Equal(ImuLocation.Fork, front.Predictor);

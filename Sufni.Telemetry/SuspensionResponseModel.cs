@@ -99,11 +99,11 @@ public sealed record SuspensionResponseModel(ImmutableDictionary<ResponseTarget,
             ? null : Scale(evaluated, predictor);
 
     private static double? Scale(TerrainProfile profile, ImuLocation sensor) =>
-        sensor == ImuLocation.Frame ? profile.FrameScale : profile.LowersScale;
+        sensor == ImuLocation.Frame ? profile.FrameScale : profile.ForkScale;
 
     private static bool TryObservation(TerrainWindow window, ResponseTarget target, ImuLocation predictor, Span<double> row)
     {
-        var bands = predictor == ImuLocation.Frame ? window.Frame : window.Lowers;
+        var bands = predictor == ImuLocation.Frame ? window.Frame : window.Fork;
         var value = target switch
         {
             ResponseTarget.FrontRms => window.Front?.RmsVelocity,

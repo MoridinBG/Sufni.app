@@ -10,8 +10,8 @@ public sealed record RideRecording(
     int SampleRate = 200, double FixRate = 1, bool IrregularFixes = false, double FirstFix = 0, double TrackShift = 0,
     TelemetryTimeRange? FixLoss = null, TelemetryTimeRange? RecordingGap = null, TelemetryTimeRange? Stop = null,
     TelemetryTimeRange? Braking = null, double BrakingAcceleration = 2.94, double MountPitch = 0, double Roll = 0,
-    bool Frame = true, bool Lowers = true, int AccelScale = 4096,
-    int Seed = 17, double NoiseG = 0, int? LowersAccelScale = null, (TerrainSensor Sensor, TelemetryTimeRange Range)? Silence = null);
+    bool Frame = true, bool Fork = true, int AccelScale = 4096,
+    int Seed = 17, double NoiseG = 0, int? ForkAccelScale = null, (TerrainSensor Sensor, TelemetryTimeRange Range)? Silence = null);
 
 public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<TrackSample> Fixes)
 {
@@ -19,8 +19,8 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
     private const double Radians = Math.PI / 180;
     private const int GyroScale = 16;
 
-    /// <summary>The fork-lowers vibration level relative to the frame level at the same speed.</summary>
-    public const double LowersLevelFactor = 1.75;
+    /// <summary>The fork vibration level relative to the frame level at the same speed.</summary>
+    public const double ForkLevelFactor = 1.75;
 
     /// <summary>Frame vertical acceleration amplitude in g at the pedal rhythm.</summary>
     public const double PedalFrameG = 0.1;
@@ -48,7 +48,7 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
         var fixes = ImmutableArray.CreateBuilder<TrackSample>();
         var sensors = new List<Sensor>();
         if (recording.Frame) sensors.Add(new Sensor(ImuLocation.Frame, recording.AccelScale));
-        if (recording.Lowers) sensors.Add(new Sensor(ImuLocation.Fork, recording.LowersAccelScale ?? recording.AccelScale));
+        if (recording.Fork) sensors.Add(new Sensor(ImuLocation.Fork, recording.ForkAccelScale ?? recording.AccelScale));
         var front = new Side(rate);
         var rear = new Side(rate);
         var nextFix = recording.FirstFix;
@@ -87,7 +87,7 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
                         continue;
                     }
                     var vibration = ground * sensor.LevelScale(speed) + recording.NoiseG * (2 * random.NextDouble() - 1);
-                    var pedal = sensor.Identity == TerrainSensor.Frame
+                    var pedal = sensor.Identity == TerrainSensor.FrameImu
                         ? PedalFrameG * Math.Sin(2 * Math.PI * section.PedalHz * seconds) : 0;
                     sensor.Add(tick, rate, upX + (speed - lastSpeed) * rate / Gravity,
                         upY + speed * gz / Gravity + vibration, upZ - speed * gy / Gravity + pedal,
@@ -96,8 +96,8 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
                 var level = Math.Sqrt(section.LowBandG * section.LowBandG +
                     section.MiddleBandG * section.MiddleBandG + section.HighBandG * section.HighBandG);
                 var response = ResponseAmplitude(level, speed);
-                front.Add(tick, Silent(TerrainSensor.Front) ? 0 : response, section, 0);
-                rear.Add(tick, Silent(TerrainSensor.Rear) ? 0 : response * 0.8, section, Silent(TerrainSensor.Rear) ? 0 : section.BobMillimetres);
+                front.Add(tick, Silent(TerrainSensor.ForkTravel) ? 0 : response, section, 0);
+                rear.Add(tick, Silent(TerrainSensor.ShockTravel) ? 0 : response * 0.8, section, Silent(TerrainSensor.ShockTravel) ? 0 : section.BobMillimetres);
             }
 
             var remaining = section.Length - (distance - sectionStart);
@@ -162,13 +162,13 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
     private sealed class Sensor(ImuLocation location, int scale)
     {
         public ImuMetaEntry Meta { get; } = new((byte)location, scale, GyroScale);
-        public TerrainSensor Identity => location == ImuLocation.Frame ? TerrainSensor.Frame : TerrainSensor.Lowers;
+        public TerrainSensor Identity => location == ImuLocation.Frame ? TerrainSensor.FrameImu : TerrainSensor.ForkImu;
         private readonly List<RawImuSegment> segments = [];
         private readonly List<ImuRecord> samples = [];
         private int first;
         private int sampleRate;
         public double LevelScale(double speed) => location == ImuLocation.Frame
-            ? Math.Pow(speed / 7, 0.7) : LowersLevelFactor * Math.Pow(speed / 7, 0.9);
+            ? Math.Pow(speed / 7, 0.7) : ForkLevelFactor * Math.Pow(speed / 7, 0.9);
 
         public void Add(int tick, int rate, double ax, double ay, double az, double gx, double gy, double gz)
         {

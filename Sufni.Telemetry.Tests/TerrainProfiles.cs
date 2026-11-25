@@ -6,8 +6,8 @@ public static class TerrainProfiles
 
     public static TerrainProfile Profile(IEnumerable<TerrainWindow> windows,
         TerrainRoughnessState roughness = TerrainRoughnessState.Classified,
-        TerrainGradeState grade = TerrainGradeState.Available, double? frameScale = 4096, double? lowersScale = 4096) =>
-        new([.. windows], [], [], roughness, grade, frameScale, lowersScale);
+        TerrainGradeState grade = TerrainGradeState.Available, double? frameScale = 4096, double? forkScale = 4096) =>
+        new([.. windows], [], [], roughness, grade, frameScale, forkScale);
 
     /// <summary>The ten-metre window that starts at <paramref name="start"/> seconds and lasts one second.</summary>
     public static TerrainWindow Window(double start, bool moving = true) => new(10 * start, start, start + 1, 10, moving);
@@ -18,8 +18,8 @@ public static class TerrainProfiles
         return Window(start) with
         {
             Roughness = roughness, Source = source, Grade = grade, Band = GradeBand.Flat,
-            Frame = source == RoughnessSource.LowersOnly ? null : sensor,
-            Lowers = source == RoughnessSource.FrameOnly ? null : sensor
+            Frame = source == RoughnessSource.ForkOnly ? null : sensor,
+            Fork = source == RoughnessSource.FrameOnly ? null : sensor
         };
     }
 

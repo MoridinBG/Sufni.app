@@ -120,13 +120,13 @@ public class TerrainProfileCalculatorTests
     [Theory]
     [InlineData(true, true, 4096, 4096, RoughnessSource.Both)]
     [InlineData(true, false, 4096, 4096, RoughnessSource.FrameOnly)]
-    [InlineData(false, true, 4096, 4096, RoughnessSource.LowersOnly)]
+    [InlineData(false, true, 4096, 4096, RoughnessSource.ForkOnly)]
     [InlineData(true, true, 4096, 2048, RoughnessSource.FrameOnly)]
-    [InlineData(true, true, 2048, 4096, RoughnessSource.LowersOnly)]
-    public void ClassificationIdentifiesTheCalibratedSensors(bool frame, bool lowers, int frameScale, int forkScale, RoughnessSource source)
+    [InlineData(true, true, 2048, 4096, RoughnessSource.ForkOnly)]
+    public void ClassificationIdentifiesTheCalibratedSensors(bool frame, bool fork, int frameScale, int forkScale, RoughnessSource source)
     {
-        var profile = SyntheticRide.Build([new(200)], new RideRecording(Frame: frame, Lowers: lowers,
-            AccelScale: frameScale, LowersAccelScale: forkScale)).Profile();
+        var profile = SyntheticRide.Build([new(200)], new RideRecording(Frame: frame, Fork: fork,
+            AccelScale: frameScale, ForkAccelScale: forkScale)).Profile();
         Assert.Equal(source, profile.Windows[10].Source);
     }
 
@@ -140,12 +140,12 @@ public class TerrainProfileCalculatorTests
     [Theory]
     [InlineData(4096)]
     [InlineData(2048)]
-    public void SaturatedLowersCannotClassifyWhenBothSensorsRecord(int frameScale)
+    public void SaturatedForkCannotClassifyWhenBothSensorsRecord(int frameScale)
     {
         var profile = SyntheticRide.Build([new(420, LowBandG: 2.4, MiddleBandG: 2.2, HighBandG: 2)],
-            new RideRecording(AccelScale: frameScale, LowersAccelScale: 4096)).Profile();
+            new RideRecording(AccelScale: frameScale, ForkAccelScale: 4096)).Profile();
         var w = profile.Windows[10];
-        Assert.True(w.Lowers!.ClippedShare > 0.02);
+        Assert.True(w.Fork!.ClippedShare > 0.02);
         if (frameScale == 4096)
         {
             Assert.Equal(RoughnessSource.FrameOnly, w.Source);
@@ -221,7 +221,7 @@ public class TerrainProfileCalculatorTests
     [Fact]
     public void SilentRearSensorLeavesPedallingUnknown()
     {
-        Assert.Null(PedallingAt150Metres(PedalledClimb, new RideRecording(Silence: (TerrainSensor.Rear, new(0, 100)))));
+        Assert.Null(PedallingAt150Metres(PedalledClimb, new RideRecording(Silence: (TerrainSensor.ShockTravel, new(0, 100)))));
     }
 
     [Fact]
@@ -239,37 +239,37 @@ public class TerrainProfileCalculatorTests
     }
 
     [Theory]
-    [InlineData(TerrainSensor.Front)]
-    [InlineData(TerrainSensor.Rear)]
-    [InlineData(TerrainSensor.Frame)]
-    [InlineData(TerrainSensor.Lowers)]
+    [InlineData(TerrainSensor.ForkTravel)]
+    [InlineData(TerrainSensor.ShockTravel)]
+    [InlineData(TerrainSensor.FrameImu)]
+    [InlineData(TerrainSensor.ForkImu)]
     public void SensorReadingZeroInMostMovingWindowsIsIgnored(TerrainSensor sensor)
     {
         var profile = SyntheticRide.Build([new(600)], new RideRecording(Silence: (sensor, new(0, 55)))).Profile();
         Assert.Equal([sensor], profile.SilentSensors);
         Assert.All(profile.Windows, w => Assert.Null(sensor switch
         {
-            TerrainSensor.Front => w.Front,
-            TerrainSensor.Rear => w.Rear,
-            TerrainSensor.Frame => (object?)w.Frame,
-            _ => w.Lowers
+            TerrainSensor.ForkTravel => w.Front,
+            TerrainSensor.ShockTravel => w.Rear,
+            TerrainSensor.FrameImu => (object?)w.Frame,
+            _ => w.Fork
         }));
     }
 
     [Fact]
     public void SensorReadingZeroInFewerThanHalfOfMovingWindowsIsKept()
     {
-        var profile = SyntheticRide.Build([new(600)], new RideRecording(Silence: (TerrainSensor.Rear, new(0, 30)))).Profile();
+        var profile = SyntheticRide.Build([new(600)], new RideRecording(Silence: (TerrainSensor.ShockTravel, new(0, 30)))).Profile();
         Assert.Empty(profile.SilentSensors);
         Assert.NotNull(profile.Windows[^1].Rear);
     }
 
     [Fact]
-    public void SilentFrameLeavesClassificationToLowersAndRemovesGrade()
+    public void SilentFrameLeavesClassificationToForkAndRemovesGrade()
     {
         var profile = SyntheticRide.Build([new(1000, GradeDegrees: 8)],
-            new RideRecording(Silence: (TerrainSensor.Frame, new(0, 100)))).Profile();
-        Assert.All(profile.Windows.Where(w => w.Moving), w => Assert.Equal(RoughnessSource.LowersOnly, w.Source));
+            new RideRecording(Silence: (TerrainSensor.FrameImu, new(0, 100)))).Profile();
+        Assert.All(profile.Windows.Where(w => w.Moving), w => Assert.Equal(RoughnessSource.ForkOnly, w.Source));
         Assert.Empty(profile.FrameMatching);
         Assert.Equal(TerrainGradeState.NoFrameSensor, profile.GradeState);
     }
@@ -285,7 +285,7 @@ public class TerrainProfileCalculatorTests
     [Fact]
     public void UncalibratedSensorStillProvidesPhysicalBandLevelsAndMatchingSeries()
     {
-        var profile = SyntheticRide.Build([new(350)], new RideRecording(AccelScale: 2048, Lowers: false)).Profile();
+        var profile = SyntheticRide.Build([new(350)], new RideRecording(AccelScale: 2048, Fork: false)).Profile();
         Assert.Equal(TerrainRoughnessState.ValuesOnly, profile.RoughnessState);
         Assert.Null(profile.Windows[15].Roughness);
         Assert.True(profile.Windows[15].Frame!.MiddleBand > 0);
@@ -393,10 +393,10 @@ public class TerrainProfileCalculatorTests
     [Fact]
     public void SerializedProfilePreservesClassifiedWindowsSensorMatchingAndSilentSensors()
     {
-        var profile = SyntheticRide.Build([new(210)], new RideRecording(Silence: (TerrainSensor.Rear, new(0, 25)))).Profile();
+        var profile = SyntheticRide.Build([new(210)], new RideRecording(Silence: (TerrainSensor.ShockTravel, new(0, 25)))).Profile();
         var restored = MessagePackSerializer.Deserialize<TerrainProfile>(MessagePackSerializer.Serialize(profile));
         Assert.Equal(profile.Windows.ToArray(), restored.Windows.ToArray());
         Assert.Equal(profile.FrameMatching.ToArray(), restored.FrameMatching.ToArray());
-        Assert.Equal([TerrainSensor.Rear], restored.SilentSensors);
+        Assert.Equal([TerrainSensor.ShockTravel], restored.SilentSensors);
     }
 }

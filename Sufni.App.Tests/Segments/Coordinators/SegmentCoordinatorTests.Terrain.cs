@@ -53,7 +53,7 @@ public partial class SegmentCoordinatorTests
     [Fact]
     public async Task RidesWithDisjointImusHaveNoCommonSensor()
     {
-        var (source, match) = TerrainComparisonInputs(0, SyntheticTrailRuns.Record(8, lowers: false),
+        var (source, match) = TerrainComparisonInputs(0, SyntheticTrailRuns.Record(8, fork: false),
             SyntheticTrailRuns.Record(8, frame: false));
         var result = await CompareTerrain(source, match);
         Assert.Equal(SegmentTerrainUnavailable.NoCommonSensor, Assert.IsType<SegmentTerrainComparison.Unavailable>(result).Reason);

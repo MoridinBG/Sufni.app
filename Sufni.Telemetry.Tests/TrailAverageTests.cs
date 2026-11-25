@@ -66,13 +66,13 @@ public class TrailAverageTests
     [Theory]
     [InlineData(3, RoughnessClass.Rough)]
     [InlineData(2, RoughnessClass.Calm)]
-    public void OnlyUnclippedLowersReadingsVoteAlongsideFrame(int unclipped, RoughnessClass expected)
+    public void OnlyUnclippedForkReadingsVoteAlongsideFrame(int unclipped, RoughnessClass expected)
     {
         var profiles = Enumerable.Range(0, 4).Select(i => Measurements(i, frameLevel: 1.32,
-            lowersLevel: i < unclipped ? 7.5 : 0.1, clipped: i >= unclipped)).ToArray();
+            forkLevel: i < unclipped ? 7.5 : 0.1, clipped: i >= unclipped)).ToArray();
         var window = Average(profiles).Windows[0];
         Assert.Equal(expected, window.Roughness);
-        Assert.NotNull(window.LowersLevel);
+        Assert.NotNull(window.ForkLevel);
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class TrailAverageTests
     private static AlignedTerrainRun Aligned(TerrainProfile profile) => new(profile, TerrainProfiles.Identity(WindowCount));
 
     private static TerrainProfile Measurements(int seed, double frameLevel = 2.31, bool calibrated = true,
-        double? lowersLevel = null, bool clipped = false, double grade = GroundGrade)
+        double? forkLevel = null, bool clipped = false, double grade = GroundGrade)
     {
         var random = new Random(seed);
         var windows = Enumerable.Range(0, WindowCount).Select(i =>
@@ -128,11 +128,11 @@ public class TrailAverageTests
             {
                 Grade = grade + noise,
                 Frame = TerrainProfiles.Sensor(frameLevel, calibrated ? Math.Log(frameLevel / 1.4) / Math.Log(2.2 / 1.4) : null),
-                Lowers = lowersLevel is { } l
+                Fork = forkLevel is { } l
                     ? TerrainProfiles.Sensor(l, Math.Log(l / 2.5) / Math.Log(3.8 / 2.5), clipped ? 0.10 : 0) : null
             };
         });
         return TerrainProfiles.Profile(windows, calibrated ? TerrainRoughnessState.Classified : TerrainRoughnessState.ValuesOnly,
-            frameScale: calibrated ? 4096 : 2048, lowersScale: lowersLevel.HasValue ? 4096 : null);
+            frameScale: calibrated ? 4096 : 2048, forkScale: forkLevel.HasValue ? 4096 : null);
     }
 }

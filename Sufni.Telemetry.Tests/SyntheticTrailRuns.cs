@@ -29,7 +29,7 @@ public static class SyntheticTrailRuns
     private static readonly double BandLevel = Math.Sqrt(LowBand * LowBand + MiddleBand * MiddleBand + HighBand * HighBand);
     private static readonly int AccelScale = new RideRecording().AccelScale;
     private static readonly TerrainCalibration FrameCalibration = TerrainCalibration.For(ImuLocation.Frame, AccelScale)!;
-    private static readonly TerrainCalibration LowersCalibration = TerrainCalibration.For(ImuLocation.Fork, AccelScale)!;
+    private static readonly TerrainCalibration ForkCalibration = TerrainCalibration.For(ImuLocation.Fork, AccelScale)!;
 
     public static ImmutableArray<TrailSection> Describe(int groundSeed, int recordingSeed = 23)
     {
@@ -71,7 +71,7 @@ public static class SyntheticTrailRuns
     }
 
     public static TerrainProfile Record(int groundSeed, double leadInMetres = 0, double roughRebound = 1,
-        double calmSpeedFactor = 1, int recordingSeed = 23, bool frame = true, bool lowers = true)
+        double calmSpeedFactor = 1, int recordingSeed = 23, bool frame = true, bool fork = true)
     {
         var sections = new List<RideSection>();
         if (leadInMetres > 0) sections.Add(new(leadInMetres, Speed, GradeDegrees));
@@ -82,7 +82,7 @@ public static class SyntheticTrailRuns
                 intensity * LowBand, intensity * MiddleBand, intensity * HighBand,
                 ReboundGain: section.Roughness >= RoughnessClass.Rough ? roughRebound : 1));
         }
-        var ride = SyntheticRide.Build(sections, new RideRecording(Seed: recordingSeed, Frame: frame, Lowers: lowers,
+        var ride = SyntheticRide.Build(sections, new RideRecording(Seed: recordingSeed, Frame: frame, Fork: fork,
             NoiseG: 0.002, FixRate: 5));
         return ride.Profile();
     }
@@ -101,7 +101,7 @@ public static class SyntheticTrailRuns
     }
 
     private static double Normalised(double frameLevel) => (FrameCalibration.Normalise(frameLevel) +
-        LowersCalibration.Normalise(SyntheticRide.LowersLevelFactor * frameLevel)) / 2;
+        ForkCalibration.Normalise(SyntheticRide.ForkLevelFactor * frameLevel)) / 2;
 
     // The mean normalised value is linear in the log level, so two points give the log level of any class boundary.
     private static double LogLevelAt(double normalised)

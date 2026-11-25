@@ -13,11 +13,11 @@ internal static partial class RecordedSessionPresentationDeriver
         var roughness = ImmutableArray.CreateBuilder<TerrainRun<RoughnessClass>>();
         var grade = ImmutableArray.CreateBuilder<TerrainRun<GradeBand>>();
         var frame = new TerrainSignalSections();
-        var lowers = new TerrainSignalSections();
+        var fork = new TerrainSignalSections();
         var grades = new TerrainSignalSections();
         var bob = new TerrainSignalSections();
-        int joint = 0, frameOnly = 0, lowersOnly = 0;
-        bool clipped = false, frameMissing = false, lowersMissing = false, frameUncalibrated = false, lowersUncalibrated = false;
+        int joint = 0, frameOnly = 0, forkOnly = 0;
+        bool clipped = false, frameMissing = false, forkMissing = false, frameUncalibrated = false, forkUncalibrated = false;
         for (var i = 0; i < profile.Windows.Length; i++)
         {
             var window = profile.Windows[i];
@@ -26,7 +26,7 @@ internal static partial class RecordedSessionPresentationDeriver
             AddRun(grade, window, window.Band);
             var baseline = TerrainProfileCalculator.BaselineGrade(profile.Windows, i);
             frame.Add(window.StartSeconds, window.EndSeconds, window.Frame?.SpeedRemoved);
-            lowers.Add(window.StartSeconds, window.EndSeconds, window.Lowers?.SpeedRemoved);
+            fork.Add(window.StartSeconds, window.EndSeconds, window.Fork?.SpeedRemoved);
             grades.Add(window.StartSeconds, window.EndSeconds, TerrainSignalSections.Degrees(baseline));
             bob.Add(window.StartSeconds, window.EndSeconds, window.Pedalling?.BobMillimetres);
             switch (window.Source)
@@ -34,24 +34,24 @@ internal static partial class RecordedSessionPresentationDeriver
                 case RoughnessSource.Both: joint++; break;
                 case RoughnessSource.FrameOnly:
                     frameOnly++;
-                    clipped |= window.Lowers?.ClippedShare > TerrainProfileCalculator.ClippedShareLimit;
-                    lowersMissing |= window.Lowers is null;
-                    lowersUncalibrated |= window.Lowers is { Normalised: null };
+                    clipped |= window.Fork?.ClippedShare > TerrainProfileCalculator.ClippedShareLimit;
+                    forkMissing |= window.Fork is null;
+                    forkUncalibrated |= window.Fork is { Normalised: null };
                     break;
-                case RoughnessSource.LowersOnly:
-                    lowersOnly++;
+                case RoughnessSource.ForkOnly:
+                    forkOnly++;
                     frameMissing |= window.Frame is null;
                     frameUncalibrated |= window.Frame is { Normalised: null };
                     break;
             }
         }
-        var total = Math.Max(1d, joint + frameOnly + lowersOnly);
-        return new(roughness.ToImmutable(), grade.ToImmutable(), frame.Build(), lowers.Build(), grades.Build(),
-            new(joint / total, frameOnly / total, lowersOnly / total, clipped, frameMissing, lowersMissing,
-                frameUncalibrated, lowersUncalibrated, profile.SilentSensors))
+        var total = Math.Max(1d, joint + frameOnly + forkOnly);
+        return new(roughness.ToImmutable(), grade.ToImmutable(), frame.Build(), fork.Build(), grades.Build(),
+            new(joint / total, frameOnly / total, forkOnly / total, clipped, frameMissing, forkMissing,
+                frameUncalibrated, forkUncalibrated, profile.SilentSensors))
         {
             FrameEdges = Edges(ImuLocation.Frame, profile.FrameScale),
-            LowersEdges = Edges(ImuLocation.Fork, profile.LowersScale),
+            ForkEdges = Edges(ImuLocation.Fork, profile.ForkScale),
             PedalBob = bob.Build()
         };
 

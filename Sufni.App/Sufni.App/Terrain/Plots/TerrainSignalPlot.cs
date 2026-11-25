@@ -27,12 +27,12 @@ public sealed class TerrainSignalPlot(Plot plot, SufniTheme? theme = null) : Rec
         if (kind == TerrainSignalKind.Roughness)
         {
             Add(terrain.Frame, "Frame", "g", PlotTheme.Series.ImuFrame);
-            Add(terrain.Lowers, "Lowers", "g", PlotTheme.Series.ImuFork);
+            Add(terrain.Fork, "Fork", "g", PlotTheme.Series.ImuFork);
             if (series.Count > 0)
             {
                 Shade(terrain.RoughnessRuns.Colour(scales.ColorFor));
                 if (!terrain.Frame.IsEmpty) AddGuides(terrain.FrameEdges, PlotTheme.Series.ImuFrame.ToScottPlotColor());
-                if (!terrain.Lowers.IsEmpty) AddGuides(terrain.LowersEdges, PlotTheme.Series.ImuFork.ToScottPlotColor());
+                if (!terrain.Fork.IsEmpty) AddGuides(terrain.ForkEdges, PlotTheme.Series.ImuFork.ToScottPlotColor());
             }
         }
         else if (kind == TerrainSignalKind.PedalBob)

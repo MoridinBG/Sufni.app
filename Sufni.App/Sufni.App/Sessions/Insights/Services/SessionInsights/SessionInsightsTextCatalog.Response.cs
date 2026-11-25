@@ -40,7 +40,7 @@ internal static partial class SessionInsightsTextCatalog
         {
             var sensors = end.Select(cell => cell.Predictor).Distinct().ToArray();
             if (sensors.Length == 1)
-                parts.Add($"the {(sensors[0] == ImuLocation.Fork ? "lowers" : "frame")} IMU for {name}");
+                parts.Add($"the {(sensors[0] == ImuLocation.Fork ? "fork" : "frame")} IMU for {name}");
         }
     }
 
