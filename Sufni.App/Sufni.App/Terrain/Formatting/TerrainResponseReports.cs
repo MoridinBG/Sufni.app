@@ -16,7 +16,7 @@ internal static class TerrainResponseReports
         [ResponseTarget.FrontRms, ResponseTarget.FrontPeakCompression, ResponseTarget.FrontPeakRebound];
     private static readonly ResponseTarget[] ShockTargets =
         [ResponseTarget.RearRms, ResponseTarget.RearPeakCompression, ResponseTarget.RearPeakRebound];
-    // Vibration passed to the frame belongs to Ground & comfort, so the report leaves Transmission out.
+    // Vibration passed to the frame belongs to Ground & comfort, so the report leaves it out.
     private static readonly ResponseTarget[] ReportedTargets = [.. ForkTargets, .. ShockTargets];
 
     private sealed record Measurement(ResponseCellState State, double? Deviation);

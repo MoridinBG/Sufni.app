@@ -31,7 +31,7 @@ internal static class GroundComfortReports
                 total > 0 ? row.DistanceMetres / total : 0,
                 Activity(row.FrontActivity, ResponseTarget.FrontRms), Activity(row.RearActivity, ResponseTarget.RearRms),
                 row.FrameLevel is { } frame ? new($"{frame:0.0} g") : ComfortFigure.Missing,
-                Usual(ResponseTarget.Transmission));
+                Usual(ResponseTarget.PassedToFrame));
         }).ToImmutableArray();
         var hasFrame = profile.Windows.Any(window => window.Frame is not null);
         var hasFork = profile.Windows.Any(window => window.Fork is not null);

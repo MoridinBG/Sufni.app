@@ -73,8 +73,8 @@ public static class TerrainResponse
     }
 
     /// <summary>The deviation from the bike baseline that repeat rides stay within.</summary>
-    public static double RepeatRange(ResponseTarget target) => target == ResponseTarget.Transmission
-        ? SuspensionResponseModel.BikeTransmissionThreshold : SuspensionResponseModel.BikeResponseThreshold;
+    public static double RepeatRange(ResponseTarget target) => target == ResponseTarget.PassedToFrame
+        ? SuspensionResponseModel.BikePassedToFrameThreshold : SuspensionResponseModel.BikeResponseThreshold;
 
     public static ImmutableArray<ResponseFinding> Findings(IEnumerable<TerrainResponseRow> rows) =>
         [.. rows.SelectMany(row => row.Cells.Where(cell => cell.State == ResponseCellState.Finding)

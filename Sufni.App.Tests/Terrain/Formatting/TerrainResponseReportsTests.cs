@@ -21,13 +21,13 @@ public class TerrainResponseReportsTests
     }
 
     [Fact]
-    public void AgainstUsual_LeavesTransmissionOutOfTheReport()
+    public void AgainstUsual_LeavesPassedToFrameOutOfTheReport()
     {
-        var report = TerrainResponseReports.AgainstUsual([Row(null, 900, Finding(ResponseTarget.Transmission, 1.3))]);
+        var report = TerrainResponseReports.AgainstUsual([Row(null, 900, Finding(ResponseTarget.PassedToFrame, 1.3))]);
 
         Assert.Empty(report.Fork.Concat(report.Shock));
         var bars = report.Chart.Single().Fork.Concat(report.Chart.Single().Shock).ToArray();
-        Assert.DoesNotContain(bars, bar => bar.Target == ResponseTarget.Transmission);
+        Assert.DoesNotContain(bars, bar => bar.Target == ResponseTarget.PassedToFrame);
         Assert.NotNull(report.Summary);
     }
 

@@ -3,7 +3,7 @@ using MathNet.Numerics.LinearAlgebra;
 
 namespace Sufni.Telemetry;
 
-public enum ResponseTarget { FrontRms, FrontPeakCompression, FrontPeakRebound, RearRms, RearPeakCompression, RearPeakRebound, Transmission }
+public enum ResponseTarget { FrontRms, FrontPeakCompression, FrontPeakRebound, RearRms, RearPeakCompression, RearPeakRebound, PassedToFrame }
 public enum ResponseFitIssue { InsufficientData, InsufficientVariation, MissingSensor }
 
 public closed record ResponseFit(ImuLocation Predictor, int Sessions, int Windows)
@@ -22,7 +22,7 @@ public sealed record SuspensionResponseModel(ImmutableDictionary<ResponseTarget,
     /// <summary>Distance from which a reported ratio carries full confidence; shorter reports are marked as low confidence.</summary>
     public const int ConfidentReportMetres = 300;
     public const double BikeResponseThreshold = 0.30;
-    public const double BikeTransmissionThreshold = 0.10;
+    public const double BikePassedToFrameThreshold = 0.10;
     public bool HasFit => Fits.Values.Any(fit => fit is ResponseFit.Fitted);
 
     public static SuspensionResponseModel Fit(TerrainProfile evaluated, IReadOnlyCollection<TerrainProfile> baseline,
@@ -84,7 +84,7 @@ public sealed record SuspensionResponseModel(ImmutableDictionary<ResponseTarget,
 
     private static ImuLocation SelectPredictor(ResponseTarget target, TerrainProfile evaluated, TerrainProfile? paired, IReadOnlyCollection<TerrainProfile> baseline)
     {
-        if (target == ResponseTarget.Transmission) return ImuLocation.Fork;
+        if (target == ResponseTarget.PassedToFrame) return ImuLocation.Fork;
         var front = target is ResponseTarget.FrontRms or ResponseTarget.FrontPeakCompression or ResponseTarget.FrontPeakRebound;
         var preferred = front ? ImuLocation.Fork : ImuLocation.Frame;
         if (Scale(evaluated, preferred).HasValue && (paired is null || Scale(paired, preferred).HasValue) &&
@@ -95,7 +95,7 @@ public sealed record SuspensionResponseModel(ImmutableDictionary<ResponseTarget,
     /// <summary>The predictor scale of the evaluated ride, or null when a judged ride lacks a sensor the target needs.</summary>
     private static double? AvailableScale(ResponseTarget target, ImuLocation predictor, TerrainProfile evaluated, TerrainProfile? paired) =>
         paired is not null && Scale(paired, predictor) is null ||
-        target == ResponseTarget.Transmission && (evaluated.FrameScale is null || paired is { FrameScale: null })
+        target == ResponseTarget.PassedToFrame && (evaluated.FrameScale is null || paired is { FrameScale: null })
             ? null : Scale(evaluated, predictor);
 
     private static double? Scale(TerrainProfile profile, ImuLocation sensor) =>
@@ -112,7 +112,7 @@ public sealed record SuspensionResponseModel(ImmutableDictionary<ResponseTarget,
             ResponseTarget.RearRms => window.Rear?.RmsVelocity,
             ResponseTarget.RearPeakCompression => window.Rear?.PeakCompression,
             ResponseTarget.RearPeakRebound => window.Rear?.PeakRebound,
-            ResponseTarget.Transmission => window.Frame?.Level,
+            ResponseTarget.PassedToFrame => window.Frame?.Level,
             _ => null
         };
         // Climbing response follows pedalling and rider load, not the ground law this model fits.

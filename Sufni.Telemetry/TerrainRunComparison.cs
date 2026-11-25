@@ -20,7 +20,7 @@ public static class TerrainRunComparison
 {
     public const double ResponseThreshold = 0.20;
     public const double ReboundThreshold = 0.25;
-    public const double TransmissionThreshold = 0.05;
+    public const double PassedToFrameThreshold = 0.05;
     public const double SamePositionSpeedExponent = 0.9;
 
     public static ImmutableArray<TerrainComparisonRow> Compare(TerrainProfile current, TerrainProfile earlier,
@@ -81,7 +81,7 @@ public static class TerrainRunComparison
     /// <summary>The deviation between two runs of one trail that repeat runs stay within.</summary>
     public static double RepeatRange(ResponseTarget target) => target switch
     {
-        ResponseTarget.Transmission => TransmissionThreshold,
+        ResponseTarget.PassedToFrame => PassedToFrameThreshold,
         ResponseTarget.FrontPeakRebound or ResponseTarget.RearPeakRebound => ReboundThreshold,
         _ => ResponseThreshold
     };

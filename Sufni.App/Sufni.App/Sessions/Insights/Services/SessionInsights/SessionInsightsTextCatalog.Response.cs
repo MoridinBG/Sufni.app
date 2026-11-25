@@ -30,7 +30,7 @@ internal static partial class SessionInsightsTextCatalog
 
     private static string Sensors(IEnumerable<TerrainResponseRow> rows)
     {
-        var cells = rows.SelectMany(row => row.Cells).Where(cell => cell.Target != ResponseTarget.Transmission).ToArray();
+        var cells = rows.SelectMany(row => row.Cells).Where(cell => cell.Target != ResponseTarget.PassedToFrame).ToArray();
         var parts = new List<string>();
         Add(cells.Where(cell => TerrainResponseText.IsFork(cell.Target)), "the fork");
         Add(cells.Where(cell => !TerrainResponseText.IsFork(cell.Target)), "the shock");

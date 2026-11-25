@@ -15,7 +15,7 @@ public class SuspensionResponseModelTests
     [Fact]
     public void HeldOutRideOnTheBaselineGroundTransmitsAsPredicted()
     {
-        Assert.InRange(WholeRide(SyntheticResponseRides.Profile(37))[ResponseTarget.Transmission].Ratio!.Value, 0.95, 1.05);
+        Assert.InRange(WholeRide(SyntheticResponseRides.Profile(37))[ResponseTarget.PassedToFrame].Ratio!.Value, 0.95, 1.05);
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public class SuspensionResponseModelTests
         var findings = TerrainResponse.Findings(rows).Where(f => f.Group is null).ToDictionary(f => f.Target);
         Assert.InRange(findings[ResponseTarget.RearPeakRebound].Deviation, -0.45, -0.35);
         Assert.Equal(ResponseConfidence.Full, findings[ResponseTarget.FrontRms].Confidence);
-        Assert.DoesNotContain(ResponseTarget.Transmission, findings.Keys);
+        Assert.DoesNotContain(ResponseTarget.PassedToFrame, findings.Keys);
         Assert.Empty(TerrainResponse.Findings(TerrainResponse.Describe(SyntheticResponseRides.Profile(37),
             SuspensionResponseModel.Fit(SyntheticResponseRides.Profile(37), SyntheticResponseRides.Baseline), null)));
     }
