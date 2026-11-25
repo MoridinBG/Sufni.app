@@ -43,12 +43,16 @@ public partial class MapViewModel : ViewModelBase, IDisposable
         set { if (HasTerrain && value != coloring) selectColoring?.Invoke(value); }
     }
 
-    public ImmutableArray<TerrainColourRun> TerrainRuns => coloring switch
+    public ImmutableArray<MapTerrainRun> TerrainRuns => coloring switch
     {
-        MapTrackColoring.Roughness when terrain is not null => terrain.RoughnessRuns.Colour(SufniThemes.SignalSeries.Terrain.ColorFor),
-        MapTrackColoring.Grade when terrain is not null => terrain.GradeRuns.Colour(SufniThemes.SignalSeries.Terrain.ColorFor),
+        MapTrackColoring.Roughness when terrain is not null => Runs(terrain.RoughnessRuns, SufniThemes.SignalSeries.Terrain.ColorFor),
+        MapTrackColoring.Grade when terrain is not null => Runs(terrain.GradeRuns, SufniThemes.SignalSeries.Terrain.ColorFor),
         _ => []
     };
+
+    private static ImmutableArray<MapTerrainRun> Runs<TClass>(ImmutableArray<TerrainRun<TClass>> runs,
+        Func<TClass, Avalonia.Media.Color> colour) where TClass : struct, Enum =>
+        [.. runs.Select(run => new MapTerrainRun(run.StartSeconds, run.EndSeconds, colour(run.Class)))];
 
     /// <summary>The classes of the selected terrain colouring, then the style of ground without a class.</summary>
     public IReadOnlyList<MapLegendEntry> TerrainLegend => TerrainRuns.IsEmpty ? [] : coloring switch

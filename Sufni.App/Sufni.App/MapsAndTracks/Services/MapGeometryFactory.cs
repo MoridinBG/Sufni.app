@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using Sufni.App.Infrastructure.Theming;
-using Sufni.App.Terrain.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,11 +21,15 @@ public interface IMapGeometryFactory
     Task<MapGeometrySnapshot> BuildAsync(MapGeometryInput input, MapGeometrySnapshot? previous, CancellationToken cancellationToken);
 }
 
+/// <summary>A terrain class span of the session track in seconds from the terrain origin; a null colour marks a hidden class.</summary>
+public readonly record struct MapTerrainRun(double StartSeconds, double EndSeconds, Avalonia.Media.Color? Colour);
+
+/// <summary>Track geometry inputs; with terrain runs, track outside every run is ground without a class.</summary>
 public sealed record MapGeometryInput(
     IReadOnlyList<TrackPoint> FullTrack,
     IReadOnlyList<TrackPoint> SessionTrack,
     MatchedTrackOverlay? MatchedTrack,
-    ImmutableArray<TerrainColourRun> TerrainRuns = default, double TerrainOriginSeconds = 0);
+    ImmutableArray<MapTerrainRun> TerrainRuns = default, double TerrainOriginSeconds = 0, bool UnclassifiedHidden = false);
 
 public sealed record MapGeometrySnapshot(
     MapGeometryInput Input,
@@ -46,23 +49,25 @@ internal sealed class MapGeometryFactory(IBackgroundTaskRunner background) : IMa
         background.RunAsync(() => new MapGeometrySnapshot(input,
             ReferenceEquals(input.FullTrack, previous?.Input.FullTrack) ? previous.FullTrack : BuildTrack(input.FullTrack, false),
             previous is not null && ReferenceEquals(input.SessionTrack, previous.Input.SessionTrack) &&
-                input.TerrainRuns == previous.Input.TerrainRuns && input.TerrainOriginSeconds == previous.Input.TerrainOriginSeconds
-                ? previous.SessionTrack : BuildTrack(input.SessionTrack, true, input.TerrainRuns, input.TerrainOriginSeconds),
+                input.TerrainRuns == previous.Input.TerrainRuns && input.TerrainOriginSeconds == previous.Input.TerrainOriginSeconds &&
+                input.UnclassifiedHidden == previous.Input.UnclassifiedHidden
+                ? previous.SessionTrack
+                : BuildTrack(input.SessionTrack, true, input.TerrainRuns, input.TerrainOriginSeconds, input.UnclassifiedHidden),
             ReferenceEquals(input.MatchedTrack, previous?.Input.MatchedTrack) && previous is not null
                 ? previous.MatchedFeatures : BuildMatched(input.MatchedTrack)), cancellationToken);
 
     private static RenderedTrackGeometry BuildTrack(IReadOnlyList<TrackPoint> points, bool buildTimeIndex,
-        ImmutableArray<TerrainColourRun> runs = default, double origin = 0)
+        ImmutableArray<MapTerrainRun> runs = default, double origin = 0, bool unclassifiedHidden = false)
     {
         IReadOnlyList<IFeature> lines = points.Count < 2 ? [] : buildTimeIndex
-            ? SessionLines(points, runs, origin)
+            ? SessionLines(points, runs, origin, unclassifiedHidden)
             : [new GeometryFeature { Geometry = new LineString(points.Select(p => new Coordinate(p.X, p.Y)).ToArray()) }];
         IFeature[] markers = points.Count == 0 ? [] : [CreateMarker(points[0], "#229954"), CreateMarker(points[^1], "#E74C3C")];
         return new(points, lines, markers, buildTimeIndex ? new TrackPointTimeIndex(points) : null);
     }
 
     private static IReadOnlyList<IFeature> SessionLines(IReadOnlyList<TrackPoint> points,
-        ImmutableArray<TerrainColourRun> runs, double origin)
+        ImmutableArray<MapTerrainRun> runs, double origin, bool unclassifiedHidden)
     {
         if (runs.IsDefaultOrEmpty)
             return [PlainLine(points.Select(p => new Coordinate(p.X, p.Y)).ToArray())];
@@ -70,6 +75,7 @@ internal sealed class MapGeometryFactory(IBackgroundTaskRunner background) : IMa
         var line = new List<Coordinate> { new(points[0].X, points[0].Y) };
         using var changes = Boundaries().GetEnumerator();
         var hasChange = changes.MoveNext();
+        var classified = false;
         Avalonia.Media.Color? colour = null;
         for (var i = 1; i < points.Count; i++)
         {
@@ -77,7 +83,7 @@ internal sealed class MapGeometryFactory(IBackgroundTaskRunner background) : IMa
             var b = points[i];
             while (hasChange && changes.Current.Time <= b.Time)
             {
-                var (time, next) = changes.Current;
+                var (time, nextClassified, next) = changes.Current;
                 if (time > a.Time)
                 {
                     var t = (time - a.Time) / (b.Time - a.Time);
@@ -86,7 +92,7 @@ internal sealed class MapGeometryFactory(IBackgroundTaskRunner background) : IMa
                     FinishLine();
                     line.Add(border);
                 }
-                colour = next;
+                (classified, colour) = (nextClassified, next);
                 hasChange = changes.MoveNext();
             }
             if (line[^1].X != b.X || line[^1].Y != b.Y) line.Add(new(b.X, b.Y));
@@ -94,20 +100,26 @@ internal sealed class MapGeometryFactory(IBackgroundTaskRunner background) : IMa
         FinishLine();
         return features;
 
-        IEnumerable<(double Time, Avalonia.Media.Color? Colour)> Boundaries()
+        IEnumerable<(double Time, bool Classified, Avalonia.Media.Color? Colour)> Boundaries()
         {
             for (var i = 0; !runs.IsDefault && i < runs.Length; i++)
             {
                 var run = runs[i];
-                yield return (origin + run.StartSeconds, run.Colour);
+                yield return (origin + run.StartSeconds, true, run.Colour);
                 if (i + 1 == runs.Length || runs[i + 1].StartSeconds != run.EndSeconds)
-                    yield return (origin + run.EndSeconds, null);
+                    yield return (origin + run.EndSeconds, false, null);
             }
         }
 
         void FinishLine()
         {
-            if (line.Count >= 2) features.Add(colour is { } c ? TerrainLine(line.ToArray(), c) : UnclassifiedLine(line.ToArray()));
+            if (line.Count >= 2)
+            {
+                var coordinates = line.ToArray();
+                features.Add(classified
+                    ? colour is { } c ? TerrainLine(coordinates, c) : HiddenLine(coordinates)
+                    : unclassifiedHidden ? HiddenLine(coordinates) : UnclassifiedLine(coordinates));
+            }
             line.Clear();
         }
     }
@@ -123,6 +135,13 @@ internal sealed class MapGeometryFactory(IBackgroundTaskRunner background) : IMa
     {
         var colour = SufniThemes.SignalSeries.Terrain.Unclassified;
         return Line(coordinates, new Pen(new Color(colour.R, colour.G, colour.B, colour.A), 3) { PenStyle = PenStyle.Dash });
+    }
+
+    // A hidden class keeps a thin solid line, so the route stays readable.
+    private static GeometryFeature HiddenLine(Coordinate[] coordinates)
+    {
+        var colour = SufniThemes.SignalSeries.Terrain.Unclassified;
+        return Line(coordinates, new Pen(new Color(colour.R, colour.G, colour.B, colour.A), 2));
     }
 
     private static GeometryFeature Line(Coordinate[] coordinates, Pen pen)

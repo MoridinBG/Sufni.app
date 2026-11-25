@@ -1,7 +1,6 @@
 using Mapsui.Nts;
 using Mapsui.Styles;
 using Sufni.App.MapsAndTracks.Services;
-using Sufni.App.Terrain.Models;
 
 namespace Sufni.App.Tests.MapsAndTracks.Services;
 
@@ -34,6 +33,20 @@ public class MapGeometryFactoryTests
         Assert.Equal(3, pens.Length);
         Assert.Equal((PenStyle.Dash, 3d), (pens[1].PenStyle, pens[1].Width));
         Assert.Equal(PenStyle.Solid, pens[0].PenStyle);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HiddenClassesDrawThinAndSolid(bool unclassifiedHidden)
+    {
+        var input = Input with { TerrainRuns = [new(0, 1, null), new(3, 4, Avalonia.Media.Colors.Red)], UnclassifiedHidden = unclassifiedHidden };
+        var built = await factory.BuildAsync(input, null, TestContext.Current.CancellationToken);
+        var pens = built.SessionTrack.LineFeatures.Select(f => Assert.Single(f.Styles.OfType<VectorStyle>()).Line!).ToArray();
+        Assert.Equal(3, pens.Length);
+        Assert.Equal(PenStyle.Solid, pens[0].PenStyle);
+        Assert.True(pens[0].Width < pens[2].Width);
+        Assert.Equal(unclassifiedHidden, (pens[1].PenStyle, pens[1].Width) == (pens[0].PenStyle, pens[0].Width));
     }
 
     [Fact]
