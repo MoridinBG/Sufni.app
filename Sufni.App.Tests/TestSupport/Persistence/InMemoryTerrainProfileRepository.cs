@@ -14,6 +14,7 @@ internal sealed class InMemoryTerrainProfileRepository : ITerrainProfileReposito
     public Exception? WriteFailure { get; set; }
     public Exception? ReadFailure { get; set; }
     public Func<Task>? BeforeWrite { get; set; }
+    public Func<Task>? BeforeClassWrite { get; set; }
     public Func<IReadOnlyDictionary<Guid, TerrainProfileKey>, CancellationToken, Task>? BeforeRead { get; set; }
 
     public void Seed(Guid sessionId, TerrainProfileKey key, TerrainProfile profile) =>
@@ -40,12 +41,13 @@ internal sealed class InMemoryTerrainProfileRepository : ITerrainProfileReposito
             .ToDictionary(pair => pair.Key, pair => rows[pair.Key].Result.Profile!);
     }
 
-    public Task<IReadOnlyList<Guid>> CommitClassesAsync(
+    public async Task<IReadOnlyList<Guid>> CommitClassesAsync(
         IReadOnlyDictionary<Guid, (TerrainClassKey Key, TerrainClassSummary Summary)> written,
         CancellationToken cancellationToken = default)
     {
+        if (BeforeClassWrite is { } beforeClassWrite) await beforeClassWrite();
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult<IReadOnlyList<Guid>>([.. written.Keys.Where(id =>
-            rows.TryGetValue(id, out var row) && row.Key == written[id].Key.Profile && row.Result.Profile is not null)]);
+        return [.. written.Keys.Where(id =>
+            rows.TryGetValue(id, out var row) && row.Key == written[id].Key.Profile && row.Result.Profile is not null)];
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Threading;
@@ -28,6 +29,8 @@ public interface ITerrainProfileCoordinator
 internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, IDisposable
 {
     private sealed record Request(Guid Id, TerrainProfileKey Key);
+    private sealed record ClassRun(Guid SetupId, TerrainScaleKey Scale, ImmutableDictionary<Guid, TerrainProfileKey> Sessions);
+    private sealed record Plan(List<Request> Profiles, IReadOnlyDictionary<Guid, TerrainScaleKey> Scales, List<ClassRun> Classes);
 
     private static readonly ILogger Logger = Log.ForContext<TerrainProfileCoordinator>();
     private readonly ISessionStoreWriter sessions;
@@ -41,7 +44,9 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
     private readonly CancellationTokenSource lifetime = new();
     private readonly List<Request> queue = [];
     private readonly List<Guid> priorities = [];
+    private readonly List<ClassRun> classQueue = [];
     private Request? active;
+    private ClassRun? activeClasses;
     private CancellationTokenSource? activeCancellation;
     private Task? computation;
     private Task? planning;
@@ -80,24 +85,30 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
         {
             var snapshot = sessions.GetAll();
             var trackSnapshot = tracks.GetAll();
-            var pending = await background.RunAsync(() => snapshot.OrderByDescending(s => s.Timestamp).ThenBy(s => s.Id)
-                .Select(s => (s.Id, Terrain: SessionTerrainStatusQuery.Evaluate(s, trackSnapshot)))
-                .Where(s => s.Terrain.Status is TerrainStatus.Pending)
-                .Select(s => new Request(s.Id, s.Terrain.Key)).ToList(), lifetime.Token).ConfigureAwait(false);
+            var plan = await background.RunAsync(() => Evaluate(snapshot, trackSnapshot), lifetime.Token).ConfigureAwait(false);
             await dispatcher.InvokeAsync(() =>
             {
                 if (stopped || requested != generation) return;
-                if (active is not null && !pending.Contains(active)) activeCancellation?.Cancel();
+                if (active is not null && !plan.Profiles.Contains(active)) activeCancellation?.Cancel();
+                if (activeClasses is { } running && plan.Scales.GetValueOrDefault(running.SetupId) != running.Scale)
+                    activeCancellation?.Cancel();
+                var runningClasses = activeCancellation?.IsCancellationRequested == true ? null : activeClasses;
                 queue.Clear();
-                queue.AddRange(pending.Where(request => request != active || activeCancellation?.IsCancellationRequested == true));
+                queue.AddRange(plan.Profiles.Where(request => request != active || activeCancellation?.IsCancellationRequested == true));
                 priorities.RemoveAll(id => queue.All(request => request.Id != id));
+                classQueue.Clear();
+                classQueue.AddRange(plan.Classes
+                    .Select(run => run.SetupId == runningClasses?.SetupId
+                        ? run with { Sessions = run.Sessions.RemoveRange(runningClasses.Sessions.Keys) }
+                        : run)
+                    .Where(run => run.Sessions.Count > 0));
             });
         }
         catch (OperationCanceledException) when (stopped) { }
         catch (Exception error)
         {
             Logger.Warning(error, "Could not plan terrain profiles");
-            await dispatcher.InvokeAsync(() => { activeCancellation?.Cancel(); queue.Clear(); });
+            await dispatcher.InvokeAsync(() => { activeCancellation?.Cancel(); queue.Clear(); classQueue.Clear(); });
         }
         finally
         {
@@ -111,6 +122,24 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
         }
     }
 
+    private static Plan Evaluate(IReadOnlyList<SessionSnapshot> snapshot, IReadOnlyList<TrackSnapshot> trackSnapshot)
+    {
+        var evaluated = snapshot.OrderByDescending(s => s.Timestamp).ThenBy(s => s.Id)
+            .Select(s => (Session: s, Terrain: SessionTerrainStatusQuery.Evaluate(s, trackSnapshot))).ToList();
+        var profiles = evaluated.Where(s => s.Terrain.Status is TerrainStatus.Pending)
+            .Select(s => new Request(s.Session.Id, s.Terrain.Key)).ToList();
+        var scales = SetupTerrainScaleQuery.Evaluate(snapshot, trackSnapshot)
+            .ToDictionary(pair => pair.Key, pair => pair.Value.Key);
+        var classes = evaluated.Where(s => s.Session.SetupId is { } setupId && scales.ContainsKey(setupId))
+            .GroupBy(s => s.Session.SetupId!.Value)
+            .Select(setup => new ClassRun(setup.Key, scales[setup.Key], setup
+                .Where(s => SessionTerrainStatusQuery.EvaluateClasses(s.Session, s.Terrain.Status, scales[setup.Key])
+                    is TerrainClassState.Pending)
+                .ToImmutableDictionary(s => s.Session.Id, s => s.Terrain.Key)))
+            .Where(run => run.Sessions.Count > 0).ToList();
+        return new(profiles, scales, classes);
+    }
+
     public void Prioritize(Guid sessionId)
     {
         if (stopped || active?.Id == sessionId) return;
@@ -120,7 +149,12 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
 
     private void StartNext()
     {
-        if (stopped || active is not null || planning is not null || queue.Count == 0) return;
+        if (stopped || computation is not null || planning is not null) return;
+        if (queue.Count == 0)
+        {
+            StartClasses();
+            return;
+        }
         var request = priorities.Count == 0 ? queue[0] : queue.FirstOrDefault(r => r.Id == priorities[0]) ?? queue[0];
         priorities.Remove(request.Id);
         queue.Remove(request);
@@ -162,6 +196,66 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
                 StartNext();
             });
         }
+    }
+
+    private void StartClasses()
+    {
+        if (classQueue.Count == 0) return;
+        var run = classQueue[0];
+        classQueue.RemoveAt(0);
+        activeClasses = run;
+        activeCancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        computation = completion.Task;
+        _ = RunClassesAsync(run, activeCancellation.Token, completion);
+    }
+
+    private async Task RunClassesAsync(ClassRun run, CancellationToken token, TaskCompletionSource completion)
+    {
+        try
+        {
+            var written = await background.RunAsync(() => ClassifyAndCommitAsync(run, token), token).ConfigureAwait(false);
+            if (written.Count == 0) return;
+            await dispatcher.InvokeAsync(() => sessions.PublishSessionsChangedAsync([.. written
+                .Select(pair => sessions.Get(pair.Key) is { } session
+                    ? session with { TerrainClassKey = pair.Value.Key, TerrainClassSummary = pair.Value.Summary }
+                    : null)
+                .OfType<SessionSnapshot>()], token)).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception error)
+        {
+            Logger.Warning(error, "Could not classify terrain for setup {SetupId}", run.SetupId);
+        }
+        finally
+        {
+            await dispatcher.InvokeAsync(() =>
+            {
+                activeCancellation!.Dispose();
+                activeCancellation = null;
+                activeClasses = null;
+                computation = null;
+                completion.TrySetResult();
+                StartNext();
+            });
+        }
+    }
+
+    private async Task<Dictionary<Guid, (TerrainClassKey Key, TerrainClassSummary Summary)>> ClassifyAndCommitAsync(
+        ClassRun run, CancellationToken token)
+    {
+        var profiles = await repository.ReadAsync(run.Sessions, token).ConfigureAwait(false);
+        var classes = new Dictionary<Guid, (TerrainClassKey Key, TerrainClassSummary Summary)>();
+        foreach (var (id, profile) in profiles)
+        {
+            token.ThrowIfCancellationRequested();
+            classes[id] = (new TerrainClassKey(run.Sessions[id], run.Scale, TerrainClassifier.Version),
+                TerrainClassifier.Summarize(TerrainClassifier.Classify(profile, run.Scale)));
+        }
+        token.ThrowIfCancellationRequested();
+        if (classes.Count == 0) return [];
+        var written = await repository.CommitClassesAsync(classes, token).ConfigureAwait(false);
+        return written.ToDictionary(id => id, id => classes[id]);
     }
 
     private async Task<TerrainMaterialization?> ComputeAndCommitAsync(Request request, CancellationToken token)
@@ -228,6 +322,7 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
         subscription.Dispose();
         lifetime.Cancel();
         queue.Clear();
+        classQueue.Clear();
     }
 
     public void Dispose()

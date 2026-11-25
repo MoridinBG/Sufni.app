@@ -198,6 +198,96 @@ public class TerrainProfileCoordinatorTests
         Assert.Empty(h.Published);
     }
 
+    [Fact]
+    public async Task ClassWorkWaitsForProfileWorkAndPublishesTheSetupInOneStep()
+    {
+        await using var h = new Harness();
+        var setup = Guid.NewGuid();
+        var measured = h.ReadySetup(setup);
+        var started = new TaskCompletionSource();
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        h.Read = async (_, key, token) =>
+        {
+            started.TrySetResult();
+            await release.Task.WaitAsync(token);
+            return h.Available(key);
+        };
+        await h.StartAsync([.. measured, Session()]);
+        await h.DrainAsync(started.Task);
+        Assert.Empty(h.ClassPublications);
+
+        release.SetResult();
+        await h.WaitForClassesAsync(measured[0], ScaleAt(0));
+        Assert.Equal(measured.Select(session => session.Id).Order(), Assert.Single(h.ClassPublications).Order());
+        Assert.All(measured, session => Assert.Equal(new TerrainClassSummary(2 * TerrainProfileCalculator.WindowMetres, 1),
+            h.Sessions.Get(session.Id)!.TerrainClassSummary));
+    }
+
+    [Fact]
+    public async Task ChangedScaleKeyReclassesEverySessionOfTheSetupInOneStep()
+    {
+        await using var h = new Harness();
+        var setup = Guid.NewGuid();
+        var measured = h.ReadySetup(setup);
+        await h.StartAsync(measured);
+        await h.WaitForClassesAsync(measured[0], ScaleAt(0));
+
+        var rougher = h.Measured(setup, 104, bin: TwoStepsUp, metres: 10000);
+        await h.PublishAsync(rougher);
+        await h.WaitForClassesAsync(measured[0], ScaleAt(TwoStepsUp));
+
+        Assert.Equal(measured.Append(rougher).Select(session => session.Id).Order(), h.ClassPublications[^1].Order());
+        Assert.All(measured, session => Assert.Equal(0, h.Sessions.Get(session.Id)!.TerrainClassSummary!.RoughShare));
+    }
+
+    [Fact]
+    public async Task SupersededClassRunWritesNothing()
+    {
+        await using var h = new Harness();
+        var setup = Guid.NewGuid();
+        var measured = h.ReadySetup(setup);
+        var started = new TaskCompletionSource();
+        var reads = 0;
+        h.Repository.BeforeRead = async (_, token) =>
+        {
+            if (Interlocked.Increment(ref reads) > 1) return;
+            started.SetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+        };
+        await h.StartAsync(measured);
+        await h.DrainAsync(started.Task);
+
+        var rougher = h.Measured(setup, 104, bin: TwoStepsUp, metres: 10000);
+        await h.PublishAsync(rougher);
+        await h.WaitForClassesAsync(measured[0], ScaleAt(TwoStepsUp));
+
+        Assert.All(h.PublishedClassKeys, key => Assert.Equal(ScaleAt(TwoStepsUp), key.Scale));
+    }
+
+    [Fact]
+    public async Task ClassWriteSkipsASessionWhoseProfileChanged()
+    {
+        await using var h = new Harness();
+        var setup = Guid.NewGuid();
+        var measured = h.ReadySetup(setup);
+        var changed = measured[1];
+        h.Repository.BeforeClassWrite = () =>
+        {
+            h.Repository.Seed(changed.Id, changed.TerrainProfileKey! with { AlgorithmVersion = 0 }, Harness.RoughProfile);
+            return Task.CompletedTask;
+        };
+        await h.StartAsync(measured);
+        await h.WaitForClassesAsync(measured[0], ScaleAt(0));
+
+        Assert.DoesNotContain(changed.Id, Assert.Single(h.ClassPublications));
+        Assert.Null(h.Sessions.Get(changed.Id)!.TerrainClassKey);
+    }
+
+    // Twenty level bins span one class step.
+    private const int TwoStepsUp = 40;
+
+    private static TerrainScaleKey ScaleAt(int frameBin) => new(frameBin, null, null, null);
+
     private static SessionSnapshot Session(long timestamp = 100) =>
         TestSnapshots.Session(timestamp: timestamp, hasProcessedData: true) with { DurationSeconds = 12 };
 
@@ -216,6 +306,13 @@ public class TerrainProfileCoordinatorTests
         public TerrainProfileCoordinator Coordinator { get; }
         public List<(Guid Id, TerrainProfileKey Key)> Published { get; } = [];
         public List<Guid> Reads { get; } = [];
+        public List<IReadOnlyList<Guid>> ClassPublications { get; } = [];
+        public List<TerrainClassKey> PublishedClassKeys { get; } = [];
+        private readonly IDisposable classPublications;
+
+        /// <summary>Two Rough windows on a scale whose frame median is in bin 0.</summary>
+        public static TerrainProfile RoughProfile { get; } = TerrainProfiles.Profile(
+            [TerrainProfiles.Window(0, RoughnessClass.Rough), TerrainProfiles.Window(1, RoughnessClass.Rough)]);
         public Func<Guid, SessionContentToken, CancellationToken, Task<SessionContentSnapshotResult>> Read { get; set; }
 
         public Harness()
@@ -238,8 +335,39 @@ public class TerrainProfileCoordinatorTests
                 .Where(change => change.Current.TerrainProfileKey is { } key
                     && (!change.Previous.HasValue || change.Previous.Value.TerrainProfileKey != key))
                 .Select(change => (change.Current.Id, change.Current.TerrainProfileKey!))));
+            classPublications = Sessions.Connect().Subscribe(changes =>
+            {
+                var classed = changes.Where(change => change.Current.TerrainClassKey is { } key &&
+                                                      (!change.Previous.HasValue || change.Previous.Value.TerrainClassKey != key))
+                    .ToArray();
+                if (classed.Length == 0) return;
+                ClassPublications.Add([.. classed.Select(change => change.Current.Id)]);
+                PublishedClassKeys.AddRange(classed.Select(change => change.Current.TerrainClassKey!));
+            });
             Coordinator = new(Sessions, tracks, content, Points, Repository, runner, Dispatcher, publication);
         }
+
+        /// <summary>
+        /// A session of the setup with a stored <see cref="RoughProfile"/> and frame readings of the given distance in
+        /// one level bin.
+        /// </summary>
+        public SessionSnapshot Measured(Guid setupId, long timestamp, int bin = 0, double metres = 2000)
+        {
+            var distribution = new LevelDistribution(System.Collections.Immutable.ImmutableSortedDictionary<int, double>.Empty
+                .Add(bin, metres));
+            var session = TestSnapshots.WithCurrentTerrain(
+                TestSnapshots.Session(setupId: setupId, timestamp: timestamp, hasProcessedData: true) with { DurationSeconds = 12 },
+                TerrainOutcome.Computed, new TerrainSummary(metres, null, FrameImu: distribution), [track]);
+            Repository.Seed(session.Id, session.TerrainProfileKey!, RoughProfile);
+            return session;
+        }
+
+        /// <summary>Three sessions of the setup, newest first, whose readings make its frame scale ready at bin 0.</summary>
+        public SessionSnapshot[] ReadySetup(Guid setupId) =>
+            [Measured(setupId, 103), Measured(setupId, 102), Measured(setupId, 101)];
+
+        public Task WaitForClassesAsync(SessionSnapshot session, TerrainScaleKey scale) => DrainAsync(Sessions.Watch(session.Id)
+            .Where(value => value.TerrainClassKey?.Scale == scale).Take(1).ToTask(TestContext.Current.CancellationToken));
 
         public SessionContentSnapshotResult Available(SessionContentToken key, TelemetryData? telemetry = null) =>
             new SessionContentSnapshotResult.Available(new(key, SessionContentSelection.ProcessedTelemetry, telemetry ?? ride.Telemetry, null));
@@ -270,6 +398,7 @@ public class TerrainProfileCoordinatorTests
             await DrainAsync(Coordinator.StopAsync());
             Coordinator.Dispose();
             terrainPublications.Dispose();
+            classPublications.Dispose();
             tracks.Dispose();
             Sessions.Dispose();
             publication.Dispose();
