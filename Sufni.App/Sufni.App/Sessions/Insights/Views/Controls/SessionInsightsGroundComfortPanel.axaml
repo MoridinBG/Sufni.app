@@ -25,9 +25,9 @@
             <TextBlock TextWrapping="Wrap"
                        Text="How the ground in scope reached you. Rougher ground moves the suspension more; the frame should stay calm." />
             <Grid Name="Levels" Grid.IsSharedSizeScope="True" RowDefinitions="Auto,Auto">
-                <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="12">
+                <Grid ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="Level" />
                         <ColumnDefinition Width="Auto" SharedSizeGroup="Ground" />
                         <ColumnDefinition Width="Auto" SharedSizeGroup="Fork" />
                         <ColumnDefinition Width="Auto" SharedSizeGroup="Shock" />
@@ -47,7 +47,7 @@
                         <DataTemplate x:DataType="models:GroundComfortLevel">
                             <Grid Margin="0,3,0,0" ColumnSpacing="12">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="Level" />
                                     <ColumnDefinition Width="Auto" SharedSizeGroup="Ground" />
                                     <ColumnDefinition Width="Auto" SharedSizeGroup="Fork" />
                                     <ColumnDefinition Width="Auto" SharedSizeGroup="Shock" />
