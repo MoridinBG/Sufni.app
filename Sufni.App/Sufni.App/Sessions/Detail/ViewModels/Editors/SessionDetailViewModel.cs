@@ -319,7 +319,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
             {
                 Scope = state.Intent.Scope,
                 Terrain = state.Terrain is RecordedTerrainState.Loaded loaded
-                    ? new(snapshot.Id, loaded.Key, loaded.Profile, loaded.Baseline.Identity) : null
+                    ? new(snapshot.Id, loaded.Key, loaded.Classified, loaded.Baseline.Identity) : null
             }),
             (start, end) => { if (!editorLifetime.IsCancellationRequested) timeline.SetVisibleRange(start, end, this); },
             ReportError,

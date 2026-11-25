@@ -7,12 +7,12 @@ namespace Sufni.App.Tests.Terrain.Queries;
 
 public class TerrainSelectionQueryTests
 {
-    private static readonly TerrainProfile Ride = TerrainProfiles.Classified(
+    private static readonly ClassifiedProfile Ride = TerrainClassifier.Classify(TerrainProfiles.Classified(
         TerrainProfiles.Window(0, RoughnessClass.Calm, RoughnessSource.Both),
         TerrainProfiles.Window(1, RoughnessClass.Rough, RoughnessSource.Both),
         TerrainProfiles.Window(2, moving: false) with { EndSeconds = 6 },
         TerrainProfiles.Window(6, RoughnessClass.Rough, RoughnessSource.Both) with { Band = null },
-        TerrainProfiles.Window(7) with { Band = GradeBand.Climb, Roughness = RoughnessClass.SmoothClimb });
+        TerrainProfiles.Window(7) with { Band = GradeBand.Climb, Roughness = RoughnessClass.SmoothClimb }));
 
     [Theory]
     [InlineData(TerrainPreset.All, 40)]

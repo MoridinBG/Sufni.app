@@ -92,7 +92,7 @@ internal sealed class RecordedSessionAnalysisDemand : IAsyncDisposable
         {
             Selection = currentState.TimeSelection,
             TerrainProfileKey = (currentState.Terrain as RecordedTerrainState.Loaded)?.Key,
-            TerrainProfile = (currentState.Terrain as RecordedTerrainState.Loaded)?.Profile,
+            Terrain = (currentState.Terrain as RecordedTerrainState.Loaded)?.Classified,
             Baseline = (currentState.Terrain as RecordedTerrainState.Loaded)?.Baseline,
             TerrainScope = currentState.Intent.Scope is AnalysisScope.SegmentComparison ? null : currentState.TerrainScope,
             TrackGeneration = trackGeneration,

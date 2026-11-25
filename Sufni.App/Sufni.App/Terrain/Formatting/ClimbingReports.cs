@@ -8,9 +8,10 @@ namespace Sufni.App.Terrain.Formatting;
 
 internal static class ClimbingReports
 {
-    public static ClimbingReport? Build(TerrainProfile profile, TelemetryTimeRange? range)
+    public static ClimbingReport? Build(ClassifiedProfile classified, TelemetryTimeRange? range)
     {
-        if (TerrainClimbing.Describe(profile, range) is not { } climbing) return null;
+        var profile = classified.Profile;
+        if (TerrainClimbing.Describe(classified, range) is not { } climbing) return null;
         var bob = $"{climbing.BobMillimetres:0} mm";
         if (profile.RearMaxTravel is > 0 and var rearTravel) bob += $" · {climbing.BobMillimetres / rearTravel:P0} of travel";
         return new(

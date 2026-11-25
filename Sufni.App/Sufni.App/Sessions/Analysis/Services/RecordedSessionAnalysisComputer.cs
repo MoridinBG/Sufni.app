@@ -131,8 +131,8 @@ internal sealed class RecordedSessionAnalysisComputer(
             key.SessionInsightsTargetProfile ?? SessionInsightsTargetProfile.Trail)
         {
             DampingSpeedCutoffs = key.DampingSpeedCutoffs,
-            Terrain = inputs?.TerrainProfile is { } profile && key.Baseline is { } baseline
-                ? new(profile, baseline, key.AnalysisRange, key.TerrainScope) : null,
+            Terrain = inputs?.Terrain is { } terrain && key.Baseline is { } baseline
+                ? new(terrain, baseline, key.AnalysisRange, key.TerrainScope) : null,
         };
 
         return new SessionInsightsAnalysisResult(sessionInsightsService.Analyze(request));

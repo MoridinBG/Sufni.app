@@ -44,7 +44,7 @@ public sealed record RecordedSessionAnalysisInputs(
     public TelemetryTimeSelection? Selection { get; init; }
     public TerrainProfileKey? TerrainProfileKey { get; init; }
     public long TrackGeneration { get; init; }
-    public TerrainProfile? TerrainProfile { get; init; }
+    public ClassifiedProfile? Terrain { get; init; }
     public TerrainBaseline? Baseline { get; init; }
 
     /// <summary>The terrain scope of the selection; null when a segment comparison replaces it.</summary>

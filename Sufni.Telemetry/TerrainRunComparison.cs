@@ -23,7 +23,7 @@ public static class TerrainRunComparison
     public const double PassedToFrameThreshold = 0.05;
     public const double SamePositionSpeedExponent = 0.9;
 
-    public static ImmutableArray<TerrainComparisonRow> Compare(TerrainProfile current, TerrainProfile earlier,
+    public static ImmutableArray<TerrainComparisonRow> Compare(ClassifiedProfile current, ClassifiedProfile earlier,
         TerrainRunAlignment.Aligned alignment, SuspensionResponseModel model, TrailAverage.Averaged? average = null, CancellationToken token = default)
     {
         var levels = Enum.GetValues<RoughnessClass>().Where(level => !level.IsClimb()).ToArray();
@@ -31,8 +31,9 @@ public static class TerrainRunComparison
         var averageClasses = average?.Windows.ToDictionary(w => w.SourceIndex, w => w.Roughness);
         var pairs = alignment.Pairs.Select(indices =>
         {
-            var pair = new Pair(current.Windows[indices.SourceIndex], earlier.Windows[indices.MatchIndex]);
-            return new ClassifiedPair(pair, averageClasses is null ? PairClass(pair) : averageClasses.GetValueOrDefault(indices.SourceIndex));
+            var (a, b) = (current.Windows[indices.SourceIndex], earlier.Windows[indices.MatchIndex]);
+            return new ClassifiedPair(new(a.Window, b.Window),
+                averageClasses is null ? PairClass(a, b) : averageClasses.GetValueOrDefault(indices.SourceIndex));
         }).ToList();
         // Averaged classes arrive merged already.
         if (averageClasses is null)
@@ -47,8 +48,8 @@ public static class TerrainRunComparison
         return [.. groups.Select((pairs, index) => Describe(pairs, index < levels.Length ? levels[index] : null, model, token))];
     }
 
-    private static RoughnessClass? PairClass(Pair pair) =>
-        (pair.Current.NormalisedRoughness + pair.Earlier.NormalisedRoughness) / 2 is { } mean
+    private static RoughnessClass? PairClass(ClassifiedWindow current, ClassifiedWindow earlier) =>
+        (current.ClassValue + earlier.ClassValue) / 2 is { } mean
             ? TerrainCalibration.Classify(mean) : null;
 
     private static TerrainComparisonRow Describe(List<Pair> pairs, RoughnessClass? roughness,

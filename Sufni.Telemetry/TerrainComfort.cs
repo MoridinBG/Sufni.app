@@ -12,14 +12,15 @@ public sealed record ComfortRow(RoughnessClass Class, double DistanceMetres, dou
 public static class TerrainComfort
 {
     /// <summary>One row per roughness level with moving ground inside the range that the filter admits.</summary>
-    public static ImmutableArray<ComfortRow> Describe(TerrainProfile profile, TelemetryTimeRange? range,
-        Func<TerrainWindow, bool> admits)
+    public static ImmutableArray<ComfortRow> Describe(ClassifiedProfile profile, TelemetryTimeRange? range,
+        Func<ClassifiedWindow, bool> admits)
     {
         var levels = Enum.GetValues<RoughnessClass>();
         var sums = new Sums[levels.Length];
-        foreach (var window in profile.Windows)
+        foreach (var classified in profile.Windows)
         {
-            if (!window.Moving || window.Roughness is not { } level || !admits(window)) continue;
+            var window = classified.Window;
+            if (!window.Moving || classified.Roughness is not { } level || !admits(classified)) continue;
             var fraction = window.CoveredFraction(range);
             if (fraction == 0) continue;
             sums[(int)level].Add(fraction, window.Front?.RmsVelocity, window.Rear?.RmsVelocity, window.Frame?.Level);

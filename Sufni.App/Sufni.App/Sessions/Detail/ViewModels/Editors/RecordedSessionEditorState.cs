@@ -34,7 +34,7 @@ internal sealed record RecordedSessionEditorState(
 
     /// <summary>The scope the reducer applies to the loaded profile; null without a profile.</summary>
     public TerrainScope? TerrainScope => Terrain is RecordedTerrainState.Loaded loaded
-        ? Intent.Scope is AnalysisScope.Terrain chosen ? chosen.Value : Sufni.App.Terrain.Models.TerrainScope.Default(loaded.Profile)
+        ? Intent.Scope is AnalysisScope.Terrain chosen ? chosen.Value : Sufni.App.Terrain.Models.TerrainScope.Default(loaded.Classified.Profile)
         : null;
 
     public TerrainSelectionResult? TerrainSelection { get; init; }

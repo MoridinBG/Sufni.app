@@ -8,7 +8,7 @@ namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
 internal static partial class RecordedSessionPresentationDeriver
 {
-    public static TerrainPresentation CreateTerrain(TerrainProfile profile)
+    public static TerrainPresentation CreateTerrain(ClassifiedProfile classified)
     {
         var roughness = ImmutableArray.CreateBuilder<TerrainRun<RoughnessClass>>();
         var grade = ImmutableArray.CreateBuilder<TerrainRun<GradeBand>>();
@@ -19,11 +19,12 @@ internal static partial class RecordedSessionPresentationDeriver
         var bob = new TerrainSignalSections();
         int joint = 0, frameOnly = 0, forkOnly = 0;
         bool clipped = false, frameMissing = false, forkMissing = false, frameUncalibrated = false, forkUncalibrated = false;
+        var profile = classified.Profile;
         for (var i = 0; i < profile.Windows.Length; i++)
         {
             var window = profile.Windows[i];
             if (!window.Moving) continue;
-            AddRun(roughness, window, window.Roughness);
+            AddRun(roughness, window, classified.Windows[i].Roughness);
             AddRun(grade, window, window.Band);
             var baseline = TerrainProfileCalculator.BaselineGrade(profile.Windows, i);
             frame.Add(window.StartSeconds, window.EndSeconds, window.Frame?.SpeedRemoved);
@@ -31,7 +32,7 @@ internal static partial class RecordedSessionPresentationDeriver
             rearAxle.Add(window.StartSeconds, window.EndSeconds, window.RearAxle?.SpeedRemoved);
             grades.Add(window.StartSeconds, window.EndSeconds, TerrainSignalSections.Degrees(baseline));
             bob.Add(window.StartSeconds, window.EndSeconds, window.Pedalling?.BobMillimetres);
-            switch (window.Source)
+            switch (classified.Windows[i].Source)
             {
                 case RoughnessSource.Both: joint++; break;
                 case RoughnessSource.FrameOnly:
@@ -64,13 +65,13 @@ internal static partial class RecordedSessionPresentationDeriver
 
     public static RecordedSessionEditorState WithTerrainSelection(RecordedSessionEditorState previous, RecordedSessionEditorState next)
     {
-        var profile = (next.Terrain as RecordedTerrainState.Loaded)?.Profile;
-        if (ReferenceEquals(profile, (previous.Terrain as RecordedTerrainState.Loaded)?.Profile) &&
+        var classified = (next.Terrain as RecordedTerrainState.Loaded)?.Classified;
+        if (ReferenceEquals(classified, (previous.Terrain as RecordedTerrainState.Loaded)?.Classified) &&
             next.TerrainScope == previous.TerrainScope && next.Intent.AnalysisRange == previous.Intent.AnalysisRange)
             return next;
         return next with
         {
-            TerrainSelection = profile is null ? null : TerrainSelectionQuery.Evaluate(profile, next.TerrainScope!, next.Intent.AnalysisRange)
+            TerrainSelection = classified is null ? null : TerrainSelectionQuery.Evaluate(classified, next.TerrainScope!, next.Intent.AnalysisRange)
         };
     }
 

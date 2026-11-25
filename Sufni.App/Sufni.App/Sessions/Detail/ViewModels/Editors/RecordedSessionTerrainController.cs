@@ -17,7 +17,7 @@ namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 internal closed record RecordedTerrainState
 {
     public sealed record Pending : RecordedTerrainState;
-    public sealed record Loaded(TerrainProfileKey Key, TerrainProfile Profile, TerrainPresentation Presentation) : RecordedTerrainState
+    public sealed record Loaded(TerrainProfileKey Key, ClassifiedProfile Classified, TerrainPresentation Presentation) : RecordedTerrainState
     {
         public TerrainBaseline Baseline { get; init; } = new TerrainBaseline.NotLoaded(TerrainBaselineIdentity.Empty);
     }
@@ -63,8 +63,9 @@ internal sealed partial class RecordedSessionTerrainController : IAsyncDisposabl
                 {
                     var profiles = await repository.ReadAsync(new Dictionary<Guid, TerrainProfileKey> { [id] = current.Key }, token)
                         .ConfigureAwait(false);
-                    return profiles.TryGetValue(id, out var profile)
-                        ? new RecordedTerrainState.Loaded(current.Key, profile, RecordedSessionPresentationDeriver.CreateTerrain(profile)) : new RecordedTerrainState.Pending();
+                    if (!profiles.TryGetValue(id, out var profile)) return new RecordedTerrainState.Pending();
+                    var classified = TerrainClassifier.Classify(profile);
+                    return new RecordedTerrainState.Loaded(current.Key, classified, RecordedSessionPresentationDeriver.CreateTerrain(classified));
                 }, token).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }

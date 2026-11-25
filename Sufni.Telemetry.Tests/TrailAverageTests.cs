@@ -95,8 +95,8 @@ public class TrailAverageTests
         var windows = Enumerable.Range(0, 7).Select(i => i == 3 ? TerrainProfiles.Window(i, moving: false)
             : TerrainProfiles.Window(i) with { Grade = i < 3 ? gentle : 0.3 });
         var profile = TerrainProfiles.Profile(windows);
-        var run = new AlignedTerrainRun(profile, TerrainProfiles.Identity(7));
-        var average = Assert.IsType<TrailAverage.Averaged>(TrailAverage.Calculate(profile, new(0, 7), [run, run]));
+        var run = new AlignedTerrainRun(TerrainClassifier.Classify(profile), TerrainProfiles.Identity(7));
+        var average = Assert.IsType<TrailAverage.Averaged>(TrailAverage.Calculate(TerrainClassifier.Classify(profile), new(0, 7), [run, run]));
         // Windows 0, 1, 2 and 4 give (3 × sin 3° + 0.3) / 4 ≈ 0.114, between sin 5° and sin 10°.
         Assert.Equal(GradeBand.Descent, average.Windows.Single(w => w.SourceIndex == 2).Band);
     }
@@ -111,8 +111,8 @@ public class TrailAverageTests
             Frame = TerrainProfiles.Sensor(1, i == 2 ? 1.5 : -0.5)
         });
         var profile = TerrainProfiles.Profile(windows);
-        var run = new AlignedTerrainRun(profile, TerrainProfiles.Identity(5));
-        var average = Assert.IsType<TrailAverage.Averaged>(TrailAverage.Calculate(profile, new(0, 6), [run, run]));
+        var run = new AlignedTerrainRun(TerrainClassifier.Classify(profile), TerrainProfiles.Identity(5));
+        var average = Assert.IsType<TrailAverage.Averaged>(TrailAverage.Calculate(TerrainClassifier.Classify(profile), new(0, 6), [run, run]));
         Assert.Equal(expected, average.Windows.Single(w => w.SourceIndex == 2).Roughness);
     }
 
@@ -120,15 +120,15 @@ public class TrailAverageTests
     public void OneAlignedMatchCountsTwoRuns()
     {
         var profile = Measurements(12);
-        var result = TrailAverage.Calculate(profile, new(0, WindowCount), [Aligned(Measurements(13))]);
+        var result = TrailAverage.Calculate(TerrainClassifier.Classify(profile), new(0, WindowCount), [Aligned(Measurements(13))]);
         Assert.Equal(2, Assert.IsType<TrailAverage.TooFewRuns>(result).RunCount);
     }
 
     private static TrailAverage.Averaged Average(TerrainProfile[] profiles) =>
-        Assert.IsType<TrailAverage.Averaged>(TrailAverage.Calculate(profiles[0], new(0, WindowCount),
+        Assert.IsType<TrailAverage.Averaged>(TrailAverage.Calculate(TerrainClassifier.Classify(profiles[0]), new(0, WindowCount),
             profiles.Skip(1).Select(Aligned).ToArray()));
 
-    private static AlignedTerrainRun Aligned(TerrainProfile profile) => new(profile, TerrainProfiles.Identity(WindowCount));
+    private static AlignedTerrainRun Aligned(TerrainProfile profile) => new(TerrainClassifier.Classify(profile), TerrainProfiles.Identity(WindowCount));
 
     private static TerrainProfile Measurements(int seed, double frameLevel = 2.31, bool calibrated = true,
         double? forkLevel = null, bool clipped = false, double grade = GroundGrade, double? rearAxleLevel = null)

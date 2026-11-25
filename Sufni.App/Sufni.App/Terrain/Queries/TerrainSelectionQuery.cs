@@ -25,14 +25,15 @@ public sealed record TerrainSelectionResult(TelemetryTimeSelection Selection, do
 
 public static class TerrainSelectionQuery
 {
-    public static TerrainSelectionResult Evaluate(TerrainProfile profile, TerrainScope scope, TelemetryTimeRange? range)
+    public static TerrainSelectionResult Evaluate(ClassifiedProfile profile, TerrainScope scope, TelemetryTimeRange? range)
     {
         var roughness = new double[Enum.GetValues<RoughnessClass>().Length];
         var grade = new double[Enum.GetValues<GradeBand>().Length];
         var intervals = new List<TelemetryTimeRange>();
         double start = 0, end = 0, distance = 0, selected = 0, stopped = 0, moving = 0;
-        foreach (var window in profile.Windows)
+        foreach (var classified in profile.Windows)
         {
+            var window = classified.Window;
             var from = Math.Max(window.StartSeconds, range?.StartSeconds ?? window.StartSeconds);
             var to = Math.Min(window.EndSeconds, range?.EndSeconds ?? window.EndSeconds);
             if (to <= from) continue;
@@ -43,9 +44,9 @@ public static class TerrainSelectionQuery
             }
             var metres = window.MeanSpeed * (to - from);
             moving += metres;
-            if (window.Roughness is { } r) roughness[(int)r] += metres;
+            if (classified.Roughness is { } r) roughness[(int)r] += metres;
             if (window.Band is { } b) grade[(int)b] += metres;
-            if (!scope.Matches(window)) continue;
+            if (!scope.Matches(classified)) continue;
             if (distance == 0 || from != end)
             {
                 FinishInterval();

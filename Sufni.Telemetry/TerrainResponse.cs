@@ -25,20 +25,21 @@ public sealed record ResponseFinding(ResponseTarget Target, RoughnessClass? Grou
 public static class TerrainResponse
 {
     /// <summary>Rows for all descent ground and each descent level inside the range, limited to the windows a filter admits.</summary>
-    public static ImmutableArray<TerrainResponseRow> Describe(TerrainProfile profile, SuspensionResponseModel model,
-        TelemetryTimeRange? range, Func<TerrainWindow, bool>? admits = null)
+    public static ImmutableArray<TerrainResponseRow> Describe(ClassifiedProfile profile, SuspensionResponseModel model,
+        TelemetryTimeRange? range, Func<ClassifiedWindow, bool>? admits = null)
     {
         var levels = Enum.GetValues<RoughnessClass>().Where(level => !level.IsClimb()).ToArray();
         var groups = levels.Select(_ => new List<Portion>()).Append([]).ToArray();
         var all = groups[^1];
-        foreach (var window in profile.Windows)
+        foreach (var classified in profile.Windows)
         {
-            if (!window.Moving || admits?.Invoke(window) == false) continue;
+            var window = classified.Window;
+            if (!window.Moving || admits?.Invoke(classified) == false) continue;
             var fraction = window.CoveredFraction(range);
             if (fraction == 0) continue;
             var portion = new Portion(window, fraction);
             if (!window.Climbing) all.Add(portion);
-            if (window.Roughness is { } roughness && !roughness.IsClimb()) groups[(int)roughness].Add(portion);
+            if (classified.Roughness is { } roughness && !roughness.IsClimb()) groups[(int)roughness].Add(portion);
         }
         var total = all.Sum(p => p.Fraction);
         return [.. groups.Select((group, i) =>

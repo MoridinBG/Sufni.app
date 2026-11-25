@@ -22,18 +22,19 @@ public sealed record TerrainCharacter(CharacterShares? Front, CharacterShares? R
     private static readonly (double Chatter, double BigHits) FrontThresholds = (0.09, 0.20);
     private static readonly (double Chatter, double BigHits) RearThresholds = (0.08, 0.16);
 
-    public static TerrainCharacter Describe(TerrainProfile profile, TelemetryTimeRange? range) => new(
-        Shares(profile, range, profile.FrontMaxTravel, w => w.Front?.MedianStrokeSize, FrontThresholds),
-        Shares(profile, range, profile.RearMaxTravel, w => w.Rear?.MedianStrokeSize, RearThresholds));
+    public static TerrainCharacter Describe(ClassifiedProfile profile, TelemetryTimeRange? range) => new(
+        Shares(profile, range, profile.Profile.FrontMaxTravel, w => w.Front?.MedianStrokeSize, FrontThresholds),
+        Shares(profile, range, profile.Profile.RearMaxTravel, w => w.Rear?.MedianStrokeSize, RearThresholds));
 
-    private static CharacterShares? Shares(TerrainProfile profile, TelemetryTimeRange? range, double? maxTravel,
+    private static CharacterShares? Shares(ClassifiedProfile profile, TelemetryTimeRange? range, double? maxTravel,
         Func<TerrainWindow, double?> strokeSize, (double Chatter, double BigHits) thresholds)
     {
         if (maxTravel is not > 0) return null;
         double metres = 0, bigHits = 0, chatter = 0;
-        foreach (var window in profile.Windows)
+        foreach (var classified in profile.Windows)
         {
-            if (!window.Moving || window.Climbing || window.Roughness is not (>= RoughnessClass.Medium and <= RoughnessClass.VeryRough) ||
+            var window = classified.Window;
+            if (!window.Moving || window.Climbing || classified.Roughness is not (>= RoughnessClass.Medium and <= RoughnessClass.VeryRough) ||
                 strokeSize(window) is not { } size) continue;
             var covered = TerrainProfileCalculator.WindowMetres * window.CoveredFraction(range);
             if (covered == 0) continue;

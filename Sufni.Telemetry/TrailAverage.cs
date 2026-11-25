@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Sufni.Telemetry;
 
-public sealed record AlignedTerrainRun(TerrainProfile Profile, TerrainRunAlignment.Aligned Alignment);
+public sealed record AlignedTerrainRun(ClassifiedProfile Profile, TerrainRunAlignment.Aligned Alignment);
 
 public sealed record TrailAverageWindow(int SourceIndex, double StartSeconds, double EndSeconds, double? FrameLevel,
     double? ForkLevel, double? RearAxleLevel, double? Grade, RoughnessClass? Roughness, GradeBand? Band);
@@ -13,7 +13,7 @@ public closed record TrailAverage(int RunCount)
     public sealed record Averaged(int RunCount, ImmutableArray<TrailAverageWindow> Windows) : TrailAverage(RunCount);
     public sealed record TooFewRuns(int RunCount) : TrailAverage(RunCount);
 
-    public static TrailAverage Calculate(TerrainProfile source, TelemetryTimeRange range,
+    public static TrailAverage Calculate(ClassifiedProfile source, TelemetryTimeRange range,
         IReadOnlyCollection<AlignedTerrainRun> aligned, CancellationToken token = default)
     {
         token.ThrowIfCancellationRequested();
@@ -24,13 +24,13 @@ public closed record TrailAverage(int RunCount)
         {
             token.ThrowIfCancellationRequested();
             foreach (var pair in run.Alignment.Pairs)
-                totals[pair.SourceIndex].Add(run.Profile.Windows[pair.MatchIndex]);
+                totals[pair.SourceIndex].Add(run.Profile.Windows[pair.MatchIndex].Window);
         }
         var windows = new List<TrailAverageWindow>();
         var climbLevels = new List<RoughnessClass?>();
         for (var i = 0; i < source.Windows.Length; i++)
         {
-            var w = source.Windows[i];
+            var w = source.Windows[i].Window;
             var centre = (w.StartSeconds + w.EndSeconds) / 2;
             if (centre < range.StartSeconds || centre >= range.EndSeconds) continue;
             token.ThrowIfCancellationRequested();

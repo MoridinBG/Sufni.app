@@ -96,7 +96,7 @@ public sealed class TerrainScopeViewModel : ObservableObject, IDisposable
             r => r.GradeMetres[(int)value])).ToArray();
         Reset = new RelayCommand(actions.ResetTerrainScope);
         UseAll = new RelayCommand(() => actions.SelectTerrainPreset(TerrainPreset.All));
-        subscription = states.Select(state => (Profile: (state.Terrain as RecordedTerrainState.Loaded)?.Profile,
+        subscription = states.Select(state => (Profile: (state.Terrain as RecordedTerrainState.Loaded)?.Classified.Profile,
                 Choice: state.Intent.Scope, Scope: state.TerrainScope, Result: state.TerrainSelection))
             .DistinctUntilChanged().Subscribe(input =>
         {

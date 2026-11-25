@@ -38,10 +38,10 @@ public class TerrainCharacterTests
         Assert.Equal(100, TerrainCharacter.Describe(Ride(40, RoughnessClass.Rough, 34, 34), new(10, 20)).Rear!.RoughMetres, 6);
     }
 
-    private static TerrainProfile Ride(int windows, RoughnessClass roughness, double front, double rear) =>
-        TerrainProfiles.Classified([.. Enumerable.Range(0, windows).Select(i => TerrainProfiles.Window(i, roughness, RoughnessSource.Both) with
+    private static ClassifiedProfile Ride(int windows, RoughnessClass roughness, double front, double rear) =>
+        TerrainClassifier.Classify(TerrainProfiles.Classified([.. Enumerable.Range(0, windows).Select(i => TerrainProfiles.Window(i, roughness, RoughnessSource.Both) with
         {
             Front = new SuspensionWindowFigures(1, 1, 1, 40, front),
             Rear = new SuspensionWindowFigures(1, 1, 1, 40, rear)
-        })]) with { FrontMaxTravel = 160, RearMaxTravel = 150 };
+        })]) with { FrontMaxTravel = 160, RearMaxTravel = 150 });
 }

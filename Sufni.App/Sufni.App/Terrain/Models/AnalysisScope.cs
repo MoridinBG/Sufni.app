@@ -17,9 +17,9 @@ public readonly record struct TerrainClassFilter
     public TerrainClassFilter Toggle(GradeBand value) => new(roughness, grade ^ (1 << (int)value));
 
     /// <summary>An empty axis admits every class on that axis, including no class.</summary>
-    public bool Matches(TerrainWindow window) =>
+    public bool Matches(ClassifiedWindow window) =>
         (roughness == 0 || window.Roughness is { } r && Contains(r)) &&
-        (grade == 0 || window.Band is { } b && Contains(b));
+        (grade == 0 || window.Window.Band is { } b && Contains(b));
 }
 
 public enum TerrainPreset { Descents, Climbs, All }
@@ -35,7 +35,7 @@ public sealed record TerrainScope(TerrainPreset Preset, TerrainClassFilter Filte
 
     public bool Admits(GradeBand band) => Admits(band.IsClimb());
     public bool Admits(RoughnessClass value) => Admits(value.IsClimb());
-    public bool Matches(TerrainWindow window) => window.Moving && Admits(window.Climbing) && Filter.Matches(window);
+    public bool Matches(ClassifiedWindow window) => window.Window.Moving && Admits(window.Window.Climbing) && Filter.Matches(window);
     public TerrainScope Toggle(GradeBand band) => Admits(band) ? this with { Filter = Filter.Toggle(band) } : this;
     public TerrainScope Toggle(RoughnessClass value) => Admits(value) ? this with { Filter = Filter.Toggle(value) } : this;
 

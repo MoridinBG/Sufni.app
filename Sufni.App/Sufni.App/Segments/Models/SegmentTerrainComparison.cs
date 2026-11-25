@@ -5,7 +5,7 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Segments.Models;
 
-public sealed record SegmentTerrainSource(Guid SessionId, TerrainProfileKey Key, TerrainProfile Profile, TerrainBaselineIdentity Baseline);
+public sealed record SegmentTerrainSource(Guid SessionId, TerrainProfileKey Key, ClassifiedProfile Classified, TerrainBaselineIdentity Baseline);
 
 public enum SegmentTerrainUnavailable { NoSourceProfile, NoMatchProfile, NoCommonSensor, Unaligned }
 

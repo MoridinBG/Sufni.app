@@ -27,7 +27,7 @@ internal sealed partial class RecordedSessionTerrainController
         IUiThreadDispatcher ui, RecordedSessionEditorActions actions, CancellationToken lifetime)
     {
         var source = states.Select(s => (Bike: s.Domain?.Setup?.BikeId,
-            Key: (s.Terrain as RecordedTerrainState.Loaded)?.Key, Profile: (s.Terrain as RecordedTerrainState.Loaded)?.Profile))
+            Key: (s.Terrain as RecordedTerrainState.Loaded)?.Key, Profile: (s.Terrain as RecordedTerrainState.Loaded)?.Classified.Profile))
             .DistinctUntilChanged();
         var summaries = projection.ConnectSessions().ToCollection().StartWith(Array.Empty<RecordedSessionSummary>());
         return source.CombineLatest(summaries, (ride, sessions) => (ride, sessions)).Subscribe(input =>

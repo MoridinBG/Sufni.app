@@ -9,11 +9,11 @@ namespace Sufni.App.Terrain.Formatting;
 
 internal static class GroundComfortReports
 {
-    public static GroundComfortReport Build(TerrainProfile profile, TerrainScope scope, TelemetryTimeRange? range,
+    public static GroundComfortReport Build(ClassifiedProfile classified, TerrainScope scope, TelemetryTimeRange? range,
         SuspensionResponseModel? usual)
     {
-        var rows = TerrainComfort.Describe(profile, range, scope.Matches);
-        var response = usual is null ? null : TerrainResponse.Describe(profile, usual, range, scope.Matches)
+        var rows = TerrainComfort.Describe(classified, range, scope.Matches);
+        var response = usual is null ? null : TerrainResponse.Describe(classified, usual, range, scope.Matches)
             .Where(row => row.Class is not null).ToDictionary(row => row.Class!.Value);
         var total = rows.Sum(row => row.DistanceMetres);
         var levels = rows.Select(row =>
@@ -33,8 +33,8 @@ internal static class GroundComfortReports
                 row.FrameLevel is { } frame ? new($"{frame:0.0} g") : ComfortFigure.Missing,
                 Usual(ResponseTarget.PassedToFrame));
         }).ToImmutableArray();
-        var hasFrame = profile.Windows.Any(window => window.Frame is not null);
-        var hasFork = profile.Windows.Any(window => window.Fork is not null);
+        var hasFrame = classified.Profile.Windows.Any(window => window.Frame is not null);
+        var hasFork = classified.Profile.Windows.Any(window => window.Fork is not null);
         return new(levels,
             usual is null ? "Comparisons with your usual appear once it is ready." : null,
             !hasFrame ? "Frame vibration needs a frame IMU."

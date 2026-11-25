@@ -42,11 +42,11 @@ public class GroundComfortReportsTests
         Assert.Equal(noted, report.HasFrameNote);
     }
 
-    private static TerrainProfile Ride(RoughnessSource source) => TerrainProfiles.Classified([
+    private static ClassifiedProfile Ride(RoughnessSource source) => TerrainClassifier.Classify(TerrainProfiles.Classified([
         .. Enumerable.Range(0, 30).Select(i => TerrainProfiles.Window(i, RoughnessClass.Rough, source) with
         {
             Front = new SuspensionWindowFigures(140, 150, 105, 40, null)
         }),
         .. Enumerable.Range(30, 10).Select(i => TerrainProfiles.Window(i, RoughnessClass.TechnicalClimb, source) with { Band = GradeBand.Climb })
-    ]);
+    ]));
 }

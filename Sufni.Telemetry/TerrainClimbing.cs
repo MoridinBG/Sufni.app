@@ -19,14 +19,15 @@ public static class TerrainClimbing
     public const double MinimumPedalledSeconds = 120;
 
     /// <summary>Null when the climbs in the range hold less detected pedalling than the minimum.</summary>
-    public static ClimbingSummary? Describe(TerrainProfile profile, TelemetryTimeRange? range)
+    public static ClimbingSummary? Describe(ClassifiedProfile profile, TelemetryTimeRange? range)
     {
         double metres = 0, seconds = 0, ascent = 0, pedalled = 0, smooth = 0, technical = 0;
         var bob = new List<(double Value, double Weight)>();
         var cadence = new List<(double Value, double Weight)>();
         Mean frontClimbing = default, frontDescending = default, rearClimbing = default, rearDescending = default;
-        foreach (var window in profile.Windows)
+        foreach (var classified in profile.Windows)
         {
+            var window = classified.Window;
             if (!window.Moving) continue;
             var fraction = window.CoveredFraction(range);
             if (fraction == 0) continue;
@@ -41,8 +42,8 @@ public static class TerrainClimbing
             metres += covered;
             seconds += duration;
             ascent -= covered * (window.Grade ?? 0);
-            if (window.Roughness == RoughnessClass.SmoothClimb) smooth += covered;
-            else if (window.Roughness == RoughnessClass.TechnicalClimb) technical += covered;
+            if (classified.Roughness == RoughnessClass.SmoothClimb) smooth += covered;
+            else if (classified.Roughness == RoughnessClass.TechnicalClimb) technical += covered;
             frontClimbing.Add(duration, window.Front?.MeanTravel);
             rearClimbing.Add(duration, window.Rear?.MeanTravel);
             if (window.Pedalling is not { Detected: true, BobMillimetres: { } windowBob, CadenceRpm: { } windowCadence })

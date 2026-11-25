@@ -161,7 +161,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var terrain = state.TerrainScope;
         // A choice equal to the profile's default stays the default, so the banner keeps its quiet form.
         AnalysisScope Chosen(TerrainScope value) =>
-            state.Terrain is RecordedTerrainState.Loaded loaded && value == TerrainScope.Default(loaded.Profile)
+            state.Terrain is RecordedTerrainState.Loaded loaded && value == TerrainScope.Default(loaded.Classified.Profile)
                 ? new AnalysisScope.Default() : new AnalysisScope.Terrain(value);
         var nextScope = intent switch
         {

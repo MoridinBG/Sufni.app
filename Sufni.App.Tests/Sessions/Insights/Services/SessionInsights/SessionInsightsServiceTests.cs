@@ -307,7 +307,7 @@ public class SessionInsightsServiceTests
     private SessionInsightsResult Analyze(TerrainProfile profile, TelemetryTimeRange? analysisRange,
         TelemetryTimeSelection? selection = null, TerrainScope? scope = null, TerrainBaseline? baseline = null)
     {
-        var input = new SessionTerrainInput(profile,
+        var input = new SessionTerrainInput(TerrainClassifier.Classify(profile),
             baseline ?? new TerrainBaseline.Fitted(TerrainBaselineIdentity.Empty, TestResponseRows.Usual()), analysisRange, scope);
         var request = CreateRequest(CreateTelemetry(front: BuildSide(), rear: BuildSide()), terrain: input);
         return service.Analyze(selection is null ? request : request with { Selection = selection });

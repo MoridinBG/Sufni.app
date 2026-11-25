@@ -434,13 +434,13 @@ internal sealed class SegmentCoordinator(
                 token.ThrowIfCancellationRequested();
                 if (!profiles.TryGetValue(match.SessionId, out var earlier))
                     return new SegmentTerrainComparison.Unavailable(SegmentTerrainUnavailable.NoMatchProfile);
-                var alignment = Align(source.Profile, earlier, match, token);
+                var alignment = Align(source.Classified.Profile, earlier, match, token);
                 if (alignment is not TerrainRunAlignment.Aligned aligned)
                     return new SegmentTerrainComparison.Unavailable(alignment is TerrainRunAlignment.NoCommonSensor
                         ? SegmentTerrainUnavailable.NoCommonSensor : SegmentTerrainUnavailable.Unaligned);
                 var baseline = profiles.Where(p => p.Key != match.SessionId).Select(p => p.Value).ToArray();
-                var model = SuspensionResponseModel.FitPair(source.Profile, earlier, baseline, token);
-                return new SegmentTerrainComparison.Compared(TerrainRunComparison.Compare(source.Profile, earlier, aligned, model, average, token), average?.RunCount);
+                var model = SuspensionResponseModel.FitPair(source.Classified.Profile, earlier, baseline, token);
+                return new SegmentTerrainComparison.Compared(TerrainRunComparison.Compare(source.Classified, TerrainClassifier.Classify(earlier), aligned, model, average, token), average?.RunCount);
             }, token);
         }
         catch (Exception e) when (!token.IsCancellationRequested)
@@ -471,10 +471,10 @@ internal sealed class SegmentCoordinator(
                 {
                     token.ThrowIfCancellationRequested();
                     if (profiles.TryGetValue(match.SessionId, out var profile) &&
-                        Align(source.Profile, profile, match, token) is TerrainRunAlignment.Aligned alignment)
-                        aligned.Add(new(profile, alignment));
+                        Align(source.Classified.Profile, profile, match, token) is TerrainRunAlignment.Aligned alignment)
+                        aligned.Add(new(TerrainClassifier.Classify(profile), alignment));
                 }
-                return SegmentTrailAverage.Present(TrailAverage.Calculate(source.Profile, range, aligned, token));
+                return SegmentTrailAverage.Present(TrailAverage.Calculate(source.Classified, range, aligned, token));
             }, token);
             return operation.IsCurrent && !token.IsCancellationRequested ? result : new SegmentTrailAverage.Cancelled();
         }

@@ -35,7 +35,7 @@ internal static class SessionInsightsPresenter
             NextStep = BuildNextStep(presented),
             Response = PresentResponse(report.Response, context.Request.Terrain),
             GroundComfortNote = SessionInsightsTextCatalog.GroundComfortNote(context.Request.Terrain),
-            Climbing = context.Request.Terrain is { } terrain ? ClimbingReports.Build(terrain.Profile, terrain.AnalysisRange) : null,
+            Climbing = context.Request.Terrain is { } terrain ? ClimbingReports.Build(terrain.Classified, terrain.AnalysisRange) : null,
         };
     }
 
@@ -399,7 +399,7 @@ internal static class SessionInsightsPresenter
     }
 
     private static GroundComfortReport? PresentGroundComfort(SessionTerrainInput? terrain) => terrain?.Scope is { } scope
-        ? GroundComfortReports.Build(terrain.Profile, scope, terrain.AnalysisRange, (terrain.Baseline as TerrainBaseline.Fitted)?.Model)
+        ? GroundComfortReports.Build(terrain.Classified, scope, terrain.AnalysisRange, (terrain.Baseline as TerrainBaseline.Fitted)?.Model)
         : null;
 
     private static SessionInsightsMetric CreateMetric(

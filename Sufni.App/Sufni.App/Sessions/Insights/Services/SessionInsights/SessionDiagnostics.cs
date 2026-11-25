@@ -90,11 +90,11 @@ internal static class SessionDiagnostics
     private static TerrainResponseDiagnostics? DescribeResponse(SessionTerrainInput? input)
     {
         if (input is null) return null;
-        var character = TerrainCharacter.Describe(input.Profile, input.AnalysisRange);
+        var character = TerrainCharacter.Describe(input.Classified, input.AnalysisRange);
         return input.Baseline switch
         {
             TerrainBaseline.Fitted fit => new(SessionResponseState.Reported, fit.Model.Sessions, fit.Model.Windows, false,
-                TerrainResponse.Describe(input.Profile, fit.Model, input.AnalysisRange), character),
+                TerrainResponse.Describe(input.Classified, fit.Model, input.AnalysisRange), character),
             TerrainBaseline.Insufficient limited => new(SessionResponseState.InsufficientBaseline, limited.Model.Sessions,
                 limited.Model.Windows, limited.Model.Fits.Values.Any(f => f is ResponseFit.Unavailable { Reason: ResponseFitIssue.InsufficientVariation }),
                 [], character),
