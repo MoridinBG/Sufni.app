@@ -90,6 +90,22 @@ public class TerrainProfileCoordinatorTests
     }
 
     [Fact]
+    public async Task ProfileCommitClearsTheClassesOfTheEarlierProfile()
+    {
+        await using var h = new Harness();
+        var earlier = TerrainProfileKey.From(SessionContentToken.Create(Session(), [], out _));
+        var session = Session() with
+        {
+            TerrainClassKey = new(earlier, TerrainProfiles.Scale, TerrainClassifier.Version),
+            TerrainClassSummary = new(400, 0.25)
+        };
+        await h.StartAsync([session]);
+        await h.WaitForAsync(session, TerrainOutcome.Computed);
+        var published = h.Sessions.Get(session.Id)!;
+        Assert.Equal((null, null), (published.TerrainClassKey, published.TerrainClassSummary));
+    }
+
+    [Fact]
     public async Task NoOverlapFinishesWithoutReadingTelemetry()
     {
         await using var h = new Harness();

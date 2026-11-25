@@ -64,4 +64,59 @@ public class TerrainProfileRepositoryTests
         var stored = SessionSnapshot.From(Assert.Single(await db.GetSessionsAsync()));
         Assert.IsType<TerrainStatus.Pending>(SessionTerrainStatusQuery.Evaluate(stored, []).Status);
     }
+
+    [Fact]
+    public async Task ClassCommitWritesOnlyRowsThatHoldTheComputedProfileOfTheirClassKey()
+    {
+        using var temp = new TempDatabase();
+        await using var db = new TestPersistenceHarness(temp.DatabasePath);
+        var token = TestContext.Current.CancellationToken;
+        var (current, keyOfCurrent) = await StoreAsync(db, TerrainMaterialization.Computed(Profile()));
+        var (replaced, keyOfReplaced) = await StoreAsync(db, TerrainMaterialization.Computed(Profile()));
+        var (unavailable, keyOfUnavailable) = await StoreAsync(db, TerrainMaterialization.WithoutProfile(TerrainOutcome.NoTrack));
+        var summary = new TerrainClassSummary(400, 0.25);
+
+        var written = await db.TerrainProfiles.CommitClassesAsync(new Dictionary<Guid, (TerrainClassKey, TerrainClassSummary)>
+        {
+            [current] = (ClassKey(keyOfCurrent), summary),
+            [replaced] = (ClassKey(keyOfReplaced with { AlgorithmVersion = keyOfReplaced.AlgorithmVersion - 1 }), summary),
+            [unavailable] = (ClassKey(keyOfUnavailable), summary)
+        }, token);
+
+        Assert.Equal([current], written);
+        var stored = (await db.GetSessionsAsync()).Select(SessionSnapshot.From).ToDictionary(session => session.Id);
+        Assert.Equal((ClassKey(keyOfCurrent), summary), (stored[current].TerrainClassKey, stored[current].TerrainClassSummary));
+        Assert.Null(stored[replaced].TerrainClassKey);
+        Assert.Null(stored[unavailable].TerrainClassSummary);
+    }
+
+    [Fact]
+    public async Task ProfileCommitClearsTheStoredClasses()
+    {
+        using var temp = new TempDatabase();
+        await using var db = new TestPersistenceHarness(temp.DatabasePath);
+        var token = TestContext.Current.CancellationToken;
+        var (id, key) = await StoreAsync(db, TerrainMaterialization.Computed(Profile()));
+        Assert.Equal([id], await db.TerrainProfiles.CommitClassesAsync(
+            new Dictionary<Guid, (TerrainClassKey, TerrainClassSummary)> { [id] = (ClassKey(key), new(400, 0.25)) }, token));
+
+        Assert.True(await db.TerrainProfiles.TryCommitAsync(id, key, TerrainMaterialization.Computed(Profile()), token));
+
+        var stored = SessionSnapshot.From((await db.GetSessionAsync(id))!);
+        Assert.Equal((null, null), (stored.TerrainClassKey, stored.TerrainClassSummary));
+    }
+
+    private static TerrainProfile Profile() => TerrainProfiles.Profile([TerrainProfiles.Window(0)]);
+
+    private static TerrainClassKey ClassKey(TerrainProfileKey profile) =>
+        new(profile, TerrainProfiles.Scale, TerrainClassifier.Version);
+
+    private static async Task<(Guid Id, TerrainProfileKey Key)> StoreAsync(TestPersistenceHarness db, TerrainMaterialization result)
+    {
+        var session = new Session(Guid.NewGuid(), "ride", "", null, 150) { ProcessedData = [1], DurationSeconds = 15 };
+        await db.PutAsync(session);
+        var key = SessionTerrainStatusQuery.Evaluate(SessionSnapshot.From((await db.GetSessionAsync(session.Id))!), []).Key;
+        Assert.True(await db.TerrainProfiles.TryCommitAsync(session.Id, key, result, TestContext.Current.CancellationToken));
+        return (session.Id, key);
+    }
 }

@@ -67,6 +67,32 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
+    public async Task UpgradeKeepsStoredTerrainProfilesAndAcceptsTheirClasses()
+    {
+        using var temp = new TempDatabase();
+        var token = TestContext.Current.CancellationToken;
+        var session = new Session(Guid.NewGuid(), "ride", "", null, 100) { ProcessedData = [1], DurationSeconds = 10 };
+        TerrainProfileKey key;
+        await using (var db = new TestPersistenceHarness(temp.DatabasePath))
+        {
+            await db.PutAsync(session);
+            key = SessionTerrainStatusQuery.Evaluate(SessionSnapshot.From((await db.GetSessionAsync(session.Id))!), []).Key;
+            Assert.True(await db.TerrainProfiles.TryCommitAsync(session.Id, key,
+                TerrainMaterialization.Computed(TerrainProfiles.Profile([TerrainProfiles.Window(0)])), token));
+            var connection = await db.GetInitializedConnectionAsync();
+            await connection.ExecuteAsync("ALTER TABLE session_terrain_profile DROP COLUMN terrain_classes");
+            await connection.ExecuteAsync("ALTER TABLE session_terrain_profile DROP COLUMN terrain_classes_key");
+            await connection.ExecuteAsync("DELETE FROM core_migration WHERE id = 'terrain-setup-classes'");
+        }
+        await using var reopened = new TestPersistenceHarness(temp.DatabasePath);
+        var stored = SessionSnapshot.From(Assert.Single(await reopened.GetSessionsAsync()));
+        Assert.IsType<TerrainStatus.Current>(SessionTerrainStatusQuery.Evaluate(stored, []).Status);
+        var classes = (new TerrainClassKey(key, TerrainProfiles.Scale, TerrainClassifier.Version), new TerrainClassSummary(10, 0));
+        Assert.Equal([session.Id], await reopened.TerrainProfiles.CommitClassesAsync(
+            new Dictionary<Guid, (TerrainClassKey, TerrainClassSummary)> { [session.Id] = classes }, token));
+    }
+
+    [Fact]
     public async Task CleanupRemovesTheTerrainProfileOfADeletedSession()
     {
         using var temp = new TempDatabase();

@@ -51,6 +51,20 @@ internal sealed class SessionMetadataRow : Session
         set => TerrainSummary = value is null ? null : AppJson.Deserialize<TerrainSummary>(value);
     }
 
+    [Column("terrain_classes_key"), JsonIgnore]
+    public string? TerrainClassKeyJson
+    {
+        get => TerrainClassKey is null ? null : AppJson.Serialize(TerrainClassKey);
+        set => TerrainClassKey = value is null ? null : AppJson.Deserialize<TerrainClassKey>(value);
+    }
+
+    [Column("terrain_classes"), JsonIgnore]
+    public string? TerrainClassSummaryJson
+    {
+        get => TerrainClassSummary is null ? null : AppJson.Serialize(TerrainClassSummary);
+        set => TerrainClassSummary = value is null ? null : AppJson.Deserialize<TerrainClassSummary>(value);
+    }
+
     [Ignore, JsonIgnore]
     public override bool HasProcessedData => ProcessedDataAvailable;
 }

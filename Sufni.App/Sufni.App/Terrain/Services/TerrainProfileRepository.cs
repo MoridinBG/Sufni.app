@@ -18,6 +18,14 @@ public interface ITerrainProfileRepository
         CancellationToken cancellationToken = default);
     Task<IReadOnlyDictionary<Guid, TerrainProfile>> ReadAsync(IReadOnlyDictionary<Guid, TerrainProfileKey> expected,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Writes the class summaries in one transaction. A row is written only while it holds a computed profile with the
+    /// profile key of its class key. Returns the IDs of the written sessions.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> CommitClassesAsync(
+        IReadOnlyDictionary<Guid, (TerrainClassKey Key, TerrainClassSummary Summary)> classes,
+        CancellationToken cancellationToken = default);
 }
 
 internal sealed class TerrainProfileRepository(SqliteConnectionContext context) : ITerrainProfileRepository
@@ -66,4 +74,23 @@ internal sealed class TerrainProfileRepository(SqliteConnectionContext context) 
         }
         return profiles;
     }
+
+    public Task<IReadOnlyList<Guid>> CommitClassesAsync(
+        IReadOnlyDictionary<Guid, (TerrainClassKey Key, TerrainClassSummary Summary)> classes,
+        CancellationToken cancellationToken = default) =>
+        context.RunInTransactionAsync<IReadOnlyList<Guid>>(connection =>
+        {
+            var written = new List<Guid>();
+            foreach (var (id, (key, summary)) in classes)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var rows = connection.Execute("""
+                    UPDATE session_terrain_profile SET terrain_classes_key = ?, terrain_classes = ?
+                    WHERE session_id = ? AND terrain_profile_key = ? AND terrain_outcome = ?
+                    """, AppJson.Serialize(key), AppJson.Serialize(summary), id, AppJson.Serialize(key.Profile),
+                    (int)TerrainOutcome.Computed);
+                if (rows == 1) written.Add(id);
+            }
+            return written;
+        }, cancellationToken);
 }

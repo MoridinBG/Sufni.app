@@ -67,6 +67,11 @@ internal sealed class DatabaseMigrationRunner(
         // Stored summaries name the former lowers source, which no longer parses; the profiles recompute.
         await coreMigrations.ApplyAsync("terrain-fork-names", transaction =>
             transaction.Execute("DELETE FROM session_terrain_profile"));
+        await coreMigrations.ApplyAsync("terrain-setup-classes", transaction =>
+        {
+            transaction.Execute("ALTER TABLE session_terrain_profile ADD COLUMN terrain_classes_key TEXT");
+            transaction.Execute("ALTER TABLE session_terrain_profile ADD COLUMN terrain_classes TEXT");
+        });
         await MigrateSyncAuthorityAsync();
         await EnsureSessionBlobSwapRequestIntegrityAsync();
         await coreMigrations.MarkAppliedAsync("session-segment");

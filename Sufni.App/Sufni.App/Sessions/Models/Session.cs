@@ -61,6 +61,12 @@ public class Session : Synchronizable
     public TerrainSummary? TerrainSummary { get; set; }
 
     [JsonIgnore, Ignore]
+    public TerrainClassKey? TerrainClassKey { get; set; }
+
+    [JsonIgnore, Ignore]
+    public TerrainClassSummary? TerrainClassSummary { get; set; }
+
+    [JsonIgnore, Ignore]
     public double? DistanceMeters { get; set; }
 
     [JsonIgnore, Ignore]

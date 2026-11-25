@@ -8,6 +8,9 @@ public sealed record TerrainProfileKey(SessionContentToken Content, int Algorith
     public static TerrainProfileKey From(SessionContentToken content) => new(content, TerrainProfileCalculator.AlgorithmVersion);
 }
 
+/// <summary>The inputs of a stored ride class summary.</summary>
+public sealed record TerrainClassKey(TerrainProfileKey Profile, TerrainScaleKey Scale, int ClassifierVersion);
+
 public enum TerrainOutcome { Computed = 0, NoTrack = 1, NoMovement = 2, ContentMissing = 3, Failed = 4 }
 
 public enum TerrainAvailabilityReason { NoTelemetry, NoTrack, NoMovement, ContentMissing }

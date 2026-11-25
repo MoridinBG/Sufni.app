@@ -49,7 +49,9 @@ public sealed record SessionSnapshot(
     GpsMetricsKey? GpsMetricsKey = null,
     TerrainProfileKey? TerrainProfileKey = null,
     TerrainOutcome? TerrainOutcome = null,
-    TerrainSummary? TerrainSummary = null)
+    TerrainSummary? TerrainSummary = null,
+    TerrainClassKey? TerrainClassKey = null,
+    TerrainClassSummary? TerrainClassSummary = null)
 {
     public RecordedSessionDerivationWindow? DerivationWindow => SourceSessionId is { } sourceSessionId
         ? new RecordedSessionDerivationWindow(sourceSessionId, WindowStartSeconds, WindowEndSeconds)
@@ -96,7 +98,9 @@ public sealed record SessionSnapshot(
         session.GpsMetricsKey,
         session.TerrainProfileKey,
         session.TerrainOutcome,
-        session.TerrainSummary);
+        session.TerrainSummary,
+        session.TerrainClassKey,
+        session.TerrainClassSummary);
 }
 
 public static class SessionSnapshotExtensions

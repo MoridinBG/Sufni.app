@@ -140,7 +140,8 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
             await dispatcher.InvokeAsync(() => sessions.Get(request.Id) is { } session
                 ? sessions.PublishSessionsChangedAsync([session with
                 {
-                    TerrainProfileKey = request.Key, TerrainOutcome = result.Outcome, TerrainSummary = result.Summary
+                    TerrainProfileKey = request.Key, TerrainOutcome = result.Outcome, TerrainSummary = result.Summary,
+                    TerrainClassKey = null, TerrainClassSummary = null
                 }], token)
                 : Task.CompletedTask).ConfigureAwait(false);
         }
