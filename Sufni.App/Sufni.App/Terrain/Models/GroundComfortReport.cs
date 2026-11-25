@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Linq;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Terrain.Models;
@@ -30,4 +31,5 @@ public sealed record GroundComfortReport(ImmutableArray<GroundComfortLevel> Leve
 {
     public bool HasUsualNote => UsualNote is not null;
     public bool HasFrameNote => FrameNote is not null;
+    public bool HasPassedToFrame => Levels.Any(level => level.HasPassedToFrame);
 }

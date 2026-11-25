@@ -11,6 +11,11 @@
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Margin" Value="0,6,0,0" />
         </Style>
+        <Style Selector="TextBlock.heading">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Opacity" Value="0.75" />
+        </Style>
         <Style Selector="TextBlock.explain">
             <Setter Property="Opacity" Value="0.75" />
             <Setter Property="TextWrapping" Value="Wrap" />
@@ -23,10 +28,11 @@
     </UserControl.Styles>
     <UserControl.DataTemplates>
         <DataTemplate DataType="models:ComfortFigure">
-            <TextBlock>
-                <Run Text="{Binding Measured}" />
-                <Run Text="{Binding Usual, StringFormat=' · {0}'}" />
-            </TextBlock>
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <TextBlock Text="{Binding Measured}" />
+                <TextBlock Text="·" Opacity="0.75" IsVisible="{Binding HasUsual}" />
+                <TextBlock Text="{Binding Usual}" IsVisible="{Binding HasUsual}" />
+            </StackPanel>
         </DataTemplate>
     </UserControl.DataTemplates>
     <StackPanel Spacing="6" Grid.IsSharedSizeScope="True">
@@ -54,53 +60,49 @@
         </ItemsControl>
 
         <TextBlock Classes="step" Text="Absorbed" />
-        <TextBlock Classes="explain" Text="How much the fork and shock moved on each level, against your usual when it is ready." />
-        <ItemsControl ItemsSource="{Binding Levels}">
-            <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="models:GroundComfortLevel">
-                    <Grid Margin="0,2" ColumnSpacing="10">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" SharedSizeGroup="Level" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="{Binding Name}" />
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
-                            <TextBlock Text="Fork" Opacity="0.75" />
-                            <ContentControl Content="{Binding Fork}" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
-                            <TextBlock Text="Shock" Opacity="0.75" />
-                            <ContentControl Content="{Binding Shock}" />
-                        </StackPanel>
-                    </Grid>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
-        <TextBlock Classes="note" Text="{Binding UsualNote}" IsVisible="{Binding HasUsualNote}" />
-
-        <TextBlock Classes="step" Text="Reached the frame" />
         <TextBlock Classes="explain"
-                   Text="Frame vibration on each level as you felt it, and how much of the ground's vibration passed to the frame against your usual." />
-        <ItemsControl ItemsSource="{Binding Levels}">
-            <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="models:GroundComfortLevel">
-                    <Grid Margin="0,2" ColumnSpacing="10">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" SharedSizeGroup="Level" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="{Binding Name}" />
-                        <ContentControl Grid.Column="1" Content="{Binding Frame}" />
-                        <TextBlock Grid.Column="2" IsVisible="{Binding HasPassedToFrame}">
-                            <Run Text="Passed to the frame" Foreground="{DynamicResource SufniTextSecondary}" />
-                            <Run Text="{Binding PassedToFrame}" />
-                        </TextBlock>
-                    </Grid>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
+                   Text="How much the fork and shock moved on each level, and the vibration that reached the frame, against your usual when it is ready." />
+        <Grid Name="Absorbed" RowDefinitions="Auto,Auto">
+            <Grid ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Level" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Fork" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Shock" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Frame" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="PassedToFrame" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Classes="heading" Text="Level" />
+                <TextBlock Grid.Column="1" Classes="heading" Text="Fork"
+                           ToolTip.Tip="How fast the fork moved overall (RMS, mm/s), then the difference from your usual." />
+                <TextBlock Grid.Column="2" Classes="heading" Text="Shock"
+                           ToolTip.Tip="How fast the shock moved overall (RMS, mm/s), then the difference from your usual." />
+                <TextBlock Grid.Column="3" Classes="heading" Text="Frame"
+                           ToolTip.Tip="Vibration that reached the frame, as felt. Faster riding raises it." />
+                <TextBlock Grid.Column="4" Classes="heading" Text="Passed to the frame" IsVisible="{Binding HasPassedToFrame}"
+                           ToolTip.Tip="How much of the ground's vibration reached the frame, against your usual." />
+            </Grid>
+            <ItemsControl Grid.Row="1" ItemsSource="{Binding Levels}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="models:GroundComfortLevel">
+                        <Grid Margin="0,2" ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="Level" />
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="Fork" />
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="Shock" />
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="Frame" />
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="PassedToFrame" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding Name}" />
+                            <ContentControl Grid.Column="1" Content="{Binding Fork}" />
+                            <ContentControl Grid.Column="2" Content="{Binding Shock}" />
+                            <ContentControl Grid.Column="3" Content="{Binding Frame}" />
+                            <TextBlock Grid.Column="4" Text="{Binding PassedToFrame}" IsVisible="{Binding HasPassedToFrame}" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Grid>
+        <TextBlock Classes="note" Text="{Binding UsualNote}" IsVisible="{Binding HasUsualNote}" />
         <TextBlock Classes="note" Text="{Binding FrameNote}" IsVisible="{Binding HasFrameNote}" />
     </StackPanel>
 </UserControl>
