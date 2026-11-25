@@ -200,8 +200,10 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             {
                 RecordedSessionEditorIntent.SetBaseline result when state.Terrain is RecordedTerrainState.Loaded loaded && loaded.Key == result.ProfileKey =>
                     state with { Terrain = loaded with { Baseline = result.Baseline } },
-                RecordedSessionEditorIntent.SetTerrain result when state.Domain?.Terrain == result.Expected =>
-                    state with { Terrain = result.Value },
+                RecordedSessionEditorIntent.SetTerrainCatalog set => state with { TerrainCatalog = set.Catalog },
+                RecordedSessionEditorIntent.SetTerrain result when state.Domain?.Terrain == result.Expected &&
+                                                                  RecordedTerrainState.ScaleOf(state.Domain) == result.Scale =>
+                    state with { Terrain = KeepBaseline(state.Terrain, result.Value) },
                 RecordedSessionEditorIntent.PreviewProcessingOption preview => state with
                 {
                     ProcessingDraft = new RecordedProcessingDraft(preview.WindowMilliseconds),
@@ -241,6 +243,11 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             },
         };
     }
+
+    // A scale change reclassifies the same profile, so the fitted baseline still applies.
+    private static RecordedTerrainState KeepBaseline(RecordedTerrainState previous, RecordedTerrainState next) =>
+        previous is RecordedTerrainState.Loaded loaded && next is RecordedTerrainState.Loaded replacement && loaded.Key == replacement.Key
+            ? replacement with { Baseline = loaded.Baseline } : next;
 
     private static RecordedProcessingDraft? ReconcileProcessingDraft(RecordedSessionEditorState state, SessionSnapshot? session) =>
         state.ProcessingDraft is { IsSubmitted: true } && state.Session?.ProcessingOptions != session?.ProcessingOptions

@@ -68,9 +68,8 @@ public class MapViewModelTests
         Assert.Same(added, vm.SelectedLayer);
     }
 
-    private static readonly TerrainPresentation RoughThenSmooth = RecordedSessionPresentationDeriver.CreateTerrain(TerrainClassifier.Classify(
-        TerrainProfiles.Classified(TerrainProfiles.Window(0, RoughnessClass.Rough, RoughnessSource.Both),
-            TerrainProfiles.Window(1, RoughnessClass.Smooth, RoughnessSource.Both))));
+    private static readonly TerrainPresentation RoughThenSmooth = RecordedSessionPresentationDeriver.CreateTerrain(
+        TerrainProfiles.Classified(TerrainProfiles.Window(0, RoughnessClass.Rough), TerrainProfiles.Window(1, RoughnessClass.Smooth)));
 
     [Fact]
     public void LegendEntryHidesAndShowsItsClassOnTheTrack()

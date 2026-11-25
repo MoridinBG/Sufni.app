@@ -158,7 +158,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
             return;
         }
 
-        if (previous.Terrain?.Key != next.Terrain?.Key && matches.Count > 0)
+        if (AverageInputs(previous.Terrain) != AverageInputs(next.Terrain) && matches.Count > 0)
         {
             averaging.Cancel();
             TrailAverage = null;
@@ -302,7 +302,8 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
     {
         var average = (TrailAverage as SegmentTrailAverage.Averaged)?.Measurement;
         TerrainRequest? request = comparedMatch is not null && comparedDetail is not null
-            ? new(comparedMatch.Match, state.Terrain?.Key, state.Terrain?.Baseline, average)
+            ? new(comparedMatch.Match, state.Terrain?.Key, state.Terrain?.Classified.Scale, state.Terrain?.Catalog,
+                state.Terrain?.Baseline, average)
             : null;
         if (request == terrainRequest) return;
         terrainRequest = request;
@@ -551,6 +552,9 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         field = null;
     }
 
-    private sealed record TerrainRequest(SegmentMatch Match, TerrainProfileKey? SourceKey, TerrainBaselineIdentity? Baseline,
-        TrailAverage.Averaged? Average);
+    private static (TerrainProfileKey, TerrainScaleKey, TerrainScaleCatalog)? AverageInputs(SegmentTerrainSource? terrain) =>
+        terrain is null ? null : (terrain.Key, terrain.Classified.Scale, terrain.Catalog);
+
+    private sealed record TerrainRequest(SegmentMatch Match, TerrainProfileKey? SourceKey, TerrainScaleKey? SourceScale,
+        TerrainScaleCatalog? Catalog, TerrainBaselineIdentity? Baseline, TrailAverage.Averaged? Average);
 }

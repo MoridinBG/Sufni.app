@@ -108,6 +108,13 @@ public static class TestSnapshots
     /// <summary>The terrain status of a session without a selected track.</summary>
     public static TerrainStatus Terrain(SessionSnapshot session) => SessionTerrainStatusQuery.Evaluate(session, []).Status;
 
+    /// <summary>A setup scale with the bins of <paramref name="key"/> ready; a sensor without a bin has no data.</summary>
+    public static SetupTerrainScale TerrainScale(TerrainScaleKey key)
+    {
+        static SensorScale Sensor(int? bin) => bin is { } ready ? new SensorScale.Ready(ready) : new SensorScale.NotEnoughData(0, 0);
+        return new(Sensor(key.FrameImu), Sensor(key.ForkImu), Sensor(key.RearAxleImu), Sensor(key.FrameClimb));
+    }
+
     /// <summary>Stores a terrain outcome under the session's current profile key.</summary>
     public static SessionSnapshot WithCurrentTerrain(SessionSnapshot session, TerrainOutcome outcome,
         TerrainSummary? summary = null, IReadOnlyList<TrackSnapshot>? tracks = null) => session with

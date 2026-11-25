@@ -50,7 +50,7 @@ public static class TerrainRunComparison
 
     private static RoughnessClass? PairClass(ClassifiedWindow current, ClassifiedWindow earlier) =>
         (current.ClassValue + earlier.ClassValue) / 2 is { } mean
-            ? TerrainCalibration.Classify(mean) : null;
+            ? TerrainLevels.Classify(mean) : null;
 
     private static TerrainComparisonRow Describe(List<Pair> pairs, RoughnessClass? roughness,
         SuspensionResponseModel model, CancellationToken token)

@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
 using Sufni.App.MapsAndTracks.Stores;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Terrain.Models;
 using Sufni.Telemetry;
@@ -34,6 +36,15 @@ public static class SetupTerrainScaleQuery
             Scale(pair.Value.Select(summary => summary.ForkImu)),
             Scale(pair.Value.Select(summary => summary.RearAxleImu)),
             Scale(pair.Value.Select(summary => summary.FrameClimb))));
+    }
+
+    /// <summary>The scale key that the session summaries carry for each setup.</summary>
+    public static TerrainScaleCatalog Catalog(IEnumerable<RecordedSessionSummary> sessions)
+    {
+        var keys = ImmutableDictionary.CreateBuilder<Guid, TerrainScaleKey>();
+        foreach (var session in sessions)
+            if (session.SetupId is { } setupId && session.TerrainScale is { } key) keys[setupId] = key;
+        return new(keys.ToImmutable());
     }
 
     private static SensorScale Scale(IEnumerable<LevelDistribution?> rides)

@@ -24,6 +24,9 @@ internal closed record RecordedTerrainState
     public sealed record Unavailable(TerrainAvailabilityReason Reason) : RecordedTerrainState;
     public sealed record Failed : RecordedTerrainState;
 
+    /// <summary>The scale that the loaded classes follow; a session without a setup scale has no ready bin.</summary>
+    public static TerrainScaleKey ScaleOf(RecordedSessionDomainSnapshot? domain) => domain?.TerrainScale?.Key ?? TerrainScaleKey.None;
+
     public static RecordedTerrainState FromStatus(TerrainStatus status) => status switch
     {
         TerrainStatus.Unavailable unavailable => new Unavailable(unavailable.Reason),
@@ -42,19 +45,20 @@ internal sealed partial class RecordedSessionTerrainController : IAsyncDisposabl
         ITerrainProfileRepository repository, ITerrainProfileCoordinator coordinator, IBackgroundTaskRunner background,
         IUiThreadDispatcher dispatcher, RecordedSessionEditorActions actions, IRecordedSessionProjection projection, CancellationToken lifetime)
     {
-        subscription = states.Select(state => state.Domain?.Terrain).DistinctUntilChanged().Subscribe(status =>
+        subscription = states.Select(state => (Status: state.Domain?.Terrain, Scale: RecordedTerrainState.ScaleOf(state.Domain)))
+            .DistinctUntilChanged().Subscribe(input =>
         {
             read.Cancel();
             if (lifetime.IsCancellationRequested) return;
-            if (status is TerrainStatus.Pending) coordinator.Prioritize(id);
-            if (status is not TerrainStatus.Current current) return;
-            var next = ReadAsync(current, read.Start(lifetime));
+            if (input.Status is TerrainStatus.Pending) coordinator.Prioritize(id);
+            if (input.Status is not TerrainStatus.Current current) return;
+            var next = ReadAsync(current, input.Scale, read.Start(lifetime));
             pending = pending.IsCompleted ? next : Task.WhenAll(pending, next);
         });
 
         baselineSubscription = ObserveBaseline(id, states, projection, repository, background, dispatcher, actions, lifetime);
 
-        async Task ReadAsync(TerrainStatus.Current current, CancellationToken token)
+        async Task ReadAsync(TerrainStatus.Current current, TerrainScaleKey scale, CancellationToken token)
         {
             RecordedTerrainState result;
             try
@@ -64,7 +68,7 @@ internal sealed partial class RecordedSessionTerrainController : IAsyncDisposabl
                     var profiles = await repository.ReadAsync(new Dictionary<Guid, TerrainProfileKey> { [id] = current.Key }, token)
                         .ConfigureAwait(false);
                     if (!profiles.TryGetValue(id, out var profile)) return new RecordedTerrainState.Pending();
-                    var classified = TerrainClassifier.Classify(profile);
+                    var classified = TerrainClassifier.Classify(profile, scale);
                     return new RecordedTerrainState.Loaded(current.Key, classified, RecordedSessionPresentationDeriver.CreateTerrain(classified));
                 }, token).ConfigureAwait(false);
             }
@@ -76,7 +80,7 @@ internal sealed partial class RecordedSessionTerrainController : IAsyncDisposabl
             }
             await dispatcher.InvokeAsync(() =>
             {
-                if (!token.IsCancellationRequested) actions.SetTerrain(current, result);
+                if (!token.IsCancellationRequested) actions.SetTerrain(current, scale, result);
             });
         }
     }

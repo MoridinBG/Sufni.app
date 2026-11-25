@@ -39,9 +39,9 @@ public class TerrainCharacterTests
     }
 
     private static ClassifiedProfile Ride(int windows, RoughnessClass roughness, double front, double rear) =>
-        TerrainClassifier.Classify(TerrainProfiles.Classified([.. Enumerable.Range(0, windows).Select(i => TerrainProfiles.Window(i, roughness, RoughnessSource.Both) with
+        TerrainClassifier.Classify(TerrainProfiles.Profile([.. Enumerable.Range(0, windows).Select(i => TerrainProfiles.Window(i, roughness) with
         {
             Front = new SuspensionWindowFigures(1, 1, 1, 40, front),
             Rear = new SuspensionWindowFigures(1, 1, 1, 40, rear)
-        })]) with { FrontMaxTravel = 160, RearMaxTravel = 150 });
+        })]) with { FrontMaxTravel = 160, RearMaxTravel = 150 }, TerrainProfiles.Scale);
 }

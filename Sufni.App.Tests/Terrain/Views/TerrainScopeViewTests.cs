@@ -125,7 +125,7 @@ public class TerrainScopeChipViewTests
     private static async Task<SessionDetailViewModel> LoadAsync(SessionDetailHarness h)
     {
         var session = h.CreateRecordedSession();
-        var profile = TerrainProfiles.Classified(TerrainProfiles.Window(0, RoughnessClass.Rough, RoughnessSource.Both));
+        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0, RoughnessClass.Rough)]);
         var editor = h.CreateRecordedEditor(session, projectionChanges: Observable.Return(h.WithTerrain(session, profile)));
         await h.LoadAsync(editor);
         ViewTestHelpers.EnsureFluentTheme();

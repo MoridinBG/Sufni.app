@@ -34,10 +34,10 @@ internal static class GroundComfortReports
                 Usual(ResponseTarget.PassedToFrame));
         }).ToImmutableArray();
         var hasFrame = classified.Profile.Windows.Any(window => window.Frame is not null);
-        var hasFork = classified.Profile.Windows.Any(window => window.Fork is not null);
+        var hasUnsprung = classified.Profile.Windows.Any(window => window.Fork is not null || window.RearAxle is not null);
         return new(levels,
             usual is null ? "Comparisons with your usual appear once it is ready." : null,
             !hasFrame ? "Frame vibration needs a frame IMU."
-            : !hasFork ? "Vibration passed to the frame needs a fork IMU as well." : null);
+            : !hasUnsprung ? "Vibration passed to the frame needs a fork or rear axle IMU as well." : null);
     }
 }

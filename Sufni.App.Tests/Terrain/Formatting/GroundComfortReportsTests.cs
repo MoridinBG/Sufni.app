@@ -13,7 +13,7 @@ public class GroundComfortReportsTests
     [InlineData(TerrainPreset.Climbs, RoughnessClass.TechnicalClimb)]
     public void LevelsFollowTheScope(TerrainPreset preset, RoughnessClass level)
     {
-        var report = GroundComfortReports.Build(Ride(RoughnessSource.Both), new TerrainScope(preset), null, null);
+        var report = GroundComfortReports.Build(Ride(), new TerrainScope(preset), null, null);
 
         Assert.Equal(level, Assert.Single(report.Levels).Class);
     }
@@ -23,8 +23,8 @@ public class GroundComfortReportsTests
     {
         var scope = new TerrainScope(TerrainPreset.Descents);
 
-        var withUsual = GroundComfortReports.Build(Ride(RoughnessSource.Both), scope, null, Usual()).Levels.Single();
-        var without = GroundComfortReports.Build(Ride(RoughnessSource.Both), scope, null, null);
+        var withUsual = GroundComfortReports.Build(Ride(), scope, null, Usual()).Levels.Single();
+        var without = GroundComfortReports.Build(Ride(), scope, null, null);
 
         Assert.True(withUsual.Fork.HasUsual);
         Assert.False(without.Levels.Single().Fork.HasUsual);
@@ -32,21 +32,27 @@ public class GroundComfortReportsTests
     }
 
     [Theory]
-    [InlineData(RoughnessSource.Both, false)]
-    [InlineData(RoughnessSource.FrameOnly, true)]
-    [InlineData(RoughnessSource.ForkOnly, true)]
-    public void AMissingImuIsNamed(RoughnessSource source, bool noted)
+    [InlineData(GroundSensors.Fork, true, false)]
+    [InlineData(GroundSensors.RearAxle, true, false)]
+    [InlineData(GroundSensors.Frame, true, true)]
+    [InlineData(GroundSensors.Fork, false, true)]
+    public void AMissingImuIsNamed(GroundSensors source, bool frame, bool noted)
     {
-        var report = GroundComfortReports.Build(Ride(source), new TerrainScope(TerrainPreset.All), null, Usual());
+        var report = GroundComfortReports.Build(Ride(source, frame), new TerrainScope(TerrainPreset.All), null, Usual());
 
         Assert.Equal(noted, report.HasFrameNote);
     }
 
-    private static ClassifiedProfile Ride(RoughnessSource source) => TerrainClassifier.Classify(TerrainProfiles.Classified([
+    private static ClassifiedProfile Ride(GroundSensors source = GroundSensors.Fork, bool frame = true) => TerrainProfiles.Classified([
         .. Enumerable.Range(0, 30).Select(i => TerrainProfiles.Window(i, RoughnessClass.Rough, source) with
         {
-            Front = new SuspensionWindowFigures(140, 150, 105, 40, null)
+            Front = new SuspensionWindowFigures(140, 150, 105, 40, null),
+            Frame = frame ? TerrainProfiles.Sensor(TerrainProfiles.Level(RoughnessClass.Rough)) : null
         }),
-        .. Enumerable.Range(30, 10).Select(i => TerrainProfiles.Window(i, RoughnessClass.TechnicalClimb, source) with { Band = GradeBand.Climb })
-    ]));
+        .. Enumerable.Range(30, 10).Select(i => TerrainProfiles.Window(i, RoughnessClass.TechnicalClimb, source) with
+        {
+            Band = GradeBand.Climb,
+            Frame = frame ? TerrainProfiles.Sensor(TerrainProfiles.Level(RoughnessClass.TechnicalClimb)) : null
+        })
+    ]);
 }

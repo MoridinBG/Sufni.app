@@ -24,13 +24,14 @@ public closed record TrailAverage(int RunCount)
         {
             token.ThrowIfCancellationRequested();
             foreach (var pair in run.Alignment.Pairs)
-                totals[pair.SourceIndex].Add(run.Profile.Windows[pair.MatchIndex].Window);
+                totals[pair.SourceIndex].Add(run.Profile.Windows[pair.MatchIndex]);
         }
         var windows = new List<TrailAverageWindow>();
         var climbLevels = new List<RoughnessClass?>();
         for (var i = 0; i < source.Windows.Length; i++)
         {
-            var w = source.Windows[i].Window;
+            var classified = source.Windows[i];
+            var w = classified.Window;
             var centre = (w.StartSeconds + w.EndSeconds) / 2;
             if (centre < range.StartSeconds || centre >= range.EndSeconds) continue;
             token.ThrowIfCancellationRequested();
@@ -41,7 +42,7 @@ public closed record TrailAverage(int RunCount)
                 climbLevels.Add(null);
                 continue;
             }
-            totals[i].Add(w);
+            totals[i].Add(classified);
             windows.Add(totals[i].Window(i, w));
             climbLevels.Add(totals[i].ClimbLevel);
         }
@@ -76,29 +77,28 @@ public closed record TrailAverage(int RunCount)
 
     private struct WindowTotals
     {
-        private Mean logFrame, logFork, logRearAxle, normalisedFrame, normalisedFork, grade, logClimbFrame;
+        private Mean logFrame, logFork, logRearAxle, classValue, grade;
+        private int smoothClimbs, technicalClimbs;
 
-        public void Add(TerrainWindow window)
+        public void Add(ClassifiedWindow classified)
         {
+            var window = classified.Window;
             if (window.Frame is { } frame) logFrame.Add(Math.Log(frame.SpeedRemoved));
             if (window.Fork is { } fork) logFork.Add(Math.Log(fork.SpeedRemoved));
             if (window.RearAxle is { } rearAxle) logRearAxle.Add(Math.Log(rearAxle.SpeedRemoved));
-            if (window.Frame is { Normalised: not null } calibrated) logClimbFrame.Add(Math.Log(calibrated.Level));
-            normalisedFrame.Add(window.Frame?.Normalised);
-            normalisedFork.Add(TerrainProfileCalculator.ForkClassValue(window.Frame, window.Fork));
+            classValue.Add(classified.ClassValue);
+            if (classified.Roughness == RoughnessClass.SmoothClimb) smoothClimbs++;
+            else if (classified.Roughness == RoughnessClass.TechnicalClimb) technicalClimbs++;
             grade.Add(window.Grade);
         }
 
-        public readonly TrailAverageWindow Window(int index, TerrainWindow source)
-        {
-            var frame = normalisedFrame.Value;
-            var fork = normalisedFork.Value;
-            var normalised = (frame + fork) / 2 ?? frame ?? fork;
-            return new(index, source.StartSeconds, source.EndSeconds, Exp(logFrame.Value), Exp(logFork.Value), Exp(logRearAxle.Value),
-                grade.Value, normalised.HasValue ? TerrainCalibration.Classify(normalised.Value) : null, null);
-        }
+        public readonly TrailAverageWindow Window(int index, TerrainWindow source) =>
+            new(index, source.StartSeconds, source.EndSeconds, Exp(logFrame.Value), Exp(logFork.Value), Exp(logRearAxle.Value),
+                grade.Value, classValue.Value is { } value ? TerrainLevels.Classify(value) : null, null);
 
-        public readonly RoughnessClass? ClimbLevel => Exp(logClimbFrame.Value) is { } level ? TerrainCalibration.ClassifyClimb(level) : null;
+        /// <summary>The majority climb class; a tie is technical.</summary>
+        public readonly RoughnessClass? ClimbLevel => smoothClimbs + technicalClimbs < MinimumRuns ? null
+            : smoothClimbs > technicalClimbs ? RoughnessClass.SmoothClimb : RoughnessClass.TechnicalClimb;
 
         private static double? Exp(double? log) => log.HasValue ? Math.Exp(log.Value) : null;
     }

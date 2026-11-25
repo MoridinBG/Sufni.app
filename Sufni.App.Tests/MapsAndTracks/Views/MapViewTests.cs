@@ -573,8 +573,8 @@ public class MapViewTests
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureFluentTheme();
         using var viewModel = CreateViewModelWithTrack();
-        viewModel.ApplyTerrain(MapTrackColoring.Roughness, RecordedSessionPresentationDeriver.CreateTerrain(TerrainClassifier.Classify(
-            TerrainProfiles.Classified(TerrainProfiles.Window(0, RoughnessClass.Rough, RoughnessSource.Both)))));
+        viewModel.ApplyTerrain(MapTrackColoring.Roughness, RecordedSessionPresentationDeriver.CreateTerrain(
+            TerrainProfiles.Classified(TerrainProfiles.Window(0, RoughnessClass.Rough))));
         var view = new MapView { DataContext = viewModel };
         await using var mounted = await ViewTestHelpers.MountAsync(view);
         Button FirstEntry() => view.FindControl<Border>("TerrainLegend")!.GetVisualDescendants().OfType<Button>().First();

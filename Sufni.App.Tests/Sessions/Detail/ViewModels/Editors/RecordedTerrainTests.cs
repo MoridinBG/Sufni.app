@@ -30,7 +30,7 @@ public class RecordedTerrainTests
         var ride = SyntheticRide.Build([new(140, LowBandG: 0.2, MiddleBandG: 0.2, HighBandG: 0.2),
             new(140, LowBandG: 1.5, MiddleBandG: 1.6, HighBandG: 1.8)]);
         var session = h.CreateRecordedSession();
-        var domain = h.WithTerrain(session, ride.Profile());
+        var domain = h.WithTerrain(session, ride.Profile(), TestSnapshots.TerrainScale(SyntheticRide.Scale));
         var editor = h.CreateRecordedEditor(session, h.CreateLoadedResult(ride.Telemetry), Observable.Return(domain));
         await h.LoadAsync(editor);
         var scope = editor.SignalsWorkspace.TerrainScope!;
@@ -54,10 +54,10 @@ public class RecordedTerrainTests
     {
         using var h = new SessionDetailHarness();
         var session = h.CreateRecordedSession();
-        var flat = TerrainProfiles.Window(0, RoughnessClass.Calm, RoughnessSource.Both);
+        var flat = TerrainProfiles.Window(0, RoughnessClass.Calm);
         var profile = TerrainProfiles.Profile([flat, TerrainProfiles.Window(1, moving: false),
-            TerrainProfiles.Window(2, RoughnessClass.Calm, RoughnessSource.Both),
-            TerrainProfiles.Window(3) with { Band = GradeBand.Climb, Roughness = RoughnessClass.SmoothClimb }], grade: grade);
+            TerrainProfiles.Window(2, RoughnessClass.Calm),
+            TerrainProfiles.Window(3, RoughnessClass.SmoothClimb) with { Band = GradeBand.Climb }], grade: grade);
         var editor = h.CreateRecordedEditor(session, projectionChanges: Observable.Return(h.WithTerrain(session, profile)));
         await h.LoadAsync(editor);
         var scope = editor.AnalysisWorkspace.TerrainScope!;
@@ -74,8 +74,8 @@ public class RecordedTerrainTests
     {
         using var h = new SessionDetailHarness();
         var session = h.CreateRecordedSession();
-        var profile = TerrainProfiles.Classified(TerrainProfiles.Window(0, RoughnessClass.Rough, RoughnessSource.Both),
-            TerrainProfiles.Window(1) with { Band = GradeBand.SteepClimb, Roughness = RoughnessClass.TechnicalClimb });
+        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0, RoughnessClass.Rough),
+            TerrainProfiles.Window(1, RoughnessClass.TechnicalClimb) with { Band = GradeBand.SteepClimb }]);
         var editor = h.CreateRecordedEditor(session, projectionChanges: Observable.Return(h.WithTerrain(session, profile)));
         await h.LoadAsync(editor);
         var scope = editor.AnalysisWorkspace.TerrainScope!;
@@ -143,20 +143,18 @@ public class RecordedTerrainTests
     [AvaloniaTheory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task StripBreaksAtStopsAndReportsEachSensorContribution(bool jointlyRecorded)
+    public async Task StripBreaksAtStopsAndReportsEachSourceShare(bool forkClipped)
     {
         using var h = new SessionDetailHarness();
         var session = h.CreateRecordedSession();
-        var first = jointlyRecorded ? RoughnessSource.Both : RoughnessSource.ForkOnly;
-        var window = TerrainProfiles.Window(0, RoughnessClass.Calm, first);
-        var clipped = TerrainProfiles.Window(3, RoughnessClass.Rough, RoughnessSource.FrameOnly) with
+        var clipped = TerrainProfiles.Window(3, RoughnessClass.Rough) with
         {
-            Fork = jointlyRecorded ? window.Fork! with { ClippedShare = 0.12 } : null
+            Fork = forkClipped ? TerrainProfiles.Sensor(TerrainProfiles.Level(RoughnessClass.VeryRough), clippedShare: 0.12) : null
         };
-        var profile = TerrainProfiles.Classified(window, TerrainProfiles.Window(1, RoughnessClass.Rough, first),
-            TerrainProfiles.Window(2, RoughnessClass.Rough, first) with { Moving = false, Grade = null }, clipped,
-            TerrainProfiles.Window(4, RoughnessClass.Rough, RoughnessSource.FrameOnly),
-            TerrainProfiles.Window(5, RoughnessClass.Rough, RoughnessSource.FrameOnly, 0.3));
+        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0, RoughnessClass.Calm, GroundSensors.Fork),
+            TerrainProfiles.Window(1, RoughnessClass.Rough, GroundSensors.Fork),
+            TerrainProfiles.Window(2, RoughnessClass.Rough) with { Moving = false, Grade = null }, clipped,
+            TerrainProfiles.Window(4, RoughnessClass.Rough), TerrainProfiles.Window(5, RoughnessClass.Rough, grade: 0.3)]);
         var domain = h.WithTerrain(session, profile);
         var editor = h.CreateRecordedEditor(session, projectionChanges: Observable.Return(domain));
         await h.LoadAsync(editor);
@@ -164,10 +162,10 @@ public class RecordedTerrainTests
         Assert.Equal([new TerrainRun<RoughnessClass>(0, 1, RoughnessClass.Calm), new(1, 2, RoughnessClass.Rough),
             new(3, 6, RoughnessClass.Rough)],
             presentation.RoughnessRuns);
-        Assert.Equal(RoughnessSource.Both, presentation.Coverage.Source);
-        Assert.Equal(0.6, presentation.Coverage.FrameOnlyShare);
-        Assert.Equal(jointlyRecorded ? 0.4 : 0, presentation.Coverage.JointShare);
-        Assert.Equal(jointlyRecorded, presentation.Coverage.ForkClipped);
+        Assert.Equal(GroundSensors.Frame, presentation.Coverage.Source);
+        Assert.Equal(0.6, presentation.Coverage.SourceShares[(int)GroundSensors.Frame]);
+        Assert.Equal(0.4, presentation.Coverage.SourceShares[(int)GroundSensors.Fork]);
+        Assert.Equal(forkClipped, presentation.Coverage.ForkClipped);
         Assert.Equal(4.5, presentation.Grade[^1].Seconds[^2]);
         Assert.Equal(Math.Asin(0.1) * 180 / Math.PI, presentation.Grade[^1].Values[^2], 8);
         await h.CloseAsync(editor);
@@ -179,10 +177,10 @@ public class RecordedTerrainTests
         using var h = new SessionDetailHarness();
         var session = h.CreateRecordedSession();
         PedallingFigures Pedalled(double bob) => new(true, 80, bob);
-        var profile = TerrainProfiles.Classified(TerrainProfiles.Window(0) with { Pedalling = Pedalled(7) },
+        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0) with { Pedalling = Pedalled(7) },
             TerrainProfiles.Window(1) with { Pedalling = Pedalled(9) },
             TerrainProfiles.Window(2) with { Pedalling = new(false, null, null) },
-            TerrainProfiles.Window(3) with { Pedalling = Pedalled(8) });
+            TerrainProfiles.Window(3) with { Pedalling = Pedalled(8) }]);
         var editor = h.CreateRecordedEditor(session, projectionChanges: Observable.Return(h.WithTerrain(session, profile)));
         await h.LoadAsync(editor);
         Assert.True(editor.SignalsWorkspace.PedalBobSignalState.IsReady);
@@ -347,5 +345,5 @@ public class RecordedTerrainTests
     }
 
     private static TerrainProfile RoughProfile() =>
-        TerrainProfiles.Classified(TerrainProfiles.Window(0, RoughnessClass.Rough, RoughnessSource.Both));
+        TerrainProfiles.Profile([TerrainProfiles.Window(0, RoughnessClass.Rough)]);
 }

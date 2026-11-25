@@ -423,6 +423,7 @@ internal sealed class SegmentCoordinator(
         TrailAverage.Averaged? average, CancellationToken token = default)
     {
         if (source is null) return new SegmentTerrainComparison.Unavailable(SegmentTerrainUnavailable.NoSourceProfile);
+        var scale = ScaleOf(source, match.SessionId);
         try
         {
             return await backgroundTaskRunner.RunAsync<SegmentTerrainComparison>(async () =>
@@ -440,7 +441,7 @@ internal sealed class SegmentCoordinator(
                         ? SegmentTerrainUnavailable.NoCommonSensor : SegmentTerrainUnavailable.Unaligned);
                 var baseline = profiles.Where(p => p.Key != match.SessionId).Select(p => p.Value).ToArray();
                 var model = SuspensionResponseModel.FitPair(source.Classified.Profile, earlier, baseline, token);
-                return new SegmentTerrainComparison.Compared(TerrainRunComparison.Compare(source.Classified, TerrainClassifier.Classify(earlier), aligned, model, average, token), average?.RunCount);
+                return new SegmentTerrainComparison.Compared(TerrainRunComparison.Compare(source.Classified, TerrainClassifier.Classify(earlier, scale), aligned, model, average, token), average?.RunCount);
             }, token);
         }
         catch (Exception e) when (!token.IsCancellationRequested)
@@ -449,6 +450,9 @@ internal sealed class SegmentCoordinator(
             return new SegmentTerrainComparison.Failed();
         }
     }
+
+    private TerrainScaleKey ScaleOf(SegmentTerrainSource source, Guid sessionId) =>
+        source.Catalog.ScaleOf(sessionStore.Get(sessionId)?.SetupId);
 
     private static TerrainRunAlignment Align(TerrainProfile source, TerrainProfile other, SegmentMatch match, CancellationToken token) =>
         TerrainRunAlignment.Calculate(source, other, match.TimeMap.Select(p => (p.SourceSeconds, p.MatchSeconds)).ToArray(), token);
@@ -460,6 +464,7 @@ internal sealed class SegmentCoordinator(
         using var operation = operationRunner.Start(source.SessionId, "averaging trail terrain");
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(operation.CancellationToken, cancellationToken);
         var token = lifetime.Token;
+        var scales = matches.ToDictionary(m => m.SessionId, m => ScaleOf(source, m.SessionId));
         try
         {
             var result = await backgroundTaskRunner.RunAsync(async () =>
@@ -472,7 +477,7 @@ internal sealed class SegmentCoordinator(
                     token.ThrowIfCancellationRequested();
                     if (profiles.TryGetValue(match.SessionId, out var profile) &&
                         Align(source.Classified.Profile, profile, match, token) is TerrainRunAlignment.Aligned alignment)
-                        aligned.Add(new(TerrainClassifier.Classify(profile), alignment));
+                        aligned.Add(new(TerrainClassifier.Classify(profile, scales[match.SessionId]), alignment));
                 }
                 return SegmentTrailAverage.Present(TrailAverage.Calculate(source.Classified, range, aligned, token));
             }, token);

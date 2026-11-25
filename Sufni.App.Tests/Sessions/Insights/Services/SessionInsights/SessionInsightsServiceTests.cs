@@ -50,9 +50,9 @@ public class SessionInsightsServiceTests
     [InlineData(RoughnessClass.Calm, false)]
     public void ResponsePanelHintsAtTheCharacterOfMostRoughGround(RoughnessClass roughness, bool hinted)
     {
-        var profile = TerrainProfiles.Classified([.. Enumerable.Range(0, 40).Select(i =>
-            TerrainProfiles.Window(i, roughness, RoughnessSource.Both) with { Rear = new SuspensionWindowFigures(1, 1, 1, 40, 34) })])
-            with { RearMaxTravel = 150 };
+        var profile = TerrainClassifier.Classify(TerrainProfiles.Profile([.. Enumerable.Range(0, 40).Select(i =>
+            TerrainProfiles.Window(i, roughness) with { Rear = new SuspensionWindowFigures(1, 1, 1, 40, 34) })])
+            with { RearMaxTravel = 150 }, TerrainProfiles.Scale);
 
         var panel = Response(profile, analysisRange: null);
 
@@ -99,7 +99,7 @@ public class SessionInsightsServiceTests
     [InlineData(100d, false)]
     public void ClimbingCardFollowsTheTimeRangeNotTheScope(double? rangeEnd, bool shown)
     {
-        var profile = TerrainProfiles.Profile(TerrainProfiles.PedalledClimb(0, 150));
+        var profile = TerrainProfiles.Classified([.. TerrainProfiles.PedalledClimb(0, 150)]);
         TelemetryTimeRange? range = rangeEnd is { } end ? new(0, end) : null;
 
         var result = Analyze(profile, range, scope: new TerrainScope(TerrainPreset.Descents));
@@ -301,20 +301,20 @@ public class SessionInsightsServiceTests
                           adjustment.Side == side);
     }
 
-    private SessionResponsePanel Response(TerrainProfile profile, TelemetryTimeRange? analysisRange,
+    private SessionResponsePanel Response(ClassifiedProfile profile, TelemetryTimeRange? analysisRange,
         TelemetryTimeSelection? selection = null) => Analyze(profile, analysisRange, selection).Response;
 
-    private SessionInsightsResult Analyze(TerrainProfile profile, TelemetryTimeRange? analysisRange,
+    private SessionInsightsResult Analyze(ClassifiedProfile profile, TelemetryTimeRange? analysisRange,
         TelemetryTimeSelection? selection = null, TerrainScope? scope = null, TerrainBaseline? baseline = null)
     {
-        var input = new SessionTerrainInput(TerrainClassifier.Classify(profile),
+        var input = new SessionTerrainInput(profile,
             baseline ?? new TerrainBaseline.Fitted(TerrainBaselineIdentity.Empty, TestResponseRows.Usual()), analysisRange, scope);
         var request = CreateRequest(CreateTelemetry(front: BuildSide(), rear: BuildSide()), terrain: input);
         return service.Analyze(selection is null ? request : request with { Selection = selection });
     }
 
     private static TerrainWindow ResponseWindow(int index, RoughnessClass roughness, double frontRms) =>
-        TerrainProfiles.Window(index, roughness, RoughnessSource.Both) with { Front = new(frontRms, 150, 105, 40, null) };
+        TerrainProfiles.Window(index, roughness) with { Front = new(frontRms, 150, 105, 40, null) };
 
     private static ResponseBar FrontRms(SessionResponsePanel panel, RoughnessClass? roughness) =>
         panel.Report!.Chart.Single(r => r.Group == roughness).Fork.Single(b => b.Target == ResponseTarget.FrontRms);

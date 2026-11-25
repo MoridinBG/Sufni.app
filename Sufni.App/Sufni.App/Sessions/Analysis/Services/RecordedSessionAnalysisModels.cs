@@ -242,7 +242,8 @@ public sealed record RecordedSessionAnalysisInputs(
             RecordedSessionAnalysisFamily.ImuDisplayProjection => key,
             RecordedSessionAnalysisFamily.SessionInsights => key with
             {
-                Selection = Selection, TerrainProfileKey = TerrainProfileKey, Baseline = Baseline, TerrainScope = TerrainScope
+                Selection = Selection, TerrainProfileKey = TerrainProfileKey, TerrainScale = Terrain?.Scale, Baseline = Baseline,
+                TerrainScope = TerrainScope
             },
             _ => key with { Selection = Selection },
         };
@@ -267,6 +268,7 @@ public sealed record RecordedSessionAnalysisKey(
     public TerrainScope? TerrainScope { get; init; }
     public TelemetryTimeSelection? Selection { get; init; }
     public TerrainProfileKey? TerrainProfileKey { get; init; }
+    public TerrainScaleKey? TerrainScale { get; init; }
     public long TrackGeneration { get; init; }
     public TelemetryRangeSelection? FrontSelection { get; init; }
     public TelemetryRangeSelection? RearSelection { get; init; }

@@ -34,6 +34,7 @@ public sealed class TerrainSignalPlot(Plot plot, SufniTheme? theme = null) : Rec
                 Shade(terrain.RoughnessRuns.Colour(scales.ColorFor));
                 if (!terrain.Frame.IsEmpty) AddGuides(terrain.FrameEdges, PlotTheme.Series.ImuFrame.ToScottPlotColor());
                 if (!terrain.Fork.IsEmpty) AddGuides(terrain.ForkEdges, PlotTheme.Series.ImuFork.ToScottPlotColor());
+                if (!terrain.RearAxle.IsEmpty) AddGuides(terrain.RearAxleEdges, PlotTheme.Series.ImuRearAxle.ToScottPlotColor());
             }
         }
         else if (kind == TerrainSignalKind.PedalBob)

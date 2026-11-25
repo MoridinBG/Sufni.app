@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Immutable;
+using System.Linq;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Terrain.Models;
@@ -16,4 +19,18 @@ public sealed record SetupTerrainScale(SensorScale FrameImu, SensorScale ForkImu
     public TerrainScaleKey Key => new(Bin(FrameImu), Bin(ForkImu), Bin(RearAxleImu), Bin(FrameClimb));
 
     private static int? Bin(SensorScale scale) => (scale as SensorScale.Ready)?.MedianBin;
+}
+
+/// <summary>The scale key of each setup. A setup without an entry has no ready bin.</summary>
+public sealed record TerrainScaleCatalog(ImmutableDictionary<Guid, TerrainScaleKey> Keys)
+{
+    public static TerrainScaleCatalog Empty { get; } = new(ImmutableDictionary<Guid, TerrainScaleKey>.Empty);
+
+    public TerrainScaleKey ScaleOf(Guid? setupId) =>
+        setupId is { } id && Keys.TryGetValue(id, out var key) ? key : TerrainScaleKey.None;
+
+    public bool Equals(TerrainScaleCatalog? other) => other is not null && Keys.Count == other.Keys.Count &&
+        Keys.All(entry => other.Keys.TryGetValue(entry.Key, out var key) && key == entry.Value);
+
+    public override int GetHashCode() => Keys.Aggregate(0, (hash, entry) => hash ^ HashCode.Combine(entry.Key, entry.Value));
 }

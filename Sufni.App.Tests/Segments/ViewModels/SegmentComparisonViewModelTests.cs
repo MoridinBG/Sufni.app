@@ -456,7 +456,7 @@ public class SegmentComparisonViewModelTests
     }
 
     private static SegmentTerrainSource TerrainSource() => new(Guid.NewGuid(), TerrainProfileKey.From(TestSegmentMatches.Token),
-        TerrainClassifier.Classify(TerrainProfiles.Classified(TerrainProfiles.Window(0, RoughnessClass.Calm, RoughnessSource.FrameOnly))), TerrainBaselineIdentity.Empty);
+        TerrainProfiles.Classified(TerrainProfiles.Window(0, RoughnessClass.Calm)), TerrainBaselineIdentity.Empty, TerrainScaleCatalog.Empty);
 
     private static TerrainComparisonRow RoughRow() => TestResponseRows.Compared(RoughnessClass.Rough, 500, new(0.97, 1.01, 1.04));
 

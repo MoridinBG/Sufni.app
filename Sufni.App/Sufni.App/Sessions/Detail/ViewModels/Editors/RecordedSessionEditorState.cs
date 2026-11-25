@@ -39,6 +39,9 @@ internal sealed record RecordedSessionEditorState(
 
     public TerrainSelectionResult? TerrainSelection { get; init; }
 
+    /// <summary>The scale key of each setup, from the session summaries.</summary>
+    public TerrainScaleCatalog TerrainCatalog { get; init; } = TerrainScaleCatalog.Empty;
+
     public TelemetryTimeSelection? TimeSelection => Intent.Scope is not AnalysisScope.SegmentComparison && TerrainSelection is { } terrain
         ? terrain.Selection : Intent.AnalysisRange;
 

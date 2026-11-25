@@ -21,6 +21,7 @@ internal sealed partial class RecordedSessionTerrainController
     private readonly CancellableOperation fitting = new();
     private Task baselineTasks = Task.CompletedTask;
     private (TerrainProfileKey, TerrainBaselineIdentity)? requestedBaseline;
+    private TerrainScaleCatalog selectedCatalog = TerrainScaleCatalog.Empty;
 
     private IDisposable ObserveBaseline(Guid id, IObservable<RecordedSessionEditorState> states,
         IRecordedSessionProjection projection, ITerrainProfileRepository repository, IBackgroundTaskRunner worker,
@@ -32,6 +33,12 @@ internal sealed partial class RecordedSessionTerrainController
         var summaries = projection.ConnectSessions().ToCollection().StartWith(Array.Empty<RecordedSessionSummary>());
         return source.CombineLatest(summaries, (ride, sessions) => (ride, sessions)).Subscribe(input =>
         {
+            var catalog = SetupTerrainScaleQuery.Catalog(input.sessions);
+            if (catalog != selectedCatalog)
+            {
+                selectedCatalog = catalog;
+                actions.SetTerrainCatalog(catalog);
+            }
             if (input.ride.Key is not { } key || input.ride.Profile is not { } profile)
             {
                 fitting.Cancel();

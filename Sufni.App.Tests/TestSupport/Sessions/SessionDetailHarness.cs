@@ -102,13 +102,15 @@ internal sealed class SessionDetailHarness : IDisposable
         null,
         staleness ?? new SessionStaleness.Current()) { Terrain = TestSnapshots.Terrain(snapshot) };
 
-    public RecordedSessionDomainSnapshot WithTerrain(SessionSnapshot session, TerrainProfile profile)
+    /// <summary>A domain snapshot with a current terrain profile; the setup scale defaults to the fixture scale.</summary>
+    public RecordedSessionDomainSnapshot WithTerrain(SessionSnapshot session, TerrainProfile profile, SetupTerrainScale? scale = null)
     {
         var key = SessionTerrainStatusQuery.Evaluate(session, []).Key;
         TerrainProfiles.Seed(session.Id, key, profile);
         return DomainFromSnapshot(session) with
         {
-            Terrain = new TerrainStatus.Current(key, TerrainProfileCalculator.Summarize(profile))
+            Terrain = new TerrainStatus.Current(key, TerrainProfileCalculator.Summarize(profile)),
+            TerrainScale = scale ?? TestSnapshots.TerrainScale(Telemetry.Tests.TerrainProfiles.Scale)
         };
     }
 
@@ -119,7 +121,7 @@ internal sealed class SessionDetailHarness : IDisposable
     public async Task<SessionDetailViewModel> LoadMatchedEditorAsync(SessionSnapshot session,
         IObservable<RecordedSessionDomainSnapshot>? laterDomains = null, params SegmentComparison[] matches)
     {
-        var profile = Telemetry.Tests.TerrainProfiles.Classified(Telemetry.Tests.TerrainProfiles.Window(2, RoughnessClass.Rough, RoughnessSource.Both));
+        var profile = Telemetry.Tests.TerrainProfiles.Profile([Telemetry.Tests.TerrainProfiles.Window(2, RoughnessClass.Rough)]);
         var domains = (laterDomains ?? Observable.Empty<RecordedSessionDomainSnapshot>()).StartWith(WithTerrain(session, profile));
         var editor = CreateRecordedEditor(session, CreateLoadedResult(TestSegmentMatches.Telemetry(),
             trackPoints: [new(1000, 0, 0, null), new(1030, 200, 50, null)]), domains);

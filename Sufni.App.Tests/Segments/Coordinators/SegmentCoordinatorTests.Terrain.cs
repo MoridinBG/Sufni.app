@@ -167,7 +167,7 @@ public partial class SegmentCoordinatorTests
             terrainProfiles.Seed(id, key, SyntheticResponseRides.Baseline[i]);
             return new SessionProfileReference(id, key);
         }).ToImmutableArray();
-        return (new(sourceId, key, TerrainClassifier.Classify(current), new(references)), match);
+        return (new(sourceId, key, TerrainClassifier.Classify(current, SyntheticRide.Scale), new(references), TerrainScaleCatalog.Empty), match);
     }
 
     private static SegmentTerrainSource IncludeMatch(SegmentTerrainSource source, SegmentMatch match) =>

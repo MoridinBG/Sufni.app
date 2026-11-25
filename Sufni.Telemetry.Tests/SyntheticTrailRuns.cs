@@ -3,12 +3,12 @@ using MathNet.Numerics.Distributions;
 
 namespace Sufni.Telemetry.Tests;
 
-/// <summary>A trail section as one recording rides it: the frame level in g at 7 m/s and the class both sensors give it.</summary>
+/// <summary>A trail section as one recording rides it: the frame level in g at 7 m/s and the class the fork gives it on the synthetic scale.</summary>
 public readonly record struct TrailSection(double StartMetres, double FrameLevel, RoughnessClass Roughness);
 
 /// <summary>
 /// Runs over synthetic trails modelled on the pooled statistics of real descents. The ground seed lays out stretches of
-/// distinct character with short texture on top, at fixed class shares under the production calibration. The recording
+/// distinct character with short texture on top, at fixed class shares on <see cref="SyntheticRide.Scale"/>. The recording
 /// seed adds the run's own line and surface condition, so repeat runs correlate as real repeats do.
 /// </summary>
 public static class SyntheticTrailRuns
@@ -27,9 +27,6 @@ public static class SyntheticTrailRuns
     private const double LowBand = 0.7, MiddleBand = 1, HighBand = 0.85;
 
     private static readonly double BandLevel = Math.Sqrt(LowBand * LowBand + MiddleBand * MiddleBand + HighBand * HighBand);
-    private static readonly int AccelScale = new RideRecording().AccelScale;
-    private static readonly TerrainCalibration FrameCalibration = TerrainCalibration.For(ImuLocation.Frame, AccelScale)!;
-    private static readonly TerrainCalibration ForkCalibration = TerrainCalibration.For(ImuLocation.Fork, AccelScale)!;
 
     public static ImmutableArray<TrailSection> Describe(int groundSeed, int recordingSeed = 23)
     {
@@ -65,7 +62,7 @@ public static class SyntheticTrailRuns
             variation = Continue(variation, run);
             var quantile = Normal.InvCDF(0, 1, (ranks[i] + 0.5) / count) - Normal.InvCDF(0, 1, CalmShare);
             var level = Math.Exp(calm + spread * quantile + RunVariation * variation);
-            sections.Add(new(i * SectionMetres, level, TerrainCalibration.Classify(Normalised(level))));
+            sections.Add(new(i * SectionMetres, level, TerrainLevels.Classify(Value(level))));
         }
         return sections.MoveToImmutable();
     }
@@ -100,13 +97,13 @@ public static class SyntheticTrailRuns
         return decay * value + Math.Sqrt(1 - decay * decay) * Normal.Sample(random, 0, 1);
     }
 
-    private static double Normalised(double frameLevel) => (FrameCalibration.Normalise(frameLevel) +
-        ForkCalibration.Normalise(SyntheticRide.ForkLevelFactor * frameLevel)) / 2;
+    private static double Value(double frameLevel) =>
+        TerrainLevels.Value(SyntheticRide.ForkLevelFactor * frameLevel, SyntheticRide.Scale.ForkImu!.Value);
 
-    // The mean normalised value is linear in the log level, so two points give the log level of any class boundary.
-    private static double LogLevelAt(double normalised)
+    // The class value is linear in the log level, so two points give the log level of any class boundary.
+    private static double LogLevelAt(double value)
     {
-        var atOne = Normalised(1);
-        return (normalised - atOne) / (Normalised(Math.E) - atOne);
+        var atOne = Value(1);
+        return (value - atOne) / (Value(Math.E) - atOne);
     }
 }

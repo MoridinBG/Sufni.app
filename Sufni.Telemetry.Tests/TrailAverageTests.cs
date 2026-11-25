@@ -11,7 +11,7 @@ public class TrailAverageTests
     public void FourIndependentGradeReadingsImproveOnEverySingleRideAcrossMostOfTheTrail()
     {
         var runs = gradeSeeds.Select(seed => Measurements(seed)).ToArray();
-        var average = Average(runs);
+        var average = Average(runs.Select(ride => Run(ride)));
         var improved = average.Windows.Count(w => Math.Abs(w.Grade!.Value - GroundGrade) <
             runs.Min(ride => Math.Abs(ride.Windows[w.SourceIndex].Grade!.Value - GroundGrade)));
         Assert.True(improved >= 0.80 * WindowCount, $"{improved} of {WindowCount} windows improved");
@@ -20,16 +20,20 @@ public class TrailAverageTests
     [Fact]
     public void AveragedGradeBetweenFiveAndTenDegreesIsDescent()
     {
-        var average = Average([.. gradeSeeds.Select(seed => Measurements(seed))]);
+        var average = Average(gradeSeeds.Select(seed => Run(Measurements(seed))));
         Assert.All(average.Windows, w => Assert.Equal(GradeBand.Descent, w.Band));
     }
 
+    // Runs past the classed ones have no climb median, so they set no climb class.
     [Theory]
-    [InlineData(0.2, RoughnessClass.SmoothClimb)]
-    [InlineData(0.35, RoughnessClass.TechnicalClimb)]
-    public void AveragedClimbGetsTheClimbLevelOfItsFrameVibration(double frameLevel, RoughnessClass expected)
+    [InlineData(2, 2, RoughnessClass.TechnicalClimb)]
+    [InlineData(1, 3, RoughnessClass.SmoothClimb)]
+    [InlineData(1, 1, null)]
+    public void AveragedClimbTakesTheMajorityClimbClassOfAtLeastThreeRuns(int technical, int smooth, RoughnessClass? expected)
     {
-        var average = Average([.. gradeSeeds.Select(seed => Measurements(seed, frameLevel: frameLevel, grade: -GroundGrade))]);
+        var average = Average(gradeSeeds.Select((seed, i) => Run(Measurements(seed, grade: -GroundGrade, band: GradeBand.SteepClimb,
+            frameLevel: TerrainProfiles.Level(i < technical ? RoughnessClass.TechnicalClimb : RoughnessClass.SmoothClimb)),
+            i < technical + smooth ? TerrainProfiles.Scale : TerrainScaleKey.None)));
         Assert.All(average.Windows, w =>
         {
             Assert.Equal(GradeBand.SteepClimb, w.Band);
@@ -38,41 +42,28 @@ public class TrailAverageTests
     }
 
     [Fact]
-    public void GeometricMeanKeepsFivePercentAboveTheRoughBoundary()
+    public void MeanClassValueKeepsFivePercentAboveTheRoughBoundary()
     {
+        var boundary = TerrainLevels.Median(0) * Math.Sqrt(TerrainLevels.Step);
         var factors = new[] { 0.80, 1.25, 0.90, 1 / 0.90 };
-        var runs = factors.Select(f => Measurements(17, frameLevel: 2.2 * 1.05 * f)).ToArray();
-        var average = Average(runs);
+        var average = Average(factors.Select(f => Run(Measurements(17, frameLevel: boundary * 1.05 * f))));
         Assert.All(average.Windows, w =>
         {
-            Assert.InRange(w.FrameLevel!.Value, 2.309, 2.311);
+            Assert.Equal(boundary * 1.05, w.FrameLevel!.Value, 6);
             Assert.Equal(RoughnessClass.Rough, w.Roughness);
         });
     }
 
     // The measured level is the geometric mean of all four readings: (2.4³ × 0.1)^¼ and (2.4² × 0.1²)^¼.
     [Theory]
-    [InlineData(3, RoughnessClass.Rough, 1.0843)]
+    [InlineData(3, RoughnessClass.VeryRough, 1.0843)]
     [InlineData(2, null, 0.4899)]
-    public void UnknownScalesContributeOnlyToMeasuredLevel(int calibratedCount, RoughnessClass? expected, double level)
+    public void RunsWithoutAClassValueContributeOnlyToTheMeasuredLevel(int classed, RoughnessClass? expected, double level)
     {
-        var profiles = Enumerable.Range(0, 4).Select(i => i < calibratedCount
-            ? Measurements(i, frameLevel: 2.4) : Measurements(i, frameLevel: 0.1, calibrated: false)).ToArray();
-        var window = Average(profiles).Windows[0];
+        var window = Average(Enumerable.Range(0, 4).Select(i => i < classed
+            ? Run(Measurements(i, frameLevel: 2.4)) : Run(Measurements(i, frameLevel: 0.1), TerrainScaleKey.None))).Windows[0];
         Assert.Equal(expected, window.Roughness);
         Assert.Equal(level, window.FrameLevel!.Value, 0.0005);
-    }
-
-    [Theory]
-    [InlineData(3, RoughnessClass.Rough)]
-    [InlineData(2, RoughnessClass.Calm)]
-    public void OnlyUnclippedForkReadingsVoteAlongsideFrame(int unclipped, RoughnessClass expected)
-    {
-        var profiles = Enumerable.Range(0, 4).Select(i => Measurements(i, frameLevel: 1.32,
-            forkLevel: i < unclipped ? 7.5 : 0.1, clipped: i >= unclipped)).ToArray();
-        var window = Average(profiles).Windows[0];
-        Assert.Equal(expected, window.Roughness);
-        Assert.NotNull(window.ForkLevel);
     }
 
     // Three readings of 1, 2 and 4 g give the geometric mean 2 g; two readings give no level.
@@ -83,7 +74,7 @@ public class TrailAverageTests
     {
         double[] levels = [1, 2, 4];
         var profiles = Enumerable.Range(0, 4).Select(i => Measurements(i, rearAxleLevel: i < readings ? levels[i] : null)).ToArray();
-        var level = Average(profiles).Windows[0].RearAxleLevel;
+        var level = Average(profiles.Select(ride => Run(ride))).Windows[0].RearAxleLevel;
         if (expected is { } value) Assert.Equal(value, level!.Value, 0.0005);
         else Assert.Null(level);
     }
@@ -95,8 +86,8 @@ public class TrailAverageTests
         var windows = Enumerable.Range(0, 7).Select(i => i == 3 ? TerrainProfiles.Window(i, moving: false)
             : TerrainProfiles.Window(i) with { Grade = i < 3 ? gentle : 0.3 });
         var profile = TerrainProfiles.Profile(windows);
-        var run = new AlignedTerrainRun(TerrainClassifier.Classify(profile), TerrainProfiles.Identity(7));
-        var average = Assert.IsType<TrailAverage.Averaged>(TrailAverage.Calculate(TerrainClassifier.Classify(profile), new(0, 7), [run, run]));
+        var run = new AlignedTerrainRun(Run(profile), TerrainProfiles.Identity(7));
+        var average = Assert.IsType<TrailAverage.Averaged>(TrailAverage.Calculate(Run(profile), new(0, 7), [run, run]));
         // Windows 0, 1, 2 and 4 give (3 × sin 3° + 0.3) / 4 ≈ 0.114, between sin 5° and sin 10°.
         Assert.Equal(GradeBand.Descent, average.Windows.Single(w => w.SourceIndex == 2).Band);
     }
@@ -108,11 +99,11 @@ public class TrailAverageTests
     {
         var windows = Enumerable.Range(0, 5).Select(i => TerrainProfiles.Window(i + (i >= 2 ? gapSeconds : 0)) with
         {
-            Frame = TerrainProfiles.Sensor(1, i == 2 ? 1.5 : -0.5)
+            Frame = TerrainProfiles.Sensor(TerrainProfiles.Level(i == 2 ? RoughnessClass.Rough : RoughnessClass.Calm))
         });
         var profile = TerrainProfiles.Profile(windows);
-        var run = new AlignedTerrainRun(TerrainClassifier.Classify(profile), TerrainProfiles.Identity(5));
-        var average = Assert.IsType<TrailAverage.Averaged>(TrailAverage.Calculate(TerrainClassifier.Classify(profile), new(0, 6), [run, run]));
+        var run = new AlignedTerrainRun(Run(profile), TerrainProfiles.Identity(5));
+        var average = Assert.IsType<TrailAverage.Averaged>(TrailAverage.Calculate(Run(profile), new(0, 6), [run, run]));
         Assert.Equal(expected, average.Windows.Single(w => w.SourceIndex == 2).Roughness);
     }
 
@@ -120,18 +111,23 @@ public class TrailAverageTests
     public void OneAlignedMatchCountsTwoRuns()
     {
         var profile = Measurements(12);
-        var result = TrailAverage.Calculate(TerrainClassifier.Classify(profile), new(0, WindowCount), [Aligned(Measurements(13))]);
+        var result = TrailAverage.Calculate(Run(profile), new(0, WindowCount),
+            [new AlignedTerrainRun(Run(Measurements(13)), TerrainProfiles.Identity(WindowCount))]);
         Assert.Equal(2, Assert.IsType<TrailAverage.TooFewRuns>(result).RunCount);
     }
 
-    private static TrailAverage.Averaged Average(TerrainProfile[] profiles) =>
-        Assert.IsType<TrailAverage.Averaged>(TrailAverage.Calculate(TerrainClassifier.Classify(profiles[0]), new(0, WindowCount),
-            profiles.Skip(1).Select(Aligned).ToArray()));
+    private static ClassifiedProfile Run(TerrainProfile profile, TerrainScaleKey? scale = null) =>
+        TerrainClassifier.Classify(profile, scale ?? TerrainProfiles.Scale);
 
-    private static AlignedTerrainRun Aligned(TerrainProfile profile) => new(TerrainClassifier.Classify(profile), TerrainProfiles.Identity(WindowCount));
+    private static TrailAverage.Averaged Average(IEnumerable<ClassifiedProfile> runs)
+    {
+        var all = runs.ToArray();
+        return Assert.IsType<TrailAverage.Averaged>(TrailAverage.Calculate(all[0], new(0, WindowCount),
+            [.. all.Skip(1).Select(run => new AlignedTerrainRun(run, TerrainProfiles.Identity(WindowCount)))]));
+    }
 
-    private static TerrainProfile Measurements(int seed, double frameLevel = 2.31, bool calibrated = true,
-        double? forkLevel = null, bool clipped = false, double grade = GroundGrade, double? rearAxleLevel = null)
+    private static TerrainProfile Measurements(int seed, double frameLevel = 2.31, double grade = GroundGrade,
+        GradeBand? band = null, double? rearAxleLevel = null)
     {
         var random = new Random(seed);
         var windows = Enumerable.Range(0, WindowCount).Select(i =>
@@ -140,13 +136,11 @@ public class TrailAverageTests
             return TerrainProfiles.Window(i) with
             {
                 Grade = grade + noise,
-                Frame = TerrainProfiles.Sensor(frameLevel, calibrated ? Math.Log(frameLevel / 1.4) / Math.Log(2.2 / 1.4) : null),
-                Fork = forkLevel is { } l
-                    ? TerrainProfiles.Sensor(l, Math.Log(l / 2.5) / Math.Log(3.8 / 2.5), clipped ? 0.10 : 0) : null,
+                Band = band,
+                Frame = TerrainProfiles.Sensor(frameLevel),
                 RearAxle = rearAxleLevel is { } r ? TerrainProfiles.Sensor(r) : null
             };
         });
-        return TerrainProfiles.Profile(windows, calibrated ? TerrainRoughnessState.Classified : TerrainRoughnessState.ValuesOnly,
-            frameScale: calibrated ? 4096 : 2048, forkScale: forkLevel.HasValue ? 4096 : null);
+        return TerrainProfiles.Profile(windows);
     }
 }

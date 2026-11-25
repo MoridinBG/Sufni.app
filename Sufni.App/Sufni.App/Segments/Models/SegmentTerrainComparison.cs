@@ -5,7 +5,9 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Segments.Models;
 
-public sealed record SegmentTerrainSource(Guid SessionId, TerrainProfileKey Key, ClassifiedProfile Classified, TerrainBaselineIdentity Baseline);
+/// <summary>The source ride of a same-trail request, with the scale catalogue that classes the matched runs.</summary>
+public sealed record SegmentTerrainSource(Guid SessionId, TerrainProfileKey Key, ClassifiedProfile Classified,
+    TerrainBaselineIdentity Baseline, TerrainScaleCatalog Catalog);
 
 public enum SegmentTerrainUnavailable { NoSourceProfile, NoMatchProfile, NoCommonSensor, Unaligned }
 

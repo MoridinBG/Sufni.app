@@ -25,6 +25,13 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
     /// <summary>The rear axle vibration level relative to the frame level at the same speed.</summary>
     public const double RearAxleLevelFactor = 1.5;
 
+    /// <summary>The frame level, in g at 7 m/s, at the centre of Medium on <see cref="Scale"/>.</summary>
+    public const double MediumFrameG = 1.75;
+
+    /// <summary>The scale on which synthetic descent levels take their class. It sets no climb class.</summary>
+    public static readonly TerrainScaleKey Scale = new(TerrainLevels.Bin(MediumFrameG),
+        TerrainLevels.Bin(ForkLevelFactor * MediumFrameG), TerrainLevels.Bin(RearAxleLevelFactor * MediumFrameG), null);
+
     /// <summary>Frame vertical acceleration amplitude in g at the pedal rhythm.</summary>
     public const double PedalFrameG = 0.1;
 
