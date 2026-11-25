@@ -46,7 +46,7 @@ Insights measures the whole ride and each descent level inside the analysis time
 
 ## Character (experimental)
 
-`TerrainCharacter` reports, per end, the moving descent ground of level Medium or rougher inside the analysis range that has a median compression stroke size. It splits that distance into big hits and chatter by the stroke size as a share of the end's max travel: rear big hits from 16% and chatter below 8%, front big hits from 20% and chatter below 9%. These are one bike's quartiles on rough ground and stay provisional. A share is dominant when it covers more than half of at least 300 m. Insights shows the dominant shares as an experimental hint in the response panel.
+`TerrainCharacter` reports, per end, the moving descent ground of level Medium or rougher inside the analysis range that has a median compression stroke size. It splits that distance into big hits and chatter by the stroke size as a share of the end's max travel: rear big hits from 16% and chatter below 8%, front big hits from 20% and chatter below 9%. These are one bike's quartiles on rough ground and stay provisional. A share is dominant when it covers more than half of at least 300 m. The Bike response page shows the dominant shares as an experimental hint in the response card.
 
 ## Same-trail comparison
 
