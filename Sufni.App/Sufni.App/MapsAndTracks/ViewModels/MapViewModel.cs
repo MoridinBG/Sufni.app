@@ -21,7 +21,7 @@ using Sufni.App.Shared.Base;
 namespace Sufni.App.MapsAndTracks.ViewModels;
 
 /// <summary>A class of the map's terrain colouring, or ground without a class; <see cref="Toggle"/> hides or shows it on the track.</summary>
-public sealed record MapLegendEntry(string Label, Avalonia.Media.Color Colour, bool IsShown, IRelayCommand Toggle);
+public sealed record MapLegendEntry(string Label, Avalonia.Media.Color Colour, bool IsUnclassified, bool IsShown, IRelayCommand Toggle);
 
 public partial class MapViewModel : ViewModelBase, IDisposable
 {
@@ -74,7 +74,7 @@ public partial class MapViewModel : ViewModelBase, IDisposable
     private MapLegendEntry Entry(string label, Avalonia.Media.Color colour, Enum? terrainClass)
     {
         var key = (coloring, terrainClass);
-        return new(label, colour, !hidden.Contains(key), new RelayCommand(() => ToggleClass(key)));
+        return new(label, colour, terrainClass is null, !hidden.Contains(key), new RelayCommand(() => ToggleClass(key)));
     }
 
     private void ToggleClass((MapTrackColoring, Enum?) key)

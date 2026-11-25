@@ -25,9 +25,14 @@
                         <Button Classes="embedded" Classes.hidden="{Binding !IsShown}" Padding="0"
                                 Command="{Binding Toggle}" AutomationProperties.Name="{Binding Label}">
                             <StackPanel Orientation="Horizontal" Spacing="4">
-                                <Border Width="10" Height="10" CornerRadius="2" VerticalAlignment="Center">
+                                <Border Width="10" Height="10" CornerRadius="2" VerticalAlignment="Center"
+                                        IsVisible="{Binding !IsUnclassified}">
                                     <Border.Background><SolidColorBrush Color="{Binding Colour}" /></Border.Background>
                                 </Border>
+                                <Line StartPoint="0,5" EndPoint="10,5" Width="10" Height="10" VerticalAlignment="Center"
+                                      StrokeThickness="2" StrokeDashArray="1.5,1" IsVisible="{Binding IsUnclassified}">
+                                    <Line.Stroke><SolidColorBrush Color="{Binding Colour}" /></Line.Stroke>
+                                </Line>
                                 <TextBlock Text="{Binding Label}" Foreground="{DynamicResource SufniMapOverlayText}"
                                            FontSize="{StaticResource SufniFontSizeSmall}" />
                             </StackPanel>
