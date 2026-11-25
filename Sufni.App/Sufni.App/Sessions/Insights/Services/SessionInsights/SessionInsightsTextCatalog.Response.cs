@@ -1,4 +1,7 @@
 using System.Collections.Generic;
+using System.Linq;
+using Sufni.App.Shared.Formatting;
+using Sufni.App.Terrain.Formatting;
 using Sufni.App.Sessions.Models;
 using Sufni.Telemetry;
 
@@ -14,11 +17,29 @@ internal static partial class SessionInsightsTextCatalog
         SessionResponseState.InsufficientBaseline when report.Sessions < SuspensionResponseModel.MinimumSessions =>
             $"Your usual needs {SuspensionResponseModel.MinimumSessions} rides on this bike: {report.Sessions} of {SuspensionResponseModel.MinimumSessions} so far.",
         SessionResponseState.InsufficientBaseline =>
-            $"Your usual needs {SuspensionResponseModel.MinimumWindows:N0} usable windows: {report.Windows:N0} so far.",
+            $"Your usual needs {Riding(SuspensionResponseModel.MinimumWindows)} of descent riding: {Riding(report.Windows)} so far.",
         SessionResponseState.Reported =>
-            $"Your usual comes from {report.Sessions} other rides on this bike ({report.Windows:N0} windows).",
+            $"Your usual comes from {report.Sessions} other rides on this bike, {Riding(report.Windows)} of descent riding.{Sensors(report.Rows)}",
         _ => string.Empty
     };
+
+    private static string Riding(int windows) => UnitsFormatter.FormatDistance(windows * TerrainProfileCalculator.WindowMetres);
+
+    private static string Sensors(IEnumerable<TerrainResponseRow> rows)
+    {
+        var cells = rows.SelectMany(row => row.Cells).Where(cell => cell.Target != ResponseTarget.Transmission).ToArray();
+        var parts = new List<string>();
+        Add(cells.Where(cell => TerrainResponseText.IsFork(cell.Target)), "the fork");
+        Add(cells.Where(cell => !TerrainResponseText.IsFork(cell.Target)), "the shock");
+        return parts.Count == 0 ? string.Empty : $" It reads the ground from {string.Join(" and ", parts)}.";
+
+        void Add(IEnumerable<ResponseCell> end, string name)
+        {
+            var sensors = end.Select(cell => cell.Predictor).Distinct().ToArray();
+            if (sensors.Length == 1)
+                parts.Add($"the {(sensors[0] == ImuLocation.Fork ? "lowers" : "frame")} IMU for {name}");
+        }
+    }
 
     public static string? GroundComfortNote(SessionTerrainInput? terrain) => terrain switch
     {
