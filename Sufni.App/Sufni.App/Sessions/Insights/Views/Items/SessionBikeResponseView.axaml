@@ -12,10 +12,6 @@
                 <StackPanel Spacing="8">
                     <segments:SegmentTerrainComparisonView Name="TrailComparison" DataContext="{Binding SegmentComparison}" />
                     <insightControls:SessionInsightsResponsePanel Name="ResponsePanel" DataContext="{Binding SessionInsights.Response}" />
-                    <Panel IsVisible="{Binding SessionInsights.HasGroundComfort}">
-                        <insightControls:SessionInsightsGroundComfortPanel Name="GroundComfortPanel"
-                                                                           DataContext="{Binding SessionInsights.GroundComfort}" />
-                    </Panel>
                 </StackPanel>
             </overlays:PlaceholderOverlayContainer.ReadyContent>
             <overlays:PlaceholderOverlayContainer.PlaceholderContent>

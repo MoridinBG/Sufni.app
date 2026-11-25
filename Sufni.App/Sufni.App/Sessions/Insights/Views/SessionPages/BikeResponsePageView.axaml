@@ -1,7 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:items="using:Sufni.App.Sessions.Insights.Views.Items"
              xmlns:segmentViews="using:Sufni.App.Segments.Views"
-             xmlns:terrainViews="using:Sufni.App.Terrain.Views"
              xmlns:vm="using:Sufni.App.Sessions.Insights.ViewModels.SessionPages"
              x:Class="Sufni.App.Sessions.Insights.Views.SessionPages.BikeResponsePageView"
              x:DataType="vm:BikeResponsePageViewModel">
@@ -9,7 +8,6 @@
                   IsScrollChainingEnabled="False">
         <StackPanel Width="{Binding #PageScrollViewer.Bounds.Width}" ClipToBounds="True" Spacing="10">
             <segmentViews:SegmentAnalysisComparisonBannerView DataContext="{Binding Workspace.SegmentComparison}" />
-            <terrainViews:TerrainScopeBannerView DataContext="{Binding Workspace.TerrainScope}" />
             <items:SessionBikeResponseView DataContext="{Binding Workspace}" />
         </StackPanel>
     </ScrollViewer>
