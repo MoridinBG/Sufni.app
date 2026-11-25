@@ -2,9 +2,26 @@
              xmlns:models="using:Sufni.App.Terrain.Models"
              xmlns:views="using:Sufni.App.Terrain.Views"
              x:Class="Sufni.App.Terrain.Views.TerrainResponseReportView" x:DataType="models:TerrainResponseReport">
+    <UserControl.Resources>
+        <DataTemplate x:Key="ResponseScale" x:DataType="models:TerrainResponseReport">
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Measure" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Value" />
+                </Grid.ColumnDefinitions>
+                <Panel Grid.Column="1">
+                    <TextBlock Classes="scale" Text="{Binding ScaleStart}" HorizontalAlignment="Left" />
+                    <TextBlock Classes="scale" Text="0" HorizontalAlignment="Center" />
+                    <TextBlock Classes="scale" Text="{Binding ScaleEnd}" HorizontalAlignment="Right" />
+                </Panel>
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
     <UserControl.Styles>
         <Style Selector="views|DeviationBar">
             <Setter Property="Height" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="BandBrush" Value="{DynamicResource SufniSelectionSurfaceSubtle}" />
             <Setter Property="BarBrush" Value="{DynamicResource SufniTextSecondary}" />
             <Setter Property="LineBrush" Value="{DynamicResource SufniLineDefaultBrush}" />
@@ -17,7 +34,13 @@
         </Style>
         <Style Selector="TextBlock.small">
             <Setter Property="FontSize" Value="{StaticResource SufniFontSizeSmall}" />
-            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="TextBlock.secondary">
+            <Setter Property="Foreground" Value="{DynamicResource SufniTextSecondary}" />
+        </Style>
+        <Style Selector="TextBlock.scale">
+            <Setter Property="FontSize" Value="{StaticResource SufniFontSizeCaption}" />
+            <Setter Property="Foreground" Value="{DynamicResource SufniTextSecondary}" />
         </Style>
     </UserControl.Styles>
     <UserControl.DataTemplates>
@@ -25,18 +48,21 @@
             <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
         </DataTemplate>
         <DataTemplate DataType="models:ResponseBar">
-            <StackPanel Spacing="1" Margin="0,2">
-                <TextBlock Classes="small" Text="{Binding Label}" />
-                <Grid ColumnDefinitions="*,52" ColumnSpacing="6">
-                    <views:DeviationBar Classes.finding="{Binding IsFinding}" Deviation="{Binding Deviation}"
-                                        RepeatRange="{Binding RepeatRange}"
-                                        Scale="{Binding $parent[views:TerrainResponseReportView].((models:TerrainResponseReport)DataContext).Scale, FallbackValue=1}" />
-                    <TextBlock Grid.Column="1" Classes="small" Text="{Binding Value}" HorizontalAlignment="Right" />
-                </Grid>
-            </StackPanel>
+            <Grid Margin="0,2" ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Measure" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Value" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Classes="small" Text="{Binding Label}" ToolTip.Tip="{Binding Explanation}" VerticalAlignment="Center" />
+                <views:DeviationBar Grid.Column="1" Classes.finding="{Binding IsFinding}" Deviation="{Binding Deviation}"
+                                    RepeatRange="{Binding RepeatRange}"
+                                    Scale="{Binding $parent[views:TerrainResponseReportView].((models:TerrainResponseReport)DataContext).Scale, FallbackValue=1}" />
+                <TextBlock Grid.Column="2" Classes="small" Text="{Binding Value}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            </Grid>
         </DataTemplate>
     </UserControl.DataTemplates>
-    <StackPanel Spacing="8">
+    <StackPanel Spacing="10">
         <TextBlock Name="Summary" Text="{Binding Summary}" IsVisible="{Binding Summary, Converter={x:Static ObjectConverters.IsNotNull}}"
                    TextWrapping="Wrap" />
         <StackPanel Name="ForkVerdicts" Spacing="2" IsVisible="{Binding HasForkVerdicts}">
@@ -47,49 +73,31 @@
             <TextBlock Text="Shock" FontWeight="SemiBold" />
             <ItemsControl ItemsSource="{Binding Shock}" />
         </StackPanel>
-        <ItemsControl Name="Chart" ItemsSource="{Binding Chart}" IsVisible="{Binding HasChart}">
+        <TextBlock Name="Guide" Classes="small secondary" Text="{Binding Guide}" TextWrapping="Wrap" IsVisible="{Binding HasChart}" />
+        <ItemsControl Name="Chart" ItemsSource="{Binding Chart}" IsVisible="{Binding HasChart}" Grid.IsSharedSizeScope="True">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="models:ResponseChartRow">
-                    <StackPanel Margin="0,4" Spacing="2" Classes.lowConfidence="{Binding IsLowConfidence}">
-                        <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
-                        <TextBlock Classes="small" Text="{Binding Coverage}" />
-                        <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                    <StackPanel Margin="0,6" Spacing="4" Classes.lowConfidence="{Binding IsLowConfidence}">
+                        <TextBlock TextWrapping="Wrap" ToolTip.Tip="{Binding CoverageNote}">
+                            <Run Text="{Binding Label}" FontWeight="SemiBold" />
+                            <Run Text="{Binding Coverage, Mode=OneWay, StringFormat=' · {0}'}" FontSize="{StaticResource SufniFontSizeSmall}"
+                                 Foreground="{DynamicResource SufniTextSecondary}" />
+                        </TextBlock>
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="24">
                             <StackPanel>
                                 <TextBlock Classes="small" Text="Fork" FontWeight="SemiBold" />
                                 <ItemsControl ItemsSource="{Binding Fork}" />
+                                <ContentControl Content="{Binding $parent[views:TerrainResponseReportView].DataContext}" ContentTemplate="{StaticResource ResponseScale}" />
                             </StackPanel>
                             <StackPanel Grid.Column="1">
                                 <TextBlock Classes="small" Text="Shock" FontWeight="SemiBold" />
                                 <ItemsControl ItemsSource="{Binding Shock}" />
+                                <ContentControl Content="{Binding $parent[views:TerrainResponseReportView].DataContext}" ContentTemplate="{StaticResource ResponseScale}" />
                             </StackPanel>
                         </Grid>
                     </StackPanel>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
-        <Expander Name="Details" Header="Details" IsExpanded="False" HorizontalAlignment="Stretch" IsVisible="{Binding HasChart}">
-            <ItemsControl ItemsSource="{Binding Details}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="models:ResponseDetailRow">
-                        <StackPanel Margin="0,4" Spacing="2">
-                            <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
-                            <ItemsControl ItemsSource="{Binding Values}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="models:ResponseDetailValue">
-                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                            <TextBlock Classes="small">
-                                                <Run Text="{Binding Label}" />
-                                                <Run Text="{Binding Source, StringFormat=' · {0}'}" />
-                                            </TextBlock>
-                                            <TextBlock Grid.Column="1" Classes="small" Text="{Binding Value}" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </Expander>
     </StackPanel>
 </UserControl>

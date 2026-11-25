@@ -1,4 +1,5 @@
 using System;
+using Sufni.App.Shared.Formatting;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Terrain.Formatting;
@@ -16,14 +17,25 @@ internal static class TerrainResponseText
         _ => throw new ArgumentOutOfRangeException(nameof(target))
     };
 
-    public static string TargetLabel(ResponseTarget target) =>
-        $"{(IsFork(target) ? "Fork" : "Shock")} {Measure(target).ToLowerInvariant()}";
+    public static string Explanation(ResponseTarget target) => target switch
+    {
+        ResponseTarget.FrontRms or ResponseTarget.RearRms => "How much the suspension moved overall: the RMS of its speed.",
+        ResponseTarget.FrontPeakCompression or ResponseTarget.RearPeakCompression => "The highest compression speeds, from the biggest hits.",
+        ResponseTarget.FrontPeakRebound or ResponseTarget.RearPeakRebound => "The highest rebound speeds, as the suspension extends again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(target))
+    };
+
+    public const string SamePosition = "Same position";
+    public const string SamePositionExplanation = "Activity at the same places on the trail, with the pace difference taken out.";
+
+    public static string LowConfidenceNote { get; } =
+        $"Under {SuspensionResponseModel.ConfidentReportMetres} m of this ground, so these figures can change a lot between rides.";
 
     public static string TooShort { get; } = $"Under {SuspensionResponseModel.MinimumReportMetres} m";
 
     public static string Distance(double metres) =>
         metres is >= SuspensionResponseModel.MinimumReportMetres and < SuspensionResponseModel.ConfidentReportMetres
-            ? $"{metres:0.#} m · low confidence" : $"{metres:0.#} m";
+            ? $"{UnitsFormatter.FormatDistance(metres)} · low confidence" : UnitsFormatter.FormatDistance(metres);
 
     /// <summary>A signed whole percent with a true minus sign: "−16%".</summary>
     public static string Percent(double deviation)

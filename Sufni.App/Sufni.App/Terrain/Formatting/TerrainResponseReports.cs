@@ -19,25 +19,30 @@ internal static class TerrainResponseReports
     // Vibration passed to the frame belongs to Ground & comfort, so the report leaves Transmission out.
     private static readonly ResponseTarget[] ReportedTargets = [.. ForkTargets, .. ShockTargets];
 
-    private sealed record Measurement(ResponseCellState State, double? Deviation, string? Source = null);
+    private sealed record Measurement(ResponseCellState State, double? Deviation);
 
-    private sealed record Group(RoughnessClass? Class, ResponseConfidence Confidence, string Coverage,
-        IReadOnlyDictionary<ResponseTarget, Measurement> Measurements, ImmutableArray<ResponseDetailValue> Extra = default);
+    private sealed record Group(RoughnessClass? Class, ResponseConfidence Confidence, string Coverage, string? CoverageNote,
+        IReadOnlyDictionary<ResponseTarget, Measurement> Measurements, ResponseBar? ForkExtra = null, ResponseBar? ShockExtra = null);
 
     public static TerrainResponseReport AgainstUsual(IReadOnlyCollection<TerrainResponseRow> rows) => Build(
-        [.. rows.Select(row => new Group(row.Class, row.Confidence, Coverage(row),
-            row.Cells.ToDictionary(cell => cell.Target, cell => new Measurement(cell.State, cell.Deviation, Source(cell)))))],
-        TerrainResponse.Findings(rows), TerrainResponse.RepeatRange, "your usual", "The bike behaved as usual.");
+        [.. rows.Select(row => new Group(row.Class, row.Confidence, Coverage(row), ConfidenceNote(row.Confidence),
+            row.Cells.ToDictionary(cell => cell.Target, cell => new Measurement(cell.State, cell.Deviation))))],
+        TerrainResponse.Findings(rows), TerrainResponse.RepeatRange, "your usual", "The bike behaved as usual.",
+        "Each bar compares this ride with what your usual predicts on the same ground at the same speed. " +
+        "The shaded band is the normal spread between rides; a highlighted bar falls outside it.");
 
     public static TerrainResponseReport AgainstMatchedRun(IReadOnlyCollection<TerrainComparisonRow> rows) => Build(
-        [.. rows.Select(row => new Group(row.Class, row.Confidence, TerrainResponseText.Distance(row.DistanceMetres),
+        [.. rows.Select(row => new Group(row.Class, row.Confidence,
+            row.Pace is { } pace ? $"{TerrainResponseText.Distance(row.DistanceMetres)} · pace {TerrainResponseText.Percent(pace.Median - 1)}"
+                : TerrainResponseText.Distance(row.DistanceMetres),
+            Join(row.Pace is { } range ? $"The middle half of this ground was {PaceRange(range)} against the matched run." : null,
+                ConfidenceNote(row.Confidence)),
             row.Responses.ToDictionary(pair => pair.Key, pair => new Measurement(pair.Value.State, pair.Value.Deviation)),
-            [
-                new("Pace", row.Pace is { } pace ? $"{TerrainResponseText.Percent(pace.Median - 1)} ({PaceRange(pace)})" : TerrainResponseText.TooShort),
-                SamePosition("Fork", row.FrontSamePosition), SamePosition("Shock", row.RearSamePosition)
-            ]))],
+            SamePosition(row.FrontSamePosition), SamePosition(row.RearSamePosition)))],
         TerrainRunComparison.Findings(rows), TerrainRunComparison.RepeatRange, "the matched run",
-        "The bike behaved as on the matched run.");
+        "The bike behaved as on the matched run.",
+        "Each bar compares this run with the matched run on the same ground, with the speed difference taken out. " +
+        "The shaded band is the normal spread between runs; a highlighted bar falls outside it.");
 
     /// <summary>The pace of this run against the matched run: the median, then the middle half of the matched windows.</summary>
     public static string Pace(PaceQuartiles pace)
@@ -50,17 +55,25 @@ internal static class TerrainResponseReports
     private static string PaceRange(PaceQuartiles pace) =>
         $"{TerrainResponseText.Percent(pace.Lower - 1)} to {TerrainResponseText.Percent(pace.Upper - 1)}";
 
-    private static ResponseDetailValue SamePosition(string end, ComparisonRatio ratio) =>
-        new($"{end} activity at the same position", TerrainResponseText.Value(ratio.State, ratio.Deviation));
+    private static ResponseBar SamePosition(ComparisonRatio ratio) =>
+        new(null, TerrainResponseText.SamePosition, TerrainResponseText.SamePositionExplanation, ratio.State, ratio.Deviation,
+            TerrainRunComparison.ResponseThreshold, TerrainResponseText.Value(ratio.State, ratio.Deviation));
+
+    private static string? ConfidenceNote(ResponseConfidence confidence) =>
+        confidence == ResponseConfidence.Low ? TerrainResponseText.LowConfidenceNote : null;
+
+    private static string? Join(string? first, string? second) =>
+        first is null ? second : second is null ? first : $"{first} {second}";
 
     private static TerrainResponseReport Build(IReadOnlyList<Group> groups, IEnumerable<ResponseFinding> findings,
-        Func<ResponseTarget, double> repeatRange, string reference, string asUsual)
+        Func<ResponseTarget, double> repeatRange, string reference, string asUsual, string guide)
     {
         var reported = groups.Where(group => ReportedTargets.Any(target =>
                 group.Measurements.TryGetValue(target, out var m) && m.State != ResponseCellState.TooShort))
             .OrderBy(group => GroupOrder(group.Class)).ToArray();
         var chart = reported.Select(group => new ResponseChartRow(group.Class, GroupLabel(group.Class), group.Coverage,
-            group.Confidence, Bars(group, ForkTargets), Bars(group, ShockTargets))).ToImmutableArray();
+            group.CoverageNote, group.Confidence, Bars(group, ForkTargets, group.ForkExtra),
+            Bars(group, ShockTargets, group.ShockExtra))).ToImmutableArray();
         var verdicts = findings.Where(finding => ReportedTargets.Contains(finding.Target))
             .OrderBy(finding => GroupOrder(finding.Group)).ThenBy(finding => finding.Target)
             .Select(finding => new ResponseVerdict(finding, Verdict(finding, reference))).ToArray();
@@ -69,26 +82,19 @@ internal static class TerrainResponseReports
             : $"No response could be measured on {SuspensionResponseModel.MinimumReportMetres} m or more.";
         var scale = Math.Max(MinimumScale, Math.Ceiling(deviations.Select(Math.Abs).DefaultIfEmpty().Max() * 10) / 10);
         return new([.. verdicts.Where(v => TerrainResponseText.IsFork(v.Finding.Target))],
-            [.. verdicts.Where(v => !TerrainResponseText.IsFork(v.Finding.Target))], summary, scale, chart,
-            [.. reported.Select(group => new ResponseDetailRow(GroupLabel(group.Class),
-                [
-                    .. ReportedTargets.Where(group.Measurements.ContainsKey).Select(target =>
-                    {
-                        var measurement = group.Measurements[target];
-                        return new ResponseDetailValue(TerrainResponseText.TargetLabel(target),
-                            TerrainResponseText.Value(measurement.State, measurement.Deviation), measurement.Source);
-                    }),
-                    .. group.Extra.IsDefault ? [] : group.Extra
-                ]))]);
+            [.. verdicts.Where(v => !TerrainResponseText.IsFork(v.Finding.Target))], summary, guide, scale,
+            TerrainResponseText.Percent(-scale), TerrainResponseText.Percent(scale), chart);
 
-        ImmutableArray<ResponseBar> Bars(Group group, ResponseTarget[] targets) =>
+        ImmutableArray<ResponseBar> Bars(Group group, ResponseTarget[] targets, ResponseBar? extra) =>
         [
             .. targets.Where(group.Measurements.ContainsKey).Select(target =>
             {
                 var measurement = group.Measurements[target];
-                return new ResponseBar(target, TerrainResponseText.Measure(target), measurement.State, measurement.Deviation,
-                    repeatRange(target), TerrainResponseText.Value(measurement.State, measurement.Deviation));
-            })
+                return new ResponseBar(target, TerrainResponseText.Measure(target), TerrainResponseText.Explanation(target),
+                    measurement.State, measurement.Deviation, repeatRange(target),
+                    TerrainResponseText.Value(measurement.State, measurement.Deviation));
+            }),
+            .. extra is null ? [] : new[] { extra }
         ];
     }
 
@@ -107,12 +113,12 @@ internal static class TerrainResponseReports
 
     private static int GroupOrder(RoughnessClass? group) => group is { } level ? (int)level : -1;
 
-    private static string GroupLabel(RoughnessClass? group) => group is { } level ? TerrainClassText.Name(level) : "All";
+    private static string GroupLabel(RoughnessClass? group) => group is { } level ? TerrainClassText.Name(level) : "All descents";
 
-    private static string Coverage(TerrainResponseRow row) => row.MeanSpeed is { } speed
-        ? $"{TerrainResponseText.Distance(row.DistanceMetres)} · {row.Share:P0} · {speed * 3.6:0.#} km/h"
-        : TerrainResponseText.Distance(row.DistanceMetres);
+    private static string Coverage(TerrainResponseRow row) => row.Class is null
+        ? Speed(TerrainResponseText.Distance(row.DistanceMetres), row.MeanSpeed)
+        : Speed($"{TerrainResponseText.Distance(row.DistanceMetres)} · {row.Share:P0} of descents", row.MeanSpeed);
 
-    private static string Source(ResponseCell cell) =>
-        $"{(cell.Predictor == ImuLocation.Fork ? "lowers" : "frame")} · {cell.BaselineSessions} rides · {cell.BaselineWindows:N0} windows";
+    private static string Speed(string coverage, double? metresPerSecond) =>
+        metresPerSecond is { } speed ? $"{coverage} · {speed * 3.6:0.#} km/h" : coverage;
 }

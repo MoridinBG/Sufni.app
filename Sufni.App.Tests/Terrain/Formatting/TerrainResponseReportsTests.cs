@@ -28,7 +28,6 @@ public class TerrainResponseReportsTests
         Assert.Empty(report.Fork.Concat(report.Shock));
         var bars = report.Chart.Single().Fork.Concat(report.Chart.Single().Shock).ToArray();
         Assert.DoesNotContain(bars, bar => bar.Target == ResponseTarget.Transmission);
-        Assert.Equal(bars.Length, report.Details.Single().Values.Length);
         Assert.NotNull(report.Summary);
     }
 
@@ -39,8 +38,8 @@ public class TerrainResponseReportsTests
             TooShort(RoughnessClass.Calm), Row(RoughnessClass.Rough, 200), Row(null, 900)
         ]);
 
-        Assert.Equal([(null, false), (RoughnessClass.Rough, true)],
-            report.Chart.Select(row => (row.Group, row.IsLowConfidence)));
+        Assert.Equal([(null, false, false), (RoughnessClass.Rough, true, true)],
+            report.Chart.Select(row => (row.Group, row.IsLowConfidence, row.CoverageNote is not null)));
     }
 
     [Theory]
@@ -73,6 +72,23 @@ public class TerrainResponseReportsTests
         var row = Assert.Single(report.Chart);
         Assert.Equal(0.20, row.Fork.Single(bar => bar.Target == ResponseTarget.FrontRms).RepeatRange);
         Assert.Equal(0.25, row.Shock.Single(bar => bar.Target == ResponseTarget.RearPeakRebound).RepeatRange);
+    }
+
+    [Fact]
+    public void AgainstMatchedRun_AddsSamePositionActivityToEachEnd()
+    {
+        var row = Compared(null, 600, new(0.9, 1, 1.1)) with
+        {
+            FrontSamePosition = new(ResponseCellState.Finding, 1.4), RearSamePosition = new(ResponseCellState.WithinRepeatRange, 1.05)
+        };
+
+        var chart = Assert.Single(TerrainResponseReports.AgainstMatchedRun([row]).Chart);
+
+        var front = Assert.Single(chart.Fork, bar => bar.Target is null);
+        var rear = Assert.Single(chart.Shock, bar => bar.Target is null);
+        Assert.Equal((true, 0.4), (front.IsFinding, Math.Round(front.Deviation!.Value, 8)));
+        Assert.Equal((false, 0.05), (rear.IsFinding, Math.Round(rear.Deviation!.Value, 8)));
+        Assert.Equal(0.20, front.RepeatRange);
     }
 
     [Fact]
