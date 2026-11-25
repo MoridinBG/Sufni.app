@@ -78,7 +78,7 @@ public class SetupTerrainScaleQueryTests
     private static SessionSnapshot Ride(params (int Bin, double Metres)[] frame)
     {
         var distribution = new LevelDistribution(frame.ToImmutableSortedDictionary(b => b.Bin, b => b.Metres));
-        var summary = new TerrainSummary(frame.Sum(b => b.Metres), null, 0, 0, null, FrameImu: distribution);
+        var summary = new TerrainSummary(frame.Sum(b => b.Metres), null, FrameImu: distribution);
         return TestSnapshots.WithCurrentTerrain(TestSnapshots.Session(setupId: SetupId, hasProcessedData: true),
             TerrainOutcome.Computed, summary);
     }

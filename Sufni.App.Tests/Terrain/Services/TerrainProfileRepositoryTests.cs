@@ -20,8 +20,7 @@ public class TerrainProfileRepositoryTests
         var session = new Session(Guid.NewGuid(), "ride", "", null, 150) { ProcessedData = [1], DurationSeconds = 15 };
         await db.PutAsync(session);
         var key = SessionTerrainStatusQuery.Evaluate(SessionSnapshot.From((await db.GetSessionAsync(session.Id))!), []).Key;
-        var window = TerrainProfiles.Window(0) with
-            { Roughness = RoughnessClass.Rough, Source = RoughnessSource.FrameOnly, Frame = TerrainProfiles.Sensor(2) };
+        var window = TerrainProfiles.Window(0) with { Frame = TerrainProfiles.Sensor(2) };
         var profile = TerrainProfiles.Profile([window], grade: TerrainGradeState.NoElevation, forkScale: null)
             with { FrameMatching = [new(1, 0.2, -1)] };
         Assert.True(await db.TerrainProfiles.TryCommitAsync(session.Id, key, TerrainMaterialization.Computed(profile)));

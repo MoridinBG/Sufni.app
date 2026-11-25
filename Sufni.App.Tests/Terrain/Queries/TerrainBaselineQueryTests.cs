@@ -15,7 +15,7 @@ public class TerrainBaselineQueryTests
         var session = TestSnapshots.Session(hasProcessedData: true);
         var key = SessionTerrainStatusQuery.Evaluate(session, []).Key;
         var row = new RecordedSessionSummary(session.Id, 1, "ride", "", 100, true, new SessionStaleness.Current(), BikeId: bike)
-        { Terrain = new TerrainStatus.Current(key, new TerrainSummary(600, null, 600, 0, RoughnessSource.Both)) };
+        { Terrain = new TerrainStatus.Current(key, new TerrainSummary(600, null)) };
         var first = row with { Id = Guid.NewGuid() };
         var second = row with { Id = Guid.NewGuid() };
         RecordedSessionSummary[] catalog = [row, first, second, row with { Id = Guid.NewGuid(), BikeId = Guid.NewGuid() },

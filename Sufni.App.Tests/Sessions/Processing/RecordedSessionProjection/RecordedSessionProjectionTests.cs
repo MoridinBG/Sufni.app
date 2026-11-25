@@ -35,7 +35,7 @@ public class RecordedSessionProjectionTests
         using var projection = stores.CreateProjection(fingerprints, scheduler);
         var context = CreateCurrentContext(fingerprints);
         var session = TestSnapshots.WithCurrentTerrain(context.Session, TerrainOutcome.Computed,
-            new TerrainSummary(20, null, 20, 0.5, RoughnessSource.Both));
+            new TerrainSummary(20, null));
         using var observation = projection.ConnectSessions().Bind(out var summaries).Subscribe();
         var domains = new List<RecordedSessionDomainSnapshot>();
         using var watch = projection.WatchSession(session.Id).Subscribe(domains.Add);
@@ -322,7 +322,7 @@ public class RecordedSessionProjectionTests
     {
         var frame = new LevelDistribution(System.Collections.Immutable.ImmutableSortedDictionary<int, double>.Empty.Add(5, 2000));
         return TestSnapshots.WithCurrentTerrain(session, TerrainOutcome.Computed,
-            new TerrainSummary(2000, null, 0, 0, null, FrameImu: frame));
+            new TerrainSummary(2000, null, FrameImu: frame));
     }
 
     private static async Task CompleteEvaluationAsync(DeferredBackgroundTaskRunner runner, ManualUiThreadDispatcher scheduler)

@@ -4,7 +4,7 @@ namespace Sufni.Telemetry;
 
 public static partial class TerrainProfileCalculator
 {
-    public const int AlgorithmVersion = 8;
+    public const int AlgorithmVersion = 9;
     public const double ClippedShareLimit = 0.02;
     private const double SilentShareLimit = 0.5;
     private const int MinimumImuRate = 200;
@@ -47,20 +47,6 @@ public static partial class TerrainProfileCalculator
         if (!silent.Contains(TerrainSensor.ShockTravel))
             MeasurePedalling(telemetry.Rear, telemetry.Metadata.SampleRate, imu, frame, windows, cancellationToken);
         var grade = MeasureGrade(motion, imu, frame, windows, cancellationToken);
-        for (var i = 0; i < windows.Count; i++)
-        {
-            if (!windows[i].Moving) continue;
-            // Pedalling dominates climbing vibration and climbs are slow, so climbs use raw frame vibration.
-            if (windows[i].Climbing)
-            {
-                if (windows[i].Frame is { Normalised: not null } climbFrame)
-                    windows[i] = windows[i] with { Roughness = TerrainCalibration.ClassifyClimb(climbFrame.Level) };
-                continue;
-            }
-            var (roughness, source) = Classify(windows[i].Frame, windows[i].Fork);
-            windows[i] = windows[i] with { Roughness = roughness, Source = source };
-        }
-        MergeOutliers(windows, static w => w.Roughness, static (w, level) => w with { Roughness = level }, Adjacent);
         var classified = frame != null && TerrainCalibration.For(ImuLocation.Frame, frame.AccelLsbPerG) != null ||
                          fork != null && TerrainCalibration.For(ImuLocation.Fork, fork.AccelLsbPerG) != null;
         var roughState = classified ? TerrainRoughnessState.Classified :
@@ -131,18 +117,11 @@ public static partial class TerrainProfileCalculator
     // The band-pass filter carries a residue from live samples into a silent stretch; below one count is no signal.
     private static double OneCount(ImuMetaEntry? meta) => meta is null ? 0 : 1d / meta.AccelLsbPerG;
 
-    internal static double? ForkClassValue(SensorRoughness? frame, SensorRoughness? fork) =>
-        frame is not null && fork?.ClippedShare > ClippedShareLimit ? null : fork?.Normalised;
-
     public static TerrainSummary Summarize(TerrainProfile profile)
     {
         var moving = profile.Windows.Where(w => w.Moving).ToArray();
-        var classified = moving.Where(w => w.Roughness is { } level && !level.IsClimb()).ToArray();
         return new(WindowMetres * (double)moving.Length,
             profile.GradeState == TerrainGradeState.Available ? WindowMetres * (double)moving.Count(w => w.Climbing) : null,
-            WindowMetres * (double)classified.Length,
-            classified.Length == 0 ? 0 : (double)classified.Count(w => w.Roughness is RoughnessClass.Rough or RoughnessClass.VeryRough) / classified.Length,
-            classified.GroupBy(w => w.Source).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key,
             Distribution(moving, w => w.Climbing ? null : w.Frame, r => r.SpeedRemoved),
             Distribution(moving, w => w.Climbing ? null : w.Fork, r => r.SpeedRemoved),
             Distribution(moving, w => w.Climbing ? null : w.RearAxle, r => r.SpeedRemoved),

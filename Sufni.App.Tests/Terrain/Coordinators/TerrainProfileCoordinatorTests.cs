@@ -41,7 +41,7 @@ public class TerrainProfileCoordinatorTests
         await h.WaitForAsync(middle, TerrainOutcome.Computed);
         Assert.Equal([newest.Id, oldest.Id, middle.Id], h.Published.Select(publication => publication.Id));
         foreach (var session in new[] { oldest, middle, newest })
-            Assert.True(Assert.IsType<TerrainStatus.Current>(h.Status(session.Id)).Summary.ClassifiedMetres > 0);
+            Assert.True(Assert.IsType<TerrainStatus.Current>(h.Status(session.Id)).Summary.MovingMetres > 0);
     }
 
     [Fact]

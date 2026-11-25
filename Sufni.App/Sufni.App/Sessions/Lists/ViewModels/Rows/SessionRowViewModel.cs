@@ -19,7 +19,7 @@ namespace Sufni.App.Sessions.Lists.ViewModels.Rows;
 /// <summary>
 /// Terrain part of a session row subtitle. Descent covers all non-climb distance and needs grade; each part needs 300 m.
 /// </summary>
-public sealed record TerrainFingerprint(double? DescentMetres, int? RoughPercent, double? ClimbMetres)
+public sealed record TerrainFingerprint(double? DescentMetres, double? ClimbMetres)
 {
     private const double MinimumMetres = 300;
 
@@ -28,17 +28,13 @@ public sealed record TerrainFingerprint(double? DescentMetres, int? RoughPercent
         if (status is not TerrainStatus.Current { Summary: var summary }) return null;
         var descent = summary.MovingMetres - summary.ClimbMetres;
         var fingerprint = new TerrainFingerprint(descent >= MinimumMetres ? descent : null,
-            summary.ClassifiedMetres >= MinimumMetres ? Percent(summary.RoughShare) : null,
             summary.ClimbMetres >= MinimumMetres ? summary.ClimbMetres : null);
-        return fingerprint is (null, null, null) ? null : fingerprint;
+        return fingerprint is (null, null) ? null : fingerprint;
     }
-
-    private static int Percent(double share) => (int)Math.Round(share * 100, MidpointRounding.AwayFromZero);
 
     public override string ToString() => string.Join(" · ", new[]
     {
         DescentMetres is { } descent ? $"Descent {UnitsFormatter.FormatDistance(descent)}" : null,
-        RoughPercent is { } rough ? $"{rough}% rough" : null,
         ClimbMetres is { } climb ? $"Climb {UnitsFormatter.FormatDistance(climb)}" : null
     }.OfType<string>());
 }

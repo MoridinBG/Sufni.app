@@ -13,7 +13,7 @@ public class SessionTerrainStatusQueryTests
     {
         var session = TestSnapshots.Session(hasProcessedData: true) with { Timestamp = 100, DurationSeconds = 20 };
         var track = new TrackSnapshot(Guid.NewGuid(), 100, 120, 7);
-        var summary = new TerrainSummary(10, null, 10, 0, RoughnessSource.FrameOnly);
+        var summary = new TerrainSummary(10, null);
         session = TestSnapshots.WithCurrentTerrain(session, TerrainOutcome.Computed, summary, [track]);
 
         Assert.Equal(new TerrainStatus.Current(session.TerrainProfileKey!, summary),

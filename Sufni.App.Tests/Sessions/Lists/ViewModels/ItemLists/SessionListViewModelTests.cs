@@ -25,10 +25,10 @@ public class SessionListViewModelTests
 
     public static TheoryData<TerrainSummary, TerrainFingerprint?> FingerprintParts => new()
     {
-        { new TerrainSummary(1500, 400, 1100, 0.424, RoughnessSource.Both), new TerrainFingerprint(1100, 42, 400) },
-        { new TerrainSummary(1500, null, 1500, 0.424, RoughnessSource.Both), new TerrainFingerprint(null, 42, null) },
-        { new TerrainSummary(1500, 250, 280, 0.424, RoughnessSource.Both), new TerrainFingerprint(1250, null, null) },
-        { new TerrainSummary(280, 0, 280, 0.424, RoughnessSource.Both), null }
+        { new TerrainSummary(1500, 400), new TerrainFingerprint(1100, 400) },
+        { new TerrainSummary(1500, null), null },
+        { new TerrainSummary(1500, 250), new TerrainFingerprint(1250, null) },
+        { new TerrainSummary(280, 0), null }
     };
 
     [Theory]
@@ -70,7 +70,7 @@ public class SessionListViewModelTests
         {
             var summary = CreateSummary("ride") with
             {
-                Terrain = CurrentTerrain(new TerrainSummary(300, null, 300, 0.144, RoughnessSource.Both))
+                Terrain = CurrentTerrain(new TerrainSummary(300, 0))
             };
             cache.AddOrUpdate(summary);
             var row = Assert.Single(CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher).Items);
@@ -82,9 +82,9 @@ public class SessionListViewModelTests
 
             cache.AddOrUpdate(summary with
             {
-                Terrain = CurrentTerrain(new TerrainSummary(400, 0, 400, 0.3, RoughnessSource.FrameOnly))
+                Terrain = CurrentTerrain(new TerrainSummary(800, 400))
             });
-            Assert.Equal(new TerrainFingerprint(400, 30, null), row.Fingerprint);
+            Assert.Equal(new TerrainFingerprint(400, 400), row.Fingerprint);
             Assert.True(row.HasSubtitleText);
         }
     }

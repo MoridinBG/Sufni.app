@@ -83,18 +83,4 @@ public static partial class TerrainProfileCalculator
         for (var i = 1; i < power.Length; i++) power[i] += power[i - 1];
         return power;
     }
-
-    private static (RoughnessClass?, RoughnessSource?) Classify(SensorRoughness? frame, SensorRoughness? fork)
-    {
-        var forkValue = ForkClassValue(frame, fork);
-        var (value, source) = (frame?.Normalised, forkValue) switch
-        {
-            ({ } a, { } b) => ((a + b) / 2, RoughnessSource.Both),
-            ({ } a, null) => (a, RoughnessSource.FrameOnly),
-            (null, { } b) => (b, RoughnessSource.ForkOnly),
-            _ => (double.NaN, default)
-        };
-        if (double.IsNaN(value)) return (null, null);
-        return (TerrainCalibration.Classify(value), source);
-    }
 }

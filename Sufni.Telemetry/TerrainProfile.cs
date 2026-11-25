@@ -7,7 +7,6 @@ namespace Sufni.Telemetry;
 public enum RoughnessClass { Smooth, Calm, Medium, Rough, VeryRough, SmoothClimb, TechnicalClimb }
 /// <summary>Signed ground slope over 50 m. The two climb bands come first.</summary>
 public enum GradeBand { SteepClimb, Climb, Flat, GentleDescent, Descent, SteepDescent, VerySteepDescent }
-public enum RoughnessSource { Both, FrameOnly, ForkOnly }
 /// <summary>The IMUs that read the ground for a response fit, unsprung first.</summary>
 public enum GroundSensors { ForkAndRearAxle, Fork, RearAxle, Frame }
 public enum TerrainRoughnessState { Classified, ValuesOnly, NoSensor }
@@ -37,22 +36,12 @@ public sealed record TerrainWindow(double StartMetres, double StartSeconds, doub
     public SensorRoughness? Frame { get; init; }
     public SensorRoughness? Fork { get; init; }
     public SensorRoughness? RearAxle { get; init; }
-    public RoughnessClass? Roughness { get; init; }
-    public RoughnessSource? Source { get; init; }
     public double? Grade { get; init; }
     public GradeBand? Band { get; init; }
 
     [IgnoreMember]
     public bool Climbing => Band?.IsClimb() == true;
 
-    [IgnoreMember]
-    public double? NormalisedRoughness => Source switch
-    {
-        RoughnessSource.Both => (Frame?.Normalised + Fork?.Normalised) / 2,
-        RoughnessSource.FrameOnly => Frame?.Normalised,
-        RoughnessSource.ForkOnly => Fork?.Normalised,
-        _ => null
-    };
     public SuspensionWindowFigures? Front { get; init; }
     public SuspensionWindowFigures? Rear { get; init; }
 
@@ -91,15 +80,13 @@ public closed record TerrainProfileResult
 }
 
 /// <summary>
-/// Ride totals for the session list. <see cref="ClimbMetres"/> is null without grade. <see cref="RoughShare"/> is the
-/// rough and very rough share of <see cref="ClassifiedMetres"/>, the non-climb distance with a roughness class.
+/// Ride totals for the session list and the setup scale. <see cref="ClimbMetres"/> is null without grade.
 /// The distributions hold the unclipped readings above zero: the speed-removed levels of each IMU on descents and the
 /// raw frame level on climbs. A distribution is null without such a reading.
 /// </summary>
 [MessagePackObject(keyAsPropertyName: true)]
-public sealed record TerrainSummary(double MovingMetres, double? ClimbMetres, double ClassifiedMetres, double RoughShare,
-    RoughnessSource? DominantSource, LevelDistribution? FrameImu = null, LevelDistribution? ForkImu = null,
-    LevelDistribution? RearAxleImu = null, LevelDistribution? FrameClimb = null);
+public sealed record TerrainSummary(double MovingMetres, double? ClimbMetres, LevelDistribution? FrameImu = null,
+    LevelDistribution? ForkImu = null, LevelDistribution? RearAxleImu = null, LevelDistribution? FrameClimb = null);
 
 /// <summary>Moving distance in metres per <see cref="TerrainLevels.Bin"/> of a reading level.</summary>
 [MessagePackObject(keyAsPropertyName: true)]
