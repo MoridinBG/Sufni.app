@@ -20,7 +20,8 @@ using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Shared.Base;
 namespace Sufni.App.MapsAndTracks.ViewModels;
 
-public sealed record MapLegendEntry(string Label, Avalonia.Media.Color Colour);
+/// <summary>A class of the map's terrain colouring, or ground without a class; <see cref="Toggle"/> hides or shows it on the track.</summary>
+public sealed record MapLegendEntry(string Label, Avalonia.Media.Color Colour, bool IsShown, IRelayCommand Toggle);
 
 public partial class MapViewModel : ViewModelBase, IDisposable
 {
@@ -32,6 +33,8 @@ public partial class MapViewModel : ViewModelBase, IDisposable
     private readonly Action<MapTrackColoring>? selectColoring;
     private TerrainPresentation? terrain;
     private MapTrackColoring coloring;
+    // A null class is ground without a class in that colouring.
+    private readonly HashSet<(MapTrackColoring Coloring, Enum? Class)> hidden = [];
 
     public static IReadOnlyList<MapTrackColoring> Colorings { get; } = Enum.GetValues<MapTrackColoring>();
     public bool SupportsTerrainColoring => selectColoring is not null;
@@ -50,21 +53,37 @@ public partial class MapViewModel : ViewModelBase, IDisposable
         _ => []
     };
 
-    private static ImmutableArray<MapTerrainRun> Runs<TClass>(ImmutableArray<TerrainRun<TClass>> runs,
+    public bool UnclassifiedHidden => hidden.Contains((coloring, null));
+
+    private ImmutableArray<MapTerrainRun> Runs<TClass>(ImmutableArray<TerrainRun<TClass>> runs,
         Func<TClass, Avalonia.Media.Color> colour) where TClass : struct, Enum =>
-        [.. runs.Select(run => new MapTerrainRun(run.StartSeconds, run.EndSeconds, colour(run.Class)))];
+        [.. runs.Select(run => new MapTerrainRun(run.StartSeconds, run.EndSeconds,
+            hidden.Contains((coloring, run.Class)) ? null : colour(run.Class)))];
 
     /// <summary>The classes of the selected terrain colouring, then the style of ground without a class.</summary>
     public IReadOnlyList<MapLegendEntry> TerrainLegend => TerrainRuns.IsEmpty ? [] : coloring switch
     {
-        MapTrackColoring.Roughness => Legend(Enum.GetValues<RoughnessClass>().Select(v =>
-            new MapLegendEntry(TerrainClassText.Name(v), SufniThemes.SignalSeries.Terrain.ColorFor(v)))),
-        _ => Legend(Enum.GetValues<GradeBand>().Select(v =>
-            new MapLegendEntry(TerrainClassText.Name(v), SufniThemes.SignalSeries.Terrain.ColorFor(v))))
+        MapTrackColoring.Roughness => Legend(Enum.GetValues<RoughnessClass>(), TerrainClassText.Name, SufniThemes.SignalSeries.Terrain.ColorFor),
+        _ => Legend(Enum.GetValues<GradeBand>(), TerrainClassText.Name, SufniThemes.SignalSeries.Terrain.ColorFor)
     };
 
-    private static MapLegendEntry[] Legend(IEnumerable<MapLegendEntry> classes) =>
-        [.. classes, new("No class", SufniThemes.SignalSeries.Terrain.Unclassified)];
+    private MapLegendEntry[] Legend<TClass>(IEnumerable<TClass> classes, Func<TClass, string> name,
+        Func<TClass, Avalonia.Media.Color> colour) where TClass : struct, Enum =>
+        [.. classes.Select(c => Entry(name(c), colour(c), c)), Entry("No class", SufniThemes.SignalSeries.Terrain.Unclassified, null)];
+
+    private MapLegendEntry Entry(string label, Avalonia.Media.Color colour, Enum? terrainClass)
+    {
+        var key = (coloring, terrainClass);
+        return new(label, colour, !hidden.Contains(key), new RelayCommand(() => ToggleClass(key)));
+    }
+
+    private void ToggleClass((MapTrackColoring, Enum?) key)
+    {
+        if (!hidden.Remove(key)) hidden.Add(key);
+        OnPropertyChanged(nameof(UnclassifiedHidden));
+        OnPropertyChanged(nameof(TerrainRuns));
+        OnPropertyChanged(nameof(TerrainLegend));
+    }
 
     internal void ApplyTerrain(MapTrackColoring selected, TerrainPresentation? presentation)
     {
@@ -75,6 +94,7 @@ public partial class MapViewModel : ViewModelBase, IDisposable
         coloring = selected;
         if (hadTerrain != HasTerrain) OnPropertyChanged(nameof(HasTerrain));
         if (previous != selected) OnPropertyChanged(nameof(TrackColoring));
+        OnPropertyChanged(nameof(UnclassifiedHidden));
         OnPropertyChanged(nameof(TerrainRuns));
         OnPropertyChanged(nameof(TerrainLegend));
     }

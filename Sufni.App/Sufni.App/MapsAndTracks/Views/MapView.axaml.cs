@@ -288,7 +288,7 @@ public partial class MapView : UserControl
         if (mapControl is null || ViewModel is not { } viewModel) return;
         var input = new MapGeometryInput(viewModel.FullTrackPoints is { } full ? full : Array.Empty<TrackPoint>(),
             viewModel.SessionTrackPoints is { } session ? session : Array.Empty<TrackPoint>(), MatchedTrack, viewModel.TerrainRuns,
-            viewModel.TimelineContext?.OriginSeconds ?? 0);
+            viewModel.TimelineContext?.OriginSeconds ?? 0, viewModel.UnclassifiedHidden);
         if (input == requestedGeometry)
         {
             if (geometry?.Input == input) ApplyGeometry(geometry);

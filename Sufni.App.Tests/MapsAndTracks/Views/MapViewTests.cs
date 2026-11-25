@@ -26,6 +26,11 @@ using Sufni.App.MapsAndTracks.Views;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Tests.TestSupport.Harness;
 using Sufni.App.Tests.TestSupport.Extensions;
+using Avalonia.VisualTree;
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Terrain.Models;
+using Sufni.Telemetry;
+using Sufni.Telemetry.Tests;
 
 namespace Sufni.App.Tests.MapsAndTracks.Views;
 
@@ -561,6 +566,26 @@ public class MapViewTests
         AttributionUrl = "https://example.com",
         MaxZoom = 18,
     };
+
+    [AvaloniaFact]
+    public async Task TerrainLegendClickDimsTheEntryOfTheHiddenClass()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureFluentTheme();
+        using var viewModel = CreateViewModelWithTrack();
+        viewModel.ApplyTerrain(MapTrackColoring.Roughness, RecordedSessionPresentationDeriver.CreateTerrain(
+            TerrainProfiles.Classified(TerrainProfiles.Window(0, RoughnessClass.Rough, RoughnessSource.Both))));
+        var view = new MapView { DataContext = viewModel };
+        await using var mounted = await ViewTestHelpers.MountAsync(view);
+        Button FirstEntry() => view.FindControl<Border>("TerrainLegend")!.GetVisualDescendants().OfType<Button>().First();
+        var shownOpacity = FirstEntry().Opacity;
+
+        FirstEntry().Command!.Execute(null);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.False(viewModel.TerrainLegend[0].IsShown);
+        Assert.True(FirstEntry().Opacity < shownOpacity);
+    }
 
     private static MapViewModel CreateViewModelWithTrack(IMapGeometryFactory? geometryFactory = null)
     {

@@ -7,6 +7,12 @@ using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.MapsAndTracks.ViewModels;
 using Sufni.App.Shared.Models;
+using Sufni.App.Infrastructure.Theming;
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Terrain.Models;
+using Sufni.App.Terrain.Plots;
+using Sufni.Telemetry;
+using Sufni.Telemetry.Tests;
 
 namespace Sufni.App.Tests.MapsAndTracks.ViewModels;
 
@@ -60,5 +66,46 @@ public class MapViewModelTests
         vm.Dispose();
         state.OnNext(new([original], original));
         Assert.Same(added, vm.SelectedLayer);
+    }
+
+    private static readonly TerrainPresentation RoughThenSmooth = RecordedSessionPresentationDeriver.CreateTerrain(
+        TerrainProfiles.Classified(TerrainProfiles.Window(0, RoughnessClass.Rough, RoughnessSource.Both),
+            TerrainProfiles.Window(1, RoughnessClass.Smooth, RoughnessSource.Both)));
+
+    [Fact]
+    public void LegendEntryHidesAndShowsItsClassOnTheTrack()
+    {
+        using var vm = TerrainMap();
+        var rough = SufniThemes.SignalSeries.Terrain.ColorFor(RoughnessClass.Rough);
+        var smooth = SufniThemes.SignalSeries.Terrain.ColorFor(RoughnessClass.Smooth);
+
+        vm.TerrainLegend.Single(entry => entry.Colour == rough).Toggle.Execute(null);
+        Assert.False(vm.TerrainLegend.Single(entry => entry.Colour == rough).IsShown);
+        Assert.Equal(new Avalonia.Media.Color?[] { null, smooth }, vm.TerrainRuns.Select(run => run.Colour));
+
+        vm.TerrainLegend.Single(entry => entry.Colour == rough).Toggle.Execute(null);
+        Assert.Equal(new Avalonia.Media.Color?[] { rough, smooth }, vm.TerrainRuns.Select(run => run.Colour));
+    }
+
+    [Fact]
+    public void HiddenGroundWithoutAClassBelongsToItsColouring()
+    {
+        using var vm = TerrainMap();
+
+        vm.TerrainLegend[^1].Toggle.Execute(null);
+        Assert.True(vm.UnclassifiedHidden);
+        vm.ApplyTerrain(MapTrackColoring.Grade, RoughThenSmooth);
+        Assert.False(vm.UnclassifiedHidden);
+        vm.ApplyTerrain(MapTrackColoring.Roughness, RoughThenSmooth);
+        Assert.True(vm.UnclassifiedHidden);
+    }
+
+    private static MapViewModel TerrainMap()
+    {
+        var vm = new MapViewModel(Substitute.For<ITileLayerService>(), Substitute.For<IMapLayerCoordinator>(),
+            Substitute.For<IDialogService>(), new MapGeometryFactory(new InlineBackgroundTaskRunner()),
+            new InlineUiThreadDispatcher(), new FakeTimeProvider());
+        vm.ApplyTerrain(MapTrackColoring.Roughness, RoughThenSmooth);
+        return vm;
     }
 }

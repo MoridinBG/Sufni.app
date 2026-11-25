@@ -6,6 +6,11 @@
     xmlns:models="using:Sufni.App.MapsAndTracks.Models"
     xmlns:vm="using:Sufni.App.MapsAndTracks.ViewModels"
     x:DataType="vm:MapViewModel">
+    <UserControl.Styles>
+        <Style Selector="#TerrainLegend Button.hidden">
+            <Setter Property="Opacity" Value="0.4" />
+        </Style>
+    </UserControl.Styles>
 
     <Grid>
         <ContentControl Name="MapHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
@@ -17,13 +22,16 @@
             <ItemsControl ItemsSource="{Binding TerrainLegend}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:MapLegendEntry">
-                        <StackPanel Orientation="Horizontal" Spacing="4">
-                            <Border Width="10" Height="10" CornerRadius="2" VerticalAlignment="Center">
-                                <Border.Background><SolidColorBrush Color="{Binding Colour}" /></Border.Background>
-                            </Border>
-                            <TextBlock Text="{Binding Label}" Foreground="{DynamicResource SufniMapOverlayText}"
-                                       FontSize="{StaticResource SufniFontSizeSmall}" />
-                        </StackPanel>
+                        <Button Classes="embedded" Classes.hidden="{Binding !IsShown}" Padding="0"
+                                Command="{Binding Toggle}" AutomationProperties.Name="{Binding Label}">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <Border Width="10" Height="10" CornerRadius="2" VerticalAlignment="Center">
+                                    <Border.Background><SolidColorBrush Color="{Binding Colour}" /></Border.Background>
+                                </Border>
+                                <TextBlock Text="{Binding Label}" Foreground="{DynamicResource SufniMapOverlayText}"
+                                           FontSize="{StaticResource SufniFontSizeSmall}" />
+                            </StackPanel>
+                        </Button>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
