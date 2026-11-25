@@ -11,6 +11,10 @@ public sealed record ClassifiedWindow(TerrainWindow Window, RoughnessClass? Roug
 /// <summary>A profile with one classified window per profile window, in the same order.</summary>
 public sealed record ClassifiedProfile(TerrainProfile Profile, TerrainScaleKey Scale, ImmutableArray<ClassifiedWindow> Windows);
 
+/// <summary>Ride class totals. <see cref="RoughShare"/> is the Rough and Very rough share of
+/// <see cref="ClassifiedMetres"/>, the distance of the windows with a descent class.</summary>
+public sealed record TerrainClassSummary(double ClassifiedMetres, double RoughShare);
+
 /// <summary>Classes a profile on the scale of its setup. A sensor without a ready median sets no class.</summary>
 public static class TerrainClassifier
 {
@@ -23,6 +27,14 @@ public static class TerrainClassifier
         TerrainProfileCalculator.MergeOutliers(windows, static w => w.Roughness, static (w, level) => w with { Roughness = level },
             static (a, b) => a.Window.EndSeconds == b.Window.StartSeconds);
         return new(profile, scale, [.. windows]);
+    }
+
+    public static TerrainClassSummary Summarize(ClassifiedProfile profile)
+    {
+        var classified = profile.Windows.Where(w => w.Roughness is { } level && !level.IsClimb()).ToArray();
+        var rough = classified.Count(w => w.Roughness is RoughnessClass.Rough or RoughnessClass.VeryRough);
+        return new(TerrainProfileCalculator.WindowMetres * (double)classified.Length,
+            classified.Length == 0 ? 0 : (double)rough / classified.Length);
     }
 
     private static ClassifiedWindow Classify(TerrainWindow window, TerrainScaleKey scale)

@@ -110,6 +110,24 @@ public class TerrainClassifierTests
         Assert.Equal(above - 1, Single(Descent() with { Frame = TerrainProfiles.Sensor(level * 0.9999) }).Roughness);
     }
 
+    [Fact]
+    public void SummaryCountsTheDescentClassDistanceAndItsRoughShare()
+    {
+        // Gaps between the windows keep the outlier merge out of the classes.
+        var profile = TerrainProfiles.Classified(
+            TerrainProfiles.Window(0, RoughnessClass.Rough), TerrainProfiles.Window(2, RoughnessClass.VeryRough),
+            TerrainProfiles.Window(4, RoughnessClass.Medium), TerrainProfiles.Window(6, RoughnessClass.Calm),
+            TerrainProfiles.Climb(8), TerrainProfiles.Window(10), TerrainProfiles.Window(12, moving: false));
+        Assert.Equal(new TerrainClassSummary(4 * TerrainProfileCalculator.WindowMetres, 0.5), TerrainClassifier.Summarize(profile));
+    }
+
+    [Fact]
+    public void SummaryOfARideWithoutDescentClassesIsEmpty()
+    {
+        var profile = TerrainProfiles.Classified(TerrainProfiles.Climb(0), TerrainProfiles.Window(2));
+        Assert.Equal(new TerrainClassSummary(0, 0), TerrainClassifier.Summarize(profile));
+    }
+
     private static TerrainWindow Descent() => TerrainProfiles.Window(0) with { Band = GradeBand.Descent };
 
     /// <summary>A reading the given number of class steps from the median of <see cref="TerrainProfiles.Scale"/>.</summary>
