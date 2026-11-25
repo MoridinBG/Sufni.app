@@ -1,3 +1,4 @@
+using Sufni.App.Tests.TestSupport.Async;
 using Sufni.App.Segments.Models;
 using Sufni.App.Segments.Services;
 using Sufni.App.Segments.Coordinators;
@@ -343,6 +344,68 @@ public class RecordedTerrainTests
         Assert.True(editor.SignalsWorkspace.TerrainSignalState.ShowSpinner);
         await h.CloseAsync(editor);
     }
+
+    [AvaloniaFact]
+    public async Task ScaleChangeReclassesTheRideAndKeepsTheChosenScope()
+    {
+        using var h = new SessionDetailHarness();
+        var session = h.CreateRecordedSession();
+        var domain = h.WithTerrain(session, RoughProfile());
+        using var changes = new BehaviorSubject<RecordedSessionDomainSnapshot>(domain);
+        var editor = h.CreateRecordedEditor(session, projectionChanges: changes);
+        await h.LoadAsync(editor);
+        var scope = editor.SignalsWorkspace.TerrainScope!;
+        scope.Roughness[(int)RoughnessClass.Rough].Select.Execute(null);
+        changes.OnNext(domain with { TerrainScale = OneStepRougherMedian() });
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.Equal(RoughnessClass.Medium, Assert.Single(editor.SignalsWorkspace.TerrainPresentation!.RoughnessRuns).Class);
+        Assert.True(scope.Roughness[(int)RoughnessClass.Rough].IsChecked);
+        await h.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
+    public async Task ClassesOfAnEarlierScaleArrivingLastAreDropped()
+    {
+        var runner = new DeferredBackgroundTaskRunner();
+        var dispatcher = new ManualUiThreadDispatcher();
+        using var h = new SessionDetailHarness { BackgroundRunner = runner, UiThreadDispatcher = dispatcher };
+        var session = h.CreateRecordedSession();
+        var domain = h.WithTerrain(session, RoughProfile());
+        using var changes = new BehaviorSubject<RecordedSessionDomainSnapshot>(domain);
+        var earlierRead = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reads = 0;
+        h.TerrainProfiles.BeforeRead = (_, _) => ++reads == 1 ? earlierRead.Task : Task.CompletedTask;
+        var editor = h.CreateRecordedEditor(session, projectionChanges: changes);
+        await runner.DrainUntilAsync(dispatcher, h.LoadAsync(editor));
+        changes.OnNext(domain with { TerrainScale = OneStepRougherMedian() });
+        await dispatcher.DrainAsync();
+        await runner.RunNextAsync();
+        await dispatcher.DrainAsync();
+        earlierRead.SetResult();
+        await dispatcher.WaitForWorkAsync(TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        await dispatcher.DrainAsync();
+        Assert.Equal(RoughnessClass.Medium, Assert.Single(editor.SignalsWorkspace.TerrainPresentation!.RoughnessRuns).Class);
+        await runner.DrainUntilAsync(dispatcher, h.CloseAsync(editor));
+    }
+
+    [AvaloniaFact]
+    public async Task EqualTerrainFromANewSnapshotKeepsTheLoadedTerrain()
+    {
+        using var h = new SessionDetailHarness();
+        var session = h.CreateRecordedSession();
+        var domain = h.WithTerrain(session, RoughProfile());
+        using var changes = new BehaviorSubject<RecordedSessionDomainSnapshot>(domain);
+        var editor = h.CreateRecordedEditor(session, projectionChanges: changes);
+        await h.LoadAsync(editor);
+        var loaded = editor.SignalsWorkspace.TerrainPresentation;
+        changes.OnNext(domain with { Session = session with { Description = "Changed" } });
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.Same(loaded, editor.SignalsWorkspace.TerrainPresentation);
+        await h.CloseAsync(editor);
+    }
+
+    private static SetupTerrainScale OneStepRougherMedian() =>
+        TestSnapshots.TerrainScale(TerrainProfiles.Scale with { FrameImu = 20 });
 
     private static TerrainProfile RoughProfile() =>
         TerrainProfiles.Profile([TerrainProfiles.Window(0, RoughnessClass.Rough)]);

@@ -1,3 +1,4 @@
+using Sufni.Telemetry.Tests;
 using Sufni.App.Sessions.Plots;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Infrastructure;
@@ -133,6 +134,23 @@ public class RecordedSessionAnalysisResultStateTests
         state.Invalidate(climbs);
 
         Assert.Null(state.Get(climbs.SessionInsightsKey));
+    }
+
+    [Fact]
+    public async Task Invalidate_DropsCachedInsights_WhenOnlyTheTerrainScaleChanges()
+    {
+        using var state = new RecordedSessionAnalysisResultState(new TestAnalysisComputer(), new InlineBackgroundTaskRunner(),
+            new InlineUiThreadDispatcher(), () => new TelemetryData());
+        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0, RoughnessClass.Rough)]);
+        var inputs = CreateInputs(range: null) with { Terrain = TerrainClassifier.Classify(profile, TerrainProfiles.Scale) };
+        state.Invalidate(inputs);
+        await state.RequestAsync(inputs.SessionInsightsKey, cancellationToken: TestContext.Current.CancellationToken);
+        Assert.NotNull(state.Get(inputs.SessionInsightsKey));
+
+        var rescaled = inputs with { Terrain = TerrainClassifier.Classify(profile, TerrainProfiles.Scale with { FrameImu = 20 }) };
+        state.Invalidate(rescaled);
+
+        Assert.Null(state.Get(rescaled.SessionInsightsKey));
     }
 
     [Fact]

@@ -19,8 +19,9 @@ public class TerrainBaselineEditorTests
 {
     private readonly DeferredBackgroundTaskRunner runner = new();
     private readonly ManualUiThreadDispatcher dispatcher = new();
-    private readonly BehaviorSubject<TerrainBaseline?> analyzedBaseline = new(null);
+    private readonly BehaviorSubject<SessionTerrainInput?> analyzedTerrain = new(null);
     private readonly List<TerrainBaseline?> analyzedBaselines = [];
+    private BehaviorSubject<RecordedSessionDomainSnapshot>? domains;
 
     [AvaloniaFact]
     public async Task FifthRideCommittedWhileOpenGivesInsightsAFittedBaseline()
@@ -65,10 +66,28 @@ public class TerrainBaselineEditorTests
         var (editor, rows) = await OpenWithBaselineAsync(h, baselineRides: 4, fitted: false);
         h.TerrainProfiles.ReadFailure = new IOException("Baseline unavailable.");
         h.SessionSummaries.AddOrUpdate(rows[4]);
-        await runner.DrainUntilAsync(dispatcher, analyzedBaseline.FirstAsync(baseline => baseline is TerrainBaseline.Failed)
+        await runner.DrainUntilAsync(dispatcher, analyzedTerrain.FirstAsync(terrain => terrain?.Baseline is TerrainBaseline.Failed)
             .ToTask(TestContext.Current.CancellationToken));
         Assert.True(editor.SignalsWorkspace.TerrainSignalState.IsReady);
         await runner.DrainUntilAsync(dispatcher, h.CloseAsync(editor));
+    }
+
+    [AvaloniaFact]
+    public async Task ScaleChangeKeepsTheFittedBaseline()
+    {
+        using var h = CreateHarness();
+        var (editor, _) = await OpenWithBaselineAsync(h, baselineRides: 5, fitted: true);
+        domains!.OnNext(domains.Value with { TerrainScale = TestSnapshots.TerrainScale(SyntheticRide.Scale) });
+        var rescaled = await RunUntilAnalyzedAsync(terrain => terrain?.Classified.Scale == SyntheticRide.Scale);
+        Assert.IsType<TerrainBaseline.Fitted>(rescaled!.Baseline);
+        await runner.DrainUntilAsync(dispatcher, h.CloseAsync(editor));
+    }
+
+    private async Task<SessionTerrainInput?> RunUntilAnalyzedAsync(Func<SessionTerrainInput?, bool> predicate)
+    {
+        var analyzed = analyzedTerrain.FirstAsync(predicate).ToTask(TestContext.Current.CancellationToken);
+        await runner.DrainUntilAsync(dispatcher, analyzed);
+        return await analyzed;
     }
 
     private SessionDetailHarness CreateHarness() => new() { BackgroundRunner = runner, UiThreadDispatcher = dispatcher };
@@ -86,20 +105,21 @@ public class TerrainBaselineEditorTests
         foreach (var (index, row) in rows.Index()) h.TerrainProfiles.Seed(row.Id, key, profiles[index]);
         h.SessionInsightsService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(call =>
         {
-            var baseline = call.Arg<SessionInsightsRequest>().Terrain?.Baseline;
-            analyzedBaselines.Add(baseline);
-            analyzedBaseline.OnNext(baseline);
+            var terrain = call.Arg<SessionInsightsRequest>().Terrain;
+            analyzedBaselines.Add(terrain?.Baseline);
+            analyzedTerrain.OnNext(terrain);
             return SessionInsightsResult.Hidden;
         });
         h.SessionSummaries.AddOrUpdate(rows[..baselineRides]);
-        var editor = h.CreateRecordedEditor(session, projectionChanges: Observable.Return(domain));
+        domains = new BehaviorSubject<RecordedSessionDomainSnapshot>(domain);
+        var editor = h.CreateRecordedEditor(session, projectionChanges: domains);
         await runner.DrainUntilAsync(dispatcher, h.LoadAsync(editor));
         editor.AnalysisWorkspace.RequestSessionInsights();
         await runner.DrainUntilAsync(dispatcher, AnalyzedAsync(fitted, baselineRides));
         return (editor, rows);
     }
 
-    private Task AnalyzedAsync(bool fitted, int sessions) => analyzedBaseline.FirstAsync(baseline => baseline switch
+    private Task AnalyzedAsync(bool fitted, int sessions) => analyzedTerrain.FirstAsync(terrain => terrain?.Baseline switch
     {
         TerrainBaseline.Fitted fit => fitted && fit.Model.Sessions == sessions,
         TerrainBaseline.Insufficient limited => !fitted && limited.Model.Sessions == sessions,
