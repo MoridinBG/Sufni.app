@@ -63,7 +63,7 @@ internal static class SessionDiagnostics
         var rearVibration = CalculateVibration(
             telemetryData,
             rear,
-            ImuLocation.Shock,
+            ImuLocation.RearAxle,
             SuspensionType.Rear,
             context.Request.Selection,
             calculateVibration);

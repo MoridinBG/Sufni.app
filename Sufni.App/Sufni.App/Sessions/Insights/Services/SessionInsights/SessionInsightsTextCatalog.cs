@@ -142,7 +142,7 @@ internal static partial class SessionInsightsTextCatalog
                 ? "Resolve travel use / speed context before balance tuning."
                 : "Use this as a front/rear experiment guide only after travel use looks reasonable; change the side whose travel and damping evidence agree with the imbalance.",
             SessionInsightsFindingId.VibrationNotUsedForRecommendations =>
-                "Use vibration as context only until front travel is paired with fork IMU or rear travel is paired with shock IMU.",
+                "Use vibration as context only until front travel is paired with fork IMU or rear travel is paired with rear axle IMU.",
             SessionInsightsFindingId.VibrationContext =>
                 "Do not tune from vibration alone. Compare magic-carpet ratio, average g, travel use, and rider notes together.",
             _ => string.Empty,
@@ -432,6 +432,6 @@ internal static partial class SessionInsightsTextCatalog
     private static string VibrationImuLabel(DiagnosticFinding finding)
     {
         var side = finding.Evidence.FirstOrDefault(evidence => evidence.Side is not null)?.Side;
-        return side == SuspensionType.Front ? "fork IMU" : "shock IMU";
+        return side == SuspensionType.Front ? "fork IMU" : "rear axle IMU";
     }
 }

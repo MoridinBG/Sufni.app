@@ -100,7 +100,7 @@ public static class SstV5ProtocolConstants
         {
             SensorFrameImu => (byte)ImuLocation.Frame,
             SensorForkImu => (byte)ImuLocation.Fork,
-            SensorRearImu => (byte)ImuLocation.Shock,
+            SensorRearImu => (byte)ImuLocation.RearAxle,
             _ => byte.MaxValue,
         };
 

@@ -252,7 +252,7 @@ internal static class SegmentComparisonBuilder
             {
                 0 => ("Frame", SegmentComparisonSeriesRole.FrameImu),
                 1 => ("Fork", SegmentComparisonSeriesRole.ForkImu),
-                2 => ("Shock", SegmentComparisonSeriesRole.ShockImu),
+                2 => ("Rear axle", SegmentComparisonSeriesRole.RearAxleImu),
                 _ => ($"Location {location}", SegmentComparisonSeriesRole.FrameImu),
             };
             series.Add(new SegmentComparisonSeries(

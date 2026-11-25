@@ -92,7 +92,7 @@ public enum SegmentComparisonSeriesRole
     RearVelocity,
     FrameImu,
     ForkImu,
-    ShockImu,
+    RearAxleImu,
     Grade,
     Speed,
 }

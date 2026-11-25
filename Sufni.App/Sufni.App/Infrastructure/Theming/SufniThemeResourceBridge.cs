@@ -256,7 +256,7 @@ public static class SufniThemeResourceBridge
         AddColorPair(resources, "SufniSeriesSuspensionRear", theme.Plot.Series.SuspensionRear);
         AddColorPair(resources, "SufniSeriesImuFrame", theme.Plot.Series.ImuFrame);
         AddColorPair(resources, "SufniSeriesImuFork", theme.Plot.Series.ImuFork);
-        AddColorPair(resources, "SufniSeriesImuShock", theme.Plot.Series.ImuShock);
+        AddColorPair(resources, "SufniSeriesImuRearAxle", theme.Plot.Series.ImuRearAxle);
         AddColorPair(resources, "SufniSeriesGpsSpeed", theme.Plot.Series.GpsSpeed);
         AddColorPair(resources, "SufniSeriesGpsElevation", theme.Plot.Series.GpsElevation);
     }

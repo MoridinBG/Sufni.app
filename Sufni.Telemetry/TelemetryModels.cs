@@ -87,7 +87,7 @@ public enum ImuLocation
 {
     Frame = 0,
     Fork = 1,
-    Shock = 2,
+    RearAxle = 2,
 }
 
 public record BalanceData(

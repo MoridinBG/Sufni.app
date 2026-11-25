@@ -250,7 +250,7 @@ public sealed record SufniSeriesTheme(
     Color SuspensionRear,
     Color ImuFrame,
     Color ImuFork,
-    Color ImuShock,
+    Color ImuRearAxle,
     Color GpsSpeed,
     Color GpsElevation,
     Color GpsQuality,

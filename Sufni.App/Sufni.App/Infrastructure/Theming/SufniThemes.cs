@@ -30,7 +30,7 @@ public static class SufniThemes
         SuspensionRear: C("#66C2A5"),
         ImuFrame: C("#FC8D59"),
         ImuFork: C("#3288BD"),
-        ImuShock: C("#66C2A5"),
+        ImuRearAxle: C("#66C2A5"),
         GpsSpeed: C("#FFFFBF"),
         GpsElevation: C("#FFFFBF"),
         GpsQuality: C("#D0D6DA"),

@@ -34,7 +34,7 @@ public sealed class LiveImuPlot : LiveStreamingPlotBase
         SourceVisibility = sourceVisibility;
         frameChannel = CreateChannel(ImuPlot.FrameColor, "Frame");
         forkChannel = CreateChannel(TelemetryPlot.FrontColor, "Fork");
-        rearChannel = CreateChannel(TelemetryPlot.RearColor, "Shock");
+        rearChannel = CreateChannel(TelemetryPlot.RearColor, "Rear axle");
         ShowSourceLegend();
         EnableInteractiveSourceLegendForChannels(
             SignalRowIds.Imu,

@@ -41,12 +41,12 @@ public class ImuPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPl
             maxVal = Math.Max(maxVal, vibrationSeries.RmsG.Max());
             hasData = true;
 
-            // 0=Frame, 1=Fork (Front), 2=Shock (Rear)
+            // 0=Frame, 1=Fork (Front), 2=Rear axle (Rear)
             var (label, color) = vibrationSeries.LocationId switch
             {
                 0 => ("Frame", FrameColor),
                 1 => ("Fork", FrontColor),
-                2 => ("Shock", RearColor),
+                2 => ("Rear axle", RearColor),
                 _ => ($"Location {vibrationSeries.LocationId}", Colors.Gray)
             };
             series.Add(new RecordedTimeSeries(

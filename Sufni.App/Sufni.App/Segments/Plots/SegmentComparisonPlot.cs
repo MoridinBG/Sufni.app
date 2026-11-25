@@ -136,7 +136,7 @@ public sealed class SegmentComparisonPlot(Plot plot, SufniTheme? theme = null)
         SegmentComparisonSeriesRole.RearTravel or SegmentComparisonSeriesRole.RearVelocity => RearColor,
         SegmentComparisonSeriesRole.FrameImu => ImuPlot.FrameColor,
         SegmentComparisonSeriesRole.ForkImu => FrontColor,
-        SegmentComparisonSeriesRole.ShockImu => RearColor,
+        SegmentComparisonSeriesRole.RearAxleImu => RearColor,
         SegmentComparisonSeriesRole.Grade => SufniThemes.SignalSeries.GpsElevation.ToScottPlotColor(),
         _ => SufniThemes.SignalSeries.GpsSpeed.ToScottPlotColor(),
     };
