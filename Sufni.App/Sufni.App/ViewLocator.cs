@@ -55,7 +55,6 @@ public class ViewLocator : IDataTemplate
         [typeof(SessionInsightsPageViewModel)] = static () => new global::Sufni.App.Sessions.Insights.Views.SessionPages.SessionInsightsPageView(),
         [typeof(SpringPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.SpringPageView(),
         [typeof(StrokesPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.StrokesPageView(),
-        [typeof(VibrationPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.VibrationPageView(),
     }.ToFrozenDictionary();
 
     private static readonly FrozenDictionary<Type, Func<Control>> CompactViewFactories = new Dictionary<Type, Func<Control>>

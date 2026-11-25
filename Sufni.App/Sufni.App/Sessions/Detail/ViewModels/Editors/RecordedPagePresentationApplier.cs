@@ -12,7 +12,6 @@ internal sealed class RecordedPagePresentationApplier : IDisposable
     private readonly SpringPageViewModel springPage;
     private readonly DampingPageViewModel dampingPage;
     private readonly BalancePageViewModel balancePage;
-    private readonly VibrationPageViewModel vibrationPage;
     private readonly SessionInsightsPageViewModel analysisPage;
     private readonly NotesPageViewModel notesPage;
     private readonly PreferencesPageViewModel preferencesPage;
@@ -24,7 +23,6 @@ internal sealed class RecordedPagePresentationApplier : IDisposable
         SpringPageViewModel springPage,
         DampingPageViewModel dampingPage,
         BalancePageViewModel balancePage,
-        VibrationPageViewModel vibrationPage,
         SessionInsightsPageViewModel analysisPage,
         NotesPageViewModel notesPage,
         PreferencesPageViewModel preferencesPage,
@@ -34,7 +32,6 @@ internal sealed class RecordedPagePresentationApplier : IDisposable
         this.springPage = springPage;
         this.dampingPage = dampingPage;
         this.balancePage = balancePage;
-        this.vibrationPage = vibrationPage;
         this.analysisPage = analysisPage;
         this.notesPage = notesPage;
         this.preferencesPage = preferencesPage;
@@ -91,11 +88,7 @@ internal sealed class RecordedPagePresentationApplier : IDisposable
                 return;
             }
 
-            var insertIndex = pages.IndexOf(vibrationPage);
-            if (insertIndex < 0)
-            {
-                insertIndex = pages.IndexOf(analysisPage);
-            }
+            var insertIndex = pages.IndexOf(analysisPage);
 
             if (insertIndex < 0)
             {

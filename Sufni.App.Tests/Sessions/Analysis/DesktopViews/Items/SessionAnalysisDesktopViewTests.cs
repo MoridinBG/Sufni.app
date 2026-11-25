@@ -37,7 +37,7 @@ public class SessionAnalysisDesktopViewTests
     }
 
     [AvaloniaTheory]
-    [InlineData("Ground & comfort")]
+    [InlineData("Insights")]
     [InlineData("Bike response")]
     public async Task SessionAnalysisDesktopView_TabsThatReadTheInsightsResultRequestIt(string header)
     {

@@ -98,7 +98,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     private readonly RecordedPagePresentationApplier presentationApplier;
     private SessionDraft draftBase;
     private SessionInsightsPageViewModel AnalysisPage { get; }
-    private VibrationPageViewModel GroundComfortPage { get; }
     private BikeResponsePageViewModel BikeResponsePage { get; }
 
     private readonly CancellableOperation viewLoadOperation = new();
@@ -386,7 +385,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         var strokesPage = new StrokesPageViewModel(AnalysisWorkspace);
         var dampingPage = new DampingPageViewModel(AnalysisWorkspace);
         var balancePage = new BalancePageViewModel(AnalysisWorkspace);
-        GroundComfortPage = new VibrationPageViewModel(AnalysisWorkspace);
         AnalysisPage = new SessionInsightsPageViewModel(AnalysisWorkspace);
         BikeResponsePage = new BikeResponsePageViewModel(AnalysisWorkspace);
         pages.Add(signalsPage);
@@ -395,13 +393,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         pages.Add(dampingPage);
         pages.Add(positionVelocityPage);
         pages.Add(balancePage);
-        pages.Add(GroundComfortPage);
         pages.Add(AnalysisPage);
         pages.Add(BikeResponsePage);
         pages.Add(NotesPage);
         pages.Add(PreferencesPage);
         presentationApplier = new RecordedPagePresentationApplier(pages, springPage, dampingPage, balancePage,
-            GroundComfortPage, AnalysisPage, NotesPage, PreferencesPage, editorStateController.State);
+            AnalysisPage, NotesPage, PreferencesPage, editorStateController.State);
         loadController = new RecordedSessionLoadController(Id, editorStateController.State, sessionLoader,
             sessionStore, processedTelemetryReader, uiThreadDispatcher,
             editorLifetime.Token, value => PublishEditorInput(loadPresentationInput, value), ReportError);
@@ -461,10 +458,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
 
     }
 
-    // The Ground & comfort and Bike response pages read their reports from the Insights result.
+    // The Bike response page reads its reports from the Insights result.
     private bool ShowsInsights(int index) => pages.Count > 0 && AnalysisPage is not null &&
         pages[RecordedSessionPageSelection.ClampSelectedPageIndex(index, pages.Count)] is var page &&
-        (ReferenceEquals(page, AnalysisPage) || ReferenceEquals(page, GroundComfortPage) || ReferenceEquals(page, BikeResponsePage));
+        (ReferenceEquals(page, AnalysisPage) || ReferenceEquals(page, BikeResponsePage));
 
     private void OnPagesChanged(object? sender, NotifyCollectionChangedEventArgs args)
     {

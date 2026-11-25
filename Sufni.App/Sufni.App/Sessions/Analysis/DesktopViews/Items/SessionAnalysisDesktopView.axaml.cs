@@ -15,7 +15,6 @@ public partial class SessionAnalysisDesktopView : UserControl
 {
     private const string DefaultTabKey = "spring";
     private const string InsightsTabKey = "analysis";
-    private const string GroundComfortTabKey = "vibration";
     private const string BikeResponseTabKey = "bike-response";
 
     private readonly List<AnalysisTabEntry> currentTabEntries = [];
@@ -136,14 +135,12 @@ public partial class SessionAnalysisDesktopView : UserControl
 
         yield return new AnalysisTabEntry("balance", "Balance", Balance,
             "Compares how the front and rear suspension move together to check the bike is balanced from end to end.");
-        yield return new AnalysisTabEntry(GroundComfortTabKey, "Ground & comfort", Vibration,
-            "How the ground in scope reached you: what the suspension absorbed and what reached the frame, with stroke detail below.");
         yield return new AnalysisTabEntry(InsightsTabKey, "Insights", Analysis,
             "Setup suggestions derived from the session data, interpreted through the selected riding context.");
         if (workspace?.HasBikeResponse == true)
         {
             yield return new AnalysisTabEntry(BikeResponseTabKey, "Bike response", BikeResponse,
-                "How the fork and shock responded against your usual on this bike, and against a matched run of the same trail.");
+                "How the fork and shock responded against your usual on this bike and against a matched run of the same trail, and how the ground reached you.");
         }
     }
 
@@ -182,9 +179,8 @@ public partial class SessionAnalysisDesktopView : UserControl
             var isDemandActive = isSelected && effectiveVisibilityObserver.IsEffectivelyVisible;
             entry.Content.IsVisible = isSelected;
             SetAnalysisDemandActive(entry.Content, isDemandActive);
-            // The Ground & comfort and Bike response tabs read their reports from the Insights result.
+            // The Bike response tab reads its reports from the Insights result.
             if (isDemandActive && (StringComparer.Ordinal.Equals(entry.Key, InsightsTabKey) ||
-                StringComparer.Ordinal.Equals(entry.Key, GroundComfortTabKey) ||
                 StringComparer.Ordinal.Equals(entry.Key, BikeResponseTabKey)))
             {
                 workspace?.RequestSessionInsights();

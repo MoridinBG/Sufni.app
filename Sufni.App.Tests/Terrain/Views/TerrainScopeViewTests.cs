@@ -117,7 +117,7 @@ public class TerrainScopeChipViewTests
         using var workspace = new LiveSessionAnalysisWorkspaceViewModel(context, Substitute.For<ILiveCaptureCoordinator>(),
             bikes, TestCoordinatorSubstitutes.Bike(), _ => { });
         workspace.Apply(LiveCaptureTestData.State(true, TestTelemetryData.CreateProcessed()));
-        var page = new VibrationPageView { DataContext = new VibrationPageViewModel(workspace) };
+        var page = new StrokesPageView { DataContext = new StrokesPageViewModel(workspace) };
         await using var mounted = await ViewTestHelpers.MountAsync(page);
         Assert.False(Assert.Single(page.GetVisualDescendants().OfType<TerrainScopeBannerView>()).IsVisible);
     }

@@ -1,6 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:items="using:Sufni.App.Sessions.Insights.Views.Items"
              xmlns:segmentViews="using:Sufni.App.Segments.Views"
+             xmlns:terrainViews="using:Sufni.App.Terrain.Views"
+             xmlns:controls="using:Sufni.App.Sessions.Analysis.Views.Controls"
              xmlns:vm="using:Sufni.App.Sessions.Insights.ViewModels.SessionPages"
              x:Class="Sufni.App.Sessions.Insights.Views.SessionPages.BikeResponsePageView"
              x:DataType="vm:BikeResponsePageViewModel">
@@ -8,7 +10,73 @@
                   IsScrollChainingEnabled="False">
         <StackPanel Width="{Binding #PageScrollViewer.Bounds.Width}" ClipToBounds="True" Spacing="10">
             <segmentViews:SegmentAnalysisComparisonBannerView DataContext="{Binding Workspace.SegmentComparison}" />
+            <terrainViews:TerrainScopeBannerView DataContext="{Binding Workspace.TerrainScope}" />
             <items:SessionBikeResponseView DataContext="{Binding Workspace}" />
+            <Border Name="GroundComfortCard" Padding="10" BorderBrush="{DynamicResource SufniLineDefaultBrush}" BorderThickness="1"
+                    CornerRadius="6">
+                <StackPanel Spacing="8">
+                    <TextBlock FontSize="15" FontWeight="SemiBold" Text="Ground &amp; comfort"
+                               ToolTip.Tip="The ground in the terrain scope: what the fork and shock absorbed, and what reached the frame." />
+                    <Panel IsVisible="{Binding Workspace.SessionInsights.HasGroundComfort, FallbackValue=False}">
+                        <terrainViews:GroundComfortView Name="GroundComfort" DataContext="{Binding Workspace.SessionInsights.GroundComfort}" />
+                    </Panel>
+
+                    <TextBlock Name="GroundComfortNote" Text="{Binding Workspace.SessionInsights.GroundComfortNote, FallbackValue={x:Null}}"
+                               IsVisible="{Binding Workspace.SessionInsights.HasGroundComfortNote, FallbackValue=False}"
+                               TextWrapping="Wrap" FontStyle="Italic" Opacity="0.75" />
+                    <Expander Name="StrokeDetail" Header="Stroke detail" IsExpanded="False" HorizontalAlignment="Stretch">
+                        <StackPanel Spacing="10">
+                            <controls:VibrationAnalysisHost
+                            HostName="FrontForkVibrationHost"
+                            AnalysisRange="{Binding Workspace.AnalysisRange}"
+                            AnalysisResultState="{Binding Workspace.AnalysisResultState}"
+                            ImuLocation="Fork"
+                            MinCardHeight="320"
+                            PlotRowHeight="260"
+                            PresentationState="{Binding Workspace.FrontForkVibrationState}"
+                            SuspensionType="Front"
+                            Telemetry="{Binding Workspace.TelemetryData}"
+                            Title="Front fork" />
+
+                            <controls:VibrationAnalysisHost
+                            HostName="FrontFrameVibrationHost"
+                            AnalysisRange="{Binding Workspace.AnalysisRange}"
+                            AnalysisResultState="{Binding Workspace.AnalysisResultState}"
+                            ImuLocation="Frame"
+                            MinCardHeight="320"
+                            PlotRowHeight="260"
+                            PresentationState="{Binding Workspace.FrontFrameVibrationState}"
+                            SuspensionType="Front"
+                            Telemetry="{Binding Workspace.TelemetryData}"
+                            Title="Front frame" />
+
+                            <controls:VibrationAnalysisHost
+                            HostName="RearForkVibrationHost"
+                            AnalysisRange="{Binding Workspace.AnalysisRange}"
+                            AnalysisResultState="{Binding Workspace.AnalysisResultState}"
+                            ImuLocation="Fork"
+                            MinCardHeight="320"
+                            PlotRowHeight="260"
+                            PresentationState="{Binding Workspace.RearForkVibrationState}"
+                            SuspensionType="Rear"
+                            Telemetry="{Binding Workspace.TelemetryData}"
+                            Title="Rear fork" />
+
+                            <controls:VibrationAnalysisHost
+                            HostName="RearFrameVibrationHost"
+                            AnalysisRange="{Binding Workspace.AnalysisRange}"
+                            AnalysisResultState="{Binding Workspace.AnalysisResultState}"
+                            ImuLocation="Frame"
+                            MinCardHeight="320"
+                            PlotRowHeight="260"
+                            PresentationState="{Binding Workspace.RearFrameVibrationState}"
+                            SuspensionType="Rear"
+                            Telemetry="{Binding Workspace.TelemetryData}"
+                            Title="Rear frame" />
+                        </StackPanel>
+                    </Expander>
+                </StackPanel>
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>
