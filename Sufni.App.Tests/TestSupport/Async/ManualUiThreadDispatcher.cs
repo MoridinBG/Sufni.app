@@ -7,9 +7,10 @@ namespace Sufni.App.Tests.TestSupport.Async;
 public sealed class ManualUiThreadDispatcher : IUiThreadDispatcher
 {
     private readonly Channel<Func<Task>> callbacks = Channel.CreateUnbounded<Func<Task>>();
-    private bool executing;
+    private int? executingThread;
 
-    public bool CheckAccess() => executing;
+    // Like the UI thread, only the thread that runs the current callback has access; a background continuation queues.
+    public bool CheckAccess() => executingThread == Environment.CurrentManagedThreadId;
 
     public void Post(Action action) => callbacks.Writer.TryWrite(() =>
     {
@@ -71,14 +72,17 @@ public sealed class ManualUiThreadDispatcher : IUiThreadDispatcher
 
     public async Task DrainAsync()
     {
-        executing = true;
         try
         {
-            while (callbacks.Reader.TryRead(out var callback)) await callback();
+            while (callbacks.Reader.TryRead(out var callback))
+            {
+                executingThread = Environment.CurrentManagedThreadId;
+                await callback();
+            }
         }
         finally
         {
-            executing = false;
+            executingThread = null;
         }
     }
 }
