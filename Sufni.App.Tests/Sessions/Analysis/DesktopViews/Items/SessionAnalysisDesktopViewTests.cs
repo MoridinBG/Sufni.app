@@ -23,14 +23,30 @@ public class SessionAnalysisDesktopViewTests
         Assert.DoesNotContain("Position/velocity", GetTabHeaders(mounted.View));
     }
 
-    [AvaloniaFact]
-    public async Task SessionAnalysisDesktopView_GroundAndComfortTabRequestsInsights()
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SessionAnalysisDesktopView_OffersBikeResponseTab_OnlyWhenWorkspaceHasIt(bool hasBikeResponse)
     {
         using var workspace = CreateWorkspace();
+        workspace.HasBikeResponse = hasBikeResponse;
+        await using var mounted = await MountAsync(workspace);
+
+        Assert.Equal(hasBikeResponse, GetTabHeaders(mounted.View).Contains("Bike response"));
+        Assert.False(mounted.View.FindControl<Grid>("BikeResponse")!.IsVisible);
+    }
+
+    [AvaloniaTheory]
+    [InlineData("Ground & comfort")]
+    [InlineData("Bike response")]
+    public async Task SessionAnalysisDesktopView_TabsThatReadTheInsightsResultRequestIt(string header)
+    {
+        using var workspace = CreateWorkspace();
+        workspace.HasBikeResponse = true;
         await using var mounted = await MountAsync(workspace);
         var tabs = mounted.View.FindControl<TabStrip>("TabControl")!;
 
-        tabs.SelectedItem = tabs.Items.OfType<TabItem>().Single(item => Equals(item.Header, "Ground & comfort"));
+        tabs.SelectedItem = tabs.Items.OfType<TabItem>().Single(item => Equals(item.Header, header));
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal(1, workspace.InsightsRequests);

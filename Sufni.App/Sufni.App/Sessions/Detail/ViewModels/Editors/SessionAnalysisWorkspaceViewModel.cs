@@ -141,6 +141,7 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
     public ISessionAnalysisResultSource AnalysisResultState { get; }
 
     public PositionVelocityPageViewModel PositionVelocity { get; }
+    public bool HasBikeResponse => true;
 
     public SessionInsightsResult SessionInsights => currentState.Presentation.SessionInsights;
 

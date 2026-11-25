@@ -460,6 +460,11 @@ mc:Ignorable="d">
                 <Grid Name="Analysis">
                     <itemviews:SessionInsightsView />
                 </Grid>
+
+                <!--  Bike response  -->
+                <Grid Name="BikeResponse">
+                    <itemviews:SessionBikeResponseView />
+                </Grid>
                     </ItemsControl.Items>
                 </ItemsControl>
             </StackPanel>

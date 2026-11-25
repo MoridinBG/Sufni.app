@@ -162,6 +162,8 @@ public interface ISessionAnalysisWorkspace
     bool CanEditDampingSpeedCutoffs { get; }
     ISessionAnalysisResultSource? AnalysisResultState => null;
     PositionVelocityPageViewModel? PositionVelocity => null;
+    /// <summary>Whether the session compares its bike response with other rides; live sessions do not.</summary>
+    bool HasBikeResponse => false;
     SessionInsightsResult SessionInsights { get; }
     void RequestSessionInsights() { }
     IRelayCommand<TelemetryRangeSelection?> SelectAnalysisRangeCommand { get; }

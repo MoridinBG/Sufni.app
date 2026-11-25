@@ -114,6 +114,7 @@ internal sealed class TestSessionAnalysisWorkspace : ISessionAnalysisWorkspace, 
     public TelemetryRangeSelection? ActiveFrontAnalysisSelection { get; set; }
     public TelemetryRangeSelection? ActiveRearAnalysisSelection { get; set; }
     public PositionVelocityPageViewModel? PositionVelocity { get; set; }
+    public bool HasBikeResponse { get; set; }
 
     public int InsightsRequests { get; private set; }
     public void RequestSessionInsights() => InsightsRequests++;

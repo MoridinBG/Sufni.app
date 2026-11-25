@@ -45,6 +45,7 @@ public class ViewLocator : IDataTemplate
         [typeof(RotationalForkSensorConfigurationViewModel)] = static () => new global::Sufni.App.Setups.Views.SensorConfigurations.RotationalForkSensorConfigurationView(),
         [typeof(RotationalShockSensorConfigurationViewModel)] = static () => new global::Sufni.App.Setups.Views.SensorConfigurations.RotationalShockSensorConfigurationView(),
         [typeof(BalancePageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.BalancePageView(),
+        [typeof(BikeResponsePageViewModel)] = static () => new global::Sufni.App.Sessions.Insights.Views.SessionPages.BikeResponsePageView(),
         [typeof(DampingPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.DampingPageView(),
         [typeof(LiveSignalsPageViewModel)] = static () => new global::Sufni.App.LiveDaq.Views.SessionPages.LiveSignalsPageView(),
         [typeof(RecordedSignalsPageViewModel)] = static () => new global::Sufni.App.Sessions.Signals.Views.SessionPages.RecordedSignalsPageView(),

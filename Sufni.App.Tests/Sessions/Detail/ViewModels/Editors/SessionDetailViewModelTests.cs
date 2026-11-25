@@ -238,6 +238,7 @@ public class SessionDetailViewModelTests
     [AvaloniaTheory]
     [InlineData(typeof(SessionInsightsPageViewModel))]
     [InlineData(typeof(VibrationPageViewModel))]
+    [InlineData(typeof(BikeResponsePageViewModel))]
     public async Task Insights_FirstPageSelectionRequestsAnalysisInTheSameStateUpdate(Type page)
     {
         using var harness = new SessionDetailHarness();

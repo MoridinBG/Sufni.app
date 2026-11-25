@@ -99,6 +99,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     private SessionDraft draftBase;
     private SessionInsightsPageViewModel AnalysisPage { get; }
     private VibrationPageViewModel GroundComfortPage { get; }
+    private BikeResponsePageViewModel BikeResponsePage { get; }
 
     private readonly CancellableOperation viewLoadOperation = new();
     private enum EditorLifecycle { Created, Loaded, ApplyingDraft, Closed }
@@ -387,6 +388,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         var balancePage = new BalancePageViewModel(AnalysisWorkspace);
         GroundComfortPage = new VibrationPageViewModel(AnalysisWorkspace);
         AnalysisPage = new SessionInsightsPageViewModel(AnalysisWorkspace);
+        BikeResponsePage = new BikeResponsePageViewModel(AnalysisWorkspace);
         pages.Add(signalsPage);
         pages.Add(springPage);
         pages.Add(strokesPage);
@@ -395,6 +397,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         pages.Add(balancePage);
         pages.Add(GroundComfortPage);
         pages.Add(AnalysisPage);
+        pages.Add(BikeResponsePage);
         pages.Add(NotesPage);
         pages.Add(PreferencesPage);
         presentationApplier = new RecordedPagePresentationApplier(pages, springPage, dampingPage, balancePage,
@@ -458,10 +461,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
 
     }
 
-    // The Ground & comfort page reads its report from the Insights result.
+    // The Ground & comfort and Bike response pages read their reports from the Insights result.
     private bool ShowsInsights(int index) => pages.Count > 0 && AnalysisPage is not null &&
         pages[RecordedSessionPageSelection.ClampSelectedPageIndex(index, pages.Count)] is var page &&
-        (ReferenceEquals(page, AnalysisPage) || ReferenceEquals(page, GroundComfortPage));
+        (ReferenceEquals(page, AnalysisPage) || ReferenceEquals(page, GroundComfortPage) || ReferenceEquals(page, BikeResponsePage));
 
     private void OnPagesChanged(object? sender, NotifyCollectionChangedEventArgs args)
     {

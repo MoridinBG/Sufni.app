@@ -1,0 +1,25 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:segments="using:Sufni.App.Segments.Views"
+             xmlns:insightControls="using:Sufni.App.Sessions.Insights.Views.Controls"
+             xmlns:overlays="using:Sufni.App.Shared.Views.Overlays"
+             xmlns:vm="using:Sufni.App.Sessions.Presentation"
+             x:Class="Sufni.App.Sessions.Insights.Views.Items.SessionBikeResponseView"
+             x:DataType="vm:ISessionAnalysisWorkspace">
+    <StackPanel Spacing="8">
+        <StackPanel>
+            <TextBlock FontSize="16" FontWeight="SemiBold" Text="Bike response" />
+            <TextBlock FontSize="12" Opacity="0.75" Text="{Binding SessionAnalysisRangeText}" />
+        </StackPanel>
+        <overlays:PlaceholderOverlayContainer PresentationState="{Binding SessionInsights.State}">
+            <overlays:PlaceholderOverlayContainer.ReadyContent>
+                <StackPanel Spacing="8">
+                    <segments:SegmentTerrainComparisonView Name="TrailComparison" DataContext="{Binding SegmentComparison}" />
+                    <insightControls:SessionInsightsResponsePanel Name="ResponsePanel" DataContext="{Binding SessionInsights.Response}" />
+                </StackPanel>
+            </overlays:PlaceholderOverlayContainer.ReadyContent>
+            <overlays:PlaceholderOverlayContainer.PlaceholderContent>
+                <overlays:SurfacePlaceholderCard Title="Bike response" MinCardHeight="260" />
+            </overlays:PlaceholderOverlayContainer.PlaceholderContent>
+        </overlays:PlaceholderOverlayContainer>
+    </StackPanel>
+</UserControl>
