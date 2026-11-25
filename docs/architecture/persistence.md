@@ -63,6 +63,8 @@ erDiagram
         int terrain_outcome
         text terrain_summary
         blob profile
+        text terrain_classes_key
+        text terrain_classes
     }
 
     session_recording_source {
@@ -343,7 +345,7 @@ The repository has no `TelemetryData` read. Consumers fetch the raw blob and des
 
 `ITrackRepository.TryCommitGpsMetricsAsync` accepts a key and prepared GPS values. Its transaction selects the current full track with the common overlap rule. It compares the complete current key before it inserts or updates `session_gps_metrics`. A changed window, selected track or deleted session rejects the write. Metric writes never change `session.updated`. The table is not synchronized.
 
-The named `session-terrain-profile` migration adds a device-local table keyed by session ID. Session metadata joins its key, outcome and summary. The terrain repository checks the complete content key against the active session and track catalog in the write transaction. Exact reads fetch a profile BLOB only for a computed result with the requested key. A commit that throws leaves no row, so the `Failed` status the coordinator publishes for it is not persisted. [Terrain profiles](terrain.md)
+The named `session-terrain-profile` migration adds a device-local table keyed by session ID. `terrain-fork-names` deletes its rows once, because the stored summaries named the former lowers source; the sessions become pending and recompute. `terrain-setup-classes` adds the nullable `terrain_classes_key` and `terrain_classes` columns. Session metadata joins the profile key, outcome and summary, and the class key and class summary. The terrain repository checks the complete content key against the active session and track catalog in the write transaction. A profile commit replaces the row, so it clears the classes. Exact reads fetch a profile BLOB only for a computed result with the requested key. A commit that throws leaves no row, so the `Failed` status the coordinator publishes for it is not persisted. `CommitClassesAsync` writes the class summaries of one setup in one transaction. It updates a row only while the row holds a computed profile with the profile key of its class key, and returns the written session IDs. [Terrain profiles](terrain.md)
 
 `ITrackRepository.GetTrackSnapshotsAsync` loads active metadata without point JSON and optionally filters IDs in chunks of 500. Full-track display calls `GetTrackPayloadMetadataAsync(trackId)` and then `GetTrackPayloadAsync(trackId, pointsRevision)`. The second returns no value when that revision is unavailable. `DeleteIfUnselectedAsync` checks every active session against the current track catalog with `SessionTrackSelection`. It deletes only an unselected candidate, in the same transaction. The session-delete transaction runs the same check after it deletes its session. Session-to-track association is derived, never persisted.
 

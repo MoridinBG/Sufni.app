@@ -170,7 +170,9 @@ window is part of the session snapshot), evaluates processing staleness, and pub
   `RecordedSessionDomainSnapshot` for the recorded detail editor. The
   snapshot carries the session, setup, bike, current fingerprint,
   persisted fingerprint, source metadata (of the session's recording
-  source), selected track metadata, and staleness result. It carries facts and no change flags.
+  source), selected track metadata, and staleness result, the terrain status, the terrain scale of the session's setup and its terrain class state. It carries facts and no change flags.
+
+`SetupTerrainScaleQuery` derives the setup scales during a flush, once per affected setup, on the background runner from the captured session and track snapshots. The projection keeps a terrain generation per setup. A session change advances it and queues every session of the setup when the session is added or removed, or when its setup, profile key, outcome or measurement summary changes; a setup change does this for both setups. A change of only the class key and class summary queues only its own session. A result of an older generation is rejected and the session is queued again. The summary carries the setup ID, the scale key and the class state.
 
 The recorded detail editor compares each domain against its last handled domain,
 so deferred updates are compared with what the editor actually consumed. Runtime
@@ -337,6 +339,6 @@ committing recomputed data.
 
 ## Recorded terrain state
 
-The session domain publishes the current terrain status. The recorded editor reducer owns the tab’s pending, loaded, unavailable or failed presentation. A loaded result carries the expected profile key. A map-colouring intent updates the device-local session preference through the existing editor preference writer.
+The session domain publishes the current terrain status and the setup scale. The recorded editor reducer owns the tab’s pending, loaded, unavailable or failed presentation. A loaded result carries the expected profile key and the scale key it was classified on, and the reducer accepts it only for the current pair. A result with the same profile key keeps the fitted baseline. The reducer also holds the scale catalogue for the same-trail requests. A map-colouring intent updates the device-local session preference through the existing editor preference writer.
 
 The recorded analysis scope belongs to the editor reducer. The default scope, a chosen terrain scope and comparison with a matched session are exclusive cases. The effective terrain scope is derived from the choice and the loaded profile. A telemetry replacement resets the choice to the default. Losing the current terrain profile also releases a chosen terrain scope.

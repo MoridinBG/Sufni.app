@@ -49,7 +49,7 @@ All coordinators are singletons.
 | `IInboundSyncCoordinator` (`InboundSyncCoordinator`) | desktop only | Server-side pairing, row push/pull, and BLOB and source uploads. |
 | `IMapLayerCoordinator` (`MapLayerCoordinator`) | shared | Custom map-layer additions and the device's map-layer selection. |
 | `TrackCoordinator` | shared | GPS metric recomputation, GPX import and read-only session-track loading. |
-| `ITerrainProfileCoordinator` (`TerrainProfileCoordinator`) | shared | Device-local terrain profile backfill, editor priority and the terrain fields of published session snapshots. See [Terrain profiles](terrain.md). |
+| `ITerrainProfileCoordinator` (`TerrainProfileCoordinator`) | shared | Device-local terrain profile backfill, per-setup ride class summaries, editor priority and the terrain fields of published session snapshots. See [Terrain profiles](terrain.md). |
 | `LiveDaqCoordinator` | shared | `LiveDaqStore` writes, the browse lease, live-capture save and DAQ management. See [Live DAQ Streaming](live-streaming.md). |
 
 Details per coordinator:
@@ -93,7 +93,10 @@ Details per coordinator:
 - **`TerrainProfileCoordinator`** materializes device-local terrain profiles,
   one recording at a time, after session and track store publications. It
   commits each result under its key and publishes it onto the current session
-  snapshot. An open editor can prioritize a pending recording. See
+  snapshot. An open editor can prioritize a pending recording. When no profile
+  work remains, it classes the pending sessions of each setup on the setup
+  scale, writes their class summaries in one guarded transaction and publishes
+  them in one step. A changed scale key supersedes a class run. See
   [Terrain profiles](terrain.md).
 - **`LiveDaqCoordinator`** reconciles discovery with known boards. It activates
   when the user selects the Live primary page, so it needs no eager resolution.

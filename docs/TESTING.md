@@ -111,7 +111,7 @@ probing the machine's mounts.
 
 ## Async Test Control
 
-- Use `ManualUiThreadDispatcher` to drain queued UI work explicitly; `InlineUiThreadDispatcher` is sufficient when dispatch ordering is not under test. Do not replace the ambient synchronization context.
+- Use `ManualUiThreadDispatcher` to drain queued UI work explicitly; `InlineUiThreadDispatcher` is sufficient when dispatch ordering is not under test. Do not replace the ambient synchronization context. As on the UI thread, only the thread that runs the current callback has access, so a background continuation that calls `InvokeAsync` during a drain queues its work.
 - Use `TaskCompletionSource<T>` when the test needs to hold async work pending so it can assert intermediate states such as busy, cancellation, unload behavior, or superseded results before completion.
 - Prefer explicit control over async completion to timing-based waits or delays. `SignalingFakeTimeProvider` lets tests wait until background work has scheduled its timer before advancing virtual time; scheduling is an await point, not an assertion.
 - Bound awaits that could otherwise stall the test indefinitely. In `Sufni.App.Tests`, use the globally imported `AwaitBoundedAsync(TimeSpan)` helper for completion sources, event observations, protocol/server tasks, background drains, and similar synchronization points. The helper applies both the stated timeout and `TestContext.Current.CancellationToken`; do not replace it with an unbounded `await` or a test-local `Task.WhenAny` timeout pattern.
