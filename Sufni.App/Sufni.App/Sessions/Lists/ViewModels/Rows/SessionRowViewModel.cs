@@ -17,24 +17,30 @@ using Sufni.App.Video.Stores;
 namespace Sufni.App.Sessions.Lists.ViewModels.Rows;
 
 /// <summary>
-/// Terrain part of a session row subtitle. Descent covers all non-climb distance and needs grade; each part needs 300 m.
+/// Terrain part of a session row subtitle. Descent covers all non-climb distance and needs grade; the rough share needs
+/// a classified ride. Each part needs 300 m.
 /// </summary>
-public sealed record TerrainFingerprint(double? DescentMetres, double? ClimbMetres)
+public sealed record TerrainFingerprint(double? DescentMetres, int? RoughPercent, double? ClimbMetres)
 {
     private const double MinimumMetres = 300;
 
-    public static TerrainFingerprint? From(TerrainStatus status)
+    public static TerrainFingerprint? From(TerrainStatus status, TerrainClassState classes)
     {
         if (status is not TerrainStatus.Current { Summary: var summary }) return null;
         var descent = summary.MovingMetres - summary.ClimbMetres;
         var fingerprint = new TerrainFingerprint(descent >= MinimumMetres ? descent : null,
+            classes is TerrainClassState.Classified { Summary: { ClassifiedMetres: >= MinimumMetres } classified }
+                ? Percent(classified.RoughShare) : null,
             summary.ClimbMetres >= MinimumMetres ? summary.ClimbMetres : null);
-        return fingerprint is (null, null) ? null : fingerprint;
+        return fingerprint is (null, null, null) ? null : fingerprint;
     }
+
+    private static int Percent(double share) => (int)Math.Round(share * 100, MidpointRounding.AwayFromZero);
 
     public override string ToString() => string.Join(" · ", new[]
     {
         DescentMetres is { } descent ? $"Descent {UnitsFormatter.FormatDistance(descent)}" : null,
+        RoughPercent is { } rough ? $"{rough}% rough" : null,
         ClimbMetres is { } climb ? $"Climb {UnitsFormatter.FormatDistance(climb)}" : null
     }.OfType<string>());
 }
@@ -158,7 +164,7 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
         DateGroupKey = localTimestamp is { } value
             ? new SessionDateGroupKey(DateOnly.FromDateTime(value))
             : SessionDateGroupKey.NoDate;
-        Fingerprint = TerrainFingerprint.From(summary.Terrain);
+        Fingerprint = TerrainFingerprint.From(summary.Terrain, summary.TerrainClasses);
         SubtitleText = FormatSubtitle(
             summary.DurationSeconds,
             summary.DistanceMeters,
