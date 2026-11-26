@@ -293,6 +293,13 @@ public sealed record FailurePresentation
         SegmentWriteFailureReason.Delete => "The segment could not be deleted. Try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
+    public static FailurePresentation From(TerrainLabelWriteFailureReason reason, string? details = null) => new(reason switch
+    {
+        TerrainLabelWriteFailureReason.Create => "The terrain label could not be saved. Try again.",
+        TerrainLabelWriteFailureReason.SetClass => "The class of the terrain label could not be changed. Try again.",
+        TerrainLabelWriteFailureReason.Delete => "The terrain label could not be deleted. Try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
     public static FailurePresentation From(SegmentComparisonFailureReason reason, string? details = null) => new(reason switch
     {
         SegmentComparisonFailureReason.Match => "Segment matching failed. Try again.",

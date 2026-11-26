@@ -7,6 +7,9 @@ using Sufni.App.Segments.Coordinators;
 using Sufni.App.Segments.Models;
 using Sufni.App.Segments.Stores;
 using Sufni.App.Segments.ViewModels;
+using Sufni.App.Terrain.Coordinators;
+using Sufni.App.Terrain.Stores;
+using Sufni.App.Terrain.ViewModels;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Segments.ViewModels;
@@ -19,6 +22,9 @@ public class SegmentPickerViewModelTests
     private readonly SourceCache<SessionSegmentSnapshot, Guid> segments = new(segment => segment.Id);
     private readonly ISessionSegmentStore segmentStore = Substitute.For<ISessionSegmentStore>();
     private readonly ISegmentCoordinator segmentCoordinator = Substitute.For<ISegmentCoordinator>();
+    private readonly SourceCache<TerrainLabelSnapshot, Guid> labels = new(label => label.Id);
+    private readonly ITerrainLabelStore labelStore = Substitute.For<ITerrainLabelStore>();
+    private readonly ITerrainLabelCoordinator labelCoordinator = Substitute.For<ITerrainLabelCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly List<TelemetryTimeRange?> analysisRanges = [];
     private readonly List<FailurePresentation> errors = [];
@@ -28,6 +34,7 @@ public class SegmentPickerViewModelTests
     public SegmentPickerViewModelTests()
     {
         segmentStore.Connect().Returns(segments.Connect());
+        labelStore.Connect().Returns(labels.Connect());
         segmentCoordinator.ValidateName(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid?>()).Returns((string?)null);
         segmentCoordinator.FindStravaSegmentsAsync(Arg.Any<long?>(), Arg.Any<double?>(), Arg.Any<CancellationToken>())
             .Returns(new StravaSegmentFetchResult.NotConnected());
@@ -301,6 +308,120 @@ public class SegmentPickerViewModelTests
         Assert.False(picker.IsStravaSegmentsLoading);
     }
 
+    [Fact]
+    public void TerrainLabels_HoldTheLabelsInsideTheSessionWindowInTelemetrySeconds()
+    {
+        var kept = AddLabel(RoughnessClass.Rough, 12.5, 14.5);
+        AddLabel(RoughnessClass.Calm, 8, 11);
+        AddLabel(RoughnessClass.Calm, 12, 13, ownerKey: "other-source");
+        using var picker = CreateLoadedPicker();
+
+        sessionState.OnNext(new SegmentPickerSessionState(SessionTimestamp, 5, null, "source-hash", 10.5));
+
+        Assert.Equal(new TerrainLabelRow(kept.Id, RoughnessClass.Rough, new TelemetryTimeRange(2, 4), false),
+            Assert.Single(picker.TerrainLabels));
+    }
+
+    [Fact]
+    public void SelectTerrainLabel_SetsItsRangeAndClosesThePicker()
+    {
+        AddLabel(RoughnessClass.Rough, 2, 4);
+        using var picker = CreateLoadedPicker();
+        picker.OpenCommand.Execute(null);
+
+        picker.SelectTerrainLabelCommand.Execute(picker.TerrainLabels[0]);
+
+        Assert.Equal(new TelemetryTimeRange(2, 4), Assert.Single(analysisRanges));
+        Assert.False(picker.IsOpen);
+    }
+
+    [Fact]
+    public async Task ChangeTerrainLabelClass_CallsTheCoordinatorWithTheChosenClass()
+    {
+        var label = AddLabel(RoughnessClass.Rough, 2, 4);
+        labelCoordinator.SetClassAsync(label.Id, RoughnessClass.Calm).Returns(new TerrainLabelChangeResult.Applied());
+        RoughnessClass? offered = null;
+        AnswerClassPrompt(prompt =>
+        {
+            offered = prompt.SelectedClass;
+            prompt.SelectedClass = RoughnessClass.Calm;
+            prompt.ConfirmCommand.Execute(null);
+        });
+        using var picker = CreateLoadedPicker();
+
+        await picker.ChangeTerrainLabelClassCommand.ExecuteAsync(picker.TerrainLabels[0]);
+
+        Assert.Equal(RoughnessClass.Rough, offered);
+        await labelCoordinator.Received(1).SetClassAsync(label.Id, RoughnessClass.Calm);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DeleteTerrainLabel_DeletesOnlyAfterConfirmation(bool confirmed)
+    {
+        var label = AddLabel(RoughnessClass.Rough, 2, 4);
+        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(confirmed);
+        labelCoordinator.DeleteAsync(label.Id).Returns(new TerrainLabelChangeResult.Applied());
+        using var picker = CreateLoadedPicker();
+
+        await picker.DeleteTerrainLabelCommand.ExecuteAsync(picker.TerrainLabels[0]);
+
+        await labelCoordinator.Received(confirmed ? 1 : 0).DeleteAsync(label.Id);
+    }
+
+    [Fact]
+    public async Task LabelSelectionAsync_CreatesALabelWithTheClassOfThePrompt()
+    {
+        labelCoordinator.CreateAsync(sessionId, RoughnessClass.VeryRough, 2, 4).Returns(new TerrainLabelChangeResult.Applied());
+        AnswerClassPrompt(prompt =>
+        {
+            prompt.SelectedClass = RoughnessClass.VeryRough;
+            prompt.ConfirmCommand.Execute(null);
+        });
+        using var picker = CreateLoadedPicker();
+
+        await picker.LabelSelectionAsync(new TelemetryTimeRange(2, 4));
+
+        await labelCoordinator.Received(1).CreateAsync(sessionId, RoughnessClass.VeryRough, 2, 4);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task LabelSelectionAsync_ShowsTheOverlapMessageAndCreatesNothing()
+    {
+        labelCoordinator.ValidateRange(sessionId, 2, 4).Returns("The range overlaps a terrain label.");
+        string? shown = null;
+        AnswerClassPrompt(prompt =>
+        {
+            shown = prompt.ValidationMessage;
+            prompt.CancelCommand.Execute(null);
+        });
+        using var picker = CreateLoadedPicker();
+
+        await picker.LabelSelectionAsync(new TelemetryTimeRange(2, 4));
+
+        Assert.Equal("The range overlaps a terrain label.", shown);
+        await labelCoordinator.DidNotReceive().CreateAsync(Arg.Any<Guid>(), Arg.Any<RoughnessClass>(), Arg.Any<double>(), Arg.Any<double>());
+    }
+
+    [Fact]
+    public async Task LabelSelectionAsync_WhenTheWriteFails_ReportsError()
+    {
+        labelCoordinator.CreateAsync(sessionId, RoughnessClass.Rough, 2, 4)
+            .Returns(new TerrainLabelChangeResult.Failed(TerrainLabelWriteFailureReason.Create, "storage unavailable"));
+        AnswerClassPrompt(prompt =>
+        {
+            prompt.SelectedClass = RoughnessClass.Rough;
+            prompt.ConfirmCommand.Execute(null);
+        });
+        using var picker = CreateLoadedPicker();
+
+        await picker.LabelSelectionAsync(new TelemetryTimeRange(2, 4));
+
+        Assert.Equal(FailurePresentation.From(TerrainLabelWriteFailureReason.Create, "storage unavailable"), Assert.Single(errors));
+    }
+
     private SegmentPickerViewModel CreateLoadedPicker(double durationSeconds = 10, TelemetryTimeRange? analysisRange = null)
     {
         var picker = new SegmentPickerViewModel(
@@ -308,6 +429,8 @@ public class SegmentPickerViewModelTests
             sessionState,
             segmentStore,
             segmentCoordinator,
+            labelStore,
+            labelCoordinator,
             dialogService,
             analysisRanges.Add,
             errors.Add,
@@ -321,6 +444,23 @@ public class SegmentPickerViewModelTests
         var segment = new SessionSegmentSnapshot(Guid.NewGuid(), ownerKey, name, startSeconds, endSeconds);
         segments.AddOrUpdate(segment);
         return segment;
+    }
+
+    private TerrainLabelSnapshot AddLabel(RoughnessClass roughness, double startSeconds, double endSeconds, string ownerKey = "source-hash")
+    {
+        var label = new TerrainLabelSnapshot(Guid.NewGuid(), ownerKey, startSeconds, endSeconds, roughness);
+        labels.AddOrUpdate(label);
+        return label;
+    }
+
+    private void AnswerClassPrompt(Action<TerrainLabelClassPromptViewModel> answer)
+    {
+        dialogService.ShowContentDialogAsync(Arg.Any<TerrainLabelClassPromptViewModel>(), Arg.Any<DialogOptions>())
+            .Returns(call =>
+            {
+                answer(call.ArgAt<TerrainLabelClassPromptViewModel>(0));
+                return PromptResult.Ok;
+            });
     }
 
     private void AnswerNamePrompt(Action<SegmentNamePromptViewModel> answer)

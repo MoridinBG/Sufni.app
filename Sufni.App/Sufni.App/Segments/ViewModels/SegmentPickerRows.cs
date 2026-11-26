@@ -1,11 +1,18 @@
 using System;
 using System.Globalization;
+using Sufni.App.Terrain.Formatting;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Segments.ViewModels;
 
 public sealed record SavedSegmentRow(Guid Id, string Name, TelemetryTimeRange Range, bool IsSelected)
 {
+    public string RangeText => SegmentRangeText.Format(Range);
+}
+
+public sealed record TerrainLabelRow(Guid Id, RoughnessClass Class, TelemetryTimeRange Range, bool IsSelected)
+{
+    public string ClassName => TerrainClassText.Name(Class);
     public string RangeText => SegmentRangeText.Format(Range);
 }
 

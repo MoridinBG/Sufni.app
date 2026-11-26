@@ -15,6 +15,10 @@ using Sufni.App.Infrastructure;
 using Sufni.App.Segments.Coordinators;
 using Sufni.App.Segments.Models;
 using Sufni.App.Segments.Stores;
+using Sufni.App.Terrain.Coordinators;
+using Sufni.App.Terrain.Queries;
+using Sufni.App.Terrain.Stores;
+using Sufni.App.Terrain.ViewModels;
 namespace Sufni.App.Segments.ViewModels;
 
 /// <summary>
@@ -41,13 +45,16 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
 
     private readonly Guid sessionId;
     private readonly ISegmentCoordinator segmentCoordinator;
+    private readonly ITerrainLabelCoordinator labelCoordinator;
     private readonly IDialogService dialogService;
     private readonly Action<TelemetryTimeRange?> setAnalysisRange;
     private readonly Action<FailurePresentation> reportError;
     private readonly Action<string> reportNotification;
     private readonly IDisposable segmentsSubscription;
+    private readonly IDisposable labelsSubscription;
     private readonly IDisposable sessionStateSubscription;
     private IReadOnlyCollection<SessionSegmentSnapshot> segments = [];
+    private IReadOnlyCollection<TerrainLabelSnapshot> labels = [];
     private string? ownerKey;
     private SessionTrackTimeline ownerTimeline;
     private long? sessionTimestamp;
@@ -62,6 +69,10 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSavedSegments))]
     public partial IReadOnlyList<SavedSegmentRow> SavedSegments { get; private set; } = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasTerrainLabels))]
+    public partial IReadOnlyList<TerrainLabelRow> TerrainLabels { get; private set; } = [];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsStravaConnected), nameof(IsStravaSegmentsLoading), nameof(StravaMessage),
@@ -79,6 +90,8 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
         IObservable<SegmentPickerSessionState> sessionState,
         ISessionSegmentStore segmentStore,
         ISegmentCoordinator segmentCoordinator,
+        ITerrainLabelStore labelStore,
+        ITerrainLabelCoordinator labelCoordinator,
         IDialogService dialogService,
         Action<TelemetryTimeRange?> setAnalysisRange,
         Action<FailurePresentation> reportError,
@@ -86,6 +99,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     {
         this.sessionId = sessionId;
         this.segmentCoordinator = segmentCoordinator;
+        this.labelCoordinator = labelCoordinator;
         this.dialogService = dialogService;
         this.setAnalysisRange = setAnalysisRange;
         this.reportError = reportError;
@@ -97,11 +111,19 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
                 segments = value;
                 RefreshSavedSegments();
             });
+        labelsSubscription = labelStore.Connect()
+            .ToCollection()
+            .Subscribe(value =>
+            {
+                labels = value;
+                RefreshTerrainLabels();
+            });
         sessionStateSubscription = sessionState.DistinctUntilChanged().Subscribe(OnSessionStateChanged);
     }
 
     public bool CanOpen => telemetryDurationSeconds is not null;
     public bool HasSavedSegments => SavedSegments.Count > 0;
+    public bool HasTerrainLabels => TerrainLabels.Count > 0;
     public bool HasStravaMessage => StravaMessage is not null;
 
     // The picker closes when the telemetry is gone.
@@ -120,6 +142,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
         }
 
         RefreshSavedSegments();
+        RefreshTerrainLabels();
     }
 
     /// <summary>
@@ -136,6 +159,18 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
         {
             Report(await segmentCoordinator.CreateAsync(sessionId, name, range.StartSeconds, range.EndSeconds));
         }
+    }
+
+    /// <summary>
+    /// Asks for a class and labels <paramref name="range"/> of the session with it. A range over a label shows the
+    /// message and cannot be confirmed.
+    /// </summary>
+    public async Task LabelSelectionAsync(TelemetryTimeRange range)
+    {
+        var roughness = await PromptForClassAsync("Label terrain", "Label", null,
+            labelCoordinator.ValidateRange(sessionId, range.StartSeconds, range.EndSeconds));
+        if (roughness is { } chosen)
+            Report(await labelCoordinator.CreateAsync(sessionId, chosen, range.StartSeconds, range.EndSeconds));
     }
 
     [RelayCommand(CanExecute = nameof(CanOpenPicker))]
@@ -190,6 +225,27 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
         {
             Report(await segmentCoordinator.DeleteAsync(row.Id));
         }
+    }
+
+    [RelayCommand]
+    private void SelectTerrainLabel(TerrainLabelRow row)
+    {
+        setAnalysisRange(row.IsSelected ? null : row.Range);
+        Close();
+    }
+
+    [RelayCommand]
+    private async Task ChangeTerrainLabelClass(TerrainLabelRow row)
+    {
+        if (await PromptForClassAsync("Change terrain label", "Change", row.Class, null) is { } roughness)
+            Report(await labelCoordinator.SetClassAsync(row.Id, roughness));
+    }
+
+    [RelayCommand]
+    private async Task DeleteTerrainLabel(TerrainLabelRow row)
+    {
+        if (await dialogService.ShowConfirmationAsync("Delete terrain label?", $"Delete the {row.ClassName} label at {row.RangeText}?"))
+            Report(await labelCoordinator.DeleteAsync(row.Id));
     }
 
     [RelayCommand]
@@ -303,6 +359,44 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
         return prompt.ConfirmedName;
     }
 
+    private async Task<RoughnessClass?> PromptForClassAsync(string title, string confirmText, RoughnessClass? selected,
+        string? validationMessage)
+    {
+        var prompt = new TerrainLabelClassPromptViewModel(title, confirmText, selected, validationMessage);
+        await dialogService.ShowContentDialogAsync(
+            prompt,
+            new DialogOptions(
+                Title: title,
+                Width: 360,
+                Height: 420,
+                MinWidth: 320,
+                MinHeight: 360,
+                CanResize: false));
+        return prompt.ConfirmedClass;
+    }
+
+    private void Report(TerrainLabelChangeResult result)
+    {
+        switch (result)
+        {
+            case TerrainLabelChangeResult.SourceUnavailable:
+                reportNotification("The recording source is not available yet. Sync it, then label the terrain again.");
+                break;
+            case TerrainLabelChangeResult.SessionMissing:
+                reportNotification("Session no longer exists.");
+                break;
+            case TerrainLabelChangeResult.LabelMissing:
+                reportNotification("Terrain label no longer exists.");
+                break;
+            case TerrainLabelChangeResult.Invalid invalid:
+                reportError(new FailurePresentation(invalid.Message));
+                break;
+            case TerrainLabelChangeResult.Failed failed:
+                reportError(FailurePresentation.From(failed.Reason, failed.Details));
+                break;
+        }
+    }
+
     private void Report(SegmentChangeResult result)
     {
         switch (result)
@@ -344,6 +438,14 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
         SavedSegments = rows;
     }
 
+    private void RefreshTerrainLabels()
+    {
+        TerrainLabels = telemetryDurationSeconds is { } duration && ownerKey is { } owner
+            ? [.. TerrainLabelQuery.InWindow(labels.Where(label => label.OwnerKey == owner), ownerTimeline.OwnerOriginSeconds, duration)
+                .Select(label => new TerrainLabelRow(label.Id, label.Class, label.Range, IsSelected(label.Range)))]
+            : [];
+    }
+
     private bool IsSelected(TelemetryTimeRange segment) =>
         analysisRange is { } range &&
         Math.Abs(range.StartSeconds - segment.StartSeconds) <= RangeMatchToleranceSeconds &&
@@ -352,6 +454,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     public void Dispose()
     {
         segmentsSubscription.Dispose();
+        labelsSubscription.Dispose();
         sessionStateSubscription.Dispose();
         CancelStravaLoad();
     }

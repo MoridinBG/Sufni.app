@@ -1,3 +1,5 @@
+using Sufni.App.Terrain.Coordinators;
+using Sufni.App.Terrain.Stores;
 using Sufni.App.Shared.Models;
 using System;
 using Sufni.Telemetry;
@@ -26,6 +28,8 @@ public interface ISegmentPickerFactory
 internal sealed class SegmentPickerFactory(
     ISessionSegmentStore segmentStore,
     ISegmentCoordinator segmentCoordinator,
+    ITerrainLabelStore labelStore,
+    ITerrainLabelCoordinator labelCoordinator,
     IDialogService dialogService) : ISegmentPickerFactory
 {
     public SegmentPickerViewModel Create(
@@ -34,5 +38,6 @@ internal sealed class SegmentPickerFactory(
         Action<TelemetryTimeRange?> setAnalysisRange,
         Action<FailurePresentation> reportError,
         Action<string> reportNotification) =>
-        new(sessionId, sessionState, segmentStore, segmentCoordinator, dialogService, setAnalysisRange, reportError, reportNotification);
+        new(sessionId, sessionState, segmentStore, segmentCoordinator, labelStore, labelCoordinator, dialogService, setAnalysisRange,
+            reportError, reportNotification);
 }
