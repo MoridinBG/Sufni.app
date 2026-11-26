@@ -35,6 +35,7 @@ internal static class TerrainSourceText
                 null => coverage.ClimbReading,
                 _ => false
             }));
+        if (coverage.LabelledShare > 0) lines.Add($"Your labels set {coverage.LabelledShare:P0} of the classes of this ride.");
         foreach (var sensor in coverage.Silent) lines.Add($"{SensorName(sensor)} sensor ignored: no movement recorded.");
         return lines.Count == 0 ? null : string.Join("\n", lines);
     }

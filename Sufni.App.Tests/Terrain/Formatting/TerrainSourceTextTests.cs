@@ -63,6 +63,18 @@ public class TerrainSourceTextTests
         Assert.DoesNotContain(Assert.Single(TerrainSourceText.ScaleLines(scale, sensor => sensor == TerrainSensor.ForkImu)), description);
     }
 
+    [Fact]
+    public void LabelledShareAddsALine()
+    {
+        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0, RoughnessClass.Rough), TerrainProfiles.Window(1, RoughnessClass.Rough)]);
+        var labels = TerrainProfiles.Labels(new TerrainLabelRange(0, 1, RoughnessClass.Calm));
+        string[] Lines(TerrainLabelSet set) =>
+            TerrainSourceText.Description(RecordedSessionPresentationDeriver.CreateTerrain(TerrainClassifier.Classify(profile, TerrainProfiles.Scale, set)), null)!
+                .Split('\n');
+
+        Assert.Equal(Lines(TerrainLabelSet.None).Length + 1, Lines(labels).Length);
+    }
+
     private static IReadOnlyList<string> FrameLines(SetupTerrainScale scale) =>
         TerrainSourceText.ScaleLines(scale, sensor => sensor == TerrainSensor.FrameImu);
 

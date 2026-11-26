@@ -18,7 +18,7 @@ public class TerrainClassStripPlotViewTests
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
         view.Telemetry = TestTelemetryData.CreateProcessed(sampleRate: 20);
         view.Terrain = new([new(1, 2, RoughnessClass.Smooth), new(2, 4, RoughnessClass.Medium), new(6, 7, RoughnessClass.Rough)],
-            [new(1, 4, GradeBand.SteepDescent)], [], [], [], new([1, 0, 0, 0], false, false, false, false, false, false, []))
+            [new(1, 4, GradeBand.SteepDescent)], [], [], [], new([1, 0, 0, 0], false, false, false, false, false, false, [], 0))
         {
             RoughnessShades = [new(1, 2, RoughnessClass.Smooth, null), new(2, 4, RoughnessClass.Medium, null), new(6, 7, RoughnessClass.Rough, null)],
             GradeShades = [new(1, 4, GradeBand.SteepDescent, null)]

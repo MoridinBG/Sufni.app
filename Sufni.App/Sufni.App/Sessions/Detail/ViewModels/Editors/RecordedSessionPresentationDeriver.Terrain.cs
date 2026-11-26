@@ -25,6 +25,7 @@ internal static partial class RecordedSessionPresentationDeriver
         var shares = new double[Enum.GetValues<GroundSensors>().Length];
         bool forkClipped = false, rearAxleClipped = false, frameMissing = false, forkMissing = false, rearAxleMissing = false,
             climbReading = false;
+        int classed = 0, labelled = 0;
         for (var i = 0; i < profile.Windows.Length; i++)
         {
             var window = profile.Windows[i];
@@ -32,6 +33,11 @@ internal static partial class RecordedSessionPresentationDeriver
             var classes = classified.Windows[i];
             AddRun(roughness, window, classes.Roughness);
             AddRun(grade, window, window.Band);
+            if (classes.Roughness is not null)
+            {
+                classed++;
+                if (classes.Labelled) labelled++;
+            }
             var baseline = TerrainProfileCalculator.BaselineGrade(profile.Windows, i);
             AddShade(roughnessShades, window, classes.Roughness, !classes.Labelled && classes.Roughness?.IsClimb() == false && classes.ClassValue is { } value
                 ? Math.Round(Math.Clamp(value, -1.5, 2.5) * 4, MidpointRounding.AwayFromZero) / 4 : null);
@@ -65,7 +71,8 @@ internal static partial class RecordedSessionPresentationDeriver
         var total = Math.Max(1d, shares.Sum());
         return new(roughness.ToImmutable(), grade.ToImmutable(), frame.Build(), fork.Build(), grades.Build(),
             new([.. shares.Select(count => count / total)], forkClipped, rearAxleClipped, frameMissing, forkMissing,
-                rearAxleMissing, climbReading, profile.SilentSensors))
+                rearAxleMissing, climbReading, profile.SilentSensors,
+                labelled / Math.Max(1d, classed)))
         {
             RoughnessShades = roughnessShades.ToImmutable(),
             GradeShades = gradeShades.ToImmutable(),

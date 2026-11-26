@@ -26,10 +26,11 @@ public sealed record TerrainSignalSection(ImmutableArray<double> Seconds, Immuta
 /// How the classified descent windows read the ground. <see cref="SourceShares"/> holds the share of those windows per
 /// <see cref="GroundSensors"/> value. A clipped flag marks a clipped reading that stayed out of a class value; a missing
 /// flag marks a classified descent window without that sensor's reading. <see cref="ClimbReading"/> marks a climb window
-/// with a frame reading.
+/// with a frame reading. <see cref="LabelledShare"/> is the share of the moving windows with a class whose class is a label.
 /// </summary>
 public sealed record TerrainSourceCoverage(ImmutableArray<double> SourceShares, bool ForkClipped, bool RearAxleClipped,
-    bool FrameMissing, bool ForkMissing, bool RearAxleMissing, bool ClimbReading, ImmutableArray<TerrainSensor> Silent)
+    bool FrameMissing, bool ForkMissing, bool RearAxleMissing, bool ClimbReading, ImmutableArray<TerrainSensor> Silent,
+    double LabelledShare)
 {
     /// <summary>The source of the largest share; equal shares give the first source.</summary>
     public GroundSensors? Source

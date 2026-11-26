@@ -15,7 +15,7 @@ public class TerrainSignalPlotTests
         [new(0, 1, RoughnessClass.Calm), new(1, 3, RoughnessClass.Rough)],
         [new(0, 3, GradeBand.Descent)],
         [new([0.5, 1.5, 2.5], [1.2, 2.6, 2.8])], [], [new([0.5, 1.5, 2.5], [6, 7, 8])],
-        new([0, 0, 0, 1], false, false, false, true, false, false, []))
+        new([0, 0, 0, 1], false, false, false, true, false, false, [], 0))
     {
         FrameEdges = [0.9, 1.4, 2.2, 3.5],
         ForkEdges = [1.6, 2.5, 3.8, 5.8]
