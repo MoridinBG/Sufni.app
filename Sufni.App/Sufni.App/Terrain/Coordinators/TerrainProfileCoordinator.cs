@@ -163,7 +163,7 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
                 labelSets[s.Session.Id]) is TerrainLabelState.Pending)
             .ToImmutableDictionary(s => s.Session.Id,
                 s => new TerrainLabelKey(s.Terrain.Key, labelSets[s.Session.Id], TerrainLabels.Version));
-        var scales = SetupTerrainScaleQuery.Evaluate(snapshot, trackSnapshot)
+        var scales = SetupTerrainScaleQuery.Evaluate(snapshot, trackSnapshot, labelSets)
             .ToDictionary(pair => pair.Key, pair => pair.Value.Key);
         var classes = evaluated.Where(s => s.Session.SetupId is { } setupId && scales.ContainsKey(setupId))
             .GroupBy(s => s.Session.SetupId!.Value)

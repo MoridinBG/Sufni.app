@@ -208,7 +208,8 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
 
     private static bool TerrainChanged(SessionSnapshot previous, SessionSnapshot current) =>
         previous.TerrainProfileKey != current.TerrainProfileKey || previous.TerrainOutcome != current.TerrainOutcome ||
-        previous.TerrainSummary != current.TerrainSummary;
+        previous.TerrainSummary != current.TerrainSummary || previous.TerrainLabelKey != current.TerrainLabelKey ||
+        previous.TerrainLabelSummary != current.TerrainLabelSummary;
 
     private void AdvanceTerrain(Guid? setupId)
     {
@@ -299,6 +300,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
     {
         ProjectionInput[] inputs;
         SessionSnapshot[] setupSessions;
+        IReadOnlyDictionary<Guid, TerrainLabelSet> setupLabels;
         IReadOnlyList<TrackSnapshot> tracks;
         lock (stateGate)
         {
@@ -313,13 +315,14 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                 .Select(pair => sessionStore.Get(pair.Key))
                 .OfType<SessionSnapshot>()
                 .ToArray();
+            setupLabels = labelQuery.LabelsOf(setupSessions);
         }
         (ProjectionInput Input, RecordedSessionDomainSnapshot Domain, SessionVideoSnapshot? Video)[] results;
         try
         {
             results = await backgroundTaskRunner.RunAsync(() =>
             {
-                var scales = SetupTerrainScaleQuery.Evaluate(setupSessions, tracks);
+                var scales = SetupTerrainScaleQuery.Evaluate(setupSessions, tracks, setupLabels);
                 return inputs.Select(input =>
                 {
                     var domain = RecordedSessionDomainSnapshotFactory.Create(

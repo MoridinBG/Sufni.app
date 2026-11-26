@@ -35,10 +35,12 @@ public sealed class RecordedSessionDomainQuery(
             : null;
         if (session is null) return null;
         var tracks = trackStore.GetAll();
-        var scale = session.SetupId is { } id
-            ? SetupTerrainScaleQuery.Evaluate(sessionStore.GetAll()
-                .Where(other => other.SetupId == id && other.Id != session.Id).Append(session), tracks)[id]
-            : null;
+        SetupTerrainScale? scale = null;
+        if (session.SetupId is { } id)
+        {
+            var setupSessions = sessionStore.GetAll().Where(other => other.SetupId == id && other.Id != session.Id).Append(session).ToArray();
+            scale = SetupTerrainScaleQuery.Evaluate(setupSessions, tracks, labelQuery.LabelsOf(setupSessions))[id];
+        }
         return RecordedSessionDomainSnapshotFactory.Create(
             session,
             setup,

@@ -112,7 +112,7 @@ public static class TestSnapshots
     public static SetupTerrainScale TerrainScale(TerrainScaleKey key)
     {
         static SensorScale Sensor(int? bin) => bin is { } ready ? new SensorScale.Ready(ready) : new SensorScale.NotEnoughData(0, 0);
-        return new(Sensor(key.FrameImu), Sensor(key.ForkImu), Sensor(key.RearAxleImu), Sensor(key.FrameClimb));
+        return new(Sensor(key.FrameImu), Sensor(key.ForkImu), Sensor(key.RearAxleImu), Sensor(key.FrameClimb), TerrainLabelCoverage.None);
     }
 
     /// <summary>Stores a terrain outcome under the session's current profile key.</summary>

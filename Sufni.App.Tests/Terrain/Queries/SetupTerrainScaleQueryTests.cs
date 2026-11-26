@@ -5,6 +5,7 @@ using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Queries;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.Telemetry;
+using Sufni.Telemetry.Tests;
 
 namespace Sufni.App.Tests.Terrain.Queries;
 
@@ -48,11 +49,73 @@ public class SetupTerrainScaleQueryTests
         Assert.Equal(new SensorScale.NotEnoughData(3, 3000), scale.FrameImu);
     }
 
+    [Theory]
+    [InlineData(100, true)]
+    [InlineData(90, false)]
+    public void LabelledReadingsAnchorASensorFromOneHundredMetres(double metres, bool anchored)
+    {
+        var rides = Enumerable.Range(0, 3).Select(_ => Ride((5, 2000))).ToArray();
+        rides[0] = Labelled(rides[0], new(Bins((9, metres)), null, null, null, null));
+
+        var scale = Evaluate(rides);
+
+        Assert.Equal(anchored ? new SensorScale.Anchored(9) : new SensorScale.Ready(5), scale.FrameImu);
+        Assert.Equal(new TerrainLabelCoverage(metres, 0, 0, 0, 0), scale.Labels);
+    }
+
+    [Fact]
+    public void LabelsOfSeveralClassesAnchorTheMedianTheyAgreeOn()
+    {
+        var median = 40;
+        var profile = TerrainProfiles.Profile(Enumerable.Range(0, 20).Select(i => TerrainProfiles.Window(i) with
+        {
+            Frame = TerrainProfiles.Sensor(TerrainLevels.Median(median + (i < 10 ? 1 : -1) * TerrainLevels.BinsPerStep))
+        }));
+        var labels = new TerrainLabelSet([new TerrainLabelRange(0, 10, RoughnessClass.Rough), new TerrainLabelRange(10, 20, RoughnessClass.Calm)]);
+
+        var scale = Evaluate(Labelled(Ride((5, 2000)), TerrainLabels.Summarize(profile, labels)));
+
+        Assert.Equal(new SensorScale.Anchored(median), scale.FrameImu);
+    }
+
+    [Fact]
+    public void NewRideDoesNotMoveAnAnchoredSensor()
+    {
+        SessionSnapshot[] rides = [Labelled(Ride((5, 2000)), new(Bins((9, 200)), null, null, null, null)), Ride((5, 2000)), Ride((5, 2000))];
+
+        Assert.Equal(Evaluate(rides).FrameImu, Evaluate([.. rides, Ride((30, 9000))]).FrameImu);
+    }
+
+    [Fact]
+    public void SessionInThePendingLabelStateAddsNoLabelledReading()
+    {
+        var rides = Enumerable.Range(0, 3).Select(_ => Ride((5, 2000))).ToArray();
+        rides[0] = Labelled(rides[0], new(Bins((9, 200)), null, null, null, null)) with { TerrainLabelKey = null };
+
+        var scale = Evaluate(rides);
+
+        Assert.Equal(new SensorScale.Ready(5), scale.FrameImu);
+        Assert.Equal(TerrainLabelCoverage.None, scale.Labels);
+    }
+
+    [Theory]
+    [InlineData(100, true)]
+    [InlineData(90, false)]
+    public void ClimbLimitNeedsOneHundredMetresOfEachClimbClassAndSitsBetweenTheirMedians(double technicalMetres, bool anchored)
+    {
+        var ride = Labelled(Ride((5, 2000)), new(null, null, null, Bins((2, 100)), Bins((7, technicalMetres))));
+
+        var scale = Evaluate(ride);
+
+        Assert.Equal(anchored ? new SensorScale.Anchored(4) : new SensorScale.NotEnoughData(0, 0), scale.FrameClimb);
+        Assert.Equal(new TerrainLabelCoverage(0, 0, 0, 100, technicalMetres), scale.Labels);
+    }
+
     [Fact]
     public void SessionWithoutASetupHasNoScale()
     {
         var session = Ride((5, 6000)) with { SetupId = null };
-        Assert.Empty(SetupTerrainScaleQuery.Evaluate([session], []));
+        Assert.Empty(SetupTerrainScaleQuery.Evaluate([session], [], new Dictionary<Guid, TerrainLabelSet>()));
     }
 
     [Fact]
@@ -73,7 +136,18 @@ public class SetupTerrainScaleQueryTests
         };
 
     private static SetupTerrainScale Evaluate(params SessionSnapshot[] sessions) =>
-        SetupTerrainScaleQuery.Evaluate(sessions, [])[SetupId];
+        SetupTerrainScaleQuery.Evaluate(sessions, [], sessions.ToDictionary(session => session.Id, _ => Labels))[SetupId];
+
+    private static readonly TerrainLabelSet Labels = new([new TerrainLabelRange(0, 100, RoughnessClass.Medium)]);
+
+    /// <summary>The ride with a current label summary of <see cref="Labels"/>.</summary>
+    private static SessionSnapshot Labelled(SessionSnapshot ride, TerrainLabelSummary summary) => ride with
+    {
+        TerrainLabelKey = new(ride.TerrainProfileKey!, Labels, TerrainLabels.Version), TerrainLabelSummary = summary
+    };
+
+    private static LevelDistribution Bins(params (int Bin, double Metres)[] bins) =>
+        new(bins.ToImmutableSortedDictionary(b => b.Bin, b => b.Metres));
 
     private static SessionSnapshot Ride(params (int Bin, double Metres)[] frame)
     {

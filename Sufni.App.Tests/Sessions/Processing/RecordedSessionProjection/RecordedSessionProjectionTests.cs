@@ -371,6 +371,37 @@ public class RecordedSessionProjectionTests
     }
 
     [Fact]
+    public async Task ChangedLabelSummaryComputesTheOtherSessionsOfTheSetupAgain()
+    {
+        var scheduler = new ManualUiThreadDispatcher();
+        using var stores = new StoreFixtures();
+        var fingerprints = new ProcessingFingerprintService();
+        using var projection = stores.CreateProjection(fingerprints, scheduler);
+        var context = WithDuration(CreateCurrentContext(fingerprints));
+        var sibling = Measured(Sibling(context));
+        var labelled = Measured(context with { Source = context.Source with { SourceHash = "labelled-source" } });
+        await stores.AddAsync(labelled);
+        await stores.AddAsync(sibling);
+        await stores.AddAsync(Measured(Sibling(context)));
+        await stores.Labels.PublishLabelsAsync([new(Guid.NewGuid(), "labelled-source", 0, 5, RoughnessClass.Medium)], []);
+        await scheduler.DrainAsync();
+        var siblingDomains = new List<RecordedSessionDomainSnapshot>();
+        using var watch = projection.WatchSession(sibling.Session.Id).Subscribe(siblingDomains.Add);
+        siblingDomains.Clear();
+
+        var labels = new TerrainLabelSet([new TerrainLabelRange(0, 5, RoughnessClass.Medium)]);
+        await stores.Sessions.PublishSessionsChangedAsync([labelled.Session with
+        {
+            TerrainLabelKey = new(labelled.Session.TerrainProfileKey!, labels, TerrainLabels.Version),
+            TerrainLabelSummary = new(new LevelDistribution(System.Collections.Immutable.ImmutableSortedDictionary<int, double>.Empty.Add(9, 200)),
+                null, null, null, null)
+        }]);
+        await scheduler.DrainAsync();
+
+        Assert.Equal(new SensorScale.Anchored(9), Assert.Single(siblingDomains).TerrainScale!.FrameImu);
+    }
+
+    [Fact]
     public async Task EvaluationOfAnOlderLabelSetIsRecomputed()
     {
         var scheduler = new ManualUiThreadDispatcher();

@@ -278,6 +278,25 @@ public class TerrainProfileCoordinatorTests
     }
 
     [Fact]
+    public async Task PublishedLabelSummaryGivesClassRunsOnTheAnchoredScale()
+    {
+        await using var h = new Harness();
+        var measured = h.ReadySetup(Guid.NewGuid());
+        // Ten Rough windows on the scale at bin 0 hold 100 m of frame readings one class step above it.
+        h.Repository.Seed(measured[0].Id, measured[0].TerrainProfileKey!,
+            TerrainProfiles.Profile(Enumerable.Range(0, 10).Select(i => TerrainProfiles.Window(i, RoughnessClass.Rough))));
+        await h.StartAsync(measured);
+        await h.WaitForClassesAsync(measured[1], ScaleAt(0));
+        await h.PublishSourceAsync(measured[0]);
+
+        await h.PublishLabelAsync(measured[0], 0, 10, RoughnessClass.Medium);
+        await h.WaitForClassesAsync(measured[1], ScaleAt(OneStepUp));
+
+        Assert.NotNull(h.Sessions.Get(measured[0].Id)!.TerrainLabelSummary);
+        Assert.Equal(0, h.Sessions.Get(measured[1].Id)!.TerrainClassSummary!.RoughShare);
+    }
+
+    [Fact]
     public async Task ProfileWorkRunsBeforeLabelWorkAndLabelWorkBeforeClassWork()
     {
         await using var h = new Harness();
@@ -391,6 +410,7 @@ public class TerrainProfileCoordinatorTests
     }
 
     // Twenty level bins span one class step.
+    private const int OneStepUp = 20;
     private const int TwoStepsUp = 40;
 
     private static TerrainScaleKey ScaleAt(int frameBin) => new(frameBin, null, null, null);
