@@ -22,6 +22,7 @@ internal sealed class SignalPlotContextActions : IDisposable
     public IRelayCommand<TelemetryPlotContextMenuContext?> SetAnalysisRangeEndCommand { get; }
     public IRelayCommand<TelemetryPlotContextMenuContext?> ClearAnalysisRangeFromContextCommand { get; }
     public IAsyncRelayCommand<TelemetryPlotContextMenuContext?> SaveSelectionAsSegmentCommand { get; }
+    public IAsyncRelayCommand<TelemetryPlotContextMenuContext?> LabelSelectionCommand { get; }
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; }
 
     public SignalPlotContextActions(IObservable<RecordedSessionEditorState> state, RecordedSessionEditorActions editorActions,
@@ -44,6 +45,9 @@ internal sealed class SignalPlotContextActions : IDisposable
         SaveSelectionAsSegmentCommand = new AsyncRelayCommand<TelemetryPlotContextMenuContext?>(
             SaveSelectionAsSegmentFromPlotContextAsync,
             CanSaveSelectionAsSegmentFromPlotContext);
+        LabelSelectionCommand = new AsyncRelayCommand<TelemetryPlotContextMenuContext?>(
+            LabelSelectionFromPlotContextAsync,
+            CanLabelSelectionFromPlotContext);
         SignalPlotContextMenuActionsBySignalRowId = CreateSignalPlotContextMenuActionsBySignalRowId(
             autozoom.ActionsBySignalRowId, alignment, windowEdits);
         stateSubscription = state.Subscribe(value =>
@@ -53,6 +57,7 @@ internal sealed class SignalPlotContextActions : IDisposable
             SetAnalysisRangeEndCommand.NotifyCanExecuteChanged();
             ClearAnalysisRangeFromContextCommand.NotifyCanExecuteChanged();
             SaveSelectionAsSegmentCommand.NotifyCanExecuteChanged();
+            LabelSelectionCommand.NotifyCanExecuteChanged();
         });
     }
 
@@ -119,6 +124,10 @@ internal sealed class SignalPlotContextActions : IDisposable
             "save-current-selection",
             "Save current selection",
             SaveSelectionAsSegmentCommand);
+        var labelSelection = new TelemetryPlotContextMenuAction(
+            "label-current-selection",
+            "Terrain > Label current selection",
+            LabelSelectionCommand);
         TelemetryPlotContextMenuAction[] actions =
         [
             setAnalysisRangeStart,
@@ -135,6 +144,7 @@ internal sealed class SignalPlotContextActions : IDisposable
             split,
             undoTrim,
             saveSelectionAsSegment,
+            labelSelection,
         ];
 
         return new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>
@@ -228,4 +238,11 @@ internal sealed class SignalPlotContextActions : IDisposable
             ? segmentPicker.SaveSelectionAsync(context!.AnalysisRange!.Value)
             : Task.CompletedTask;
 
+    private bool CanLabelSelectionFromPlotContext(TelemetryPlotContextMenuContext? context) =>
+        CanSaveSelectionAsSegmentFromPlotContext(context) && currentState.Terrain is RecordedTerrainState.Loaded;
+
+    private Task LabelSelectionFromPlotContextAsync(TelemetryPlotContextMenuContext? context) =>
+        CanLabelSelectionFromPlotContext(context)
+            ? segmentPicker.LabelSelectionAsync(context!.AnalysisRange!.Value)
+            : Task.CompletedTask;
 }

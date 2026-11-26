@@ -12,6 +12,7 @@ internal sealed class TelemetryPlotContextMenu : IPlotMenu
     [
         "zoom-selection",
         "save-current-selection",
+        "label-current-selection",
         "analysis-range-set-start",
         "analysis-range-clear",
         "gps-mark-gps-event",
@@ -205,6 +206,7 @@ internal sealed class TelemetryPlotContextMenu : IPlotMenu
         return id switch
         {
             "save-current-selection" => "Analysis > Save current selection",
+            "label-current-selection" => "Terrain > Label current selection",
             "analysis-range-set-start" => "Analysis > Start here",
             "analysis-range-clear" => "Analysis > Clear",
             "gps-mark-gps-event" => "Sync > Mark GPS event",
