@@ -49,7 +49,8 @@ All coordinators are singletons.
 | `IInboundSyncCoordinator` (`InboundSyncCoordinator`) | desktop only | Server-side pairing, row push/pull, and BLOB and source uploads. |
 | `IMapLayerCoordinator` (`MapLayerCoordinator`) | shared | Custom map-layer additions and the device's map-layer selection. |
 | `TrackCoordinator` | shared | GPS metric recomputation, GPX import and read-only session-track loading. |
-| `ITerrainProfileCoordinator` (`TerrainProfileCoordinator`) | shared | Device-local terrain profile backfill, per-setup ride class summaries, editor priority and the terrain fields of published session snapshots. See [Terrain profiles](terrain.md). |
+| `ITerrainProfileCoordinator` (`TerrainProfileCoordinator`) | shared | Device-local terrain profile backfill, label summaries, per-setup ride class summaries, editor priority and the terrain fields of published session snapshots. See [Terrain profiles](terrain.md). |
+| `ITerrainLabelCoordinator` (`TerrainLabelCoordinator`) | shared | Terrain label create, class change and delete, the overlap check, and publication to `TerrainLabelStore`. See [Labels](terrain.md#labels). |
 | `LiveDaqCoordinator` | shared | `LiveDaqStore` writes, the browse lease, live-capture save and DAQ management. See [Live DAQ Streaming](live-streaming.md). |
 
 Details per coordinator:
@@ -90,14 +91,29 @@ Details per coordinator:
   `TrackStore` and reads its points through `ISessionTrackReader`. GPS
   alignment belongs to `SessionCoordinator.ShiftGpsOffsetAsync`, which uses the
   same selection rule.
-- **`TerrainProfileCoordinator`** materializes device-local terrain profiles,
-  one recording at a time, after session and track store publications. It
-  commits each result under its key and publishes it onto the current session
-  snapshot. An open editor can prioritize a pending recording. When no profile
-  work remains, it classes the pending sessions of each setup on the setup
-  scale, writes their class summaries in one guarded transaction and publishes
-  them in one step. A changed scale key supersedes a class run. See
-  [Terrain profiles](terrain.md).
+- **`TerrainProfileCoordinator`** is the reconciler of the terrain
+  derivations and the one owner of their work. It observes the commits of the
+  session, track, label and recorded-source stores, including its own results
+  on the session snapshots. Each commit starts one evaluation that compares the
+  stored keys with the current inputs and gives all pending work in a fixed
+  order: profiles, label summaries, classes. No other owner signals staleness
+  (manifest §3) or starts terrain work (§6), and the order lives in one
+  evaluation, not in a chain of observers (§4). It materializes profiles one
+  recording at a time, commits each result under its key and publishes it onto
+  the current session snapshot. An open editor can prioritize a pending
+  recording. When no profile work remains, one label run summarizes the
+  labelled readings of the pending sessions and writes them in one guarded
+  transaction. Then it classes the pending sessions of each setup on the setup
+  scale with their label sets, writes their class summaries in one guarded
+  transaction and publishes them in one step. A changed label run cancels the
+  active label run; a changed scale key or class key supersedes a class run.
+  See [Terrain profiles](terrain.md).
+- **`TerrainLabelCoordinator`** is the one writer of terrain labels. It
+  converts a session range to owner seconds of the recording source, rejects
+  an overlap with a label of the same source, writes on the background runner
+  and publishes the snapshot or the removal. It returns a typed
+  `TerrainLabelChangeResult`. View models show the class prompt and forward the
+  intent.
 - **`LiveDaqCoordinator`** reconciles discovery with known boards. It activates
   when the user selects the Live primary page, so it needs no eager resolution.
   The shell routes diagnostics and live-session editor keys. `EditorFactory`
@@ -401,7 +417,7 @@ Shared registrations in `AppComposition`:
   `RecordedSessionProjection/` beside the reprocessor.
 - **Data refresh**: `AppDataRefresher` behind `IAppDataRefresher`. It refreshes
   bikes, setups, sessions, recorded-session sources, paired devices, session
-  videos, session segments, tracks, boards and custom tile layers off-thread.
+  videos, session segments, terrain labels, tracks, boards and custom tile layers off-thread.
   It prepares every snapshot before it publishes one UI-thread batch.
   Concurrent requests share the active refresh. Failure or cancellation before
   publication preserves all existing stores.

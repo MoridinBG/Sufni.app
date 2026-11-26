@@ -23,6 +23,7 @@ implementation lives in each slice's store folder (e.g. `Bikes/Stores/`,
 | `SessionVideoStore`          | `ISessionVideoStore`            | `ISessionVideoStoreWriter`          | `SessionVideoSnapshot`            | `Guid`   |
 | `SessionSegmentStore`        | `ISessionSegmentStore`          | `ISessionSegmentStoreWriter`        | `SessionSegmentSnapshot`          | `Guid`   |
 | `CustomTileLayerStore` | `ICustomTileLayerStore` | `ICustomTileLayerStoreWriter` | `CustomTileLayerSnapshot` | `Guid` |
+| `TerrainLabelStore`          | `ITerrainLabelStore`            | `ITerrainLabelStoreWriter`          | `TerrainLabelSnapshot`            | `Guid`   |
 | `BoardStore`                 | `IBoardStore`                  | `IBoardStoreWriter`                | `BoardSnapshot`                 | `Guid` |
 | `PairedDeviceStore`          | `IPairedDeviceStore`            | `IPairedDeviceStoreWriter`          | `PairedDeviceSnapshot`            | `string` |
 | `LiveDaqStore`               | `ILiveDaqStore`                 | `ILiveDaqStoreWriter`               | `LiveDaqSnapshot`                 | `string` |
@@ -170,9 +171,9 @@ window is part of the session snapshot), evaluates processing staleness, and pub
   `RecordedSessionDomainSnapshot` for the recorded detail editor. The
   snapshot carries the session, setup, bike, current fingerprint,
   persisted fingerprint, source metadata (of the session's recording
-  source), selected track metadata, and staleness result, the terrain status, the terrain scale of the session's setup and its terrain class state. It carries facts and no change flags.
+  source), selected track metadata, and staleness result, the terrain status, the terrain scale of the session's setup, its terrain label set and its terrain class state. It carries facts and no change flags.
 
-`SetupTerrainScaleQuery` derives the setup scales during a flush, once per affected setup, on the background runner from the captured session and track snapshots. The projection keeps a terrain generation per setup. A session change advances it and queues every session of the setup when the session is added or removed, or when its setup, profile key, outcome or measurement summary changes; a setup change does this for both setups. A change of only the class key and class summary queues only its own session. A result of an older generation is rejected and the session is queued again. The summary carries the setup ID, the scale key and the class state.
+`SetupTerrainScaleQuery` derives the setup scales during a flush, once per affected setup, on the background runner from the captured session and track snapshots and the label sets of the setup's sessions. The projection keeps a terrain generation per setup. A session change advances it and queues every session of the setup when the session is added or removed, or when its setup, profile key, outcome, measurement summary, label key or label summary changes; a setup change does this for both setups. A label change advances the generation of the setup of each session of its source (`ITerrainLabelQuery.SessionsOf`). A change of only the class key and class summary queues only its own session. A result of an older generation is rejected and the session is queued again. The summary carries the setup ID, the scale key and the class state.
 
 The recorded detail editor compares each domain against its last handled domain,
 so deferred updates are compared with what the editor actually consumed. Runtime
@@ -328,6 +329,8 @@ the bike delete transaction, and `BikeCoordinator.DeleteAsync` maps a rejection 
 
 `BoardStore` is refreshed with the startup/full-refresh batch. Setup save, delete and import transactions return affected board IDs; `SetupCoordinator` reads their authoritative snapshots and publishes them with setup/bike changes in one batch. Desktop inbound sync prepares authoritative board snapshots even for board-only arrivals and publishes removals for missing rows. `ISetupBoardQuery` emits `SetupDetails` rows only after a relevant publication commits, so setup/board batches are observed coherently. Board-only changes update list rows and subsequent editor creation. Its exact-board lookup resolves import selection through `BoardSnapshot.SetupId`; the displayed association uses the lowest board ID if several boards reference one setup. Its change stream also notifies lookup consumers when a second board changes without changing that displayed association.
 
+`ITerrainLabelQuery` derives the label set of a session from `ISessionStore`, `IRecordedSessionSourceStore` and `ITerrainLabelStore`: the labels that the session window holds fully, in telemetry seconds. `SessionsOf(ownerKey)` gives the sessions of a source. `ForSetup(setupId)` gives the setup scale and the label rows of the sessions of a setup, newest session first. `Changes` emits after each publication commit that holds the session, source, track or label store, so the setup editor reads one coherent state. It owns no collection. See [terrain.md](terrain.md#labels).
+
 `IRecordedSessionDomainQuery` lives in `RecordedSessionProjection/` rather than
 `Queries/`, but it follows the same command-side rule: it answers one
 current business question without owning a collection. It joins the
@@ -339,6 +342,6 @@ committing recomputed data.
 
 ## Recorded terrain state
 
-The session domain publishes the current terrain status and the setup scale. The recorded editor reducer owns the tab’s pending, loaded, unavailable or failed presentation. A loaded result carries the expected profile key and the scale key it was classified on, and the reducer accepts it only for the current pair. A result with the same profile key keeps the fitted baseline. The reducer also holds the scale catalogue for the same-trail requests. A map-colouring intent updates the device-local session preference through the existing editor preference writer.
+The session domain publishes the current terrain status and the setup scale. The recorded editor reducer owns the tab’s pending, loaded, unavailable or failed presentation. A loaded result carries the expected profile key, the scale key and the label set it was classified with, and the reducer accepts it only for the current group. A result with the same profile key keeps the fitted baseline. The reducer also holds the scale catalogue for the same-trail requests. A map-colouring intent updates the device-local session preference through the existing editor preference writer.
 
 The recorded analysis scope belongs to the editor reducer. The default scope, a chosen terrain scope and comparison with a matched session are exclusive cases. The effective terrain scope is derived from the choice and the loaded profile. A telemetry replacement resets the choice to the default. Losing the current terrain profile also releases a chosen terrain scope.
