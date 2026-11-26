@@ -1,12 +1,24 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
+using System.Reactive;
+using System.Reactive.Linq;
+using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Store;
+using Sufni.App.Shared.Stores;
+using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Stores;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Terrain.Queries;
+
+public sealed record SetupTerrainLabelRow(Guid LabelId, Guid SessionId, string SessionName, long Timestamp, RoughnessClass Class,
+    TelemetryTimeRange Range);
+
+/// <summary>The scale of a setup, null without a session, and the labels inside the windows of its sessions.</summary>
+public sealed record SetupTerrainLabels(SetupTerrainScale? Scale, ImmutableArray<SetupTerrainLabelRow> Labels);
 
 /// <summary>The terrain labels of sessions. Labels belong to a recording source; a session holds those inside its window.</summary>
 public interface ITerrainLabelQuery
@@ -17,13 +29,26 @@ public interface ITerrainLabelQuery
 
     /// <summary>The sessions whose recording source has the given owner key.</summary>
     IReadOnlyList<Guid> SessionsOf(string ownerKey);
+
+    /// <summary>The label rows of the sessions of a setup, newest session first and then in order of start.</summary>
+    SetupTerrainLabels ForSetup(Guid setupId);
+
+    /// <summary>Emits after each publication that changes a session, a source, a track or a label.</summary>
+    IObservable<Unit> Changes { get; }
 }
 
 internal sealed class TerrainLabelQuery(
     ISessionStore sessionStore,
     IRecordedSessionSourceStore sources,
-    ITerrainLabelStore labels) : ITerrainLabelQuery
+    ITerrainLabelStore labels,
+    ITrackStore tracks,
+    StorePublication publication) : ITerrainLabelQuery
 {
+    public IObservable<Unit> Changes { get; } = publication.Committed
+        .Where(commit => commit.Stores.Contains(sessionStore) || commit.Stores.Contains(sources) ||
+                         commit.Stores.Contains(tracks) || commit.Stores.Contains(labels))
+        .Select(_ => Unit.Default);
+
     /// <summary>
     /// The labels that the session window holds fully, in telemetry seconds, in order of start and then of ID.
     /// </summary>
@@ -42,18 +67,28 @@ internal sealed class TerrainLabelQuery(
         return result;
     }
 
-    public TerrainLabelSet LabelsOf(SessionSnapshot session)
-    {
-        if (session.DurationSeconds is not > 0 || OwnerKey(session) is not { } ownerKey) return TerrainLabelSet.None;
-        return new([.. InWindow(labels.GetForOwner(ownerKey), session.WindowStartSeconds, session.DurationSeconds.Value)
-            .Select(l => new TerrainLabelRange(l.Range.StartSeconds, l.Range.EndSeconds, l.Class))]);
-    }
+    public TerrainLabelSet LabelsOf(SessionSnapshot session) =>
+        new([.. LabelsInWindow(session).Select(l => new TerrainLabelRange(l.Range.StartSeconds, l.Range.EndSeconds, l.Class))]);
 
     public IReadOnlyDictionary<Guid, TerrainLabelSet> LabelsOf(IEnumerable<SessionSnapshot> sessions) =>
         sessions.ToDictionary(s => s.Id, LabelsOf);
 
     public IReadOnlyList<Guid> SessionsOf(string ownerKey) =>
         [.. sessionStore.GetAll().Where(s => OwnerKey(s) == ownerKey).Select(s => s.Id)];
+
+    public SetupTerrainLabels ForSetup(Guid setupId)
+    {
+        var sessions = sessionStore.GetAll().Where(s => s.SetupId == setupId).ToArray();
+        if (sessions.Length == 0) return new(null, []);
+        var scale = SetupTerrainScaleQuery.Evaluate(sessions, tracks.GetAll(), LabelsOf(sessions)).GetValueOrDefault(setupId);
+        return new(scale, [.. sessions.OrderByDescending(s => s.Timestamp).SelectMany(session => LabelsInWindow(session)
+            .Select(l => new SetupTerrainLabelRow(l.Id, session.Id, session.Name, session.Timestamp ?? 0, l.Class, l.Range)))]);
+    }
+
+    private IReadOnlyList<(Guid Id, TelemetryTimeRange Range, RoughnessClass Class)> LabelsInWindow(SessionSnapshot session) =>
+        session.DurationSeconds is > 0 && OwnerKey(session) is { } ownerKey
+            ? InWindow(labels.GetForOwner(ownerKey), session.WindowStartSeconds, session.DurationSeconds.Value)
+            : [];
 
     private string? OwnerKey(SessionSnapshot session) => sources.Get(session.RecordingSourceSessionId)?.SourceHash;
 }

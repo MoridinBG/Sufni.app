@@ -476,7 +476,7 @@ public class TerrainProfileCoordinatorTests
             Labels = new TerrainLabelStore(publication);
             Sources = new RecordedSessionSourceStore(publication);
             Coordinator = new(Sessions, tracks, content, Points, Repository, runner, Dispatcher, publication, Labels,
-                new TerrainLabelQuery(Sessions, Sources, Labels), Sources);
+                new TerrainLabelQuery(Sessions, Sources, Labels, tracks, publication), Sources);
         }
 
         /// <summary>

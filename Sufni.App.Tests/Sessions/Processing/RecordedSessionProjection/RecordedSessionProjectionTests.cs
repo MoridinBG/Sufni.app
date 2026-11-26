@@ -739,7 +739,7 @@ public class RecordedSessionProjectionTests
             Tracks,
             Videos,
             Labels,
-            new TerrainLabelQuery(Sessions, Sources, Labels),
+            new TerrainLabelQuery(Sessions, Sources, Labels, Tracks, Publication),
             new UiThreadRecordedSessionProjectionScheduler(scheduler));
 
         public async Task AddAsync(TestContext context)

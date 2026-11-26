@@ -1,4 +1,5 @@
 using NSubstitute;
+using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Shared.Stores;
@@ -12,7 +13,8 @@ public sealed class TerrainLabelQueryTests : IDisposable
 {
     private readonly ISessionStore sessionStore = Substitute.For<ISessionStore>();
     private readonly IRecordedSessionSourceStore sourceStore = Substitute.For<IRecordedSessionSourceStore>();
-    private readonly TerrainLabelStore labels = new(new StorePublication(new InlineUiThreadDispatcher()));
+    private readonly StorePublication publication = new(new InlineUiThreadDispatcher());
+    private readonly TerrainLabelStore labels;
     private readonly Guid sourceId = Guid.NewGuid();
     private readonly TerrainLabelQuery query;
 
@@ -20,10 +22,17 @@ public sealed class TerrainLabelQueryTests : IDisposable
     {
         sourceStore.Get(sourceId).Returns(new RecordedSessionSourceSnapshot(
             sourceId, RecordedSessionSourceKind.ImportedSst, "ride.SST", 1, "source-hash"));
-        query = new TerrainLabelQuery(sessionStore, sourceStore, labels);
+        labels = new(publication);
+        var tracks = Substitute.For<ITrackStore>();
+        tracks.GetAll().Returns([]);
+        query = new TerrainLabelQuery(sessionStore, sourceStore, labels, tracks, publication);
     }
 
-    public void Dispose() => labels.Dispose();
+    public void Dispose()
+    {
+        labels.Dispose();
+        publication.Dispose();
+    }
 
     [Fact]
     public async Task LabelInsideTheSessionWindowIsInTheSetInTelemetrySeconds()
@@ -80,6 +89,46 @@ public sealed class TerrainLabelQueryTests : IDisposable
         sessionStore.GetAll().Returns([first, TestSnapshots.Session(), second]);
 
         Assert.Equal([first.Id, second.Id], query.SessionsOf("source-hash"));
+    }
+
+    [Fact]
+    public async Task ForSetupGivesTheRowsOfItsSessionsNewestFirstAndTheScale()
+    {
+        var setupId = Guid.NewGuid();
+        var older = Session(0, 20) with { SetupId = setupId, Timestamp = 100 };
+        var newer = Session(20, 20) with { SetupId = setupId, Timestamp = 200 };
+        sessionStore.GetAll().Returns([older, Session(0, 40), newer]);
+        TerrainLabelSnapshot first = Label(2, 4, RoughnessClass.Calm), second = Label(22, 24, RoughnessClass.Rough),
+            third = Label(30, 32, RoughnessClass.Smooth);
+        await labels.PublishLabelsAsync([third, first, second], []);
+
+        var result = query.ForSetup(setupId);
+
+        Assert.Equal([(second.Id, newer.Id, 2d), (third.Id, newer.Id, 10d), (first.Id, older.Id, 2d)],
+            result.Labels.Select(row => (row.LabelId, row.SessionId, row.Range.StartSeconds)));
+        Assert.NotNull(result.Scale);
+    }
+
+    [Fact]
+    public void SetupWithoutASessionHasNoScaleAndNoRows()
+    {
+        sessionStore.GetAll().Returns([Session(0, 20)]);
+
+        var result = query.ForSetup(Guid.NewGuid());
+
+        Assert.Null(result.Scale);
+        Assert.Empty(result.Labels);
+    }
+
+    [Fact]
+    public async Task ChangesEmitsOnALabelPublication()
+    {
+        var changes = 0;
+        using var subscription = query.Changes.Subscribe(_ => changes++);
+
+        await labels.PublishLabelsAsync([Label(2, 4, RoughnessClass.Calm)], []);
+
+        Assert.Equal(1, changes);
     }
 
     private SessionSnapshot Session(double windowStart, double duration) => TestSnapshots.Session() with
