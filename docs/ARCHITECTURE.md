@@ -57,6 +57,8 @@ Scenario-specific solutions live at the repository root:
 - `Sufni.Android.sln` — Android workflow solution
 - `Sufni.iOS.sln` — iOS workflow solution
 
+`analysis/terrain/` holds the Python scripts and the .NET export tool that measured the terrain thresholds. They read a copy of the app database. No build and no test uses them. See its `README.md`.
+
 ### Domain-slice layout (`Sufni.App/Sufni.App/`)
 
 The shared app is organized **domain-slice-first**: top-level folders are feature/domain
@@ -73,7 +75,7 @@ layering rules apply across slices in the same way.
 | **Acquisition** | `Acquisition/` | Telemetry import + DAQ management (`Services/Management`), data-store models, import UI |
 | **SyncAndPairing** | `SyncAndPairing/` | Client sync + pairing coordinators/services/VMs (desktop sync server stays in `Sufni.App.Desktop`) |
 | **MapsAndTracks** | `MapsAndTracks/` | Map view + interaction/viewport controllers, track geometry, track signal plot |
-| **Terrain** | `Terrain/` | Device-local terrain profiles and per-setup ride classes: profile coordinator and repository, status, setup scale, baseline and selection queries, analysis scope and terrain presentation models, the terrain scope VM with its chip, banner and legend views, the shared response report and Ground & comfort views, class strip and signal plots, and the terrain display text with the response, Ground & comfort and climbing reports in `Formatting/`. [Terrain profiles](architecture/terrain.md) |
+| **Terrain** | `Terrain/` | Device-local terrain profiles, synchronized terrain labels and per-setup ride classes: profile coordinator and repository, label store, coordinator and repository, status, setup scale, label, baseline and selection queries, analysis scope and terrain presentation models, the terrain scope VM with its chip, banner and legend views, the setup label section and the label class prompt, the shared response report and Ground & comfort views, class strip and signal plots, and the terrain display text with the response, Ground & comfort and climbing reports in `Formatting/`. [Terrain profiles](architecture/terrain.md) |
 | **Video** | `Video/` | Session video: clip links, store, import/alignment coordinator, video pane and playback, player contracts |
 | **Segments** | `Segments/` | Saved segments of recorded sessions: model, repository, store, coordinator, segments picker, Strava segment efforts |
 | **Shell** | `Shell/` | App shell: `ShellRootViewModel`, `ShellWorkspaceViewModel`, `MainPagesViewModel`, shell coordinator, profile shell views, navigation behaviors, keyboard shortcuts, installation preferences and shell-dependent list/editor bases |
@@ -246,10 +248,10 @@ Presentation-layer topics:
   - [Cancellation & Result Coherence](architecture/ui.md#cancellation--result-coherence) — cancellation as neutral exit, stale-result guards
 - [Result Shapes](architecture/ui.md#result-shapes) — closed result hierarchies with sealed `Saved`/`Conflict`/`Failed` cases and similar service outcomes
 - [Testing Boundaries](architecture/ui.md#testing-boundaries) — what each layer's tests assert
-- [Stores](architecture/ui-state.md#stores) — `BikeStore`, `SetupStore`, `SessionStore`, `RecordedSessionSourceStore`, `PairedDeviceStore`; snapshot model and conflict baseline
+- [Stores](architecture/ui-state.md#stores) — `BikeStore`, `SetupStore`, `SessionStore`, `RecordedSessionSourceStore`, `PairedDeviceStore`, `TerrainLabelStore`; snapshot model and conflict baseline
 - [Recorded Session Projection](architecture/ui-state.md#recorded-session-projection) — `IRecordedSessionProjection`, summaries, domain snapshots, staleness, and recompute inputs
-- [Queries](architecture/ui-state.md#queries) — dependency, known-board, and recorded-session domain query patterns
-- [Coordinators](architecture/ui-workflows.md#coordinators) — entity, shell, sync, pairing, import, inbound-sync coordinators; eager-resolution rules
+- [Queries](architecture/ui-state.md#queries) — dependency, known-board, recorded-session domain and terrain label query patterns
+- [Coordinators](architecture/ui-workflows.md#coordinators) — entity, shell, sync, pairing, import, inbound-sync and terrain label coordinators; eager-resolution rules
 - [Trim and split](architecture/ui-workflows.md#trim-and-split) — recorded-session window edits, their transactions, and the recompute that follows
 - [Dependency Injection](architecture/ui-workflows.md#dependency-injection) — `PlatformRoot`, `AppComposition`, shared vs platform registrations, eager resolution
 - [Navigation](architecture/ui-workflows.md#navigation) — `IShellCoordinator`, shared workspace tabs, compact/workspace shell presentation
@@ -328,8 +330,9 @@ Topics in [architecture/segments.md](architecture/segments.md):
 - [Store And Coordinator](architecture/segments.md#store-and-coordinator) — `SessionSegmentStore`, `SegmentCoordinator`, name rule
 - [Synchronization](architecture/segments.md#synchronization) — segment list in the sync payload
 - [Trim And Split](architecture/segments.md#trim-and-split) — how windows select source-owned segments
-- [Segments Picker](architecture/segments.md#segments-picker) — per-editor picker, "Save current selection", name prompt
+- [Segments Picker](architecture/segments.md#segments-picker) — per-editor picker, "Save current selection", "Label current selection", terrain label rows, name and class prompts
 - [Strava](architecture/segments.md#strava) — `IStravaSegmentService` behind `ISegmentCoordinator`, connect dialog, cancellation on close
+- [Matching And Comparison](architecture/segments.md#matching-and-comparison) — matched runs, analysis comparison, same-trail terrain with the tune block, trail average
 
 ---
 
@@ -421,7 +424,7 @@ SQLite via the sqlite-net API (`sqlite-net-e` package) with WAL mode.
 
 Topics in [architecture/persistence.md](architecture/persistence.md):
 
-- [Schema](architecture/persistence.md#schema) — ER diagram for `session`, `bike`, `setup`, `board`, `track`, `session_recording_source`, `sync`, `paired_device`
+- [Schema](architecture/persistence.md#schema) — ER diagram for `session`, `bike`, `setup`, `board`, `track`, `session_recording_source`, `terrain_label`, `sync`, `paired_device`
 - [SQLite Persistence Repositories](architecture/persistence.md#sqlite-persistence-repositories) — generic `Synchronizable` operations, processed-session transactions, session blob ops, and recorded-source ops
 - [Soft Delete](architecture/persistence.md#soft-delete) — `Deleted` timestamp, 1-day purge window, expired-pair cleanup
 - [Conflict Resolution](architecture/persistence.md#conflict-resolution) — one version/deletion/timestamp/writer ordering on both devices
