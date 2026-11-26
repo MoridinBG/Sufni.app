@@ -18,6 +18,7 @@ using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Stores;
+using Sufni.App.Terrain.Stores;
 using Sufni.App.Tests.TestSupport.Persistence;
 
 namespace Sufni.App.Tests.TestSupport.Sync;
@@ -40,6 +41,7 @@ internal sealed class InboundSyncFixture : IAsyncDisposable
     public RecordedSessionSourceStore Sources { get; }
     public TrackStore Tracks { get; }
     public SessionSegmentStore Segments { get; }
+    public TerrainLabelStore TerrainLabels { get; }
 
     public InboundSyncFixture(IUiThreadDispatcher dispatcher, bool inMemory = false)
     {
@@ -57,6 +59,7 @@ internal sealed class InboundSyncFixture : IAsyncDisposable
         Sources = new(Publication);
         Tracks = new(Publication);
         Segments = new(Publication);
+        TerrainLabels = new(Publication);
     }
 
     public InboundSyncCoordinator CreateCoordinator(ISyncDataStore? dataStore = null, IRecordedSessionSourceRepository? sourceRepository = null)
@@ -76,7 +79,8 @@ internal sealed class InboundSyncFixture : IAsyncDisposable
         dataStore ?? Database.SyncDataStore,
         Database.GetRepository<Bike>(), Database.GetRepository<Setup>(), Database.GetRepository<Board>(),
         Database.GetRepository<CustomTileLayer>(), Database.SessionRepository, Database.TrackRepository,
-        Database.SessionSegmentRepository, Bikes, Setups, Boards, Layers, Sessions, Tracks, Segments,
+        Database.SessionSegmentRepository, Database.TerrainLabelRepository, Bikes, Setups, Boards, Layers, Sessions, Tracks, Segments,
+        TerrainLabels,
         Publication, new InlineBackgroundTaskRunner(), dispatcher);
 
     public async ValueTask DisposeAsync()
@@ -92,6 +96,7 @@ internal sealed class InboundSyncFixture : IAsyncDisposable
         Sources.Dispose();
         Tracks.Dispose();
         Segments.Dispose();
+        TerrainLabels.Dispose();
         Publication.Dispose();
         file?.Dispose();
     }

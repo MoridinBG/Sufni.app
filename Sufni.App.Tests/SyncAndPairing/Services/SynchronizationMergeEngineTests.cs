@@ -15,6 +15,7 @@ using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.Terrain.Models;
 using Sufni.App.Tests.TestSupport.Persistence;
 using Sufni.App.Tests.TestSupport.Sync;
 namespace Sufni.App.Tests.SyncAndPairing.Services;
@@ -382,6 +383,32 @@ public class SynchronizationMergeEngineTests
 
         var merged = Assert.Single(await hub.SessionSegmentRepository.GetLiveAsync());
         Assert.Equal((segment.Id, "source-hash", "climb"), (merged.Id, merged.OwnerKey, merged.Name));
+    }
+
+    [Fact]
+    public async Task TerrainLabel_TravelsAndMergesWithItsClass_AndItsDeletionFollows()
+    {
+        using var deviceDatabase = new TempDatabase("label-device.db");
+        using var hubDatabase = new TempDatabase("label-hub.db");
+        await using var device = new TestPersistenceHarness(deviceDatabase.DatabasePath, writerId: "device");
+        await using var hub = new TestPersistenceHarness(hubDatabase.DatabasePath, writerId: "hub");
+        var label = new TerrainLabel { OwnerKey = "source-hash", StartSeconds = 1, EndSeconds = 4, Class = RoughnessClass.Rough };
+        await device.TerrainLabelRepository.InsertAsync(label);
+
+        var added = await hub.SyncDataStore.MergeAllAsync(AppJson.Deserialize<SynchronizationData>(
+            AppJson.Serialize(await device.GetSynchronizationDataAsync(0, long.MaxValue)))!);
+
+        Assert.Equal([label.Id], added.TerrainLabelIds);
+        var merged = Assert.Single(await hub.TerrainLabelRepository.GetLiveAsync());
+        Assert.Equal((label.Id, "source-hash", RoughnessClass.Rough), (merged.Id, merged.OwnerKey, merged.Class));
+
+        var bound = await device.GetSequenceUpperBoundAsync(SynchronizationDirection.Push);
+        await device.TerrainLabelRepository.DeleteAsync(label.Id);
+        var removed = await hub.SyncDataStore.MergeAllAsync(AppJson.Deserialize<SynchronizationData>(
+            AppJson.Serialize(await device.GetSynchronizationDataAsync(bound, long.MaxValue)))!);
+
+        Assert.Equal([label.Id], removed.TerrainLabelIds);
+        Assert.Empty(await hub.TerrainLabelRepository.GetLiveAsync());
     }
 
     [Fact]

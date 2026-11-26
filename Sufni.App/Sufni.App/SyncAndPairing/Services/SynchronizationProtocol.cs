@@ -8,7 +8,7 @@ public static class SynchronizationProtocol
     public const string ServiceType = "_sstsync._tcp";
     public const string CertificateSubjectName = "cn=com.sghctoma.sst-api";
     public const int PinTtlSeconds = 30;
-    public const int SyncProtocolVersion = 7;
+    public const int SyncProtocolVersion = 8;
     public const string SyncProtocolHeader = "X-Sufni-Sync-Protocol";
     public const string FingerprintHeader = "X-Sufni-Processing-Fingerprint";
     public const string SourceKindHeader = "X-Sufni-Source-Kind";

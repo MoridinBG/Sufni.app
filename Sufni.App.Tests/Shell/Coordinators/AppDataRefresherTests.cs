@@ -23,6 +23,10 @@ using Sufni.App.Shell.Coordinators;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Stores;
+using Sufni.App.Terrain.Models;
+using Sufni.App.Terrain.Services;
+using Sufni.App.Terrain.Stores;
+using Sufni.Telemetry;
 using Sufni.App.Video.Models;
 using Sufni.App.Video.Services;
 using Sufni.App.Video.Stores;
@@ -44,7 +48,7 @@ public class AppDataRefresherTests
             reachedLastRead.TrySetResult();
             return lastRead.Task;
         });
-        var observed = new List<(string?, Guid?, string?, string?, string?, string?, string?, bool, TrackSnapshot?, BoardSnapshot?, CustomTileLayerSnapshot?)>();
+        var observed = new List<(string?, Guid?, string?, string?, string?, string?, string?, bool, TrackSnapshot?, BoardSnapshot?, CustomTileLayerSnapshot?, RoughnessClass?)>();
         using var subscription = fixture.Publication.Committed.Subscribe(_ => observed.Add((
             fixture.Bikes.Get(fixture.Bike.Id)?.Name,
             fixture.Setups.Get(fixture.Setup.Id)?.Id,
@@ -54,7 +58,8 @@ public class AppDataRefresherTests
             fixture.Videos.Get(fixture.Clip.Id)?.Path,
             fixture.Segments.Get(fixture.Segment.Id)?.Name,
             fixture.Bikes.Get(oldBike.Id) is null,
-            fixture.Tracks.Get(fixture.Track.Id), fixture.Boards.Get(fixture.Board.Id), fixture.CustomLayers.Get(fixture.CustomLayer.Id))));
+            fixture.Tracks.Get(fixture.Track.Id), fixture.Boards.Get(fixture.Board.Id), fixture.CustomLayers.Get(fixture.CustomLayer.Id),
+            fixture.TerrainLabels.Get(fixture.Label.Id)?.Class)));
 
         var refresh = fixture.Refresher.RefreshAsync(TestContext.Current.CancellationToken);
         Assert.Empty(observed);
@@ -64,7 +69,7 @@ public class AppDataRefresherTests
         lastRead.SetResult([fixture.Segment]);
         await refresh.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
-        Assert.Equal(("bike", fixture.Setup.Id, "session", "source hash", "Phone", "", "segment", true, fixture.Track, BoardSnapshot.From(fixture.Board), CustomTileLayerSnapshot.From(fixture.CustomLayer)),
+        Assert.Equal(("bike", fixture.Setup.Id, "session", "source hash", "Phone", "", "segment", true, fixture.Track, BoardSnapshot.From(fixture.Board), CustomTileLayerSnapshot.From(fixture.CustomLayer), RoughnessClass.Rough),
             Assert.Single(observed));
     }
 
@@ -135,6 +140,8 @@ public class AppDataRefresherTests
         public PairedDeviceStore Devices { get; }
         public SessionVideoStore Videos { get; }
         public SessionSegmentStore Segments { get; }
+        public TerrainLabelStore TerrainLabels { get; }
+        public TerrainLabel Label { get; } = new() { OwnerKey = "source-hash", StartSeconds = 1, EndSeconds = 2, Class = RoughnessClass.Rough };
         public AppDataRefresher Refresher { get; }
 
         public Fixture()
@@ -164,6 +171,8 @@ public class AppDataRefresherTests
             deviceRepository.GetPairedDevicesAsync().Returns([new PairedDevice("phone", "Phone", new DateTime(2030, 1, 1))]);
             videoRepository.GetAllAsync().Returns([SessionVideoSnapshot.From(Clip, false)]);
             SegmentRepository.GetLiveAsync().Returns([Segment]);
+            var labelRepository = Substitute.For<ITerrainLabelRepository>();
+            labelRepository.GetLiveAsync().Returns([Label]);
             var dispatcher = new InlineUiThreadDispatcher();
             Publication = new StorePublication(dispatcher);
             Tracks = new TrackStore(Publication);
@@ -176,9 +185,10 @@ public class AppDataRefresherTests
             Devices = new PairedDeviceStore(Publication);
             Videos = new SessionVideoStore(Publication);
             Segments = new SessionSegmentStore(Publication);
-            Refresher = new AppDataRefresher(Bikes, Setups, Sessions, Sources, Devices, Videos, Segments,
+            TerrainLabels = new TerrainLabelStore(Publication);
+            Refresher = new AppDataRefresher(Bikes, Setups, Sessions, Sources, Devices, Videos, Segments, TerrainLabels,
                 bikeRepository, setupRepository, boardRepository, sessionRepository, sourceRepository,
-                deviceRepository, videoRepository, SegmentRepository, new InlineBackgroundTaskRunner(),
+                deviceRepository, videoRepository, SegmentRepository, labelRepository, new InlineBackgroundTaskRunner(),
                 dispatcher, Publication, Tracks, trackRepository, Boards,
                 customLayerRepository, CustomLayers);
         }
@@ -195,6 +205,7 @@ public class AppDataRefresherTests
             Devices.Dispose();
             Videos.Dispose();
             Segments.Dispose();
+            TerrainLabels.Dispose();
             Publication.Dispose();
         }
     }

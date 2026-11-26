@@ -108,7 +108,7 @@ internal sealed class SyncTestServerHarness : IDisposable
     }
 
     public static SynchronizationApplyResult ApplyResult(params SessionBlobSwap[] swaps) =>
-        new([], [], [], [], [], [], [], swaps);
+        new([], [], [], [], [], [], [], [], swaps);
 
     public void Dispose()
     {

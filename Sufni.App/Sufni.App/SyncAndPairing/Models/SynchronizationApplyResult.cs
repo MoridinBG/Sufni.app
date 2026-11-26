@@ -12,5 +12,6 @@ public sealed record SynchronizationApplyResult(
     IReadOnlyList<Guid> TrackIds,
     IReadOnlyList<Guid> SessionIds,
     IReadOnlyList<Guid> SegmentIds,
+    IReadOnlyList<Guid> TerrainLabelIds,
     IReadOnlyList<Guid> CustomLayerIds,
     IReadOnlyList<SessionBlobSwap> Swaps);

@@ -20,6 +20,8 @@ using Sufni.App.Shared.Stores;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Stores;
+using Sufni.App.Terrain.Services;
+using Sufni.App.Terrain.Stores;
 using Sufni.App.Video.Services;
 using Sufni.App.Video.Stores;
 
@@ -38,6 +40,7 @@ internal sealed class AppDataRefresher(
     IPairedDeviceStoreWriter pairedDeviceStore,
     ISessionVideoStoreWriter sessionVideoStore,
     ISessionSegmentStoreWriter sessionSegmentStore,
+    ITerrainLabelStoreWriter terrainLabelStore,
     IBikeMetadataReader bikeReader,
     ISynchronizableRepository<Setup> setupRepository,
     ISynchronizableRepository<Board> boardRepository,
@@ -46,6 +49,7 @@ internal sealed class AppDataRefresher(
     IPairedDeviceRepository pairedDeviceRepository,
     ISessionVideoRepository videoRepository,
     ISessionSegmentRepository segmentRepository,
+    ITerrainLabelRepository terrainLabelRepository,
     IBackgroundTaskRunner backgroundTaskRunner,
     IUiThreadDispatcher dispatcher,
     StorePublication publication,
@@ -85,6 +89,7 @@ internal sealed class AppDataRefresher(
             var clips = await videoRepository.GetAllAsync();
             var tracks = await trackRepository.GetTrackSnapshotsAsync();
             var segments = await segmentRepository.GetLiveAsync();
+            var labels = await terrainLabelRepository.GetLiveAsync();
             cancellationToken.ThrowIfCancellationRequested();
             return new AppDataSnapshot(
                 bikes.ToArray(),
@@ -94,6 +99,7 @@ internal sealed class AppDataRefresher(
                 devices.Select(PairedDeviceSnapshot.From).ToArray(),
                 clips.ToArray(),
                 segments.Select(SessionSegmentSnapshot.From).ToArray(),
+                labels.Select(TerrainLabelSnapshot.From).ToArray(),
                 tracks, boards.Select(BoardSnapshot.From).ToArray(), layers.Select(CustomTileLayerSnapshot.From).ToArray());
         }, cancellationToken);
 
@@ -109,6 +115,7 @@ internal sealed class AppDataRefresher(
             await pairedDeviceStore.ReplaceAllAsync(snapshot.Devices);
             await sessionVideoStore.ReplaceAllAsync(snapshot.Videos);
             await sessionSegmentStore.ReplaceAllAsync(snapshot.Segments);
+            await terrainLabelStore.ReplaceAllAsync(snapshot.TerrainLabels);
             await trackStore.ReplaceAllAsync(snapshot.Tracks);
             await boardStore.ReplaceAllAsync(snapshot.Boards);
             await customLayerStore.ReplaceAllAsync(snapshot.CustomLayers);
@@ -123,6 +130,7 @@ internal sealed class AppDataRefresher(
         IReadOnlyList<PairedDeviceSnapshot> Devices,
         IReadOnlyList<SessionVideoSnapshot> Videos,
         IReadOnlyList<SessionSegmentSnapshot> Segments,
+        IReadOnlyList<TerrainLabelSnapshot> TerrainLabels,
         IReadOnlyList<TrackSnapshot> Tracks,
         IReadOnlyList<BoardSnapshot> Boards,
         IReadOnlyList<CustomTileLayerSnapshot> CustomLayers);

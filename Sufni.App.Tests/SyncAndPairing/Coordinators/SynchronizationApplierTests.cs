@@ -12,6 +12,8 @@ using Sufni.App.Setups.Models;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.Terrain.Models;
+using Sufni.Telemetry;
 using Sufni.App.Tests.TestSupport.Sync;
 
 namespace Sufni.App.Tests.SyncAndPairing.Coordinators;
@@ -33,17 +35,18 @@ public class SynchronizationApplierTests
         var track = new Track { Points = [new TrackPoint(100, 1, 2, 3), new TrackPoint(101, 2, 3, 4)] };
         var layer = new CustomTileLayer { Name = "Trail", UrlTemplate = "https://tiles/{z}/{x}/{y}" };
         var segment = new SessionSegment { OwnerKey = "source-hash", Name = "climb", StartSeconds = 1, EndSeconds = 2 };
-        var observed = new List<(string?, Guid?, Guid?, string?, bool, string?, string?)>();
+        var label = new TerrainLabel { OwnerKey = "source-hash", StartSeconds = 1, EndSeconds = 2, Class = RoughnessClass.Rough };
+        var observed = new List<(string?, Guid?, Guid?, string?, bool, string?, string?, RoughnessClass?)>();
         using var subscription = fixture.Publication.Committed.Subscribe(_ => observed.Add((
             fixture.Bikes.Get(bike.Id)?.Name, fixture.Setups.Get(setup.Id)?.BikeId,
             fixture.Boards.Get(board.Id)?.SetupId, fixture.Sessions.Get(session.Id)?.Name,
             fixture.Tracks.Get(track.Id) is not null, fixture.Layers.Get(layer.Id)?.Name,
-            fixture.Segments.Get(segment.Id)?.Name)));
+            fixture.Segments.Get(segment.Id)?.Name, fixture.TerrainLabels.Get(label.Id)?.Class)));
 
         var apply = applier.ApplyAsync(new SynchronizationData
         {
             Bikes = [bike], Setups = [setup], Boards = [board], Sessions = [session],
-            Tracks = [track], CustomTileLayers = [layer], Segments = [segment]
+            Tracks = [track], CustomTileLayers = [layer], Segments = [segment], TerrainLabels = [label]
         }, direction);
         await dispatcher.WaitForWorkAsync(TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         Assert.False(apply.IsCompleted);
@@ -51,7 +54,7 @@ public class SynchronizationApplierTests
         Assert.NotNull(await fixture.Database.GetAsync<Board>(board.Id));
         await dispatcher.DrainAsync();
         Assert.Contains(session.Id, (await apply.AwaitBoundedAsync(TimeSpan.FromSeconds(5))).SessionIds);
-        Assert.Equal(("bike", bike.Id, setup.Id, "ride", true, "Trail", "climb"), Assert.Single(observed));
+        Assert.Equal(("bike", bike.Id, setup.Id, "ride", true, "Trail", "climb", RoughnessClass.Rough), Assert.Single(observed));
 
         var deletion = applier.ApplyAsync(new SynchronizationData
         {
@@ -61,7 +64,7 @@ public class SynchronizationApplierTests
         await dispatcher.WaitForWorkAsync(TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         await dispatcher.DrainAsync();
         await deletion.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(("bike", bike.Id, setup.Id, null, false, "Trail", "climb"), observed[1]);
+        Assert.Equal(("bike", bike.Id, setup.Id, null, false, "Trail", "climb", RoughnessClass.Rough), observed[1]);
     }
 
 }

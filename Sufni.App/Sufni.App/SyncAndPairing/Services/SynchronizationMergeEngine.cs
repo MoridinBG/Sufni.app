@@ -22,6 +22,7 @@ using Sufni.App.Setups.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
+using Sufni.App.Terrain.Models;
 namespace Sufni.App.SyncAndPairing.Services;
 
 public enum SynchronizationDirection { Push, Pull }
@@ -160,6 +161,7 @@ internal sealed class SynchronizationMergeEngine(
         var tracks = await GetChangedAsync<Track>(connection, sequenceColumn, sinceExclusive, upperInclusive);
         var customLayers = await GetChangedAsync<CustomTileLayer>(connection, sequenceColumn, sinceExclusive, upperInclusive);
         var segments = await GetChangedAsync<SessionSegment>(connection, sequenceColumn, sinceExclusive, upperInclusive);
+        var labels = await GetChangedAsync<TerrainLabel>(connection, sequenceColumn, sinceExclusive, upperInclusive);
         var deletions = await connection.QueryAsync<SynchronizationDeletion>(
             $"SELECT * FROM sync_deletion WHERE {sequenceColumn} > ? AND {sequenceColumn} <= ?",
             sinceExclusive, upperInclusive);
@@ -173,6 +175,7 @@ internal sealed class SynchronizationMergeEngine(
             Sessions = sessions,
             Tracks = tracks,
             Segments = segments,
+            TerrainLabels = labels,
             Deletions = deletions,
             CustomTileLayers = customLayers
         };
@@ -245,6 +248,7 @@ internal sealed class SynchronizationMergeEngine(
                 case "session": MergeDeletion<Session>(connection, deletion, asHub); break;
                 case "custom_tile_layer": MergeDeletion<CustomTileLayer>(connection, deletion, asHub); break;
                 case "session_segment": MergeDeletion<SessionSegment>(connection, deletion, asHub); break;
+                case "terrain_label": MergeDeletion<TerrainLabel>(connection, deletion, asHub); break;
                 default: throw new InvalidDataException("Unknown synchronized deletion table.");
             }
         }
@@ -257,10 +261,12 @@ internal sealed class SynchronizationMergeEngine(
         foreach (var row in data.Sessions)
             if (Merge(connection, row, asHub) is { } swap) swaps.Add(swap);
         foreach (var row in data.Segments) Merge(connection, row, asHub);
+        foreach (var row in data.TerrainLabels) Merge(connection, row, asHub);
         return new SynchronizationApplyResult(
             AffectedIds(data.Bikes, data.Deletions), AffectedIds(data.Setups, data.Deletions),
             AffectedIds(data.Boards, data.Deletions), AffectedIds(data.Tracks, data.Deletions),
             AffectedIds(data.Sessions, data.Deletions), AffectedIds(data.Segments, data.Deletions),
+            AffectedIds(data.TerrainLabels, data.Deletions),
             AffectedIds(data.CustomTileLayers, data.Deletions), swaps);
     }
 

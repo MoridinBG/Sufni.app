@@ -9,6 +9,7 @@ using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Segments.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Setups.Models;
+using Sufni.App.Terrain.Models;
 namespace Sufni.App.SyncAndPairing.Models;
 
 // Authored row history and transport sequences; local_seq never leaves this database.
@@ -80,6 +81,7 @@ public class SynchronizationData
     [JsonPropertyName("session")] public List<Session> Sessions { get; set; } = [];
     [JsonPropertyName("track")] public List<Track> Tracks { get; set; } = [];
     [JsonPropertyName("segment")] public List<SessionSegment> Segments { get; set; } = [];
+    [JsonPropertyName("terrain_label")] public List<TerrainLabel> TerrainLabels { get; set; } = [];
     [JsonPropertyName("deletions")] public List<SynchronizationDeletion> Deletions { get; set; } = [];
     [JsonPropertyName("custom_tile_layers")] public List<CustomTileLayer> CustomTileLayers { get; set; } = [];
 }

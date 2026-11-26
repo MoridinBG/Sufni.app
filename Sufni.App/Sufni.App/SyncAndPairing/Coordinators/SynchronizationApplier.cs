@@ -18,6 +18,8 @@ using Sufni.App.Shared.Stores;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Stores;
+using Sufni.App.Terrain.Services;
+using Sufni.App.Terrain.Stores;
 
 namespace Sufni.App.SyncAndPairing.Coordinators;
 
@@ -31,6 +33,7 @@ public sealed class SynchronizationApplier(
     ISessionRepository sessionRepository,
     ITrackRepository trackRepository,
     ISessionSegmentRepository segmentRepository,
+    ITerrainLabelRepository labelRepository,
     IBikeStoreWriter bikeStore,
     ISetupStoreWriter setupStore,
     IBoardStoreWriter boardStore,
@@ -38,6 +41,7 @@ public sealed class SynchronizationApplier(
     ISessionStoreWriter sessionStore,
     ITrackStoreWriter trackStore,
     ISessionSegmentStoreWriter segmentStore,
+    ITerrainLabelStoreWriter labelStore,
     StorePublication publication,
     IBackgroundTaskRunner backgroundTaskRunner,
     IUiThreadDispatcher uiThreadDispatcher) : ISynchronizationApplier
@@ -63,6 +67,9 @@ public sealed class SynchronizationApplier(
             var segments = result.SegmentIds.Count == 0 ? [] : (await segmentRepository.GetLiveAsync())
                 .Where(row => result.SegmentIds.Contains(row.Id)).Select(SessionSegmentSnapshot.From).ToArray();
             var removedSegments = result.SegmentIds.Except(segments.Select(row => row.Id)).ToArray();
+            var labels = result.TerrainLabelIds.Count == 0 ? [] : (await labelRepository.GetLiveAsync())
+                .Where(row => result.TerrainLabelIds.Contains(row.Id)).Select(TerrainLabelSnapshot.From).ToArray();
+            var removedLabels = result.TerrainLabelIds.Except(labels.Select(row => row.Id)).ToArray();
 
             await uiThreadDispatcher.InvokeAsync(async () =>
             {
@@ -80,6 +87,7 @@ public sealed class SynchronizationApplier(
                 await trackStore.PublishTracksRemovedAsync(removedTracks);
                 await trackStore.PublishTracksChangedAsync(tracks);
                 await segmentStore.PublishSegmentsAsync(segments, removedSegments);
+                await labelStore.PublishLabelsAsync(labels, removedLabels);
             });
             return result;
         });
