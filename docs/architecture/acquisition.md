@@ -38,9 +38,11 @@ closing its tab does not cancel it. There is no user-facing cancel action.
 Before processing, the coordinator reads the repository's source-hash checkpoint.
 An existing recording skips derivation and writes, republishes persisted session/
 source state and track metadata, then retries acknowledgement. A new recording
-passes the atomic import transaction, which classifies by source hash before inserting. The repository returns `Inserted` or `Exists`; an existing
-hash, including a legacy recording with a random id, yields `AlreadyImported`
-and preserves its session/source. If a live content-id session arrived by sync but
+passes the atomic import transaction, which classifies by source hash before inserting. The repository returns `Inserted` or `Exists`. The check reads the stored
+sources: an existing hash yields `AlreadyImported` and preserves its
+session/source. It finds a legacy recording only when that recording has a stored
+source; a legacy session without a stored source is not found, and the import
+makes a second session for the recording. If a live content-id session arrived by sync but
 has no source, the transaction inserts only that source and reports `Imported`;
 authored metadata and any existing processed generation remain unchanged.
 A retained soft-deleted content-id row without a source is restored on explicit
@@ -281,7 +283,7 @@ All are MessagePack-serializable types defined in `Sufni.Telemetry/`:
 
 - **`GpsRecord`** — Timestamp (UTC DateTime), Latitude, Longitude, Altitude, Speed (m/s), Heading, FixMode, Satellites, Epe2d/Epe3d (error estimates in meters)
 - **`ImuRecord`** — Ax, Ay, Az (int16 acceleration counts), Gx, Gy, Gz (int16 gyroscope counts), already bias-corrected and rotated by firmware into bike frame (`X=forward`, `Y=left`, `Z=up`)
-- **`ImuMetaEntry`** — LocationId (sensor position: 0=frame, 1=fork, 2=shock), AccelLsbPerG, GyroLsbPerDps (calibration)
+- **`ImuMetaEntry`** — LocationId (sensor position: 0=frame, 1=fork, 2=rear axle), AccelLsbPerG, GyroLsbPerDps (calibration)
 - **`RawImuData`** — Container: metadata, sample rate, active locations, per-location `RawImuSegment` runs, and `HasGaps`; `Records` holds only legacy dense payloads. Processed telemetry writes compact encoding v1 as indexed arrays with one segment/sample graph; the formatter also reads legacy named-map shapes.
 - **`MarkerData`** — TimestampOffset (seconds from session start)
 - **`TemperatureSample`** — TimestampUtc, LocationId, TemperatureCelsius
