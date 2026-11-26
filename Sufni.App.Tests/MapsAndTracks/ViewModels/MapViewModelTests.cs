@@ -87,6 +87,29 @@ public class MapViewModelTests
     }
 
     [Fact]
+    public void TrackRunsFollowTheShadesOfTheColouring()
+    {
+        using var vm = TerrainMap();
+        var scales = SufniThemes.SignalSeries.Terrain;
+        vm.ApplyTerrain(MapTrackColoring.Roughness, RoughThenSmooth with
+        {
+            RoughnessShades = [new(0, 1, RoughnessClass.Rough, 1.25), new(1, 2, RoughnessClass.Smooth, -1.5)]
+        });
+        Assert.Equal(new Avalonia.Media.Color?[] { scales.ShadeFor(RoughnessClass.Rough, 1.25), scales.ShadeFor(RoughnessClass.Smooth, -1.5) },
+            vm.TerrainRuns.Select(run => run.Colour));
+    }
+
+    [Fact]
+    public void TrackRunsStayTheSameArrayUntilAnInputChanges()
+    {
+        using var vm = TerrainMap();
+        var runs = vm.TerrainRuns;
+        Assert.True(runs == vm.TerrainRuns);
+        vm.TerrainLegend[0].Toggle.Execute(null);
+        Assert.False(runs == vm.TerrainRuns);
+    }
+
+    [Fact]
     public void HiddenGroundWithoutAClassBelongsToItsColouring()
     {
         using var vm = TerrainMap();

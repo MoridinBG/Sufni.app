@@ -1,5 +1,6 @@
 using ScottPlot;
 using ScottPlot.Plottables;
+using Sufni.App.Infrastructure.Theming;
 using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Plots;
 using Sufni.App.Tests.TestSupport.Fixtures;
@@ -42,6 +43,24 @@ public class TerrainClassStripPlotTests
         Assert.Equal(["Steep descent", "Very rough"], VisibleNames(plot));
         strip.LayoutRunNames(0, 9, 60);
         Assert.Empty(VisibleNames(plot));
+    }
+
+    [Fact]
+    public void LaneDrawsOneRectangleForEachShadeAndOneNameForEachRun()
+    {
+        var scales = SufniThemes.SignalSeries.Terrain;
+        var terrain = Terrain with
+        {
+            GradeRuns = [],
+            RoughnessShades = [new(0, 1, RoughnessClass.Smooth, -1.5), new(1, 4, RoughnessClass.VeryRough, 2),
+                new(4, 9, RoughnessClass.VeryRough, 2.5)]
+        };
+        var plot = new Plot();
+        new TerrainClassStripPlot(plot).Load(terrain, TestTelemetryData.CreateProcessed(sampleRate: 20));
+        Assert.Equal([scales.ShadeFor(RoughnessClass.Smooth, -1.5).ToScottPlotColor(),
+                scales.ShadeFor(RoughnessClass.VeryRough, 2).ToScottPlotColor(), scales.ShadeFor(RoughnessClass.VeryRough, 2.5).ToScottPlotColor()],
+            plot.PlottableList.OfType<Rectangle>().Select(r => r.FillColor));
+        Assert.Equal(["Smooth", "Very rough"], plot.PlottableList.OfType<Text>().Select(t => t.LabelText).Order());
     }
 
     private static string[] VisibleNames(Plot plot) =>

@@ -46,19 +46,22 @@ public partial class MapViewModel : ViewModelBase, IDisposable
         set { if (HasTerrain && value != coloring) selectColoring?.Invoke(value); }
     }
 
-    public ImmutableArray<MapTerrainRun> TerrainRuns => coloring switch
-    {
-        MapTrackColoring.Roughness when terrain is not null => Runs(terrain.RoughnessRuns, SufniThemes.SignalSeries.Terrain.ColorFor),
-        MapTrackColoring.Grade when terrain is not null => Runs(terrain.GradeRuns, SufniThemes.SignalSeries.Terrain.ColorFor),
-        _ => []
-    };
+    // Built once per input change: the map rebuilds the session lines when this array changes.
+    public ImmutableArray<MapTerrainRun> TerrainRuns { get; private set; } = [];
 
     public bool UnclassifiedHidden => hidden.Contains((coloring, null));
 
-    private ImmutableArray<MapTerrainRun> Runs<TClass>(ImmutableArray<TerrainRun<TClass>> runs,
-        Func<TClass, Avalonia.Media.Color> colour) where TClass : struct, Enum =>
-        [.. runs.Select(run => new MapTerrainRun(run.StartSeconds, run.EndSeconds,
-            hidden.Contains((coloring, run.Class)) ? null : colour(run.Class)))];
+    private ImmutableArray<MapTerrainRun> BuildTerrainRuns() => coloring switch
+    {
+        MapTrackColoring.Roughness when terrain is not null => Runs(terrain.RoughnessShades, SufniThemes.SignalSeries.Terrain.ShadeFor),
+        MapTrackColoring.Grade when terrain is not null => Runs(terrain.GradeShades, SufniThemes.SignalSeries.Terrain.ShadeFor),
+        _ => []
+    };
+
+    private ImmutableArray<MapTerrainRun> Runs<TClass>(ImmutableArray<TerrainShade<TClass>> shades,
+        Func<TClass, double?, Avalonia.Media.Color> colour) where TClass : struct, Enum =>
+        [.. shades.Select(shade => new MapTerrainRun(shade.StartSeconds, shade.EndSeconds,
+            hidden.Contains((coloring, shade.Class)) ? null : colour(shade.Class, shade.Value)))];
 
     /// <summary>The classes of the selected terrain colouring, then the style of ground without a class.</summary>
     public IReadOnlyList<MapLegendEntry> TerrainLegend => TerrainRuns.IsEmpty ? [] : coloring switch
@@ -80,6 +83,7 @@ public partial class MapViewModel : ViewModelBase, IDisposable
     private void ToggleClass((MapTrackColoring, Enum?) key)
     {
         if (!hidden.Remove(key)) hidden.Add(key);
+        TerrainRuns = BuildTerrainRuns();
         OnPropertyChanged(nameof(UnclassifiedHidden));
         OnPropertyChanged(nameof(TerrainRuns));
         OnPropertyChanged(nameof(TerrainLegend));
@@ -92,6 +96,7 @@ public partial class MapViewModel : ViewModelBase, IDisposable
         var previous = coloring;
         terrain = presentation;
         coloring = selected;
+        TerrainRuns = BuildTerrainRuns();
         if (hadTerrain != HasTerrain) OnPropertyChanged(nameof(HasTerrain));
         if (previous != selected) OnPropertyChanged(nameof(TrackColoring));
         OnPropertyChanged(nameof(UnclassifiedHidden));

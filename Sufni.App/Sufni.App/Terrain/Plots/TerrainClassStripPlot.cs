@@ -34,8 +34,8 @@ public sealed class TerrainClassStripPlot(Plot plot, SufniTheme? theme = null) :
         Plot.Axes.SetLimits(0, duration, 0, 2);
         AddMirroredTimeSeriesAxisRules(0, duration, 0, 2);
         var scales = PlotTheme.Series.Terrain;
-        DrawLane(presentation.GradeRuns, 1, band => (scales.ColorFor(band), TerrainClassText.Name(band)));
-        DrawLane(presentation.RoughnessRuns, 0, level => (scales.ColorFor(level), TerrainClassText.Name(level)));
+        DrawLane(presentation.GradeShades, presentation.GradeRuns, 1, scales.ShadeFor, scales.ColorFor, TerrainClassText.Name);
+        DrawLane(presentation.RoughnessShades, presentation.RoughnessRuns, 0, scales.ShadeFor, scales.ColorFor, TerrainClassText.Name);
         AddLaneLabel("Grade", Alignment.UpperLeft);
         AddLaneLabel("Roughness", Alignment.LowerLeft);
         var airtime = RecordedTimeRangeOverlayFactory.CreateAirtimeRegistration(telemetry.Airtimes, PlotTheme);
@@ -83,19 +83,22 @@ public sealed class TerrainClassStripPlot(Plot plot, SufniTheme? theme = null) :
         return lines.Count == 0 ? null : new CursorReadout(position, position, 1, lines);
     }
 
-    private void DrawLane<TClass>(ImmutableArray<TerrainRun<TClass>> runs, double lane,
-        Func<TClass, (Avalonia.Media.Color Colour, string Name)> style) where TClass : struct, Enum
+    private void DrawLane<TClass>(ImmutableArray<TerrainShade<TClass>> shades, ImmutableArray<TerrainRun<TClass>> runs,
+        double lane, Func<TClass, double?, Avalonia.Media.Color> shade, Func<TClass, Avalonia.Media.Color> colour,
+        Func<TClass, string> name) where TClass : struct, Enum
     {
+        foreach (var part in shades)
+        {
+            var rectangle = Plot.Add.Rectangle(part.StartSeconds, part.EndSeconds, lane + LaneGap, lane + 1 - LaneGap);
+            rectangle.FillColor = shade(part.Class, part.Value).ToScottPlotColor();
+            rectangle.LineWidth = 0;
+        }
         foreach (var run in runs)
         {
-            var (colour, name) = style(run.Class);
-            var rectangle = Plot.Add.Rectangle(run.StartSeconds, run.EndSeconds, lane + LaneGap, lane + 1 - LaneGap);
-            rectangle.FillColor = colour.ToScottPlotColor();
-            rectangle.LineWidth = 0;
-            var text = Plot.Add.Text(name, (run.StartSeconds + run.EndSeconds) / 2, lane + 0.5);
+            var text = Plot.Add.Text(name(run.Class), (run.StartSeconds + run.EndSeconds) / 2, lane + 0.5);
             text.LabelFontSize = RunNameFontSize;
             text.LabelAlignment = Alignment.MiddleCenter;
-            text.LabelFontColor = IsLight(colour) ? Colors.Black : Colors.White;
+            text.LabelFontColor = IsLight(colour(run.Class)) ? Colors.Black : Colors.White;
             text.IsVisible = false;
             runNames.Add(new(text, run.StartSeconds, run.EndSeconds, lane));
         }
