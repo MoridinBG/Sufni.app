@@ -1222,6 +1222,55 @@ public class DatabaseMigrationRunnerTests
         Assert.Contains(segments, segment => segment.OwnerKey == "orphan-source");
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Initialization_GivesTerrainLabelsSequenceIndexes_AndProfilesLabelColumns(bool afterSyncAuthority)
+    {
+        using var temp = new TempDatabase();
+        if (afterSyncAuthority)
+        {
+            await using var earlier = new TestPersistenceHarness(temp.DatabasePath);
+            var connection = await earlier.GetInitializedConnectionAsync();
+            await connection.ExecuteAsync("DROP TABLE terrain_label");
+            await connection.ExecuteAsync("ALTER TABLE session_terrain_profile DROP COLUMN terrain_labels");
+            await connection.ExecuteAsync("ALTER TABLE session_terrain_profile DROP COLUMN terrain_labels_key");
+            await connection.ExecuteAsync("DELETE FROM core_migration WHERE id = 'terrain-labels'");
+        }
+
+        await using var database = new TestPersistenceHarness(temp.DatabasePath);
+        var migrated = await database.GetInitializedConnectionAsync();
+
+        Assert.Equal(2, await migrated.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name IN ('ix_terrain_label_local_seq', 'ix_terrain_label_sync_seq')"));
+        var columns = (await migrated.GetTableInfoAsync("session_terrain_profile")).Select(column => column.Name).ToArray();
+        Assert.Contains("terrain_labels_key", columns);
+        Assert.Contains("terrain_labels", columns);
+    }
+
+    [Fact]
+    public async Task StartupCleanup_PurgesOnlyTerrainLabelTombstonesOlderThanOneDay()
+    {
+        using var tempDatabase = new TempDatabase("label-purge.db");
+        var time = PersistenceTestData.CreateTimeProvider();
+        var twoDaysAgo = time.GetUtcNow().AddDays(-2).ToUnixTimeSeconds();
+        var oneHourAgo = time.GetUtcNow().AddHours(-1).ToUnixTimeSeconds();
+        var live = new TerrainLabel { OwnerKey = "source-hash", StartSeconds = 0, EndSeconds = 1 };
+        var recent = new TerrainLabel { OwnerKey = "source-hash", StartSeconds = 1, EndSeconds = 2, Deleted = oneHourAgo };
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.CreateTable<TerrainLabel>();
+            connection.Insert(live);
+            connection.Insert(recent);
+            connection.Insert(new TerrainLabel { OwnerKey = "source-hash", StartSeconds = 2, EndSeconds = 3, Deleted = twoDaysAgo });
+        }
+
+        await new TestPersistenceHarness(tempDatabase.DatabasePath, time).GetInitializedConnectionAsync();
+
+        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
+        Assert.Equal(new[] { live.Id, recent.Id }.Order(), verificationConnection.Table<TerrainLabel>().ToList().Select(label => label.Id).Order());
+    }
+
     [Fact]
     public async Task StartupCleanup_RetainsVideosOfPurgedSessions()
     {

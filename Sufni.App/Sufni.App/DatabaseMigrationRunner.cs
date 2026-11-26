@@ -18,6 +18,7 @@ using Sufni.App.Setups.Models;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
+using Sufni.App.Terrain.Models;
 using Sufni.App.Video.Models;
 namespace Sufni.App;
 
@@ -29,7 +30,7 @@ internal sealed class DatabaseMigrationRunner(
     IReadOnlyList<CustomTileLayerSnapshot> legacyCustomLayers)
 {
     private static readonly ILogger logger = Log.ForContext<DatabaseMigrationRunner>();
-    private static readonly string[] SyncIndexedTables = ["board", "bike", "setup", "session", "track", "session_segment", "custom_tile_layer"];
+    private static readonly string[] SyncIndexedTables = ["board", "bike", "setup", "session", "track", "session_segment", "custom_tile_layer", "terrain_label"];
     private readonly CoreMigrationStore coreMigrations = new(connection);
 
     internal async Task RunAsync()
@@ -73,6 +74,14 @@ internal sealed class DatabaseMigrationRunner(
             transaction.Execute("ALTER TABLE session_terrain_profile ADD COLUMN terrain_classes TEXT");
         });
         await MigrateSyncAuthorityAsync();
+        // A new database gets the label sequence indexes from sync-authority, so they are created only when missing.
+        await coreMigrations.ApplyAsync("terrain-labels", transaction =>
+        {
+            transaction.Execute("CREATE INDEX IF NOT EXISTS ix_terrain_label_local_seq ON terrain_label(local_seq)");
+            transaction.Execute("CREATE INDEX IF NOT EXISTS ix_terrain_label_sync_seq ON terrain_label(sync_seq)");
+            transaction.Execute("ALTER TABLE session_terrain_profile ADD COLUMN terrain_labels_key TEXT");
+            transaction.Execute("ALTER TABLE session_terrain_profile ADD COLUMN terrain_labels TEXT");
+        });
         await EnsureSessionBlobSwapRequestIntegrityAsync();
         await coreMigrations.MarkAppliedAsync("session-segment");
         await DropSchemaVersionTableAsync();
@@ -80,9 +89,10 @@ internal sealed class DatabaseMigrationRunner(
         var cleanupSummary = await Cleanup();
         logger.Information("SQLite database initialized at {DatabasePath}", databasePath);
         logger.Verbose(
-            "SQLite startup cleanup removed {SessionCount} sessions, {SegmentCount} segments, {TrackCount} tracks, {BoardCount} boards, {SetupCount} setups, {BikeCount} bikes, and {PairedDeviceCount} paired devices",
+            "SQLite startup cleanup removed {SessionCount} sessions, {SegmentCount} segments, {TerrainLabelCount} terrain labels, {TrackCount} tracks, {BoardCount} boards, {SetupCount} setups, {BikeCount} bikes, and {PairedDeviceCount} paired devices",
             cleanupSummary.Sessions,
             cleanupSummary.Segments,
+            cleanupSummary.TerrainLabels,
             cleanupSummary.Tracks,
             cleanupSummary.Boards,
             cleanupSummary.Setups,
@@ -210,6 +220,8 @@ internal sealed class DatabaseMigrationRunner(
             await connection.CreateTableAsync<SessionVideoClip>();
         if ((await connection.GetTableInfoAsync("session_segment")).Count == 0)
             await connection.CreateTableAsync<SessionSegment>();
+        if ((await connection.GetTableInfoAsync("terrain_label")).Count == 0)
+            await connection.CreateTableAsync<TerrainLabel>();
     }
 
     private Task MigrateSyncAuthorityAsync() => coreMigrations.ApplyAsync("sync-authority", transaction =>
@@ -695,6 +707,7 @@ internal sealed class DatabaseMigrationRunner(
         await connection.ExecuteAsync("DELETE FROM session_gps_metrics WHERE session_id NOT IN (SELECT id FROM session)");
         await connection.ExecuteAsync("DELETE FROM session_terrain_profile WHERE session_id NOT IN (SELECT id FROM session WHERE deleted IS NULL)");
         var deletedSegments = await connection.Table<SessionSegment>().DeleteAsync(segment => segment.Deleted != null && segment.Deleted < oneDayAgo);
+        var deletedLabels = await connection.Table<TerrainLabel>().DeleteAsync(label => label.Deleted != null && label.Deleted < oneDayAgo);
         var deletedTracks = await connection.Table<Track>().DeleteAsync(track => track.Deleted != null && track.Deleted < oneDayAgo);
         var deletedBoards = await connection.Table<Board>().DeleteAsync(board => board.Deleted != null && board.Deleted < oneDayAgo);
         var deletedSetups = await connection.Table<Setup>().DeleteAsync(setup => setup.Deleted != null && setup.Deleted < oneDayAgo);
@@ -706,6 +719,7 @@ internal sealed class DatabaseMigrationRunner(
         return new CleanupSummary(
             deletedSessions,
             deletedSegments,
+            deletedLabels,
             deletedTracks,
             deletedBoards,
             deletedSetups,
@@ -781,6 +795,7 @@ internal sealed class DatabaseMigrationRunner(
     private sealed record CleanupSummary(
         int Sessions,
         int Segments,
+        int TerrainLabels,
         int Tracks,
         int Boards,
         int Setups,
