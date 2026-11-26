@@ -63,6 +63,8 @@ erDiagram
         int terrain_outcome
         text terrain_summary
         blob profile
+        text terrain_labels_key
+        text terrain_labels
         text terrain_classes_key
         text terrain_classes
     }
@@ -162,6 +164,20 @@ erDiagram
         text name
         real start_seconds
         real end_seconds
+        int updated
+        int version
+        text updated_by
+        int local_seq
+        int sync_seq
+        int deleted
+    }
+
+    terrain_label {
+        text id PK
+        text owner_key
+        real start_seconds
+        real end_seconds
+        int roughness_class
         int updated
         int version
         text updated_by
@@ -345,7 +361,7 @@ The repository has no `TelemetryData` read. Consumers fetch the raw blob and des
 
 `ITrackRepository.TryCommitGpsMetricsAsync` accepts a key and prepared GPS values. Its transaction selects the current full track with the common overlap rule. It compares the complete current key before it inserts or updates `session_gps_metrics`. A changed window, selected track or deleted session rejects the write. Metric writes never change `session.updated`. The table is not synchronized.
 
-The named `session-terrain-profile` migration adds a device-local table keyed by session ID. `terrain-fork-names` deletes its rows once, because the stored summaries named the former lowers source; the sessions become pending and recompute. `terrain-setup-classes` adds the nullable `terrain_classes_key` and `terrain_classes` columns. Session metadata joins the profile key, outcome and summary, and the class key and class summary. The terrain repository checks the complete content key against the active session and track catalog in the write transaction. A profile commit replaces the row, so it clears the classes. Exact reads fetch a profile BLOB only for a computed result with the requested key. A commit that throws leaves no row, so the `Failed` status the coordinator publishes for it is not persisted. `CommitClassesAsync` writes the class summaries of one setup in one transaction. It updates a row only while the row holds a computed profile with the profile key of its class key, and returns the written session IDs. [Terrain profiles](terrain.md)
+The named `session-terrain-profile` migration adds a device-local table keyed by session ID. `terrain-fork-names` deletes its rows once, because the stored summaries named the former lowers source; the sessions become pending and recompute. `terrain-setup-classes` adds the nullable `terrain_classes_key` and `terrain_classes` columns, and `terrain-labels` adds the nullable `terrain_labels_key` and `terrain_labels` columns. Session metadata joins the profile key, outcome and summary, the label key and label summary, and the class key and class summary. The terrain repository checks the complete content key against the active session and track catalog in the write transaction. A profile commit replaces the row, so it clears the label summary and the classes. Exact reads fetch a profile BLOB only for a computed result with the requested key. A commit that throws leaves no row, so the `Failed` status the coordinator publishes for it is not persisted. `CommitClassesAsync` writes the class summaries of one setup in one transaction. It updates a row only while the row holds a computed profile with the profile key of its class key, and returns the written session IDs. `CommitLabelsAsync` writes label summaries in one transaction with the same guard on the profile key of each label key. The guard does not test the label set, because the stored key shows a summary of an older set. [Terrain profiles](terrain.md)
 
 `ITrackRepository.GetTrackSnapshotsAsync` loads active metadata without point JSON and optionally filters IDs in chunks of 500. Full-track display calls `GetTrackPayloadMetadataAsync(trackId)` and then `GetTrackPayloadAsync(trackId, pointsRevision)`. The second returns no value when that revision is unavailable. `DeleteIfUnselectedAsync` checks every active session against the current track catalog with `SessionTrackSelection`. It deletes only an unselected candidate, in the same transaction. The session-delete transaction runs the same check after it deletes its session. Session-to-track association is derived, never persisted.
 
@@ -370,6 +386,8 @@ The named `session-terrain-profile` migration adds a device-local table keyed by
 
 `session_video` links a local file to an immutable recording source through `owner_key`. One source/file pair shares one owner-relative alignment offset. `ISessionVideoRepository.LinkAsync` writes distinct source links in one transaction. Re-import keeps an existing ID, added time and alignment. Session deletion and startup purge leave links intact. On an older database, the `track-materializations` migration converts session links to source links. It collapses duplicates by the widest-window policy and drops `session_id`. See [video.md](video.md).
 
+`terrain_label` holds source-owned terrain labels: a range in source-relative seconds and a `RoughnessClass` stored as its integer value. `owner_key` is the immutable source hash. `TerrainLabelRepository` inserts, changes the class and deletes; each write stamps the authored sync metadata, and a delete writes the tombstone and the ledger entry. Session deletion and physical purge keep these rows. On an older database, the `terrain-labels` migration creates the `local_seq` and `sync_seq` indexes, which a new database gets from `sync-authority`. See [terrain.md](terrain.md#labels).
+
 `session_segment` holds source-owned named ranges. `owner_key` is the immutable source hash, and both anchors are source-relative. Reads return non-deleted segments without joining sessions. The picker derives visibility from the source identity and the current session window. Session deletion and physical purge keep these rows. Only explicit segment deletion creates a tombstone. On an older database, the `track-materializations` migration converts session-relative anchors and drops `session_id`. It keeps segment IDs and authored clocks. See [segments.md](segments.md).
 
 The session derivation window lives on the session row. `source_session_id`, `window_start_seconds` and `window_end_seconds` describe the window. A null `source_session_id` means the session uses its own source in full. The `previous_window_*` columns keep the window before the last trim for undo. These columns are synchronized with the session. On an older database, the `session-derivation-window` migration copies each live, non-full range from `private_session_source_range`. Sessions without a range row take the window stored in their processing fingerprint. The migration then drops the range table. Startup also drops `extension_schema_version`, which held the old tables' schema versions.
@@ -390,7 +408,7 @@ Bike persistence, sync and export JSON carry `RearSuspensionSpec` union values, 
 
 ## Soft Delete
 
-`Synchronizable` entities (`Sufni.App/Sufni.App/SyncAndPairing/Models/Synchronizable.cs`) — `bike`, `setup`, `session`, `board`, `track`, `session_segment`, `custom_tile_layer` — carry authored `Version`, `Updated`, `UpdatedBy`, nullable `Deleted`, device-local `LocalSequence` and hub `SyncSequence`. `paired_device`, `session_recording_source` and `sync` are not `Synchronizable` and have their own lifecycles.
+`Synchronizable` entities (`Sufni.App/Sufni.App/SyncAndPairing/Models/Synchronizable.cs`) — `bike`, `setup`, `session`, `board`, `track`, `session_segment`, `custom_tile_layer`, `terrain_label` — carry authored `Version`, `Updated`, `UpdatedBy`, nullable `Deleted`, device-local `LocalSequence` and hub `SyncSequence`. `paired_device`, `session_recording_source` and `sync` are not `Synchronizable` and have their own lifecycles.
 
 On an older database, the one-time `track-materializations` migration:
 
