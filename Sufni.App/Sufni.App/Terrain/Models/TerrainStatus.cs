@@ -8,8 +8,10 @@ public sealed record TerrainProfileKey(SessionContentToken Content, int Algorith
     public static TerrainProfileKey From(SessionContentToken content) => new(content, TerrainProfileCalculator.AlgorithmVersion);
 }
 
-/// <summary>The inputs of a stored ride class summary.</summary>
-public sealed record TerrainClassKey(TerrainProfileKey Profile, TerrainScaleKey Scale, int ClassifierVersion);
+/// <summary>
+/// The inputs of a stored ride class summary. A key that classifier version 1 stored has no label set.
+/// </summary>
+public sealed record TerrainClassKey(TerrainProfileKey Profile, TerrainScaleKey Scale, TerrainLabelSet Labels, int ClassifierVersion);
 
 public enum TerrainOutcome { Computed = 0, NoTrack = 1, NoMovement = 2, ContentMissing = 3, Failed = 4 }
 
@@ -27,7 +29,8 @@ public closed record TerrainStatus
 
 /// <summary>
 /// The ride class summary of a session on the scale of its setup. <see cref="Pending"/> asks for class work;
-/// <see cref="Unavailable"/> covers a profile that is not current and a setup scale without a ready bin.
+/// <see cref="Unavailable"/> covers a profile that is not current and a setup scale without a ready bin and without
+/// labels on the ride.
 /// </summary>
 public closed record TerrainClassState
 {

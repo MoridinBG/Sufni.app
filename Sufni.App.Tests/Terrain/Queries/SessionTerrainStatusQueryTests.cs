@@ -48,14 +48,17 @@ public class SessionTerrainStatusQueryTests
         Assert.Equal(new TerrainStatus.Unavailable(TerrainAvailabilityReason.NoTelemetry),
             SessionTerrainStatusQuery.Evaluate(session with { HasProcessedData = false }, []).Status);
     }
-    [Fact]
-    public void ClassSummaryStoredUnderTheCurrentProfileAndScaleIsClassified()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ClassSummaryStoredUnderTheCurrentProfileScaleAndLabelsIsClassified(bool labelled)
     {
         var (session, status) = Current();
+        var labels = labelled ? Labels : TerrainLabelSet.None;
         var summary = new TerrainClassSummary(400, 0.25);
-        var classified = session with { TerrainClassKey = ClassKey(status), TerrainClassSummary = summary };
+        var classified = session with { TerrainClassKey = ClassKey(status, labels), TerrainClassSummary = summary };
         Assert.Equal(new TerrainClassState.Classified(summary),
-            SessionTerrainStatusQuery.EvaluateClasses(classified, status, Scale));
+            SessionTerrainStatusQuery.EvaluateClasses(classified, status, Scale, labels));
     }
 
     [Fact]
@@ -63,25 +66,37 @@ public class SessionTerrainStatusQueryTests
     {
         var (session, status) = Current();
         var summary = new TerrainClassSummary(400, 0.25);
-        var key = ClassKey(status);
+        var key = ClassKey(status, TerrainLabelSet.None);
         foreach (var stored in new TerrainClassKey?[] { null, key with { Scale = Scale with { FrameImu = 1 } },
+                     key with { Labels = Labels },
                      key with { ClassifierVersion = key.ClassifierVersion - 1 },
                      key with { Profile = key.Profile with { AlgorithmVersion = key.Profile.AlgorithmVersion - 1 } } })
             Assert.IsType<TerrainClassState.Pending>(SessionTerrainStatusQuery.EvaluateClasses(
-                session with { TerrainClassKey = stored, TerrainClassSummary = summary }, status, Scale));
+                session with { TerrainClassKey = stored, TerrainClassSummary = summary }, status, Scale, TerrainLabelSet.None));
     }
 
     [Fact]
     public void ClassesAreUnavailableWithoutACurrentProfileOrAReadyScale()
     {
         var (session, status) = Current();
-        var classified = session with { TerrainClassKey = ClassKey(status), TerrainClassSummary = new(400, 0.25) };
-        Assert.IsType<TerrainClassState.Unavailable>(SessionTerrainStatusQuery.EvaluateClasses(classified, status, null));
+        var classified = session with { TerrainClassKey = ClassKey(status, TerrainLabelSet.None), TerrainClassSummary = new(400, 0.25) };
+        Assert.IsType<TerrainClassState.Unavailable>(SessionTerrainStatusQuery.EvaluateClasses(classified, status, null, TerrainLabelSet.None));
         Assert.IsType<TerrainClassState.Unavailable>(
-            SessionTerrainStatusQuery.EvaluateClasses(classified, status, TerrainScaleKey.None));
+            SessionTerrainStatusQuery.EvaluateClasses(classified, status, TerrainScaleKey.None, TerrainLabelSet.None));
         Assert.IsType<TerrainClassState.Unavailable>(
-            SessionTerrainStatusQuery.EvaluateClasses(classified, new TerrainStatus.Pending(), Scale));
+            SessionTerrainStatusQuery.EvaluateClasses(classified, new TerrainStatus.Pending(), Scale, TerrainLabelSet.None));
+        Assert.IsType<TerrainClassState.Unavailable>(SessionTerrainStatusQuery.EvaluateClasses(classified, status, null, Labels));
     }
+
+    [Fact]
+    public void LabelsGiveClassesOnAScaleWithoutAReadyBin()
+    {
+        var (session, status) = Current();
+        Assert.IsType<TerrainClassState.Pending>(
+            SessionTerrainStatusQuery.EvaluateClasses(session, status, TerrainScaleKey.None, Labels));
+    }
+
+    private static readonly TerrainLabelSet Labels = new([new TerrainLabelRange(0, 5, RoughnessClass.Rough)]);
 
     private static readonly TerrainScaleKey Scale = new(0, null, null, null);
 
@@ -92,5 +107,6 @@ public class SessionTerrainStatusQueryTests
         return (session, Assert.IsType<TerrainStatus.Current>(SessionTerrainStatusQuery.Evaluate(session, []).Status));
     }
 
-    private static TerrainClassKey ClassKey(TerrainStatus.Current status) => new(status.Key, Scale, TerrainClassifier.Version);
+    private static TerrainClassKey ClassKey(TerrainStatus.Current status, TerrainLabelSet labels) =>
+        new(status.Key, Scale, labels, TerrainClassifier.Version);
 }

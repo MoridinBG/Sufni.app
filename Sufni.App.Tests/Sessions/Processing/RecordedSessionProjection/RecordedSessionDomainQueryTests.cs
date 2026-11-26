@@ -8,6 +8,7 @@ using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Terrain.Queries;
 using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.Sessions.Processing.RecordedSessionProjection;
 
@@ -19,9 +20,11 @@ public class RecordedSessionDomainQueryTests
     private readonly IRecordedSessionSourceStore sourceStore = Substitute.For<IRecordedSessionSourceStore>();
     private readonly IProcessingDependencyHashIndex dependencyHashIndex = Substitute.For<IProcessingDependencyHashIndex>();
     private readonly ProcessingFingerprintService fingerprintService = new();
+    private readonly ITerrainLabelQuery labelQuery = Substitute.For<ITerrainLabelQuery>();
 
     public RecordedSessionDomainQueryTests()
     {
+        labelQuery.LabelsOf(Arg.Any<SessionSnapshot>()).Returns(TerrainLabelSet.None);
     }
 
     [Fact]
@@ -97,7 +100,7 @@ public class RecordedSessionDomainQueryTests
         bikeStore,
         sourceStore,
         fingerprintService,
-        dependencyHashIndex, Substitute.For<ITrackStore>());
+        dependencyHashIndex, Substitute.For<ITrackStore>(), labelQuery);
 
     private TestContext CreateCurrentContext()
     {

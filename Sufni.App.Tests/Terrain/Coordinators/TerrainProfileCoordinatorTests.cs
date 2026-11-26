@@ -10,6 +10,7 @@ using Sufni.App.Shared.Stores;
 using Sufni.App.Terrain.Coordinators;
 using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Queries;
+using Sufni.App.Terrain.Stores;
 using Sufni.App.Tests.TestSupport.Async;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Persistence;
@@ -96,7 +97,7 @@ public class TerrainProfileCoordinatorTests
         var earlier = TerrainProfileKey.From(SessionContentToken.Create(Session(), [], out _));
         var session = Session() with
         {
-            TerrainClassKey = new(earlier, TerrainProfiles.Scale, TerrainClassifier.Version),
+            TerrainClassKey = new(earlier, TerrainProfiles.Scale, TerrainLabelSet.None, TerrainClassifier.Version),
             TerrainClassSummary = new(400, 0.25)
         };
         await h.StartAsync([session]);
@@ -241,6 +242,38 @@ public class TerrainProfileCoordinatorTests
     }
 
     [Fact]
+    public async Task LabelInsideARideChangesTheClassesOfThatRideOnTheSameScale()
+    {
+        await using var h = new Harness();
+        var measured = h.ReadySetup(Guid.NewGuid());
+        await h.StartAsync(measured);
+        await h.WaitForClassesAsync(measured[0], ScaleAt(0));
+        await h.PublishSourceAsync(measured[0]);
+
+        await h.PublishLabelAsync(measured[0], 0, 1, RoughnessClass.Smooth);
+        await h.WaitForLabelledClassesAsync(measured[0]);
+
+        Assert.Equal(ScaleAt(0), h.Sessions.Get(measured[0].Id)!.TerrainClassKey!.Scale);
+        Assert.Equal(0.5, h.Sessions.Get(measured[0].Id)!.TerrainClassSummary!.RoughShare);
+        Assert.Equal(1, h.Sessions.Get(measured[1].Id)!.TerrainClassSummary!.RoughShare);
+    }
+
+    [Fact]
+    public async Task SourceThatArrivesAfterItsLabelGivesTheLabelledClasses()
+    {
+        await using var h = new Harness();
+        var measured = h.ReadySetup(Guid.NewGuid());
+        await h.StartAsync(measured);
+        await h.WaitForClassesAsync(measured[0], ScaleAt(0));
+        await h.PublishLabelAsync(measured[0], 0, 1, RoughnessClass.Smooth);
+
+        await h.PublishSourceAsync(measured[0]);
+        await h.WaitForLabelledClassesAsync(measured[0]);
+
+        Assert.Equal(0.5, h.Sessions.Get(measured[0].Id)!.TerrainClassSummary!.RoughShare);
+    }
+
+    [Fact]
     public async Task SupersededClassRunWritesNothing()
     {
         await using var h = new Harness();
@@ -301,6 +334,8 @@ public class TerrainProfileCoordinatorTests
         private readonly IDisposable terrainPublications;
         public ManualUiThreadDispatcher Dispatcher { get; } = new();
         public SessionStore Sessions { get; }
+        public TerrainLabelStore Labels { get; }
+        public RecordedSessionSourceStore Sources { get; }
         public InMemoryTerrainProfileRepository Repository { get; } = new();
         public IFullTrackPointReader Points { get; } = Substitute.For<IFullTrackPointReader>();
         public TerrainProfileCoordinator Coordinator { get; }
@@ -344,7 +379,10 @@ public class TerrainProfileCoordinatorTests
                 ClassPublications.Add([.. classed.Select(change => change.Current.Id)]);
                 PublishedClassKeys.AddRange(classed.Select(change => change.Current.TerrainClassKey!));
             });
-            Coordinator = new(Sessions, tracks, content, Points, Repository, runner, Dispatcher, publication);
+            Labels = new TerrainLabelStore(publication);
+            Sources = new RecordedSessionSourceStore(publication);
+            Coordinator = new(Sessions, tracks, content, Points, Repository, runner, Dispatcher, publication, Labels,
+                new TerrainLabelQuery(Sessions, Sources, Labels), Sources);
         }
 
         /// <summary>
@@ -368,6 +406,16 @@ public class TerrainProfileCoordinatorTests
 
         public Task WaitForClassesAsync(SessionSnapshot session, TerrainScaleKey scale) => DrainAsync(Sessions.Watch(session.Id)
             .Where(value => value.TerrainClassKey?.Scale == scale).Take(1).ToTask(TestContext.Current.CancellationToken));
+
+        public Task WaitForLabelledClassesAsync(SessionSnapshot session) => DrainAsync(Sessions.Watch(session.Id)
+            .Where(value => value.TerrainClassKey?.Labels.Ranges.IsEmpty == false).Take(1).ToTask(TestContext.Current.CancellationToken));
+
+        /// <summary>Publishes the recording source of the session; its hash is the session ID.</summary>
+        public Task PublishSourceAsync(SessionSnapshot session) => DrainAsync(Sources.PublishSourcesChangedAsync(
+            [new RecordedSessionSourceSnapshot(session.Id, RecordedSessionSourceKind.ImportedSst, "ride.SST", 1, session.Id.ToString())]));
+
+        public Task PublishLabelAsync(SessionSnapshot session, double start, double end, RoughnessClass roughness) =>
+            DrainAsync(Labels.PublishLabelsAsync([new TerrainLabelSnapshot(Guid.NewGuid(), session.Id.ToString(), start, end, roughness)], []));
 
         public SessionContentSnapshotResult Available(SessionContentToken key, TelemetryData? telemetry = null) =>
             new SessionContentSnapshotResult.Available(new(key, SessionContentSelection.ProcessedTelemetry, telemetry ?? ride.Telemetry, null));
@@ -400,6 +448,8 @@ public class TerrainProfileCoordinatorTests
             terrainPublications.Dispose();
             classPublications.Dispose();
             tracks.Dispose();
+            Labels.Dispose();
+            Sources.Dispose();
             Sessions.Dispose();
             publication.Dispose();
         }

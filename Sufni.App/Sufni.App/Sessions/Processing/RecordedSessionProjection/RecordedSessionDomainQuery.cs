@@ -24,7 +24,8 @@ public sealed class RecordedSessionDomainQuery(
     IRecordedSessionSourceStore sourceStore,
     IProcessingFingerprintService fingerprintService,
     IProcessingDependencyHashIndex dependencyHashIndex,
-    ITrackStore trackStore) : IRecordedSessionDomainQuery
+    ITrackStore trackStore,
+    ITerrainLabelQuery labelQuery) : IRecordedSessionDomainQuery
 {
     public RecordedSessionDomainSnapshot? Get(Guid sessionId)
     {
@@ -46,7 +47,8 @@ public sealed class RecordedSessionDomainQuery(
             fingerprintService,
             setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id),
             tracks,
-            scale);
+            scale,
+            labelQuery.LabelsOf(session));
     }
 }
 
@@ -60,7 +62,8 @@ internal static class RecordedSessionDomainSnapshotFactory
         IProcessingFingerprintService fingerprintService,
         string? dependencyHash,
         IReadOnlyList<TrackSnapshot> tracks,
-        SetupTerrainScale? terrainScale)
+        SetupTerrainScale? terrainScale,
+        TerrainLabelSet terrainLabels)
     {
         var effectiveDependencyHash = setup is null || bike is null
             ? null
@@ -79,8 +82,8 @@ internal static class RecordedSessionDomainSnapshotFactory
             effectiveDependencyHash,
             selectedTrack)
         {
-            Terrain = terrain.Status, TerrainScale = terrainScale,
-            TerrainClasses = SessionTerrainStatusQuery.EvaluateClasses(session, terrain.Status, terrainScale?.Key)
+            Terrain = terrain.Status, TerrainScale = terrainScale, TerrainLabels = terrainLabels,
+            TerrainClasses = SessionTerrainStatusQuery.EvaluateClasses(session, terrain.Status, terrainScale?.Key, terrainLabels)
         };
     }
 }

@@ -8,10 +8,29 @@ using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Setups.Models.SensorConfigurations;
+using Sufni.App.Terrain.Models;
+using Sufni.Telemetry;
+using System.Text.Json.Nodes;
 namespace Sufni.App.Tests.Shared.Models;
 
 public class ModelJsonTests
 {
+    [Fact]
+    public void TerrainClassKeyJson_RoundTripsLabels_AndAKeyWithoutLabelsParsesAsNoNewKey()
+    {
+        var profile = TestSnapshots.WithCurrentTerrain(TestSnapshots.Session(hasProcessedData: true), TerrainOutcome.Computed,
+            new TerrainSummary(10, null)).TerrainProfileKey!;
+        var key = new TerrainClassKey(profile, new TerrainScaleKey(0, null, null, null),
+            new([new TerrainLabelRange(1, 2, RoughnessClass.Rough)]), TerrainClassifier.Version);
+        var earlierJson = JsonNode.Parse(AppJson.Serialize(key))!.AsObject();
+        earlierJson.Remove(nameof(TerrainClassKey.Labels));
+
+        var earlier = AppJson.Deserialize<TerrainClassKey>(earlierJson.ToJsonString());
+
+        Assert.Equal(key, AppJson.Deserialize<TerrainClassKey>(AppJson.Serialize(key)));
+        Assert.NotNull(earlier);
+        Assert.NotEqual(key with { Labels = TerrainLabelSet.None }, earlier);
+    }
 
     [Fact]
     public void SensorConfigurationJson_RemainsCaseInsensitiveAndUsesSnakeCaseEnum()

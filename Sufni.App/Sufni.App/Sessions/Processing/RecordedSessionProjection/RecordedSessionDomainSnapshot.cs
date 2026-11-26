@@ -3,6 +3,7 @@ using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
 using Sufni.App.Terrain.Models;
+using Sufni.Telemetry;
 namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
 /// <summary>
@@ -27,4 +28,7 @@ public sealed record RecordedSessionDomainSnapshot(
     public SetupTerrainScale? TerrainScale { get; init; }
 
     public TerrainClassState TerrainClasses { get; init; } = new TerrainClassState.Unavailable();
+
+    /// <summary>The terrain labels inside the session window.</summary>
+    public required TerrainLabelSet TerrainLabels { get; init; }
 }

@@ -9,6 +9,8 @@ using Sufni.App.Tests.TestSupport.Doubles;
 using System.Reactive.Linq;
 using DynamicData;
 using Sufni.App.Terrain.Models;
+using Sufni.App.Terrain.Queries;
+using Sufni.App.Terrain.Stores;
 using Sufni.Telemetry;
 using NSubstitute;
 using Sufni.App.Shared.Stores;
@@ -332,7 +334,7 @@ public class RecordedSessionProjectionTests
         var classes = new TerrainClassSummary(400, 0.25);
         await stores.Sessions.PublishSessionsChangedAsync([first.Session with
         {
-            TerrainClassKey = new(status.Key, new TerrainScaleKey(5, null, null, null), TerrainClassifier.Version),
+            TerrainClassKey = new(status.Key, new TerrainScaleKey(5, null, null, null), TerrainLabelSet.None, TerrainClassifier.Version),
             TerrainClassSummary = classes
         }]);
         await scheduler.DrainAsync();
@@ -341,6 +343,62 @@ public class RecordedSessionProjectionTests
             summaries.Single(summary => summary.Id == first.Session.Id).TerrainClasses);
         Assert.Empty(siblingDomains);
     }
+
+    [Fact]
+    public async Task ChangedLabelGivesItsSessionTheLabelsAndComputesTheSessionsOfItsSetupAgain()
+    {
+        var scheduler = new ManualUiThreadDispatcher();
+        using var stores = new StoreFixtures();
+        var fingerprints = new ProcessingFingerprintService();
+        using var projection = stores.CreateProjection(fingerprints, scheduler);
+        var context = WithDuration(CreateCurrentContext(fingerprints));
+        var sibling = Measured(Sibling(context));
+        var labelled = Measured(context with { Source = context.Source with { SourceHash = "labelled-source" } });
+        using var observation = projection.ConnectSessions().Bind(out var summaries).Subscribe();
+        await stores.AddAsync(labelled);
+        await stores.AddAsync(sibling);
+        await scheduler.DrainAsync();
+        Assert.All(summaries, summary => Assert.IsType<TerrainClassState.Unavailable>(summary.TerrainClasses));
+        var siblingDomains = new List<RecordedSessionDomainSnapshot>();
+        using var watch = projection.WatchSession(sibling.Session.Id).Subscribe(siblingDomains.Add);
+        siblingDomains.Clear();
+
+        await stores.Labels.PublishLabelsAsync([new(Guid.NewGuid(), "labelled-source", 0, 5, RoughnessClass.Rough)], []);
+        await scheduler.DrainAsync();
+
+        Assert.IsType<TerrainClassState.Pending>(summaries.Single(summary => summary.Id == labelled.Session.Id).TerrainClasses);
+        Assert.Equal(TerrainLabelSet.None, Assert.Single(siblingDomains).TerrainLabels);
+    }
+
+    [Fact]
+    public async Task EvaluationOfAnOlderLabelSetIsRecomputed()
+    {
+        var scheduler = new ManualUiThreadDispatcher();
+        var runner = new DeferredBackgroundTaskRunner();
+        using var stores = new StoreFixtures();
+        var fingerprints = new ProcessingFingerprintService();
+        using var projection = stores.CreateProjection(fingerprints, scheduler, runner);
+        var context = WithDuration(CreateCurrentContext(fingerprints));
+        var withoutSetup = context with { Session = context.Session with { SetupId = null } };
+        await stores.AddAsync(withoutSetup);
+        await scheduler.DrainAsync();
+        await CompleteEvaluationAsync(runner, scheduler);
+        var domains = new List<RecordedSessionDomainSnapshot>();
+        using var watch = projection.WatchSession(withoutSetup.Session.Id).Subscribe(domains.Add);
+        domains.Clear();
+        var label = new TerrainLabelSnapshot(Guid.NewGuid(), context.Source.SourceHash, 0, 5, RoughnessClass.Rough);
+
+        await stores.Labels.PublishLabelsAsync([label], []);
+        await scheduler.DrainAsync();
+        await stores.Labels.PublishLabelsAsync([label with { Class = RoughnessClass.Smooth }], []);
+        await CompleteEvaluationAsync(runner, scheduler);
+        Assert.Empty(domains);
+        await CompleteEvaluationAsync(runner, scheduler);
+        Assert.Equal(RoughnessClass.Smooth, Assert.Single(Assert.Single(domains).TerrainLabels.Ranges).Class);
+    }
+
+    private static TestContext WithDuration(TestContext context) =>
+        context with { Session = context.Session with { DurationSeconds = 20 } };
 
     private static TestContext Sibling(TestContext context)
     {
@@ -620,6 +678,7 @@ public class RecordedSessionProjectionTests
         public TrackStore Tracks { get; }
         public SessionVideoStore Videos { get; }
         public ProcessingDependencyHashIndex DependencyHashIndex { get; }
+        public TerrainLabelStore Labels { get; }
         public StorePublication Publication { get; } = new(new InlineUiThreadDispatcher());
 
         public StoreFixtures()
@@ -631,6 +690,7 @@ public class RecordedSessionProjectionTests
             Tracks = new TrackStore(Publication);
             Videos = new SessionVideoStore(Publication);
             DependencyHashIndex = new ProcessingDependencyHashIndex(Setups, Bikes);
+            Labels = new TerrainLabelStore(Publication);
         }
 
         public RecordedSessionProjectionModel CreateProjection(
@@ -647,6 +707,8 @@ public class RecordedSessionProjectionTests
             Publication,
             Tracks,
             Videos,
+            Labels,
+            new TerrainLabelQuery(Sessions, Sources, Labels),
             new UiThreadRecordedSessionProjectionScheduler(scheduler));
 
         public async Task AddAsync(TestContext context)
@@ -667,6 +729,7 @@ public class RecordedSessionProjectionTests
             Sources.Dispose();
             Tracks.Dispose();
             Videos.Dispose();
+            Labels.Dispose();
             Publication.Dispose();
         }
     }

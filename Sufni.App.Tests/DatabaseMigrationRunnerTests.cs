@@ -87,7 +87,7 @@ public class DatabaseMigrationRunnerTests
         await using var reopened = new TestPersistenceHarness(temp.DatabasePath);
         var stored = SessionSnapshot.From(Assert.Single(await reopened.GetSessionsAsync()));
         Assert.IsType<TerrainStatus.Current>(SessionTerrainStatusQuery.Evaluate(stored, []).Status);
-        var classes = (new TerrainClassKey(key, TerrainProfiles.Scale, TerrainClassifier.Version), new TerrainClassSummary(10, 0));
+        var classes = (new TerrainClassKey(key, TerrainProfiles.Scale, TerrainLabelSet.None, TerrainClassifier.Version), new TerrainClassSummary(10, 0));
         Assert.Equal([session.Id], await reopened.TerrainProfiles.CommitClassesAsync(
             new Dictionary<Guid, (TerrainClassKey, TerrainClassSummary)> { [session.Id] = classes }, token));
     }

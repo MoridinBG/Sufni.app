@@ -16,6 +16,7 @@ using Sufni.App.Shared.Stores;
 using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Queries;
 using Sufni.App.Terrain.Services;
+using Sufni.App.Terrain.Stores;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Terrain.Coordinators;
@@ -29,12 +30,13 @@ public interface ITerrainProfileCoordinator
 internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, IDisposable
 {
     private sealed record Request(Guid Id, TerrainProfileKey Key);
-    private sealed record ClassRun(Guid SetupId, TerrainScaleKey Scale, ImmutableDictionary<Guid, TerrainProfileKey> Sessions);
+    private sealed record ClassRun(Guid SetupId, TerrainScaleKey Scale, ImmutableDictionary<Guid, TerrainClassKey> Sessions);
     private sealed record Plan(List<Request> Profiles, IReadOnlyDictionary<Guid, TerrainScaleKey> Scales, List<ClassRun> Classes);
 
     private static readonly ILogger Logger = Log.ForContext<TerrainProfileCoordinator>();
     private readonly ISessionStoreWriter sessions;
     private readonly ITrackStore tracks;
+    private readonly ITerrainLabelQuery labels;
     private readonly ISessionContentReader content;
     private readonly IFullTrackPointReader points;
     private readonly ITerrainProfileRepository repository;
@@ -55,16 +57,20 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
 
     public TerrainProfileCoordinator(ISessionStoreWriter sessions, ITrackStore tracks, ISessionContentReader content,
         IFullTrackPointReader points, ITerrainProfileRepository repository, IBackgroundTaskRunner background,
-        IUiThreadDispatcher dispatcher, StorePublication publication)
+        IUiThreadDispatcher dispatcher, StorePublication publication, ITerrainLabelStore labelStore, ITerrainLabelQuery labels,
+        IRecordedSessionSourceStore sources)
     {
         this.sessions = sessions;
         this.tracks = tracks;
+        this.labels = labels;
         this.content = content;
         this.points = points;
         this.repository = repository;
         this.background = background;
         this.dispatcher = dispatcher;
-        subscription = publication.Committed.Where(change => change.Stores.Contains(sessions) || change.Stores.Contains(tracks))
+        // The label set of a session depends on its source, and sync publishes a source alone, after the rows of the ride.
+        subscription = publication.Committed.Where(change => change.Stores.Contains(sessions) || change.Stores.Contains(tracks) ||
+                                                             change.Stores.Contains(labelStore) || change.Stores.Contains(sources))
             .Subscribe(_ => Reconcile());
         dispatcher.Post(Reconcile);
     }
@@ -85,12 +91,16 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
         {
             var snapshot = sessions.GetAll();
             var trackSnapshot = tracks.GetAll();
-            var plan = await background.RunAsync(() => Evaluate(snapshot, trackSnapshot), lifetime.Token).ConfigureAwait(false);
+            var labelSets = labels.LabelsOf(snapshot);
+            var plan = await background.RunAsync(() => Evaluate(snapshot, trackSnapshot, labelSets), lifetime.Token)
+                .ConfigureAwait(false);
             await dispatcher.InvokeAsync(() =>
             {
                 if (stopped || requested != generation) return;
                 if (active is not null && !plan.Profiles.Contains(active)) activeCancellation?.Cancel();
-                if (activeClasses is { } running && plan.Scales.GetValueOrDefault(running.SetupId) != running.Scale)
+                if (activeClasses is { } running && (plan.Scales.GetValueOrDefault(running.SetupId) != running.Scale ||
+                        plan.Classes.FirstOrDefault(run => run.SetupId == running.SetupId) is { } next &&
+                        running.Sessions.Any(pair => next.Sessions.TryGetValue(pair.Key, out var key) && key != pair.Value)))
                     activeCancellation?.Cancel();
                 var runningClasses = activeCancellation?.IsCancellationRequested == true ? null : activeClasses;
                 queue.Clear();
@@ -122,7 +132,8 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
         }
     }
 
-    private static Plan Evaluate(IReadOnlyList<SessionSnapshot> snapshot, IReadOnlyList<TrackSnapshot> trackSnapshot)
+    private static Plan Evaluate(IReadOnlyList<SessionSnapshot> snapshot, IReadOnlyList<TrackSnapshot> trackSnapshot,
+        IReadOnlyDictionary<Guid, TerrainLabelSet> labelSets)
     {
         var evaluated = snapshot.OrderByDescending(s => s.Timestamp).ThenBy(s => s.Id)
             .Select(s => (Session: s, Terrain: SessionTerrainStatusQuery.Evaluate(s, trackSnapshot))).ToList();
@@ -133,9 +144,10 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
         var classes = evaluated.Where(s => s.Session.SetupId is { } setupId && scales.ContainsKey(setupId))
             .GroupBy(s => s.Session.SetupId!.Value)
             .Select(setup => new ClassRun(setup.Key, scales[setup.Key], setup
-                .Where(s => SessionTerrainStatusQuery.EvaluateClasses(s.Session, s.Terrain.Status, scales[setup.Key])
-                    is TerrainClassState.Pending)
-                .ToImmutableDictionary(s => s.Session.Id, s => s.Terrain.Key)))
+                .Where(s => SessionTerrainStatusQuery.EvaluateClasses(s.Session, s.Terrain.Status, scales[setup.Key],
+                    labelSets[s.Session.Id]) is TerrainClassState.Pending)
+                .ToImmutableDictionary(s => s.Session.Id,
+                    s => new TerrainClassKey(s.Terrain.Key, scales[setup.Key], labelSets[s.Session.Id], TerrainClassifier.Version))))
             .Where(run => run.Sessions.Count > 0).ToList();
         return new(profiles, scales, classes);
     }
@@ -244,13 +256,14 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
     private async Task<Dictionary<Guid, (TerrainClassKey Key, TerrainClassSummary Summary)>> ClassifyAndCommitAsync(
         ClassRun run, CancellationToken token)
     {
-        var profiles = await repository.ReadAsync(run.Sessions, token).ConfigureAwait(false);
+        var profiles = await repository.ReadAsync(run.Sessions.ToDictionary(pair => pair.Key, pair => pair.Value.Profile), token)
+            .ConfigureAwait(false);
         var classes = new Dictionary<Guid, (TerrainClassKey Key, TerrainClassSummary Summary)>();
         foreach (var (id, profile) in profiles)
         {
             token.ThrowIfCancellationRequested();
-            classes[id] = (new TerrainClassKey(run.Sessions[id], run.Scale, TerrainClassifier.Version),
-                TerrainClassifier.Summarize(TerrainClassifier.Classify(profile, run.Scale, TerrainLabelSet.None)));
+            var key = run.Sessions[id];
+            classes[id] = (key, TerrainClassifier.Summarize(TerrainClassifier.Classify(profile, key.Scale, key.Labels)));
         }
         token.ThrowIfCancellationRequested();
         if (classes.Count == 0) return [];

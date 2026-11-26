@@ -109,7 +109,7 @@ public class TerrainProfileRepositoryTests
     private static TerrainProfile Profile() => TerrainProfiles.Profile([TerrainProfiles.Window(0)]);
 
     private static TerrainClassKey ClassKey(TerrainProfileKey profile) =>
-        new(profile, TerrainProfiles.Scale, TerrainClassifier.Version);
+        new(profile, TerrainProfiles.Scale, TerrainLabelSet.None, TerrainClassifier.Version);
 
     private static async Task<(Guid Id, TerrainProfileKey Key)> StoreAsync(TestPersistenceHarness db, TerrainMaterialization result)
     {

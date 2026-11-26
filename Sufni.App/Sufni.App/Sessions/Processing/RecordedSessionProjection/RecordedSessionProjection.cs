@@ -17,6 +17,8 @@ using Sufni.App.Setups.Stores;
 using Sufni.App.Shared.Stores;
 using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Queries;
+using Sufni.App.Terrain.Stores;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
@@ -28,6 +30,8 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
     private long trackGeneration;
     private readonly ISessionVideoStore videoStore;
     private long videoGeneration;
+    private readonly ITerrainLabelStore labelStore;
+    private readonly ITerrainLabelQuery labelQuery;
     private readonly ISetupStore setupStore;
     private readonly IBikeStore bikeStore;
     private readonly IRecordedSessionSourceStore sourceStore;
@@ -54,9 +58,10 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         ISessionStore sessionStore, ISetupStore setupStore, IBikeStore bikeStore,
         IRecordedSessionSourceStore sourceStore, IProcessingFingerprintService fingerprintService,
         IProcessingDependencyHashIndex dependencyHashIndex, IUiThreadDispatcher dispatcher,
-        IBackgroundTaskRunner backgroundTaskRunner, StorePublication publication, ITrackStore trackStore, ISessionVideoStore videoStore)
+        IBackgroundTaskRunner backgroundTaskRunner, StorePublication publication, ITrackStore trackStore, ISessionVideoStore videoStore,
+        ITerrainLabelStore labelStore, ITerrainLabelQuery labelQuery)
         : this(sessionStore, setupStore, bikeStore, sourceStore, fingerprintService,
-            dependencyHashIndex, dispatcher, backgroundTaskRunner, publication, trackStore, videoStore,
+            dependencyHashIndex, dispatcher, backgroundTaskRunner, publication, trackStore, videoStore, labelStore, labelQuery,
             new UiThreadRecordedSessionProjectionScheduler(dispatcher))
     {
     }
@@ -66,11 +71,13 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         IRecordedSessionSourceStore sourceStore, IProcessingFingerprintService fingerprintService,
         IProcessingDependencyHashIndex dependencyHashIndex, IUiThreadDispatcher dispatcher,
         IBackgroundTaskRunner backgroundTaskRunner, StorePublication publication, ITrackStore trackStore, ISessionVideoStore videoStore,
-        IRecordedSessionProjectionScheduler scheduler)
+        ITerrainLabelStore labelStore, ITerrainLabelQuery labelQuery, IRecordedSessionProjectionScheduler scheduler)
     {
         this.sessionStore = sessionStore;
         this.trackStore = trackStore;
         this.videoStore = videoStore;
+        this.labelStore = labelStore;
+        this.labelQuery = labelQuery;
         this.setupStore = setupStore;
         this.bikeStore = bikeStore;
         this.sourceStore = sourceStore;
@@ -109,6 +116,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                 pendingRecomputeIds.UnionWith(sessionToSetup.Keys);
             }
         }));
+        subscriptions.Add(labelStore.Connect().Subscribe(ApplyLabelChanges));
         subscriptions.Add(publication.Committed.Subscribe(ApplyCommit));
         SchedulePending();
     }
@@ -232,10 +240,27 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         }
     }
 
+    private void ApplyLabelChanges(IChangeSet<TerrainLabelSnapshot, Guid> changes)
+    {
+        lock (stateGate)
+        {
+            if (disposed) return;
+            foreach (var ownerKey in changes.Select(change => change.Current.OwnerKey).Distinct())
+            {
+                foreach (var id in labelQuery.SessionsOf(ownerKey))
+                {
+                    if (sessionToSetup.GetValueOrDefault(id) is { } setupId) AdvanceTerrain(setupId);
+                    else if (sessionToSetup.ContainsKey(id)) pendingRecomputeIds.Add(id);
+                }
+            }
+        }
+    }
+
     private void ApplyCommit(StorePublicationCommit commit)
     {
         if (!commit.Stores.Contains(sessionStore) && !commit.Stores.Contains(setupStore) &&
-            !commit.Stores.Contains(bikeStore) && !commit.Stores.Contains(sourceStore) && !commit.Stores.Contains(trackStore) && !commit.Stores.Contains(videoStore)) return;
+            !commit.Stores.Contains(bikeStore) && !commit.Stores.Contains(sourceStore) && !commit.Stores.Contains(trackStore) &&
+            !commit.Stores.Contains(videoStore) && !commit.Stores.Contains(labelStore)) return;
 
         lock (stateGate)
         {
@@ -299,7 +324,8 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                 {
                     var domain = RecordedSessionDomainSnapshotFactory.Create(
                         input.Session, input.Setup, input.Bike, input.Source, fingerprintService, input.DependencyHash,
-                        input.Tracks, input.Session.SetupId is { } setupId ? scales.GetValueOrDefault(setupId) : null);
+                        input.Tracks, input.Session.SetupId is { } setupId ? scales.GetValueOrDefault(setupId) : null,
+                        input.Labels);
                     var video = SessionVideoSelection.ForWindow(input.Clips, input.Source?.SourceHash,
                         new SessionTrackTimeline(0, OwnerOriginSeconds: input.Session.WindowStartSeconds), input.Session.DurationSeconds)
                         .MaxBy(clip => clip.Added);
@@ -362,7 +388,8 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         var bike = setup is null ? null : bikeStore.Get(setup.BikeId);
         return new ProjectionInput(session, setup, bike, sourceStore.Get(session.RecordingSourceSessionId),
             setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id), tracks, trackGeneration, clips, videoGeneration,
-            session.SetupId is { } terrainSetupId ? terrainGenerations.GetValueOrDefault(terrainSetupId) : 0);
+            session.SetupId is { } terrainSetupId ? terrainGenerations.GetValueOrDefault(terrainSetupId) : 0,
+            labelQuery.LabelsOf(session));
     }
 
     private bool IsCurrent(ProjectionInput input)
@@ -371,7 +398,8 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         if (current is null) return false;
         if (input.VideoGeneration == current.VideoGeneration && input.TrackGeneration == current.TrackGeneration &&
             input.TerrainGeneration == current.TerrainGeneration && input.Session == current.Session && input.Setup == current.Setup &&
-            input.Bike == current.Bike && input.Source == current.Source && input.DependencyHash == current.DependencyHash)
+            input.Bike == current.Bike && input.Source == current.Source && input.DependencyHash == current.DependencyHash &&
+            input.Labels == current.Labels)
             return true;
         pendingRecomputeIds.Add(input.Session.Id);
         return false;
@@ -394,7 +422,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
 
     private sealed record ProjectionInput(SessionSnapshot Session, SetupSnapshot? Setup, BikeSnapshot? Bike,
         RecordedSessionSourceSnapshot? Source, string? DependencyHash, IReadOnlyList<TrackSnapshot> Tracks, long TrackGeneration,
-        IReadOnlyList<SessionVideoSnapshot> Clips, long VideoGeneration, long TerrainGeneration);
+        IReadOnlyList<SessionVideoSnapshot> Clips, long VideoGeneration, long TerrainGeneration, TerrainLabelSet Labels);
 
 
 }

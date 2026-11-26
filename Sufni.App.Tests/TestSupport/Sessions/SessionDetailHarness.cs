@@ -100,7 +100,7 @@ internal sealed class SessionDetailHarness : IDisposable
         null,
         null,
         null,
-        staleness ?? new SessionStaleness.Current()) { Terrain = TestSnapshots.Terrain(snapshot) };
+        staleness ?? new SessionStaleness.Current()) { TerrainLabels = TerrainLabelSet.None, Terrain = TestSnapshots.Terrain(snapshot) };
 
     /// <summary>A domain snapshot with a current terrain profile; the setup scale defaults to the fixture scale.</summary>
     public RecordedSessionDomainSnapshot WithTerrain(SessionSnapshot session, TerrainProfile profile, SetupTerrainScale? scale = null)
