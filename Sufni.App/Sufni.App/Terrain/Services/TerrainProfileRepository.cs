@@ -26,6 +26,14 @@ public interface ITerrainProfileRepository
     Task<IReadOnlyList<Guid>> CommitClassesAsync(
         IReadOnlyDictionary<Guid, (TerrainClassKey Key, TerrainClassSummary Summary)> classes,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Writes the label summaries in one transaction, with the guard of <see cref="CommitClassesAsync"/> on the profile
+    /// key of each label key. Returns the IDs of the written sessions.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> CommitLabelsAsync(
+        IReadOnlyDictionary<Guid, (TerrainLabelKey Key, TerrainLabelSummary Summary)> labels,
+        CancellationToken cancellationToken = default);
 }
 
 internal sealed class TerrainProfileRepository(SqliteConnectionContext context) : ITerrainProfileRepository
@@ -86,6 +94,25 @@ internal sealed class TerrainProfileRepository(SqliteConnectionContext context) 
                 cancellationToken.ThrowIfCancellationRequested();
                 var rows = connection.Execute("""
                     UPDATE session_terrain_profile SET terrain_classes_key = ?, terrain_classes = ?
+                    WHERE session_id = ? AND terrain_profile_key = ? AND terrain_outcome = ?
+                    """, AppJson.Serialize(key), AppJson.Serialize(summary), id, AppJson.Serialize(key.Profile),
+                    (int)TerrainOutcome.Computed);
+                if (rows == 1) written.Add(id);
+            }
+            return written;
+        }, cancellationToken);
+
+    public Task<IReadOnlyList<Guid>> CommitLabelsAsync(
+        IReadOnlyDictionary<Guid, (TerrainLabelKey Key, TerrainLabelSummary Summary)> labels,
+        CancellationToken cancellationToken = default) =>
+        context.RunInTransactionAsync<IReadOnlyList<Guid>>(connection =>
+        {
+            var written = new List<Guid>();
+            foreach (var (id, (key, summary)) in labels)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var rows = connection.Execute("""
+                    UPDATE session_terrain_profile SET terrain_labels_key = ?, terrain_labels = ?
                     WHERE session_id = ? AND terrain_profile_key = ? AND terrain_outcome = ?
                     """, AppJson.Serialize(key), AppJson.Serialize(summary), id, AppJson.Serialize(key.Profile),
                     (int)TerrainOutcome.Computed);

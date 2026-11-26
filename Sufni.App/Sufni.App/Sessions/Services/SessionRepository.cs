@@ -129,6 +129,7 @@ internal sealed class SessionRepository(
                                                                       gps_metrics_key,
                                                                       terrain_profile_key, terrain_outcome, terrain_summary,
                                                                       terrain_classes_key, terrain_classes,
+                                                                      terrain_labels_key, terrain_labels,
                                                                       gps_offset_seconds,
                                                                       source_session_id,
                                                                       window_start_seconds,

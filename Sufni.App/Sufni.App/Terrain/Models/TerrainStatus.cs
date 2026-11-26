@@ -13,6 +13,9 @@ public sealed record TerrainProfileKey(SessionContentToken Content, int Algorith
 /// </summary>
 public sealed record TerrainClassKey(TerrainProfileKey Profile, TerrainScaleKey Scale, TerrainLabelSet Labels, int ClassifierVersion);
 
+/// <summary>The inputs of a stored label summary.</summary>
+public sealed record TerrainLabelKey(TerrainProfileKey Profile, TerrainLabelSet Labels, int Version);
+
 public enum TerrainOutcome { Computed = 0, NoTrack = 1, NoMovement = 2, ContentMissing = 3, Failed = 4 }
 
 public enum TerrainAvailabilityReason { NoTelemetry, NoTrack, NoMovement, ContentMissing }

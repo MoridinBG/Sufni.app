@@ -91,7 +91,31 @@ public class TerrainProfileRepositoryTests
     }
 
     [Fact]
-    public async Task ProfileCommitClearsTheStoredClasses()
+    public async Task LabelCommitWritesOnlyRowsThatHoldTheComputedProfileOfTheirLabelKey()
+    {
+        using var temp = new TempDatabase();
+        await using var db = new TestPersistenceHarness(temp.DatabasePath);
+        var token = TestContext.Current.CancellationToken;
+        var (current, keyOfCurrent) = await StoreAsync(db, TerrainMaterialization.Computed(Profile()));
+        var (replaced, keyOfReplaced) = await StoreAsync(db, TerrainMaterialization.Computed(Profile()));
+        var (unavailable, keyOfUnavailable) = await StoreAsync(db, TerrainMaterialization.WithoutProfile(TerrainOutcome.NoTrack));
+
+        var written = await db.TerrainProfiles.CommitLabelsAsync(new Dictionary<Guid, (TerrainLabelKey, TerrainLabelSummary)>
+        {
+            [current] = (LabelKey(keyOfCurrent), LabelSummary),
+            [replaced] = (LabelKey(keyOfReplaced with { AlgorithmVersion = keyOfReplaced.AlgorithmVersion - 1 }), LabelSummary),
+            [unavailable] = (LabelKey(keyOfUnavailable), LabelSummary)
+        }, token);
+
+        Assert.Equal([current], written);
+        var stored = (await db.GetSessionsAsync()).Select(SessionSnapshot.From).ToDictionary(session => session.Id);
+        Assert.Equal((LabelKey(keyOfCurrent), LabelSummary), (stored[current].TerrainLabelKey, stored[current].TerrainLabelSummary));
+        Assert.Null(stored[replaced].TerrainLabelKey);
+        Assert.Null(stored[unavailable].TerrainLabelSummary);
+    }
+
+    [Fact]
+    public async Task ProfileCommitClearsTheStoredClassesAndLabelSummary()
     {
         using var temp = new TempDatabase();
         await using var db = new TestPersistenceHarness(temp.DatabasePath);
@@ -99,12 +123,21 @@ public class TerrainProfileRepositoryTests
         var (id, key) = await StoreAsync(db, TerrainMaterialization.Computed(Profile()));
         Assert.Equal([id], await db.TerrainProfiles.CommitClassesAsync(
             new Dictionary<Guid, (TerrainClassKey, TerrainClassSummary)> { [id] = (ClassKey(key), new(400, 0.25)) }, token));
+        Assert.Equal([id], await db.TerrainProfiles.CommitLabelsAsync(
+            new Dictionary<Guid, (TerrainLabelKey, TerrainLabelSummary)> { [id] = (LabelKey(key), LabelSummary) }, token));
 
         Assert.True(await db.TerrainProfiles.TryCommitAsync(id, key, TerrainMaterialization.Computed(Profile()), token));
 
         var stored = SessionSnapshot.From((await db.GetSessionAsync(id))!);
         Assert.Equal((null, null), (stored.TerrainClassKey, stored.TerrainClassSummary));
+        Assert.Equal((null, null), (stored.TerrainLabelKey, stored.TerrainLabelSummary));
     }
+
+    private static readonly TerrainLabelSummary LabelSummary = new(
+        new LevelDistribution(System.Collections.Immutable.ImmutableSortedDictionary<int, double>.Empty.Add(-3, 10)), null, null, null, null);
+
+    private static TerrainLabelKey LabelKey(TerrainProfileKey profile) =>
+        new(profile, TerrainProfiles.Labels(new TerrainLabelRange(0, 1, RoughnessClass.Rough)), TerrainLabels.Version);
 
     private static TerrainProfile Profile() => TerrainProfiles.Profile([TerrainProfiles.Window(0)]);
 

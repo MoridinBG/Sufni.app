@@ -51,7 +51,9 @@ public sealed record SessionSnapshot(
     TerrainOutcome? TerrainOutcome = null,
     TerrainSummary? TerrainSummary = null,
     TerrainClassKey? TerrainClassKey = null,
-    TerrainClassSummary? TerrainClassSummary = null)
+    TerrainClassSummary? TerrainClassSummary = null,
+    TerrainLabelKey? TerrainLabelKey = null,
+    TerrainLabelSummary? TerrainLabelSummary = null)
 {
     public RecordedSessionDerivationWindow? DerivationWindow => SourceSessionId is { } sourceSessionId
         ? new RecordedSessionDerivationWindow(sourceSessionId, WindowStartSeconds, WindowEndSeconds)
@@ -100,7 +102,9 @@ public sealed record SessionSnapshot(
         session.TerrainOutcome,
         session.TerrainSummary,
         session.TerrainClassKey,
-        session.TerrainClassSummary);
+        session.TerrainClassSummary,
+        session.TerrainLabelKey,
+        session.TerrainLabelSummary);
 }
 
 public static class SessionSnapshotExtensions

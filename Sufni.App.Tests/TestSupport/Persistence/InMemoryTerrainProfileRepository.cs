@@ -6,7 +6,7 @@ namespace Sufni.App.Tests.TestSupport.Persistence;
 
 /// <summary>
 /// Accepts every profile commit; key-guarded profile commits are covered by the SQLite repository tests. A class commit
-/// accepts the sessions whose stored profile has the profile key of their class key.
+/// or label commit accepts the sessions whose stored profile has the profile key of its key.
 /// </summary>
 internal sealed class InMemoryTerrainProfileRepository : ITerrainProfileRepository
 {
@@ -15,6 +15,9 @@ internal sealed class InMemoryTerrainProfileRepository : ITerrainProfileReposito
     public Exception? ReadFailure { get; set; }
     public Func<Task>? BeforeWrite { get; set; }
     public Func<Task>? BeforeClassWrite { get; set; }
+    public Func<Task>? BeforeLabelWrite { get; set; }
+    public Exception? LabelWriteFailure { get; set; }
+    public List<IReadOnlyDictionary<Guid, (TerrainLabelKey Key, TerrainLabelSummary Summary)>> LabelWrites { get; } = [];
     public Func<IReadOnlyDictionary<Guid, TerrainProfileKey>, CancellationToken, Task>? BeforeRead { get; set; }
 
     public void Seed(Guid sessionId, TerrainProfileKey key, TerrainProfile profile) =>
@@ -47,6 +50,18 @@ internal sealed class InMemoryTerrainProfileRepository : ITerrainProfileReposito
     {
         if (BeforeClassWrite is { } beforeClassWrite) await beforeClassWrite();
         cancellationToken.ThrowIfCancellationRequested();
+        return [.. written.Keys.Where(id =>
+            rows.TryGetValue(id, out var row) && row.Key == written[id].Key.Profile && row.Result.Profile is not null)];
+    }
+
+    public async Task<IReadOnlyList<Guid>> CommitLabelsAsync(
+        IReadOnlyDictionary<Guid, (TerrainLabelKey Key, TerrainLabelSummary Summary)> written,
+        CancellationToken cancellationToken = default)
+    {
+        if (BeforeLabelWrite is { } beforeLabelWrite) await beforeLabelWrite();
+        cancellationToken.ThrowIfCancellationRequested();
+        if (LabelWriteFailure is { } failure) throw failure;
+        LabelWrites.Add(written);
         return [.. written.Keys.Where(id =>
             rows.TryGetValue(id, out var row) && row.Key == written[id].Key.Profile && row.Result.Profile is not null)];
     }
