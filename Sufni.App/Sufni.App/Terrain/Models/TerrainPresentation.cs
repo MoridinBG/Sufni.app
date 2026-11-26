@@ -49,11 +49,15 @@ public sealed record TerrainPresentation(ImmutableArray<TerrainRun<RoughnessClas
     ImmutableArray<TerrainRun<GradeBand>> GradeRuns, ImmutableArray<TerrainSignalSection> Frame,
     ImmutableArray<TerrainSignalSection> Fork, ImmutableArray<TerrainSignalSection> Grade, TerrainSourceCoverage Coverage)
 {
-    /// <summary>Speed-removed frame levels at the descent class boundaries; empty without a ready frame median.</summary>
     /// <summary>The class value of each window in steps of 0.25 class.</summary>
     public ImmutableArray<TerrainShade<RoughnessClass>> RoughnessShades { get; init; } = [];
     /// <summary>The baseline grade of each window in steps of 1°.</summary>
     public ImmutableArray<TerrainShade<GradeBand>> GradeShades { get; init; } = [];
+    /// <summary>
+    /// The terrain labels in time order. Where labels overlap, the part that the first label holds is cut from the later one.
+    /// </summary>
+    public ImmutableArray<TerrainRun<RoughnessClass>> LabelRuns { get; init; } = [];
+    /// <summary>Speed-removed frame levels at the descent class boundaries; empty without a ready frame median.</summary>
     public ImmutableArray<double> FrameEdges { get; init; } = [];
     public ImmutableArray<double> ForkEdges { get; init; } = [];
     public ImmutableArray<double> RearAxleEdges { get; init; } = [];

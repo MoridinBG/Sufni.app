@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
+using System.Linq;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Infrastructure.Theming;
@@ -13,7 +14,10 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Terrain.Plots;
 
-/// <summary>Two labelled lanes of class runs on the recorded timeline: grade above, roughness below.</summary>
+/// <summary>
+/// Named lanes of class runs on the recorded timeline: the terrain labels on top when the ride has any, then grade, then
+/// roughness.
+/// </summary>
 public sealed class TerrainClassStripPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPlot(plot, theme)
 {
     private const double LaneGap = 0.04;
@@ -31,12 +35,20 @@ public sealed class TerrainClassStripPlot(Plot plot, SufniTheme? theme = null) :
         Plot.Axes.Left.IsVisible = false;
         Plot.Axes.Right.IsVisible = false;
         var duration = telemetry.Metadata.Duration;
-        Plot.Axes.SetLimits(0, duration, 0, 2);
-        AddMirroredTimeSeriesAxisRules(0, duration, 0, 2);
+        var labelled = !presentation.LabelRuns.IsEmpty;
+        var lanes = labelled ? 3 : 2;
+        Plot.Axes.SetLimits(0, duration, 0, lanes);
+        AddMirroredTimeSeriesAxisRules(0, duration, 0, lanes);
         var scales = PlotTheme.Series.Terrain;
+        if (labelled)
+        {
+            DrawLane([.. presentation.LabelRuns.Select(run => new TerrainShade<RoughnessClass>(run.StartSeconds, run.EndSeconds, run.Class, null))],
+                presentation.LabelRuns, 2, (level, _) => scales.ColorFor(level), scales.ColorFor, TerrainClassText.Name);
+            AddLaneLabel("Labels", Alignment.UpperLeft);
+        }
         DrawLane(presentation.GradeShades, presentation.GradeRuns, 1, scales.ShadeFor, scales.ColorFor, TerrainClassText.Name);
         DrawLane(presentation.RoughnessShades, presentation.RoughnessRuns, 0, scales.ShadeFor, scales.ColorFor, TerrainClassText.Name);
-        AddLaneLabel("Grade", Alignment.UpperLeft);
+        AddLaneLabel("Grade", labelled ? Alignment.MiddleLeft : Alignment.UpperLeft);
         AddLaneLabel("Roughness", Alignment.LowerLeft);
         var airtime = RecordedTimeRangeOverlayFactory.CreateAirtimeRegistration(telemetry.Airtimes, PlotTheme);
         SetRangeOverlaySet(airtime.Id, airtime.Set);
@@ -65,6 +77,9 @@ public sealed class TerrainClassStripPlot(Plot plot, SufniTheme? theme = null) :
         if (terrain is null || !double.IsFinite(position)) return null;
         var scales = PlotTheme.Series.Terrain;
         var lines = new List<CursorReadoutLine>();
+        if (RunAt(terrain.LabelRuns, position) is { } label)
+            lines.Add(new("Label", 0, string.Empty, scales.ColorFor(label).ToScottPlotColor(),
+                DisplayValue: TerrainClassText.Name(label)));
         if (RunAt(terrain.GradeRuns, position) is { } band)
         {
             var degrees = ValueAt(terrain.Grade, position);

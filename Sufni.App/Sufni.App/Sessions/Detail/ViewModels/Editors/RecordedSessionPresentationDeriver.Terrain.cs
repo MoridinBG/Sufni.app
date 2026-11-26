@@ -56,6 +56,12 @@ internal static partial class RecordedSessionPresentationDeriver
             forkMissing |= window.Fork is null;
             rearAxleMissing |= window.RearAxle is null;
         }
+        var labels = ImmutableArray.CreateBuilder<TerrainRun<RoughnessClass>>();
+        foreach (var range in classified.Labels.Ranges)
+        {
+            var start = labels.Count > 0 ? Math.Max(range.StartSeconds, labels[^1].EndSeconds) : range.StartSeconds;
+            if (start < range.EndSeconds) labels.Add(new(start, range.EndSeconds, range.Class));
+        }
         var total = Math.Max(1d, shares.Sum());
         return new(roughness.ToImmutable(), grade.ToImmutable(), frame.Build(), fork.Build(), grades.Build(),
             new([.. shares.Select(count => count / total)], forkClipped, rearAxleClipped, frameMissing, forkMissing,
@@ -63,6 +69,7 @@ internal static partial class RecordedSessionPresentationDeriver
         {
             RoughnessShades = roughnessShades.ToImmutable(),
             GradeShades = gradeShades.ToImmutable(),
+            LabelRuns = labels.ToImmutable(),
             FrameEdges = Edges(scale.FrameImu),
             ForkEdges = Edges(scale.ForkImu),
             RearAxleEdges = Edges(scale.RearAxleImu),

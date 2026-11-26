@@ -1,6 +1,7 @@
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Infrastructure.Theming;
+using Sufni.App.Terrain.Formatting;
 using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Plots;
 using Sufni.App.Tests.TestSupport.Fixtures;
@@ -61,6 +62,32 @@ public class TerrainClassStripPlotTests
                 scales.ShadeFor(RoughnessClass.VeryRough, 2).ToScottPlotColor(), scales.ShadeFor(RoughnessClass.VeryRough, 2.5).ToScottPlotColor()],
             plot.PlottableList.OfType<Rectangle>().Select(r => r.FillColor));
         Assert.Equal(["Smooth", "Very rough"], plot.PlottableList.OfType<Text>().Select(t => t.LabelText).Order());
+    }
+
+    [Theory]
+    [InlineData(false, 2)]
+    [InlineData(true, 3)]
+    public void LabelsAddALaneOnTop(bool labelled, double lanes)
+    {
+        var terrain = labelled ? Terrain with { LabelRuns = [new(4, 6, RoughnessClass.Calm)] } : Terrain;
+        var plot = new Plot();
+        new TerrainClassStripPlot(plot).Load(terrain, TestTelemetryData.CreateProcessed(sampleRate: 20));
+
+        Assert.Equal(lanes, plot.Axes.GetLimits().Top);
+        Assert.Equal(labelled, plot.PlottableList.OfType<Rectangle>()
+            .Any(r => r.Y1 >= 2 && r.FillColor == SufniThemes.SignalSeries.Terrain.ColorFor(RoughnessClass.Calm).ToScottPlotColor()));
+    }
+
+    [Fact]
+    public void ReadoutHoldsTheLabelClassUnderTheCursor()
+    {
+        var plot = new Plot();
+        var strip = new TerrainClassStripPlot(plot);
+        strip.Load(Terrain with { LabelRuns = [new(4, 6, RoughnessClass.Calm)] }, TestTelemetryData.CreateProcessed(sampleRate: 20));
+
+        strip.SetCursorPositionWithReadout(5);
+
+        Assert.Contains(TerrainClassText.Name(RoughnessClass.Calm), Assert.Single(plot.PlottableList.OfType<Tooltip>()).LabelText);
     }
 
     private static string[] VisibleNames(Plot plot) =>
