@@ -9,7 +9,9 @@ public static class TerrainLevels
     /// <summary>The level ratio between adjacent descent classes.</summary>
     public const double Step = 1.5;
 
-    public static readonly double BinWidth = Math.Log(Step) / 20;
+    public const int BinsPerStep = 20;
+
+    public static readonly double BinWidth = Math.Log(Step) / BinsPerStep;
 
     public static int Bin(double level) => (int)Math.Floor(Math.Log(level) / BinWidth);
 

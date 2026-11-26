@@ -38,3 +38,50 @@ public sealed record TerrainLabelSet(ImmutableArray<TerrainLabelRange> Ranges)
         return hash.ToHashCode();
     }
 }
+
+/// <summary>
+/// The labelled readings of one ride as level distributions. A descent reading moves to the bin it would have at the
+/// centre of Medium, so its distribution has the median that the label asks for. A climb reading keeps its raw frame bin.
+/// A distribution is null when no labelled window adds to it.
+/// </summary>
+public sealed record TerrainLabelSummary(LevelDistribution? FrameImu, LevelDistribution? ForkImu, LevelDistribution? RearAxleImu,
+    LevelDistribution? SmoothClimb, LevelDistribution? TechnicalClimb);
+
+public static class TerrainLabels
+{
+    /// <summary>Covers the labelled window rule, the eligible reading rule and the bin shift.</summary>
+    public const int Version = 1;
+
+    public static TerrainLabelSummary Summarize(TerrainProfile profile, TerrainLabelSet labels)
+    {
+        var frame = new SortedDictionary<int, double>();
+        var fork = new SortedDictionary<int, double>();
+        var rearAxle = new SortedDictionary<int, double>();
+        var smoothClimb = new SortedDictionary<int, double>();
+        var technicalClimb = new SortedDictionary<int, double>();
+        foreach (var window in profile.Windows)
+        {
+            if (labels.ClassAt(window) is not { } label) continue;
+            if (label.IsClimb())
+            {
+                Add(label == RoughnessClass.SmoothClimb ? smoothClimb : technicalClimb, window.Frame, static r => r.Level, 0);
+                continue;
+            }
+            var shift = ((int)label - (int)RoughnessClass.Medium) * TerrainLevels.BinsPerStep;
+            Add(frame, window.Frame, static r => r.SpeedRemoved, shift);
+            Add(fork, window.Fork, static r => r.SpeedRemoved, shift);
+            Add(rearAxle, window.RearAxle, static r => r.SpeedRemoved, shift);
+        }
+        return new(Distribution(frame), Distribution(fork), Distribution(rearAxle), Distribution(smoothClimb), Distribution(technicalClimb));
+    }
+
+    private static void Add(SortedDictionary<int, double> bins, SensorRoughness? reading, Func<SensorRoughness, double> level, int shift)
+    {
+        if (TerrainProfileCalculator.Eligible(reading) is not { } measured) return;
+        var bin = TerrainLevels.Bin(level(measured)) - shift;
+        bins[bin] = bins.GetValueOrDefault(bin) + TerrainProfileCalculator.WindowMetres;
+    }
+
+    private static LevelDistribution? Distribution(SortedDictionary<int, double> bins) =>
+        bins.Count == 0 ? null : new(bins.ToImmutableSortedDictionary());
+}
