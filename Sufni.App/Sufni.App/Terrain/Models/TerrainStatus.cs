@@ -31,6 +31,19 @@ public closed record TerrainStatus
 }
 
 /// <summary>
+/// The label summary of a session. <see cref="None"/> covers a profile that is not current and a ride without labels;
+/// <see cref="Pending"/> asks for label work.
+/// </summary>
+public closed record TerrainLabelState
+{
+    private TerrainLabelState() { }
+
+    public sealed record None : TerrainLabelState;
+    public sealed record Current(TerrainLabelSummary Summary) : TerrainLabelState;
+    public sealed record Pending : TerrainLabelState;
+}
+
+/// <summary>
 /// The ride class summary of a session on the scale of its setup. <see cref="Pending"/> asks for class work;
 /// <see cref="Unavailable"/> covers a profile that is not current and a setup scale without a ready bin and without
 /// labels on the ride.

@@ -15,7 +15,7 @@ internal sealed class InMemoryTerrainProfileRepository : ITerrainProfileReposito
     public Exception? ReadFailure { get; set; }
     public Func<Task>? BeforeWrite { get; set; }
     public Func<Task>? BeforeClassWrite { get; set; }
-    public Func<Task>? BeforeLabelWrite { get; set; }
+    public Func<CancellationToken, Task>? BeforeLabelWrite { get; set; }
     public Exception? LabelWriteFailure { get; set; }
     public List<IReadOnlyDictionary<Guid, (TerrainLabelKey Key, TerrainLabelSummary Summary)>> LabelWrites { get; } = [];
     public Func<IReadOnlyDictionary<Guid, TerrainProfileKey>, CancellationToken, Task>? BeforeRead { get; set; }
@@ -58,7 +58,7 @@ internal sealed class InMemoryTerrainProfileRepository : ITerrainProfileReposito
         IReadOnlyDictionary<Guid, (TerrainLabelKey Key, TerrainLabelSummary Summary)> written,
         CancellationToken cancellationToken = default)
     {
-        if (BeforeLabelWrite is { } beforeLabelWrite) await beforeLabelWrite();
+        if (BeforeLabelWrite is { } beforeLabelWrite) await beforeLabelWrite(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (LabelWriteFailure is { } failure) throw failure;
         LabelWrites.Add(written);

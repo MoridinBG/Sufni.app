@@ -33,6 +33,16 @@ public static class SessionTerrainStatusQuery
         return (key, status);
     }
 
+    /// <summary>The label summary state of a session with the given profile status and its labels.</summary>
+    public static TerrainLabelState EvaluateLabels(SessionSnapshot session, TerrainStatus status, TerrainLabelSet labels)
+    {
+        if (status is not TerrainStatus.Current current || labels.Ranges.IsEmpty) return new TerrainLabelState.None();
+        return session.TerrainLabelKey == new TerrainLabelKey(current.Key, labels, TerrainLabels.Version) &&
+               session.TerrainLabelSummary is { } summary
+            ? new TerrainLabelState.Current(summary)
+            : new TerrainLabelState.Pending();
+    }
+
     /// <summary>The class state of a session with the given profile status on the scale of its setup and with its labels.</summary>
     public static TerrainClassState EvaluateClasses(SessionSnapshot session, TerrainStatus status, TerrainScaleKey? scale,
         TerrainLabelSet labels)

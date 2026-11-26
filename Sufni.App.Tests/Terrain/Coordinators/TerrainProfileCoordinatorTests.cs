@@ -91,19 +91,22 @@ public class TerrainProfileCoordinatorTests
     }
 
     [Fact]
-    public async Task ProfileCommitClearsTheClassesOfTheEarlierProfile()
+    public async Task ProfileCommitClearsTheClassesAndTheLabelSummaryOfTheEarlierProfile()
     {
         await using var h = new Harness();
         var earlier = TerrainProfileKey.From(SessionContentToken.Create(Session(), [], out _));
         var session = Session() with
         {
             TerrainClassKey = new(earlier, TerrainProfiles.Scale, TerrainLabelSet.None, TerrainClassifier.Version),
-            TerrainClassSummary = new(400, 0.25)
+            TerrainClassSummary = new(400, 0.25),
+            TerrainLabelKey = new(earlier, TerrainLabelSet.None, TerrainLabels.Version),
+            TerrainLabelSummary = new(null, null, null, null, null)
         };
         await h.StartAsync([session]);
         await h.WaitForAsync(session, TerrainOutcome.Computed);
         var published = h.Sessions.Get(session.Id)!;
         Assert.Equal((null, null), (published.TerrainClassKey, published.TerrainClassSummary));
+        Assert.Equal((null, null), (published.TerrainLabelKey, published.TerrainLabelSummary));
     }
 
     [Fact]
@@ -271,6 +274,77 @@ public class TerrainProfileCoordinatorTests
         await h.WaitForLabelledClassesAsync(measured[0]);
 
         Assert.Equal(0.5, h.Sessions.Get(measured[0].Id)!.TerrainClassSummary!.RoughShare);
+        Assert.NotNull(h.Sessions.Get(measured[0].Id)!.TerrainLabelSummary);
+    }
+
+    [Fact]
+    public async Task ProfileWorkRunsBeforeLabelWorkAndLabelWorkBeforeClassWork()
+    {
+        await using var h = new Harness();
+        var measured = h.ReadySetup(Guid.NewGuid());
+        var order = new List<string>();
+        h.Repository.BeforeWrite = () => Record("profile");
+        h.Repository.BeforeLabelWrite = _ => Record("labels");
+        h.Repository.BeforeClassWrite = () => Record("classes");
+        await h.PublishSourceAsync(measured[0]);
+        await h.PublishLabelAsync(measured[0], 0, 1, RoughnessClass.Smooth);
+
+        await h.StartAsync([.. measured, Session()]);
+        await h.WaitForLabelledClassesAsync(measured[0]);
+
+        Assert.Equal(["profile", "labels", "classes"], order.Distinct());
+
+        Task Record(string work)
+        {
+            lock (order) order.Add(work);
+            return Task.CompletedTask;
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task LabelRunThatFailsOrWritesNoRowPublishesNothingAndTheClassRunsStart(bool fails)
+    {
+        await using var h = new Harness();
+        var measured = h.ReadySetup(Guid.NewGuid());
+        var labelled = measured[0];
+        if (fails) h.Repository.LabelWriteFailure = new IOException("storage unavailable");
+        else h.Repository.BeforeLabelWrite = _ =>
+        {
+            h.Repository.Seed(labelled.Id, labelled.TerrainProfileKey! with { AlgorithmVersion = 0 }, Harness.RoughProfile);
+            return Task.CompletedTask;
+        };
+        await h.PublishSourceAsync(labelled);
+        await h.PublishLabelAsync(labelled, 0, 1, RoughnessClass.Smooth);
+
+        await h.StartAsync(measured);
+        await h.WaitForClassesAsync(measured[1], ScaleAt(0));
+
+        Assert.Null(h.Sessions.Get(labelled.Id)!.TerrainLabelKey);
+    }
+
+    [Fact]
+    public async Task LabelChangeAfterTheProfileReadCancelsTheLabelRunAndTheNextRunWritesTheNewKey()
+    {
+        await using var h = new Harness();
+        var measured = h.ReadySetup(Guid.NewGuid());
+        var writing = new TaskCompletionSource();
+        h.Repository.BeforeLabelWrite = token =>
+        {
+            if (!writing.TrySetResult()) return Task.CompletedTask;
+            return Task.Delay(Timeout.InfiniteTimeSpan, token);
+        };
+        await h.PublishSourceAsync(measured[0]);
+        await h.PublishLabelAsync(measured[0], 0, 1, RoughnessClass.Smooth);
+        await h.StartAsync(measured);
+        await h.DrainAsync(writing.Task);
+
+        await h.PublishLabelAsync(measured[0], 1, 2, RoughnessClass.Smooth);
+        await h.DrainAsync(h.Sessions.Watch(measured[0].Id).Where(value => value.TerrainLabelKey?.Labels.Ranges.Length == 2).Take(1)
+            .ToTask(TestContext.Current.CancellationToken));
+
+        Assert.All(h.Repository.LabelWrites, write => Assert.Equal(2, write[measured[0].Id].Key.Labels.Ranges.Length));
     }
 
     [Fact]
