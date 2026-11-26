@@ -87,11 +87,13 @@ internal static class TestSegmentComparisons
     /// A comparison that shows one match; its compare action loads the matched
     /// session's analysis.
     /// </summary>
-    public static async Task<SegmentComparisonViewModel> CreateWithMatchAsync(SegmentTerrainComparison? terrain = null)
+    public static async Task<SegmentComparisonViewModel> CreateWithMatchAsync(SegmentTerrainComparison? terrain = null,
+        ISessionStore? sessionStore = null, Guid? sessionId = null, Guid? matchedSessionId = null)
     {
         var coordinator = Substitute.For<ISegmentCoordinator>();
         var telemetry = TestSegmentMatches.Telemetry();
-        var comparison = SegmentComparisonBuilder.Build(TestSegmentMatches.Match(10, 13), telemetry, telemetry.Metadata.Duration)!;
+        var comparison = SegmentComparisonBuilder.Build(TestSegmentMatches.Match(10, 13, sessionId: matchedSessionId), telemetry,
+            telemetry.Metadata.Duration)!;
         MatchReturns(coordinator, comparison);
         DetailReturns(coordinator, comparison, [new TrackPoint(0, 0, 0, null), new TrackPoint(1, 1, 1, null)]);
         var sessionState = SegmentComparisonSessionState.Empty with
@@ -101,7 +103,7 @@ internal static class TestSegmentComparisons
             TrackTimeline = new TrackTimeRange(1000, telemetry.Metadata.Duration),
         };
         var segmentComparison = Create(BuildAnalysisComparisons(coordinator, terrain),
-            new BehaviorSubject<SegmentComparisonSessionState>(sessionState));
+            new BehaviorSubject<SegmentComparisonSessionState>(sessionState), sessionStore: sessionStore, sessionId: sessionId);
         await segmentComparison.MatchCommand.ExecuteAsync(null);
         return segmentComparison;
     }

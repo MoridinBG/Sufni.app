@@ -8,6 +8,36 @@
         <StackPanel Spacing="8">
             <TextBlock FontSize="15" FontWeight="SemiBold" Text="Same-trail comparison"
                        ToolTip.Tip="Compares this run with the matched run of the segment on the same stretches of trail." />
+            <StackPanel Name="Tune" Grid.IsSharedSizeScope="True" Spacing="4"
+                        IsVisible="{Binding TuneReport, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Grid Name="TuneHeading" ColumnSpacing="12" IsVisible="{Binding TuneReport.HasRows, FallbackValue=False}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="TuneCurrent" />
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="TuneMatched" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" FontWeight="SemiBold" Text="Tune" />
+                    <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="This run" />
+                    <TextBlock Grid.Column="2" FontWeight="SemiBold" Text="Matched run" />
+                </Grid>
+                <ItemsControl Name="TuneRows" ItemsSource="{Binding TuneReport.Rows, FallbackValue={x:Null}}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SegmentTuneRow">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="TuneCurrent" />
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="TuneMatched" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Label}" />
+                                <TextBlock Grid.Column="1" Text="{Binding Current}" />
+                                <TextBlock Grid.Column="2" Text="{Binding Matched}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Name="TuneNote" Opacity="0.72" Text="{Binding TuneReport.Note}" TextWrapping="Wrap" />
+            </StackPanel>
             <TextBlock Name="Message" Text="{Binding TerrainReport.Message}" IsVisible="{Binding TerrainReport.HasMessage, FallbackValue=False}"
                        TextWrapping="Wrap" />
             <TextBlock Name="Pace" Text="{Binding TerrainReport.Pace}" IsVisible="{Binding TerrainReport.HasPace, FallbackValue=False}"
