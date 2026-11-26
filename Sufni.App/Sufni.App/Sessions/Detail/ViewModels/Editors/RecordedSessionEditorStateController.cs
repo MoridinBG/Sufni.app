@@ -202,7 +202,8 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                     state with { Terrain = loaded with { Baseline = result.Baseline } },
                 RecordedSessionEditorIntent.SetTerrainCatalog set => state with { TerrainCatalog = set.Catalog },
                 RecordedSessionEditorIntent.SetTerrain result when state.Domain?.Terrain == result.Expected &&
-                                                                  RecordedTerrainState.ScaleOf(state.Domain) == result.Scale =>
+                                                                  RecordedTerrainState.ScaleOf(state.Domain) == result.Scale &&
+                                                                  RecordedTerrainState.LabelsOf(state.Domain) == result.Labels =>
                     state with { Terrain = KeepBaseline(state.Terrain, result.Value) },
                 RecordedSessionEditorIntent.PreviewProcessingOption preview => state with
                 {

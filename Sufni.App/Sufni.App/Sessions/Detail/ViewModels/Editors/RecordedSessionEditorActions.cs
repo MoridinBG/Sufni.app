@@ -21,7 +21,7 @@ internal closed record RecordedSessionEditorIntent
     public sealed record SetMapTrackColoring(MapTrackColoring Value) : RecordedSessionEditorIntent;
     public sealed record SetBaseline(TerrainProfileKey ProfileKey, TerrainBaseline Baseline) : RecordedSessionEditorIntent;
     public sealed record SetTerrainCatalog(TerrainScaleCatalog Catalog) : RecordedSessionEditorIntent;
-    public sealed record SetTerrain(TerrainStatus.Current Expected, TerrainScaleKey Scale, RecordedTerrainState Value) : RecordedSessionEditorIntent;
+    public sealed record SetTerrain(TerrainStatus.Current Expected, TerrainScaleKey Scale, TerrainLabelSet Labels, RecordedTerrainState Value) : RecordedSessionEditorIntent;
 
     public sealed record PreviewProcessingOption(int WindowMilliseconds) : RecordedSessionEditorIntent;
     public sealed record CommitProcessingOption : RecordedSessionEditorIntent;
@@ -178,8 +178,8 @@ internal sealed class RecordedSessionEditorActions : IDisposable
 
     public void SetTerrainCatalog(TerrainScaleCatalog catalog) => Emit(new RecordedSessionEditorIntent.SetTerrainCatalog(catalog));
 
-    public void SetTerrain(TerrainStatus.Current expected, TerrainScaleKey scale, RecordedTerrainState value) =>
-        Emit(new RecordedSessionEditorIntent.SetTerrain(expected, scale, value));
+    public void SetTerrain(TerrainStatus.Current expected, TerrainScaleKey scale, TerrainLabelSet labels, RecordedTerrainState value) =>
+        Emit(new RecordedSessionEditorIntent.SetTerrain(expected, scale, labels, value));
 
     public void SetSignalPresentation(RecordedSignalPresentationState state)
     {

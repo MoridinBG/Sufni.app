@@ -154,6 +154,24 @@ public class RecordedSessionAnalysisResultStateTests
     }
 
     [Fact]
+    public async Task Invalidate_DropsCachedInsights_WhenOnlyTheTerrainLabelsChange()
+    {
+        using var state = new RecordedSessionAnalysisResultState(new TestAnalysisComputer(), new InlineBackgroundTaskRunner(),
+            new InlineUiThreadDispatcher(), () => new TelemetryData());
+        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0, RoughnessClass.Rough)]);
+        var inputs = CreateInputs(range: null) with { Terrain = TerrainClassifier.Classify(profile, TerrainProfiles.Scale, TerrainLabelSet.None) };
+        state.Invalidate(inputs);
+        await state.RequestAsync(inputs.SessionInsightsKey, cancellationToken: TestContext.Current.CancellationToken);
+        Assert.NotNull(state.Get(inputs.SessionInsightsKey));
+
+        var labels = TerrainProfiles.Labels(new TerrainLabelRange(0, 1, RoughnessClass.Smooth));
+        var relabelled = inputs with { Terrain = TerrainClassifier.Classify(profile, TerrainProfiles.Scale, labels) };
+        state.Invalidate(relabelled);
+
+        Assert.Null(state.Get(relabelled.SessionInsightsKey));
+    }
+
+    [Fact]
     public async Task Invalidate_RetainsCachedResult_WhenNewInputsStillMatchKey()
     {
         var telemetry = new TelemetryData();

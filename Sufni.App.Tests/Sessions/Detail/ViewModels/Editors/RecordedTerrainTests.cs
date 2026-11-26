@@ -392,6 +392,49 @@ public class RecordedTerrainTests
     }
 
     [AvaloniaFact]
+    public async Task LabelChangeReclassesTheRideAndKeepsTheChosenScope()
+    {
+        using var h = new SessionDetailHarness();
+        var session = h.CreateRecordedSession();
+        var domain = h.WithTerrain(session, RoughProfile());
+        using var changes = new BehaviorSubject<RecordedSessionDomainSnapshot>(domain);
+        var editor = h.CreateRecordedEditor(session, projectionChanges: changes);
+        await h.LoadAsync(editor);
+        var scope = editor.SignalsWorkspace.TerrainScope!;
+        scope.Roughness[(int)RoughnessClass.Rough].Select.Execute(null);
+        changes.OnNext(domain with { TerrainLabels = SmoothLabel() });
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.Equal(RoughnessClass.Smooth, Assert.Single(editor.SignalsWorkspace.TerrainPresentation!.RoughnessRuns).Class);
+        Assert.True(scope.Roughness[(int)RoughnessClass.Rough].IsChecked);
+        await h.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
+    public async Task ClassesOfAnEarlierLabelSetArrivingLastAreDropped()
+    {
+        var runner = new DeferredBackgroundTaskRunner();
+        var dispatcher = new ManualUiThreadDispatcher();
+        using var h = new SessionDetailHarness { BackgroundRunner = runner, UiThreadDispatcher = dispatcher };
+        var session = h.CreateRecordedSession();
+        var domain = h.WithTerrain(session, RoughProfile());
+        using var changes = new BehaviorSubject<RecordedSessionDomainSnapshot>(domain);
+        var earlierRead = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reads = 0;
+        h.TerrainProfiles.BeforeRead = (_, _) => ++reads == 1 ? earlierRead.Task : Task.CompletedTask;
+        var editor = h.CreateRecordedEditor(session, projectionChanges: changes);
+        await runner.DrainUntilAsync(dispatcher, h.LoadAsync(editor));
+        changes.OnNext(domain with { TerrainLabels = SmoothLabel() });
+        await dispatcher.DrainAsync();
+        await runner.RunNextAsync();
+        await dispatcher.DrainAsync();
+        earlierRead.SetResult();
+        await dispatcher.WaitForWorkAsync(TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        await dispatcher.DrainAsync();
+        Assert.Equal(RoughnessClass.Smooth, Assert.Single(editor.SignalsWorkspace.TerrainPresentation!.RoughnessRuns).Class);
+        await runner.DrainUntilAsync(dispatcher, h.CloseAsync(editor));
+    }
+
+    [AvaloniaFact]
     public async Task EqualTerrainFromANewSnapshotKeepsTheLoadedTerrain()
     {
         using var h = new SessionDetailHarness();
@@ -409,6 +452,8 @@ public class RecordedTerrainTests
 
     private static SetupTerrainScale OneStepRougherMedian() =>
         TestSnapshots.TerrainScale(TerrainProfiles.Scale with { FrameImu = 20 });
+
+    private static TerrainLabelSet SmoothLabel() => TerrainProfiles.Labels(new TerrainLabelRange(0, 1, RoughnessClass.Smooth));
 
     private static TerrainProfile RoughProfile() =>
         TerrainProfiles.Profile([TerrainProfiles.Window(0, RoughnessClass.Rough)]);
