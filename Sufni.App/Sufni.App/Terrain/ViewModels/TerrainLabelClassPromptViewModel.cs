@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Infrastructure;
@@ -23,6 +24,23 @@ public sealed partial class TerrainLabelClassPromptViewModel : ObservableObject,
         ConfirmText = confirmText;
         SelectedClass = selected;
         ValidationMessage = validationMessage;
+    }
+
+    /// <summary>Shows the prompt in a dialog and returns the confirmed class, or null after cancel.</summary>
+    public static async Task<RoughnessClass?> AskAsync(IDialogService dialogService, string title, string confirmText,
+        RoughnessClass? selected, string? validationMessage)
+    {
+        var prompt = new TerrainLabelClassPromptViewModel(title, confirmText, selected, validationMessage);
+        await dialogService.ShowContentDialogAsync(
+            prompt,
+            new DialogOptions(
+                Title: title,
+                Width: 360,
+                Height: 420,
+                MinWidth: 320,
+                MinHeight: 360,
+                CanResize: false));
+        return prompt.ConfirmedClass;
     }
 
     public string Title { get; }

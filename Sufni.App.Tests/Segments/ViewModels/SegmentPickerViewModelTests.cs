@@ -10,6 +10,7 @@ using Sufni.App.Segments.ViewModels;
 using Sufni.App.Terrain.Coordinators;
 using Sufni.App.Terrain.Stores;
 using Sufni.App.Terrain.ViewModels;
+using Sufni.App.Tests.TestSupport.Extensions;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Segments.ViewModels;
@@ -341,7 +342,7 @@ public class SegmentPickerViewModelTests
         var label = AddLabel(RoughnessClass.Rough, 2, 4);
         labelCoordinator.SetClassAsync(label.Id, RoughnessClass.Calm).Returns(new TerrainLabelChangeResult.Applied());
         RoughnessClass? offered = null;
-        AnswerClassPrompt(prompt =>
+        dialogService.AnswerClassPrompt(prompt =>
         {
             offered = prompt.SelectedClass;
             prompt.SelectedClass = RoughnessClass.Calm;
@@ -374,7 +375,7 @@ public class SegmentPickerViewModelTests
     public async Task LabelSelectionAsync_CreatesALabelWithTheClassOfThePrompt()
     {
         labelCoordinator.CreateAsync(sessionId, RoughnessClass.VeryRough, 2, 4).Returns(new TerrainLabelChangeResult.Applied());
-        AnswerClassPrompt(prompt =>
+        dialogService.AnswerClassPrompt(prompt =>
         {
             prompt.SelectedClass = RoughnessClass.VeryRough;
             prompt.ConfirmCommand.Execute(null);
@@ -392,7 +393,7 @@ public class SegmentPickerViewModelTests
     {
         labelCoordinator.ValidateRange(sessionId, 2, 4).Returns("The range overlaps a terrain label.");
         string? shown = null;
-        AnswerClassPrompt(prompt =>
+        dialogService.AnswerClassPrompt(prompt =>
         {
             shown = prompt.ValidationMessage;
             prompt.CancelCommand.Execute(null);
@@ -410,7 +411,7 @@ public class SegmentPickerViewModelTests
     {
         labelCoordinator.CreateAsync(sessionId, RoughnessClass.Rough, 2, 4)
             .Returns(new TerrainLabelChangeResult.Failed(TerrainLabelWriteFailureReason.Create, "storage unavailable"));
-        AnswerClassPrompt(prompt =>
+        dialogService.AnswerClassPrompt(prompt =>
         {
             prompt.SelectedClass = RoughnessClass.Rough;
             prompt.ConfirmCommand.Execute(null);
@@ -451,16 +452,6 @@ public class SegmentPickerViewModelTests
         var label = new TerrainLabelSnapshot(Guid.NewGuid(), ownerKey, startSeconds, endSeconds, roughness);
         labels.AddOrUpdate(label);
         return label;
-    }
-
-    private void AnswerClassPrompt(Action<TerrainLabelClassPromptViewModel> answer)
-    {
-        dialogService.ShowContentDialogAsync(Arg.Any<TerrainLabelClassPromptViewModel>(), Arg.Any<DialogOptions>())
-            .Returns(call =>
-            {
-                answer(call.ArgAt<TerrainLabelClassPromptViewModel>(0));
-                return PromptResult.Ok;
-            });
     }
 
     private void AnswerNamePrompt(Action<SegmentNamePromptViewModel> answer)

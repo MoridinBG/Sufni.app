@@ -167,7 +167,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     /// </summary>
     public async Task LabelSelectionAsync(TelemetryTimeRange range)
     {
-        var roughness = await PromptForClassAsync("Label terrain", "Label", null,
+        var roughness = await TerrainLabelClassPromptViewModel.AskAsync(dialogService, "Label terrain", "Label", null,
             labelCoordinator.ValidateRange(sessionId, range.StartSeconds, range.EndSeconds));
         if (roughness is { } chosen)
             Report(await labelCoordinator.CreateAsync(sessionId, chosen, range.StartSeconds, range.EndSeconds));
@@ -237,7 +237,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     [RelayCommand]
     private async Task ChangeTerrainLabelClass(TerrainLabelRow row)
     {
-        if (await PromptForClassAsync("Change terrain label", "Change", row.Class, null) is { } roughness)
+        if (await TerrainLabelClassPromptViewModel.AskAsync(dialogService, "Change terrain label", "Change", row.Class, null) is { } roughness)
             Report(await labelCoordinator.SetClassAsync(row.Id, roughness));
     }
 
@@ -357,22 +357,6 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
                 MinHeight: 180,
                 CanResize: false));
         return prompt.ConfirmedName;
-    }
-
-    private async Task<RoughnessClass?> PromptForClassAsync(string title, string confirmText, RoughnessClass? selected,
-        string? validationMessage)
-    {
-        var prompt = new TerrainLabelClassPromptViewModel(title, confirmText, selected, validationMessage);
-        await dialogService.ShowContentDialogAsync(
-            prompt,
-            new DialogOptions(
-                Title: title,
-                Width: 360,
-                Height: 420,
-                MinWidth: 320,
-                MinHeight: 360,
-                CanResize: false));
-        return prompt.ConfirmedClass;
     }
 
     private void Report(TerrainLabelChangeResult result)
