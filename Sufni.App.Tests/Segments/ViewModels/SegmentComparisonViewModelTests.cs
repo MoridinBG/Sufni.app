@@ -13,6 +13,8 @@ using Sufni.App.Segments.Coordinators;
 using Sufni.App.Segments.Models;
 using Sufni.App.Segments.Services;
 using Sufni.App.Segments.ViewModels;
+using Sufni.App.Sessions.Store;
+using Sufni.App.Shared.Stores;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.Telemetry;
 using Sufni.Telemetry.Tests;
@@ -29,6 +31,9 @@ public class SegmentComparisonViewModelTests
     private readonly List<FailurePresentation> errors = [];
     private readonly List<string> notifications = [];
     private readonly BehaviorSubject<SegmentComparisonSessionState> sessionState = new(SegmentComparisonSessionState.Empty);
+    private readonly Guid sessionId = Guid.NewGuid();
+    private readonly Guid matchedSessionId = Guid.NewGuid();
+    private readonly SessionStore sessions = new(new StorePublication(new InlineUiThreadDispatcher()));
 
     [Fact]
     public void MatchCommand_CannotExecute_WithoutAnAnalysisRange()
@@ -505,6 +510,87 @@ public class SegmentComparisonViewModelTests
         MatchReturns(ranges.Select(r => Comparison(TestSegmentMatches.Match(r.Start, r.End))).ToArray());
     }
 
+    [Fact]
+    public async Task TuneReport_IsNullWithoutAnActiveComparison()
+    {
+        await PublishTunes(5, 7);
+        using var comparison = CreateComparison();
+        MatchReturns(Comparison(TestSegmentMatches.Match(10, 13, sessionId: matchedSessionId)));
+
+        await comparison.MatchCommand.ExecuteAsync(null);
+
+        Assert.Null(comparison.TuneReport);
+    }
+
+    [Fact]
+    public async Task TuneReport_HoldsTheChangesBetweenTheTwoSessionsOfTheComparison()
+    {
+        await PublishTunes(5, 7);
+
+        using var comparison = await CompareWithMatchedSessionAsync();
+
+        Assert.Equal([("5", "7")], comparison.TuneReport!.Rows.Select(row => (row.Current, row.Matched)));
+    }
+
+    [Fact]
+    public async Task TuneReport_FollowsAPublishedTuneChange()
+    {
+        await PublishTunes(5, 7);
+        using var comparison = await CompareWithMatchedSessionAsync();
+
+        await sessions.PublishSessionsChangedAsync([sessions.Get(sessionId)! with { FrontLowSpeedRebound = 6 }]);
+
+        Assert.Equal([("6", "7")], comparison.TuneReport!.Rows.Select(row => (row.Current, row.Matched)));
+    }
+
+    [Fact]
+    public async Task TuneReport_KeepsItsInstanceWhenAPublicationChangesNoTuneValue()
+    {
+        await PublishTunes(5, 7);
+        using var comparison = await CompareWithMatchedSessionAsync();
+        var report = comparison.TuneReport;
+
+        await sessions.PublishSessionsChangedAsync([sessions.Get(matchedSessionId)! with { Name = "renamed" }]);
+
+        Assert.Same(report, comparison.TuneReport);
+    }
+
+    [Fact]
+    public async Task TuneReport_IsNullAfterTheComparisonEnds()
+    {
+        await PublishTunes(5, 7);
+        using var comparison = await CompareWithMatchedSessionAsync();
+
+        comparison.ClearAnalysisComparisonCommand.Execute(null);
+
+        Assert.Null(comparison.TuneReport);
+    }
+
+    [Fact]
+    public async Task TuneReport_IsNullWhenTheMatchedSessionIsMissing()
+    {
+        await sessions.PublishSessionsChangedAsync([TestSnapshots.Session(id: sessionId)]);
+
+        using var comparison = await CompareWithMatchedSessionAsync();
+
+        Assert.Null(comparison.TuneReport);
+    }
+
+    private Task PublishTunes(uint current, uint matched) => sessions.PublishSessionsChangedAsync([
+        TestSnapshots.Session(id: sessionId) with { FrontLowSpeedRebound = current },
+        TestSnapshots.Session(id: matchedSessionId) with { FrontLowSpeedRebound = matched }]);
+
+    private async Task<SegmentComparisonViewModel> CompareWithMatchedSessionAsync()
+    {
+        var comparison = CreateComparison();
+        var compared = Comparison(TestSegmentMatches.Match(10, 13, sessionId: matchedSessionId));
+        MatchReturns(compared);
+        DetailReturns(compared);
+        await comparison.MatchCommand.ExecuteAsync(null);
+        await ((IAsyncRelayCommand)CompareAction(comparison.TravelRows[0]).Command!).ExecuteAsync(null);
+        return comparison;
+    }
+
     private static SegmentTerrainSource TerrainSource() => new(Guid.NewGuid(), TerrainProfileKey.From(TestSegmentMatches.Token),
         TerrainProfiles.Classified(TerrainProfiles.Window(0, RoughnessClass.Calm)), TerrainBaselineIdentity.Empty, TerrainScaleCatalog.Empty);
 
@@ -515,7 +601,7 @@ public class SegmentComparisonViewModelTests
         coordinator.LoadComparisonDetailAsync(Arg.Any<SegmentComparison>(), Arg.Any<CancellationToken>())
             .Returns(new SegmentComparisonDetailResult.Unavailable());
         var comparison = TestSegmentComparisons.Create(TestSegmentComparisons.BuildAnalysisComparisons(coordinator, terrain),
-            sessionState, (start, end) => visibleRanges.Add((start, end)), errors.Add, notifications.Add);
+            sessionState, (start, end) => visibleRanges.Add((start, end)), errors.Add, notifications.Add, sessions, sessionId);
         sessionState.OnNext(State());
         return comparison;
     }

@@ -15,6 +15,7 @@ using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Segments.Coordinators;
 using Sufni.App.Segments.Models;
+using Sufni.App.Sessions.Store;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Segments.ViewModels;
@@ -55,6 +56,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
 
     private readonly Guid sessionId;
     private readonly ISegmentCoordinator segmentCoordinator;
+    private readonly ISessionStore sessionStore;
     private readonly Action<double, double> setTimelineVisibleRange;
     private readonly Action<FailurePresentation> reportError;
     private readonly Action<string> reportNotification;
@@ -75,6 +77,8 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
     private CancellationTokenSource? analysisLoad;
     private TerrainRequest? terrainRequest;
     private CancellationTokenSource? terrainLoad;
+    private IDisposable? tuneSubscription;
+    private (SessionTune Current, SessionTune Matched)? tunes;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TrailAverageStatus), nameof(RoughnessRows), nameof(GradeRows))]
@@ -107,6 +111,9 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
 
     [ObservableProperty] public partial SegmentTerrainReport? TerrainReport { get; private set; }
 
+    /// <summary>The tune changes between this ride and the compared ride; null without a comparison or a session.</summary>
+    [ObservableProperty] public partial SegmentTuneReport? TuneReport { get; private set; }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasMultiplePages))]
     [NotifyCanExecuteChangedFor(nameof(PreviousPageCommand), nameof(NextPageCommand))]
@@ -116,12 +123,14 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         Guid sessionId,
         IObservable<SegmentComparisonSessionState> sessionState,
         ISegmentCoordinator segmentCoordinator,
+        ISessionStore sessionStore,
         Action<double, double> setTimelineVisibleRange,
         Action<FailurePresentation> reportError,
         Action<string> reportNotification, Action<Guid> beginComparison, Action endComparison)
     {
         this.sessionId = sessionId;
         this.segmentCoordinator = segmentCoordinator;
+        this.sessionStore = sessionStore;
         this.setTimelineVisibleRange = setTimelineVisibleRange;
         this.reportError = reportError;
         this.reportNotification = reportNotification;
@@ -198,6 +207,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         if (disposed) return;
         disposed = true;
         sessionStateSubscription.Dispose();
+        StopTune();
         shutdown.Cancel();
         matching.Dispose();
         averaging.Dispose();
@@ -294,6 +304,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         comparedMatch = null;
         comparedDetail = null;
         AnalysisComparison = null;
+        StopTune();
         RefreshTerrainComparison();
         UpdateComparedRows();
     }
@@ -376,6 +387,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         ReleaseAnalysisComparison();
         comparedMatch = comparison;
         beginComparison(comparison.Match.SessionId);
+        WatchTune(comparison.Match.SessionId);
         UpdateComparedRows();
         using var cancellation = Replace(ref analysisLoad);
         try
@@ -448,6 +460,36 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         {
             if (ReferenceEquals(analysisLoad, cancellation)) analysisLoad = null;
         }
+    }
+
+    private void WatchTune(Guid matchedSessionId)
+    {
+        ReadTune(matchedSessionId);
+        tuneSubscription = sessionStore.Watch(sessionId).Merge(sessionStore.Watch(matchedSessionId))
+            .Subscribe(_ => ReadTune(matchedSessionId));
+    }
+
+    private void ReadTune(Guid matchedSessionId)
+    {
+        if (sessionStore.Get(sessionId) is not { } current || sessionStore.Get(matchedSessionId) is not { } matched)
+        {
+            tunes = null;
+            TuneReport = null;
+            return;
+        }
+
+        var pair = (SessionTune.From(current), SessionTune.From(matched));
+        if (pair == tunes) return;
+        tunes = pair;
+        TuneReport = SegmentTuneReport.From(SessionTune.Compare(pair.Item1, pair.Item2));
+    }
+
+    private void StopTune()
+    {
+        tuneSubscription?.Dispose();
+        tuneSubscription = null;
+        tunes = null;
+        TuneReport = null;
     }
 
     private void Remove(SegmentComparisonRowViewModel row)

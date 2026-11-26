@@ -11,6 +11,7 @@ using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Segments.Coordinators;
 using Sufni.App.Segments.Services;
 using Sufni.App.Segments.ViewModels;
+using Sufni.App.Sessions.Store;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.Telemetry;
 
@@ -19,7 +20,16 @@ namespace Sufni.App.Tests.TestSupport.Doubles;
 internal static class TestSegmentComparisons
 {
     public static ISegmentComparisonFactory CreateFactory(ISegmentCoordinator? segmentCoordinator = null, SegmentTerrainComparison? terrain = null) =>
-        new SegmentComparisonFactory(BuildAnalysisComparisons(segmentCoordinator ?? Substitute.For<ISegmentCoordinator>(), terrain));
+        new SegmentComparisonFactory(BuildAnalysisComparisons(segmentCoordinator ?? Substitute.For<ISegmentCoordinator>(), terrain),
+            EmptySessionStore());
+
+    private static ISessionStore EmptySessionStore()
+    {
+        var store = Substitute.For<ISessionStore>();
+        store.Watch(Arg.Any<Guid>()).Returns(Observable.Never<SessionSnapshot>());
+        store.Get(Arg.Any<Guid>()).Returns((SessionSnapshot?)null);
+        return store;
+    }
 
     /// <summary>
     /// Makes the substitute build analysis comparisons with the real builder and return
@@ -66,8 +76,9 @@ internal static class TestSegmentComparisons
     /// </summary>
     public static SegmentComparisonViewModel Create(ISegmentCoordinator coordinator,
         BehaviorSubject<SegmentComparisonSessionState> states, Action<double, double>? setTimelineVisibleRange = null,
-        Action<FailurePresentation>? reportError = null, Action<string>? reportNotification = null) =>
-        new SegmentComparisonFactory(coordinator).Create(Guid.NewGuid(), states, setTimelineVisibleRange ?? ((_, _) => { }),
+        Action<FailurePresentation>? reportError = null, Action<string>? reportNotification = null,
+        ISessionStore? sessionStore = null, Guid? sessionId = null) =>
+        new SegmentComparisonFactory(coordinator, sessionStore ?? EmptySessionStore()).Create(sessionId ?? Guid.NewGuid(), states, setTimelineVisibleRange ?? ((_, _) => { }),
             reportError ?? (_ => { }), reportNotification ?? (_ => { }),
             id => states.OnNext(states.Value with { Scope = new AnalysisScope.SegmentComparison(id) }),
             () => states.OnNext(states.Value with { Scope = new AnalysisScope.Default() }));
