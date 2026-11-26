@@ -15,6 +15,8 @@ internal static partial class RecordedSessionPresentationDeriver
         var scale = classified.Scale;
         var roughness = ImmutableArray.CreateBuilder<TerrainRun<RoughnessClass>>();
         var grade = ImmutableArray.CreateBuilder<TerrainRun<GradeBand>>();
+        var roughnessShades = ImmutableArray.CreateBuilder<TerrainShade<RoughnessClass>>();
+        var gradeShades = ImmutableArray.CreateBuilder<TerrainShade<GradeBand>>();
         var frame = new TerrainSignalSections();
         var fork = new TerrainSignalSections();
         var rearAxle = new TerrainSignalSections();
@@ -31,6 +33,10 @@ internal static partial class RecordedSessionPresentationDeriver
             AddRun(roughness, window, classes.Roughness);
             AddRun(grade, window, window.Band);
             var baseline = TerrainProfileCalculator.BaselineGrade(profile.Windows, i);
+            AddShade(roughnessShades, window, classes.Roughness, classes.Roughness?.IsClimb() == false && classes.ClassValue is { } value
+                ? Math.Round(Math.Clamp(value, -1.5, 2.5) * 4, MidpointRounding.AwayFromZero) / 4 : null);
+            AddShade(gradeShades, window, window.Band, TerrainSignalSections.Degrees(baseline) is { } degrees
+                ? Math.Round(Math.Clamp(degrees, -8, 17.5), MidpointRounding.AwayFromZero) : null);
             frame.Add(window.StartSeconds, window.EndSeconds, window.Frame?.SpeedRemoved);
             fork.Add(window.StartSeconds, window.EndSeconds, window.Fork?.SpeedRemoved);
             rearAxle.Add(window.StartSeconds, window.EndSeconds, window.RearAxle?.SpeedRemoved);
@@ -55,6 +61,8 @@ internal static partial class RecordedSessionPresentationDeriver
             new([.. shares.Select(count => count / total)], forkClipped, rearAxleClipped, frameMissing, forkMissing,
                 rearAxleMissing, climbReading, profile.SilentSensors))
         {
+            RoughnessShades = roughnessShades.ToImmutable(),
+            GradeShades = gradeShades.ToImmutable(),
             FrameEdges = Edges(scale.FrameImu),
             ForkEdges = Edges(scale.ForkImu),
             RearAxleEdges = Edges(scale.RearAxleImu),
@@ -88,5 +96,16 @@ internal static partial class RecordedSessionPresentationDeriver
             runs[^1] = last with { EndSeconds = window.EndSeconds };
         else
             runs.Add(new(window.StartSeconds, window.EndSeconds, current));
+    }
+
+    private static void AddShade<TClass>(ImmutableArray<TerrainShade<TClass>>.Builder shades, TerrainWindow window, TClass? value,
+        double? shade) where TClass : struct, Enum
+    {
+        if (value is not { } current) return;
+        if (shades.Count > 0 && shades[^1] is var last && last.Class.Equals(current) && last.Value == shade &&
+            last.EndSeconds == window.StartSeconds)
+            shades[^1] = last with { EndSeconds = window.EndSeconds };
+        else
+            shades.Add(new(window.StartSeconds, window.EndSeconds, current, shade));
     }
 }
