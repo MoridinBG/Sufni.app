@@ -52,12 +52,13 @@ Both directions use the same version/deletion/timestamp/writer ordering from [Pe
 
 `AppStartup` starts the server after database initialization and the first store refresh. Pairing and data endpoints directly await their owners. `AppShutdown` stops advertising, stops Kestrel and disposes its application before it disposes the shared service provider. Server startup returns `ServerStartResult.Started | Failed(reason, details)`. The service logs a startup failure once and cleans up a partially started host. `AppStartup` then publishes the server failure and starts no repair jobs. When no address is advertisable, the service logs a warning and still attempts advertisement.
 
-All sync HTTP requests, including pairing, carry `X-Sufni-Sync-Protocol: 7`. The anonymous pairing group and the JWT-protected sync group both reject a missing or different value with `426 Upgrade Required`. Protocol version 7 carries absolute item counts for the active run. The payload rules are as follows.
+All sync HTTP requests, including pairing, carry `X-Sufni-Sync-Protocol: 8`. The anonymous pairing group and the JWT-protected sync group both reject a missing or different value with `426 Upgrade Required`. Protocol version 8 carries absolute item counts for the active run and the terrain label family. The payload rules are as follows.
 
 - Push and pull use separate persisted cursors. One sampled `upper_bound` bounds each metadata snapshot.
 - Session rows carry the derivation-window columns as authored metadata, like `timestamp`. The merge engine writes them in both remote-update variants, including the one that keeps the held processed generation.
 - Session rows carry the authored velocity filter option. Processing fingerprints carry the app calibration version.
 - The payload carries saved segments with source-owned anchors.
+- The payload carries terrain labels with source-owned ranges.
 - Session rows carry no track links, session-window payloads or GPS metrics.
 
 The client installs the header on the `HttpClient` of each peer. A new endpoint group must stay behind that service or add the same version gate. Kestrel caps sync request bodies at 256 MiB.
@@ -127,7 +128,7 @@ Source sync runs after metadata sync, so both sides know which session ids and d
 - Source writes keep existing captured content, and publication uses the snapshot that persistence returns.
 - The pull cursor has already advanced after metadata and processed-BLOB swaps. The missing-source queries retry source completeness independently, without a metadata replay.
 
-Local workflow owners persist and prepare snapshots for publish-only stores. For row sync, endpoints await `IInboundSyncCoordinator.ApplyPushAsync` or `GetPullAsync`. A push serializes merge and publication. The merge returns `SynchronizationApplyResult` with the reconciled identities and pending swaps. The coordinator loads authoritative snapshots off-thread. It publishes bikes, setups, boards, sessions, tracks, custom layers and saved segments in one dispatcher batch, including ledger-only removals. A rejected remote delete therefore cannot hide retained local content. HTTP acknowledges only after publication. An apply failure returns 500. A malformed deletion entry rejects and rolls back the whole push with 400 and a warning diagnostic. `SessionSyncApplier` owns generation publication; the inbound coordinator owns source publication. Client pulls and hub pushes both await `SynchronizationApplier`. It merges through `ISyncDataStore`, prepares snapshots for the affected IDs and publishes one batch. The client does not refresh all stores after a run. Stores never read or write repositories, so publication does not repeat the persistence operation.
+Local workflow owners persist and prepare snapshots for publish-only stores. For row sync, endpoints await `IInboundSyncCoordinator.ApplyPushAsync` or `GetPullAsync`. A push serializes merge and publication. The merge returns `SynchronizationApplyResult` with the reconciled identities and pending swaps. The coordinator loads authoritative snapshots off-thread. It publishes bikes, setups, boards, sessions, tracks, custom layers, saved segments and terrain labels in one dispatcher batch, including ledger-only removals. A rejected remote delete therefore cannot hide retained local content. HTTP acknowledges only after publication. An apply failure returns 500. A malformed deletion entry rejects and rolls back the whole push with 400 and a warning diagnostic. `SessionSyncApplier` owns generation publication; the inbound coordinator owns source publication. Client pulls and hub pushes both await `SynchronizationApplier`. It merges through `ISyncDataStore`, prepares snapshots for the affected IDs and publishes one batch. The client does not refresh all stores after a run. Stores never read or write repositories, so publication does not repeat the persistence operation.
 
 ### Run activity
 
@@ -187,6 +188,7 @@ SynchronizationData
 ├── Sessions[] (metadata, tuning fields, duration, processing fingerprint; no blob)
 ├── Tracks[]
 ├── Segments[] (saved segments, JSON `segment`)
+├── TerrainLabels[] (terrain labels, JSON `terrain_label`)
 ├── CustomTileLayers[]
 └── Deletions[] (durable ledger entries)
 ```
@@ -194,6 +196,8 @@ SynchronizationData
 Every bike sync row must carry the `rear_suspension` union. Deserialization rejects a payload that omits it, uses the legacy `rear_suspension_kind` / `linkage` / `leverage_ratio` triple, or contains a malformed union. This applies on the client pull path and on the desktop inbound push path. Only the local SQLite startup migration accepts legacy rear-suspension data.
 
 Saved segments use the core paths. Client and hub apply the same authored-history merge rule, after sessions in the same transaction. Segments carry source-hash ownership and source-relative anchors and survive session deletion. Each session window derives segment visibility, including split windows received from a peer. Client and hub row application publish affected segments through the shared applier, in the same batch as related rows.
+
+Terrain labels use the same core paths and merge rule. A label carries the source hash as its owner key, source-relative seconds and its class, and survives session deletion. Each session window derives its label set. The shared applier publishes affected labels and label removals in the same batch as related rows. Labels that overlap after a merge resolve by order; see [terrain.md](terrain.md#labels).
 
 Processed telemetry blobs (`session.data`) and raw recorded sources (`session_recording_source.payload`) travel through the dedicated session-data and session-source endpoints, never through `SynchronizationData`. Their bodies are binary `application/octet-stream`. Row metadata travels in HTTP headers, so large BLOBs are not base64-encoded in JSON.
 
