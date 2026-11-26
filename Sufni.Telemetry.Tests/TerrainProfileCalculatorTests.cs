@@ -301,6 +301,16 @@ public class TerrainProfileCalculatorTests
         Assert.Equal(band, window.Band);
     }
 
+    [Theory]
+    [InlineData(1.5, GradeBand.GentleDescent)]
+    [InlineData(0.5, GradeBand.Flat)]
+    public void GradeBandChangesOnlyWhenTheGradePassesAnEdgeByOneDegree(double middleDegrees, GradeBand middle)
+    {
+        var windows = SyntheticRide.Build([new(300, 7, 3), new(300, 7, middleDegrees), new(300, 7, 3)]).Profile().Windows;
+        Assert.Equal(GradeBand.GentleDescent, windows.Single(w => w.StartMetres == 150).Band);
+        Assert.Equal(middle, windows.Single(w => w.StartMetres == 450).Band);
+    }
+
     [Fact]
     public void GradeRemovesForwardBrakingAcceleration()
     {

@@ -93,6 +93,32 @@ public class TrailAverageTests
     }
 
     [Theory]
+    [InlineData(1.5, GradeBand.GentleDescent)]
+    [InlineData(0.9, GradeBand.Flat)]
+    [InlineData(10.5, GradeBand.Descent)]
+    [InlineData(11.1, GradeBand.SteepDescent)]
+    public void GradeBandChangesOnlyWhenTheGradePassesAnEdgeByOneDegree(double degrees, GradeBand expected)
+    {
+        var bands = GradeBands([(10, 3), (10, degrees)]);
+        Assert.Equal(GradeBand.GentleDescent, bands[5]);
+        Assert.Equal(expected, bands[15]);
+    }
+
+    [Fact]
+    public void GradeBandStartsFromThePlainEdgesAfterAGap()
+    {
+        var bands = GradeBands([(10, 3), (10, 1.5)], gapSeconds: 0.5);
+        Assert.Equal(GradeBand.Flat, bands[15]);
+    }
+
+    [Fact]
+    public void GradeBandStartsFromThePlainEdgesAfterAWindowWithoutBaseline()
+    {
+        var bands = GradeBands([(10, 3), (1, double.NaN), (10, 1.5)]);
+        Assert.Equal(GradeBand.Flat, bands[16]);
+    }
+
+    [Theory]
     [InlineData(0, RoughnessClass.Calm)]
     [InlineData(0.5, RoughnessClass.Rough)]
     public void SingleRoughWindowJoinsCalmNeighboursOnlyWithoutAGap(double gapSeconds, RoughnessClass expected)
@@ -114,6 +140,23 @@ public class TrailAverageTests
         var result = TrailAverage.Calculate(Run(profile), new(0, WindowCount),
             [new AlignedTerrainRun(Run(Measurements(13)), TerrainProfiles.Identity(WindowCount))]);
         Assert.Equal(2, Assert.IsType<TrailAverage.TooFewRuns>(result).RunCount);
+    }
+
+    /// <summary>
+    /// The averaged bands of three equal runs over consecutive stretches of constant grade in degrees. A NaN stretch
+    /// has no grade. The gap goes before the second stretch.
+    /// </summary>
+    private static GradeBand?[] GradeBands((int Windows, double Degrees)[] stretches, double gapSeconds = 0)
+    {
+        var grades = stretches.SelectMany(s => Enumerable.Repeat(s.Degrees, s.Windows)).ToArray();
+        var windows = grades.Select((degrees, i) => TerrainProfiles.Window(i + (i >= stretches[0].Windows ? gapSeconds : 0)) with
+        {
+            Grade = double.IsNaN(degrees) ? null : Math.Sin(degrees * Math.PI / 180)
+        });
+        var run = Run(TerrainProfiles.Profile(windows));
+        var aligned = new AlignedTerrainRun(run, TerrainProfiles.Identity(grades.Length));
+        var average = Assert.IsType<TrailAverage.Averaged>(TrailAverage.Calculate(run, new(0, grades.Length + 1), [aligned, aligned]));
+        return [.. average.Windows.Select(w => w.Band)];
     }
 
     private static ClassifiedProfile Run(TerrainProfile profile, TerrainScaleKey? scale = null) =>

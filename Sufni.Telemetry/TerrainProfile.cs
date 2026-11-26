@@ -5,7 +5,7 @@ namespace Sufni.Telemetry;
 
 /// <summary>Five levels on the speed-corrected descent scale, then two climb levels from frame vibration.</summary>
 public enum RoughnessClass { Smooth, Calm, Medium, Rough, VeryRough, SmoothClimb, TechnicalClimb }
-/// <summary>Signed ground slope over 50 m. The two climb bands come first.</summary>
+/// <summary>Band of the signed baseline grade, over 30 m to 50 m. The two climb bands come first.</summary>
 public enum GradeBand { SteepClimb, Climb, Flat, GentleDescent, Descent, SteepDescent, VerySteepDescent }
 /// <summary>The IMUs that read the ground for a response fit, unsprung first.</summary>
 public enum GroundSensors { ForkAndRearAxle, Fork, RearAxle, Frame }

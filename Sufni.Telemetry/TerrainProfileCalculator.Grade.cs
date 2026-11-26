@@ -6,7 +6,12 @@ public static partial class TerrainProfileCalculator
     private const double GradeCutoffHz = 0.08;
     /// <summary>The boundaries between adjacent grade bands, in degrees downhill.</summary>
     public static IReadOnlyList<double> GradeBandEdges { get; } = [-6, -2, 2, 5, 10, 15];
-    private static readonly double[] BandEdges = [.. GradeBandEdges.Select(d => Math.Sin(d * Math.PI / 180))];
+    public const double GradeHysteresisDegrees = 1;
+    private static readonly double[] BandEdges = [.. GradeBandEdges.Select(d => Sine(d))];
+    private static readonly double[] UpperEdges = [.. GradeBandEdges.Select(d => Sine(d + GradeHysteresisDegrees))];
+    private static readonly double[] LowerEdges = [.. GradeBandEdges.Select(d => Sine(d - GradeHysteresisDegrees))];
+
+    private static double Sine(double degrees) => Math.Sin(degrees * Math.PI / 180);
 
     private static TerrainGradeState MeasureGrade(TrackMotion motion, RawImuData? imu, ImuMetaEntry? frame,
         List<TerrainWindow> windows, CancellationToken token)
@@ -57,20 +62,40 @@ public static partial class TerrainProfileCalculator
         var zero = totalGrade / totalWeight - (startHeight - endHeight) / (last.Value.Distance - first.Value.Distance);
         for (var i = 0; i < windows.Count; i++)
             if (windows[i].Grade.HasValue) windows[i] = windows[i] with { Grade = windows[i].Grade - zero };
+        var bands = AssignBands([.. windows.Select((_, i) => BaselineGrade(windows, i))],
+            i => Adjacent(windows[i - 1], windows[i]));
         for (var i = 0; i < windows.Count; i++)
-        {
-            if (BaselineGrade(windows, i) is not { } baseline) continue;
-            windows[i] = windows[i] with { Band = ClassifyGrade(baseline) };
-        }
+            if (bands[i] is { } band) windows[i] = windows[i] with { Band = band };
         MergeOutliers(windows, static w => w.Band, static (w, band) => w with { Band = band }, Adjacent);
         return TerrainGradeState.Available;
     }
 
-    internal static GradeBand ClassifyGrade(double baseline)
+    /// <summary>
+    /// Bands of consecutive baseline grades. Each edge keeps its side until the grade passes it by
+    /// <see cref="GradeHysteresisDegrees"/>, so a grade near an edge does not switch the band on noise. The first
+    /// window, a window after a gap and a window after one without baseline take the plain side of each edge.
+    /// </summary>
+    internal static GradeBand?[] AssignBands(IReadOnlyList<double?> baselines, Func<int, bool> joinsPrevious)
     {
-        var band = 0;
-        while (band < BandEdges.Length && baseline >= BandEdges[band]) band++;
-        return (GradeBand)band;
+        var bands = new GradeBand?[baselines.Count];
+        var above = new bool[BandEdges.Length];
+        var started = false;
+        for (var i = 0; i < baselines.Count; i++)
+        {
+            if (baselines[i] is not { } baseline)
+            {
+                started = false;
+                continue;
+            }
+            if (!started || !joinsPrevious(i))
+                for (var e = 0; e < BandEdges.Length; e++) above[e] = baseline >= BandEdges[e];
+            else
+                for (var e = 0; e < BandEdges.Length; e++)
+                    above[e] = above[e] ? baseline >= LowerEdges[e] : baseline >= UpperEdges[e];
+            started = true;
+            bands[i] = (GradeBand)above.Count(a => a);
+        }
+        return bands;
     }
 
     public static bool IsClimb(this GradeBand band) => band <= GradeBand.Climb;
