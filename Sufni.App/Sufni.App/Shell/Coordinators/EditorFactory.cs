@@ -1,4 +1,5 @@
 using Sufni.App.Terrain.Coordinators;
+using Sufni.App.Terrain.Queries;
 using Sufni.App.Terrain.Services;
 using Sufni.App.Bikes.Services;
 using Sufni.App.LiveDaq.Coordinators.Capture;
@@ -76,7 +77,9 @@ internal sealed class EditorFactory(
     IRecordedSessionDomainQuery recordedSessionDomainQuery,
     IAppEnvironment appEnvironment,
     ITerrainProfileRepository terrainProfiles,
-    ITerrainProfileCoordinator terrainCoordinator) : IEditorFactory
+    ITerrainProfileCoordinator terrainCoordinator,
+    ITerrainLabelQuery terrainLabelQuery,
+    ITerrainLabelCoordinator terrainLabelCoordinator) : IEditorFactory
 {
     public TabPageViewModelBase? CreateEditor(EditorKey key, IShellCoordinator shell) => key switch
     {
@@ -116,6 +119,8 @@ internal sealed class EditorFactory(
             isNew,
             bikeStore,
             setupCoordinator,
+            terrainLabelQuery,
+            terrainLabelCoordinator,
             shell,
             dialogService,
             uiThreadDispatcher,

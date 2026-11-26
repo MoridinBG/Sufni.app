@@ -23,6 +23,9 @@ using Sufni.App.Setups.Stores;
 using Sufni.App.Setups.ViewModels.SensorConfigurations;
 using Sufni.App.Shared.Common;
 using Sufni.App.Shell.Coordinators;
+using Sufni.App.Terrain.Coordinators;
+using Sufni.App.Terrain.Queries;
+using Sufni.App.Terrain.ViewModels;
 namespace Sufni.App.Setups.ViewModels.Editors;
 
 /// <summary>
@@ -81,6 +84,9 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, INotifyDataErr
 
     public ReadOnlyObservableCollection<BikeSnapshot> Bikes { get; }
     public List<SensorType?> ForkSensorTypes { get; } = [null, .. Enum.GetValues<SensorType>().Where(t => t.ToString().EndsWith("Fork"))];
+
+    /// <summary>The terrain labels of a saved setup; null for a new setup. Not part of the draft.</summary>
+    public SetupTerrainLabelsViewModel? TerrainLabels { get; }
 
     #endregion
 
@@ -154,6 +160,8 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, INotifyDataErr
         bool isNew,
         IBikeStore bikeStore,
         ISetupCoordinator setupCoordinator,
+        ITerrainLabelQuery terrainLabelQuery,
+        ITerrainLabelCoordinator terrainLabelCoordinator,
         IShellCoordinator shell,
         IDialogService dialogService,
         IUiThreadDispatcher uiThreadDispatcher,
@@ -168,6 +176,8 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, INotifyDataErr
         IsInDatabase = !isNew;
         Id = snapshot.Id;
         draftBase = SetupDraft.From(snapshot, boardId);
+        TerrainLabels = isNew ? null : new SetupTerrainLabelsViewModel(snapshot.Id, terrainLabelQuery, terrainLabelCoordinator,
+            dialogService, sessionId => shell.OpenEditor(new EditorKey.Session(sessionId)), ErrorMessages.Add);
 
         ResetImplementation();
         // Choices belong to the editor draft, including while its view is detached.
@@ -372,6 +382,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, INotifyDataErr
     protected override Task CloseImplementation()
     {
         bikeSubscription.Dispose();
+        TerrainLabels?.Dispose();
         return Task.CompletedTask;
     }
 

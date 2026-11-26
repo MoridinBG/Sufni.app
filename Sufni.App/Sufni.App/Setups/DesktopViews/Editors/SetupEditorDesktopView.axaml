@@ -5,6 +5,7 @@ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:shared="clr-namespace:Sufni.App.Setups.Views.Shared"
+xmlns:terrain="clr-namespace:Sufni.App.Terrain.Views"
 xmlns:v="clr-namespace:Sufni.App.Shared.Views.Controls"
 xmlns:vm="clr-namespace:Sufni.App.Setups.ViewModels.Editors"
 d:DesignHeight="600"
@@ -20,7 +21,7 @@ mc:Ignorable="d">
     HorizontalAlignment="Stretch"
     VerticalAlignment="Stretch"
     ColumnDefinitions="auto *"
-    RowDefinitions="auto auto * auto 40 39">
+    RowDefinitions="auto auto auto * auto 40 39">
         <!--  Name  -->
         <Label
         Grid.Row="0"
@@ -41,9 +42,17 @@ mc:Ignorable="d">
         Grid.ColumnSpan="2"
         ShowBikeEditButton="True" />
 
+        <Border
+        Grid.Row="2"
+        Grid.Column="0"
+        Grid.ColumnSpan="2"
+        IsVisible="{Binding TerrainLabels, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <terrain:SetupTerrainLabelsView x:Name="SetupTerrainLabels" DataContext="{Binding TerrainLabels}" />
+        </Border>
+
         <!--  Error messages for Setup instance  -->
         <v:ErrorMessagesBar
-        Grid.Row="3"
+        Grid.Row="4"
         Grid.Column="0"
         Grid.ColumnSpan="2"
         Margin="0,5,0,0" />
@@ -52,7 +61,7 @@ mc:Ignorable="d">
         <!--  Export  -->
         <Button
         Name="ExportButton"
-        Grid.Row="4"
+        Grid.Row="5"
         Grid.Column="0"
         Grid.ColumnSpan="2"
         Margin="0,0,0,5"
@@ -64,7 +73,7 @@ mc:Ignorable="d">
 
         <!--  Save and Reset buttons  -->
         <Grid
-        Grid.Row="5"
+        Grid.Row="6"
         Grid.Column="0"
         Grid.ColumnSpan="2"
         ColumnDefinitions="* auto">

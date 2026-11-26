@@ -1,0 +1,111 @@
+<UserControl
+    x:Class="Sufni.App.Terrain.Views.SetupTerrainLabelsView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="clr-namespace:Sufni.App.Terrain.ViewModels"
+    xmlns:views="clr-namespace:Sufni.App.Terrain.Views"
+    d:DesignHeight="320"
+    d:DesignWidth="400"
+    x:Name="Root"
+    x:DataType="vm:SetupTerrainLabelsViewModel"
+    mc:Ignorable="d">
+    <UserControl.Resources>
+        <views:TerrainSwatchConverter x:Key="Swatch" />
+    </UserControl.Resources>
+
+    <StackPanel Margin="0,10,0,0" Spacing="8">
+        <TextBlock
+            FontWeight="SemiBold"
+            Opacity="0.78"
+            Text="Terrain Labels" />
+        <ItemsControl x:Name="TerrainScaleLinesItems" ItemsSource="{Binding ScaleLines}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                    <TextBlock
+                        Opacity="0.72"
+                        Text="{Binding}"
+                        TextWrapping="Wrap" />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock
+            x:Name="EmptyTerrainLabelsMessage"
+            IsVisible="{Binding !HasLabels}"
+            Opacity="0.72"
+            Text="No terrain labels" />
+        <ScrollViewer MaxHeight="240" IsVisible="{Binding HasLabels}">
+            <ItemsControl x:Name="TerrainLabelsItems" ItemsSource="{Binding Labels}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SetupTerrainLabelItem">
+                        <Grid
+                            Margin="0,2"
+                            ColumnDefinitions="auto,*,auto,auto,auto"
+                            ColumnSpacing="8">
+                            <Border
+                                Grid.Column="0"
+                                Width="12"
+                                Height="12"
+                                VerticalAlignment="Center"
+                                Background="{Binding Class, Converter={StaticResource Swatch}}"
+                                CornerRadius="2" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock FontWeight="SemiBold" Text="{Binding ClassName}" />
+                                <TextBlock Opacity="0.72" TextTrimming="CharacterEllipsis">
+                                    <Run Text="{Binding SessionName}" />
+                                    <Run Text=" · " />
+                                    <Run Text="{Binding DateText}" />
+                                    <Run Text=" · " />
+                                    <Run Text="{Binding RangeText}" />
+                                </TextBlock>
+                            </StackPanel>
+                            <Button
+                                x:Name="OpenTerrainLabelRideButton"
+                                Grid.Column="2"
+                                Width="32"
+                                Height="32"
+                                Padding="0"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                Classes="embedded"
+                                Command="{Binding #Root.((vm:SetupTerrainLabelsViewModel)DataContext).OpenRideCommand}"
+                                CommandParameter="{Binding}"
+                                ToolTip.Tip="Open ride">
+                                <Image Width="14" Source="{SvgImage /Assets/fa-magnifying-glass-chart.svg}" />
+                            </Button>
+                            <Button
+                                x:Name="ChangeTerrainLabelClassButton"
+                                Grid.Column="3"
+                                Width="32"
+                                Height="32"
+                                Padding="0"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                Classes="embedded"
+                                Command="{Binding #Root.((vm:SetupTerrainLabelsViewModel)DataContext).ChangeClassCommand}"
+                                CommandParameter="{Binding}"
+                                ToolTip.Tip="Change class">
+                                <Image Width="14" Source="{SvgImage /Assets/fa-edit.svg}" />
+                            </Button>
+                            <Button
+                                x:Name="DeleteTerrainLabelButton"
+                                Grid.Column="4"
+                                Width="32"
+                                Height="32"
+                                Padding="0"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                Classes="embedded dangerous"
+                                Command="{Binding #Root.((vm:SetupTerrainLabelsViewModel)DataContext).DeleteCommand}"
+                                CommandParameter="{Binding}"
+                                ToolTip.Tip="Delete">
+                                <Image Width="14" Source="{SvgImage /Assets/fa-trash-can.svg}" />
+                            </Button>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </StackPanel>
+</UserControl>

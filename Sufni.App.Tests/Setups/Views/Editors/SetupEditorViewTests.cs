@@ -7,7 +7,11 @@ using Sufni.App.Setups.Models.SensorConfigurations;
 using Sufni.App.Setups.ViewModels.SensorConfigurations;
 using Sufni.App.Setups.Views.SensorConfigurations;
 using Sufni.App.Setups.Views.Shared;
+using NSubstitute;
+using Sufni.App.Terrain.Queries;
+using Sufni.App.Terrain.Views;
 using Sufni.App.Tests.TestSupport.Harness;
+using Sufni.Telemetry;
 namespace Sufni.App.Tests.Setups.Views.Editors;
 
 [Collection("Ui")]
@@ -115,4 +119,41 @@ public class SetupEditorViewTests
         Assert.IsType<string>(Assert.Single(errors!));
     }
 
+    [AvaloniaTheory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task TerrainLabelSection_ShowsOnlyForASavedSetup(bool desktop, bool isNew)
+    {
+        using var context = new SetupEditorViewTestContext();
+        var snapshot = SetupEditorViewTestContext.CreateSetupSnapshot(context.AddBike());
+        if (desktop)
+        {
+            await using var mounted = await context.MountDesktopAsync(snapshot, isNew);
+            Assert.Equal(!isNew, mounted.View.FindControl<SetupTerrainLabelsView>("SetupTerrainLabels")!.IsEffectivelyVisible);
+        }
+        else
+        {
+            await using var mounted = await context.MountMobileAsync(snapshot, isNew);
+            Assert.Equal(!isNew, mounted.View.FindControl<SetupTerrainLabelsView>("SetupTerrainLabels")!.IsEffectivelyVisible);
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData(0)]
+    [InlineData(2)]
+    public async Task TerrainLabelSection_ShowsOneRowPerLabelOrTheEmptyMessage(int count)
+    {
+        ViewTestHelpers.EnsureFluentTheme();
+        using var context = new SetupEditorViewTestContext();
+        var snapshot = SetupEditorViewTestContext.CreateSetupSnapshot(context.AddBike());
+        context.LabelQuery.ForSetup(snapshot.Id).Returns(new SetupTerrainLabels(null, [.. Enumerable.Range(0, count).Select(i =>
+            new SetupTerrainLabelRow(Guid.NewGuid(), Guid.NewGuid(), "ride", 1_767_261_600, RoughnessClass.Rough, new TelemetryTimeRange(i, i + 1)))]));
+        await using var mounted = await context.MountDesktopAsync(snapshot);
+        var section = mounted.View.FindControl<SetupTerrainLabelsView>("SetupTerrainLabels")!;
+
+        Assert.Equal(count == 0, section.FindControl<TextBlock>("EmptyTerrainLabelsMessage")!.IsVisible);
+        Assert.Equal(count, section.FindAllVisual<Button>().Count(button => button.Name == "OpenTerrainLabelRideButton"));
+    }
 }

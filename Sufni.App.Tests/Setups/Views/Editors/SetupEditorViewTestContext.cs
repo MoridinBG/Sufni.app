@@ -13,6 +13,8 @@ using Sufni.App.Setups.Stores;
 using Sufni.App.Setups.ViewModels.Editors;
 using Sufni.App.Setups.Views.Editors;
 using Sufni.App.Shell.Coordinators;
+using Sufni.App.Terrain.Coordinators;
+using Sufni.App.Terrain.Queries;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Setups.Models.SensorConfigurations;
 using Sufni.App.Tests.TestSupport.Fixtures;
@@ -27,6 +29,7 @@ internal sealed class SetupEditorViewTestContext : IDisposable
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     public IShellCoordinator Shell => shell;
+    public ITerrainLabelQuery LabelQuery { get; } = TestTerrainLabelQueries.Empty();
 
     public BikeSnapshot AddBike(string name = "test bike")
     {
@@ -44,7 +47,8 @@ internal sealed class SetupEditorViewTestContext : IDisposable
 
     public SetupEditorViewModel CreateEditor(SetupSnapshot snapshot, bool isNew = false)
     {
-        return new SetupEditorViewModel(snapshot, isNew, bikeStore, setupCoordinator, shell, dialogService, new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider(), boardId: Guid.NewGuid());
+        return new SetupEditorViewModel(snapshot, isNew, bikeStore, setupCoordinator, LabelQuery,
+            Substitute.For<ITerrainLabelCoordinator>(), shell, dialogService, new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider(), boardId: Guid.NewGuid());
     }
 
     public async Task<MountedSetupEditorView<SetupEditorView>> MountMobileAsync(SetupSnapshot snapshot, bool isNew = false)

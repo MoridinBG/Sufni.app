@@ -1,4 +1,5 @@
 using Sufni.Kinematics;
+using Sufni.Telemetry;
 using Sufni.App.Shared.Models;
 using Microsoft.Extensions.Time.Testing;
 using System.Reactive.Linq;
@@ -12,6 +13,8 @@ using Sufni.App.Setups.Coordinators;
 using Sufni.App.Setups.Stores;
 using Sufni.App.Setups.ViewModels.Editors;
 using Sufni.App.Shell.Coordinators;
+using Sufni.App.Terrain.Coordinators;
+using Sufni.App.Terrain.Queries;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Models.SensorConfigurations;
@@ -27,11 +30,13 @@ public class SetupEditorViewModelTests : IDisposable
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
+    private readonly ITerrainLabelQuery labelQuery = TestTerrainLabelQueries.Empty();
+    private readonly ITerrainLabelCoordinator labelCoordinator = Substitute.For<ITerrainLabelCoordinator>();
 
     public void Dispose() => bikeStore.Dispose();
 
     private SetupEditorViewModel CreateEditor(SetupSnapshot snapshot, bool isNew = false, Guid? boardId = null) =>
-        new(snapshot, isNew, bikeStore, setupCoordinator, shell, dialogService, uiThreadDispatcher, timeProvider: new FakeTimeProvider(), boardId: boardId);
+        new(snapshot, isNew, bikeStore, setupCoordinator, labelQuery, labelCoordinator, shell, dialogService, uiThreadDispatcher, timeProvider: new FakeTimeProvider(), boardId: boardId);
 
     private const string LinearForkConfigurationJson =
         "{\"type\":\"linear_fork\",\"length\":100,\"resolution\":12}";
@@ -467,4 +472,49 @@ public class SetupEditorViewModelTests : IDisposable
 
     // ----- EditBike -----
 
+    // ----- Terrain labels -----
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void TerrainLabels_ExistOnlyForASavedSetup(bool isNew, bool present)
+    {
+        var editor = CreateEditor(TestSnapshots.Setup(), isNew: isNew);
+
+        Assert.Equal(present, editor.TerrainLabels is not null);
+    }
+
+    [Fact]
+    public void TerrainLabels_OpenRideOpensTheSessionAndLeavesTheDraftClean()
+    {
+        var snapshot = TestSnapshots.Setup();
+        var row = LabelRow();
+        labelQuery.ForSetup(snapshot.Id).Returns(new SetupTerrainLabels(null, [row]));
+        var editor = CreateEditor(snapshot);
+
+        editor.TerrainLabels!.OpenRideCommand.Execute(editor.TerrainLabels.Labels[0]);
+
+        shell.Received(1).OpenEditor(new EditorKey.Session(row.SessionId));
+        Assert.False(editor.IsDirty);
+    }
+
+    [Fact]
+    public async Task TerrainLabels_FailedWriteShowsInTheEditorErrors()
+    {
+        var snapshot = TestSnapshots.Setup();
+        var row = LabelRow();
+        labelQuery.ForSetup(snapshot.Id).Returns(new SetupTerrainLabels(null, [row]));
+        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        labelCoordinator.DeleteAsync(row.LabelId)
+            .Returns(new TerrainLabelChangeResult.Failed(TerrainLabelWriteFailureReason.Delete, "locked"));
+        var editor = CreateEditor(snapshot);
+
+        await editor.TerrainLabels!.DeleteCommand.ExecuteAsync(editor.TerrainLabels.Labels[0]);
+
+        Assert.Single(editor.ErrorMessages);
+        Assert.False(editor.IsDirty);
+    }
+
+    private static SetupTerrainLabelRow LabelRow() =>
+        new(Guid.NewGuid(), Guid.NewGuid(), "ride", 1_767_261_600, RoughnessClass.Rough, new TelemetryTimeRange(2, 4));
 }

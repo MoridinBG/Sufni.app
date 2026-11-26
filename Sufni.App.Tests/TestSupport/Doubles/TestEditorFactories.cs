@@ -86,7 +86,8 @@ internal static class TestEditorFactories
             new Sufni.App.Tests.TestSupport.Async.ManualUiTimerScheduler(),
             Substitute.For<IRecordedSessionDomainQuery>(),
             TestAppEnvironment.Create(UiLayoutProfile.Workspace),
-            Substitute.For<ITerrainProfileRepository>(), Substitute.For<ITerrainProfileCoordinator>());
+            Substitute.For<ITerrainProfileRepository>(), Substitute.For<ITerrainProfileCoordinator>(),
+            TestTerrainLabelQueries.Empty(), Substitute.For<ITerrainLabelCoordinator>());
     }
 
 }
