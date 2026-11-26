@@ -33,7 +33,7 @@ internal static partial class RecordedSessionPresentationDeriver
             AddRun(roughness, window, classes.Roughness);
             AddRun(grade, window, window.Band);
             var baseline = TerrainProfileCalculator.BaselineGrade(profile.Windows, i);
-            AddShade(roughnessShades, window, classes.Roughness, classes.Roughness?.IsClimb() == false && classes.ClassValue is { } value
+            AddShade(roughnessShades, window, classes.Roughness, !classes.Labelled && classes.Roughness?.IsClimb() == false && classes.ClassValue is { } value
                 ? Math.Round(Math.Clamp(value, -1.5, 2.5) * 4, MidpointRounding.AwayFromZero) / 4 : null);
             AddShade(gradeShades, window, window.Band, TerrainSignalSections.Degrees(baseline) is { } degrees
                 ? Math.Round(Math.Clamp(degrees, -8, 17.5), MidpointRounding.AwayFromZero) : null);

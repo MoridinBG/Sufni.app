@@ -17,6 +17,17 @@ public class TerrainPresentationShadeTests
     }
 
     [Fact]
+    public void LabelledWindowHasAShadeWithoutValue()
+    {
+        var profile = TerrainProfiles.Profile([Descent(0, 0.5)]);
+        var labels = TerrainProfiles.Labels(new TerrainLabelRange(0, 1, RoughnessClass.Rough));
+
+        var shades = RecordedSessionPresentationDeriver.CreateTerrain(TerrainClassifier.Classify(profile, TerrainProfiles.Scale, labels)).RoughnessShades;
+
+        Assert.Equal([new TerrainShade<RoughnessClass>(0, 1, RoughnessClass.Rough, null)], shades);
+    }
+
+    [Fact]
     public void GradeShadesHoldTheBaselineGradeInWholeDegrees()
     {
         var windows = Enumerable.Range(0, 10).Select(i => TerrainProfiles.Window(i) with
