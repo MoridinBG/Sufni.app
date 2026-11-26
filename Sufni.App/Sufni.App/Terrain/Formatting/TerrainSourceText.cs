@@ -27,22 +27,64 @@ internal static class TerrainSourceText
         if (coverage.ForkMissing) lines.Add("Fork data absent in part or all of the ride.");
         if (coverage.RearAxleMissing) lines.Add("Rear axle data absent in part or all of the ride.");
         if (scale is not null)
-        {
-            AddNotEnoughData("Frame", !presentation.Frame.IsEmpty, scale.FrameImu);
-            AddNotEnoughData("Fork", !presentation.Fork.IsEmpty, scale.ForkImu);
-            AddNotEnoughData("Rear axle", !presentation.RearAxle.IsEmpty, scale.RearAxleImu);
-            AddNotEnoughData("Climbs", coverage.ClimbReading, scale.FrameClimb);
-        }
+            lines.AddRange(ScaleLines(scale, sensor => sensor switch
+            {
+                TerrainSensor.FrameImu => !presentation.Frame.IsEmpty,
+                TerrainSensor.ForkImu => !presentation.Fork.IsEmpty,
+                TerrainSensor.RearAxleImu => !presentation.RearAxle.IsEmpty,
+                null => coverage.ClimbReading,
+                _ => false
+            }));
         foreach (var sensor in coverage.Silent) lines.Add($"{SensorName(sensor)} sensor ignored: no movement recorded.");
         return lines.Count == 0 ? null : string.Join("\n", lines);
+    }
 
-        void AddNotEnoughData(string name, bool hasReadings, SensorScale sensor)
+    /// <summary>
+    /// What sets the scale of each IMU that <paramref name="include"/> admits, and of the climb limit for a null sensor,
+    /// with the labelled distance that a sensor without an anchor has.
+    /// </summary>
+    public static IReadOnlyList<string> ScaleLines(SetupTerrainScale scale, Func<TerrainSensor?, bool> include)
+    {
+        var lines = new List<string>();
+        var labels = scale.Labels;
+        if (include(TerrainSensor.FrameImu)) AddSensor("Frame", scale.FrameImu, labels.FrameImu);
+        if (include(TerrainSensor.ForkImu)) AddSensor("Fork", scale.ForkImu, labels.ForkImu);
+        if (include(TerrainSensor.RearAxleImu)) AddSensor("Rear axle", scale.RearAxleImu, labels.RearAxleImu);
+        if (include(null))
         {
-            if (!hasReadings || sensor is not SensorScale.NotEnoughData data) return;
-            lines.Add($"{name}: no classes yet. The setup has {data.Rides} of {SetupTerrainScaleQuery.MinimumRides} rides and " +
-                      $"{UnitsFormatter.FormatDistance(data.Metres)} of {UnitsFormatter.FormatDistance(SetupTerrainScaleQuery.MinimumMetres)}.");
+            if (scale.FrameClimb is SensorScale.Anchored)
+            {
+                lines.Add($"Climbs: set by your labels ({Distance(labels.SmoothClimb)} smooth, {Distance(labels.TechnicalClimb)} technical).");
+                return lines;
+            }
+            lines.Add(Line("Climbs", scale.FrameClimb));
+            if (labels.SmoothClimb + labels.TechnicalClimb > 0)
+                lines.Add($"Labels: {Distance(labels.SmoothClimb)} of {Distance(SetupTerrainScaleQuery.MinimumLabelledMetres)} smooth, " +
+                          $"{Distance(labels.TechnicalClimb)} of {Distance(SetupTerrainScaleQuery.MinimumLabelledMetres)} technical.");
+        }
+        return lines;
+
+        void AddSensor(string name, SensorScale sensor, double labelled)
+        {
+            if (sensor is SensorScale.Anchored)
+            {
+                lines.Add($"{name}: set by your labels ({Distance(labelled)}).");
+                return;
+            }
+            lines.Add(Line(name, sensor));
+            if (labelled > 0) lines.Add($"Labels: {Distance(labelled)} of {Distance(SetupTerrainScaleQuery.MinimumLabelledMetres)}.");
         }
     }
+
+    private static string Line(string name, SensorScale sensor) => sensor switch
+    {
+        SensorScale.NotEnoughData data =>
+            $"{name}: no classes yet. The setup has {data.Rides} of {SetupTerrainScaleQuery.MinimumRides} rides and " +
+            $"{Distance(data.Metres)} of {Distance(SetupTerrainScaleQuery.MinimumMetres)}.",
+        _ => $"{name}: set by the median of the rides."
+    };
+
+    private static string Distance(double metres) => UnitsFormatter.FormatDistance(metres);
 
     private static string SourceName(GroundSensors source) => source switch
     {
