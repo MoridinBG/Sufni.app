@@ -1,0 +1,7 @@
+snap.db*
+*.pkl
+*.txt
+!requirements.txt
+gyro/raw/
+gyro/ext/
+venv/
