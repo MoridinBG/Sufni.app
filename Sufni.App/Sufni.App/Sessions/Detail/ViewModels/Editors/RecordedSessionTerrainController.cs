@@ -68,7 +68,7 @@ internal sealed partial class RecordedSessionTerrainController : IAsyncDisposabl
                     var profiles = await repository.ReadAsync(new Dictionary<Guid, TerrainProfileKey> { [id] = current.Key }, token)
                         .ConfigureAwait(false);
                     if (!profiles.TryGetValue(id, out var profile)) return new RecordedTerrainState.Pending();
-                    var classified = TerrainClassifier.Classify(profile, scale);
+                    var classified = TerrainClassifier.Classify(profile, scale, TerrainLabelSet.None);
                     return new RecordedTerrainState.Loaded(current.Key, classified, RecordedSessionPresentationDeriver.CreateTerrain(classified));
                 }, token).ConfigureAwait(false);
             }

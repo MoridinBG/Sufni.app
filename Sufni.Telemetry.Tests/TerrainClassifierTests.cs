@@ -50,14 +50,14 @@ public class TerrainClassifierTests
     public void ZeroLevelReadingSetsNoClass()
     {
         var window = Single(Descent() with { Frame = TerrainProfiles.Sensor(0) });
-        Assert.Equal(new ClassifiedWindow(window.Window, null, null, null), window);
+        Assert.Equal(new ClassifiedWindow(window.Window, null, null, null, false), window);
     }
 
     [Fact]
     public void SensorWithoutAReadyMedianSetsNoClass()
     {
         var profile = TerrainProfiles.Profile([Descent() with { Fork = Reading(2), Frame = Reading(0) }]);
-        var window = TerrainClassifier.Classify(profile, TerrainProfiles.Scale with { ForkImu = null }).Windows.Single();
+        var window = TerrainClassifier.Classify(profile, TerrainProfiles.Scale with { ForkImu = null }, TerrainLabelSet.None).Windows.Single();
         Assert.Equal((RoughnessClass.Medium, GroundSensors.Frame), (window.Roughness, window.Source));
     }
 
@@ -70,7 +70,7 @@ public class TerrainClassifierTests
         {
             Band = GradeBand.Climb, Frame = TerrainProfiles.Sensor(ofMedian * TerrainLevels.Median(0))
         });
-        Assert.Equal(new ClassifiedWindow(window.Window, expected, null, null), window);
+        Assert.Equal(new ClassifiedWindow(window.Window, expected, null, null, false), window);
     }
 
     [Theory]
@@ -94,8 +94,8 @@ public class TerrainClassifierTests
             Descent() with { Fork = Reading(0), RearAxle = Reading(0), Frame = Reading(0) },
             TerrainProfiles.Window(1) with { Band = GradeBand.Climb, Frame = Reading(0) }
         ]);
-        Assert.All(TerrainClassifier.Classify(profile, TerrainScaleKey.None).Windows, window =>
-            Assert.Equal(new ClassifiedWindow(window.Window, null, null, null), window));
+        Assert.All(TerrainClassifier.Classify(profile, TerrainScaleKey.None, TerrainLabelSet.None).Windows, window =>
+            Assert.Equal(new ClassifiedWindow(window.Window, null, null, null, false), window));
     }
 
     [Theory]
@@ -122,6 +122,47 @@ public class TerrainClassifierTests
     }
 
     [Fact]
+    public void LabelledWindowHasTheLabelClassAndKeepsTheValueAndSourceOfItsReadings()
+    {
+        var profile = TerrainProfiles.Profile([Descent() with { Fork = Reading(0) }]);
+
+        var unlabelled = TerrainClassifier.Classify(profile, TerrainProfiles.Scale, TerrainLabelSet.None).Windows.Single();
+        var labelled = TerrainClassifier.Classify(profile, TerrainProfiles.Scale, Label(0, 1, RoughnessClass.VeryRough)).Windows.Single();
+
+        Assert.Equal(unlabelled with { Roughness = RoughnessClass.VeryRough, Labelled = true }, labelled);
+    }
+
+    [Fact]
+    public void LabelSetsTheClassAfterTheOutlierMerge()
+    {
+        var profile = TerrainProfiles.Profile([.. Enumerable.Range(0, 3).Select(i => TerrainProfiles.Window(i, i == 1 ? RoughnessClass.Rough : RoughnessClass.Calm))]);
+
+        var classes = TerrainClassifier.Classify(profile, TerrainProfiles.Scale, Label(1, 2, RoughnessClass.Rough)).Windows.Select(w => w.Roughness);
+
+        Assert.Equal([RoughnessClass.Calm, RoughnessClass.Rough, RoughnessClass.Calm], classes);
+    }
+
+    [Fact]
+    public void ScaleWithoutAReadyBinClassesOnlyTheLabelledWindows()
+    {
+        var profile = TerrainProfiles.Profile([Descent() with { Frame = Reading(0) }, TerrainProfiles.Window(1) with { Band = GradeBand.Descent, Frame = Reading(0) }]);
+
+        var classes = TerrainClassifier.Classify(profile, TerrainScaleKey.None, Label(1, 2, RoughnessClass.Smooth)).Windows.Select(w => w.Roughness);
+
+        Assert.Equal([null, RoughnessClass.Smooth], classes);
+    }
+
+    [Fact]
+    public void SummaryCountsALabelledWindowWithItsLabel()
+    {
+        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0, RoughnessClass.Calm), TerrainProfiles.Window(2, RoughnessClass.Calm)]);
+
+        var summary = TerrainClassifier.Summarize(TerrainClassifier.Classify(profile, TerrainProfiles.Scale, Label(0, 1, RoughnessClass.Rough)));
+
+        Assert.Equal(new TerrainClassSummary(2 * TerrainProfileCalculator.WindowMetres, 0.5), summary);
+    }
+
+    [Fact]
     public void SummaryOfARideWithoutDescentClassesIsEmpty()
     {
         var profile = TerrainProfiles.Classified(TerrainProfiles.Climb(0), TerrainProfiles.Window(2));
@@ -133,6 +174,9 @@ public class TerrainClassifierTests
     /// <summary>A reading the given number of class steps from the median of <see cref="TerrainProfiles.Scale"/>.</summary>
     private static SensorRoughness Reading(double steps, double clippedShare = 0) =>
         TerrainProfiles.Sensor(TerrainLevels.Median(0) * Math.Pow(TerrainLevels.Step, steps), clippedShare: clippedShare);
+
+    private static TerrainLabelSet Label(double start, double end, RoughnessClass roughness) =>
+        TerrainProfiles.Labels(new TerrainLabelRange(start, end, roughness));
 
     private static ClassifiedWindow Single(TerrainWindow window) => TerrainProfiles.Classified(window).Windows.Single();
 }

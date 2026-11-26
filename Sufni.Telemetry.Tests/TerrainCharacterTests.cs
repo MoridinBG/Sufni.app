@@ -43,5 +43,5 @@ public class TerrainCharacterTests
         {
             Front = new SuspensionWindowFigures(1, 1, 1, 40, front),
             Rear = new SuspensionWindowFigures(1, 1, 1, 40, rear)
-        })]) with { FrontMaxTravel = 160, RearMaxTravel = 150 }, TerrainProfiles.Scale);
+        })]) with { FrontMaxTravel = 160, RearMaxTravel = 150 }, TerrainProfiles.Scale, TerrainLabelSet.None);
 }

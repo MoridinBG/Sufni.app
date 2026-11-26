@@ -250,7 +250,7 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
         {
             token.ThrowIfCancellationRequested();
             classes[id] = (new TerrainClassKey(run.Sessions[id], run.Scale, TerrainClassifier.Version),
-                TerrainClassifier.Summarize(TerrainClassifier.Classify(profile, run.Scale)));
+                TerrainClassifier.Summarize(TerrainClassifier.Classify(profile, run.Scale, TerrainLabelSet.None)));
         }
         token.ThrowIfCancellationRequested();
         if (classes.Count == 0) return [];

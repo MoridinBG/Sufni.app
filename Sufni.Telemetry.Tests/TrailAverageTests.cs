@@ -182,7 +182,7 @@ public class TrailAverageTests
     }
 
     private static ClassifiedProfile Run(TerrainProfile profile, TerrainScaleKey? scale = null) =>
-        TerrainClassifier.Classify(profile, scale ?? TerrainProfiles.Scale);
+        TerrainClassifier.Classify(profile, scale ?? TerrainProfiles.Scale, TerrainLabelSet.None);
 
     private static TrailAverage.Averaged Average(IEnumerable<ClassifiedProfile> runs)
     {

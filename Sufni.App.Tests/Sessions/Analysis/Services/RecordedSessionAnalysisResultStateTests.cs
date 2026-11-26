@@ -142,12 +142,12 @@ public class RecordedSessionAnalysisResultStateTests
         using var state = new RecordedSessionAnalysisResultState(new TestAnalysisComputer(), new InlineBackgroundTaskRunner(),
             new InlineUiThreadDispatcher(), () => new TelemetryData());
         var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0, RoughnessClass.Rough)]);
-        var inputs = CreateInputs(range: null) with { Terrain = TerrainClassifier.Classify(profile, TerrainProfiles.Scale) };
+        var inputs = CreateInputs(range: null) with { Terrain = TerrainClassifier.Classify(profile, TerrainProfiles.Scale, TerrainLabelSet.None) };
         state.Invalidate(inputs);
         await state.RequestAsync(inputs.SessionInsightsKey, cancellationToken: TestContext.Current.CancellationToken);
         Assert.NotNull(state.Get(inputs.SessionInsightsKey));
 
-        var rescaled = inputs with { Terrain = TerrainClassifier.Classify(profile, TerrainProfiles.Scale with { FrameImu = 20 }) };
+        var rescaled = inputs with { Terrain = TerrainClassifier.Classify(profile, TerrainProfiles.Scale with { FrameImu = 20 }, TerrainLabelSet.None) };
         state.Invalidate(rescaled);
 
         Assert.Null(state.Get(rescaled.SessionInsightsKey));

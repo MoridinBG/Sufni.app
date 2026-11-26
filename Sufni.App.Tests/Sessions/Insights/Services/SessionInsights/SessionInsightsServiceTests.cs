@@ -52,7 +52,7 @@ public class SessionInsightsServiceTests
     {
         var profile = TerrainClassifier.Classify(TerrainProfiles.Profile([.. Enumerable.Range(0, 40).Select(i =>
             TerrainProfiles.Window(i, roughness) with { Rear = new SuspensionWindowFigures(1, 1, 1, 40, 34) })])
-            with { RearMaxTravel = 150 }, TerrainProfiles.Scale);
+            with { RearMaxTravel = 150 }, TerrainProfiles.Scale, TerrainLabelSet.None);
 
         var panel = Response(profile, analysisRange: null);
 

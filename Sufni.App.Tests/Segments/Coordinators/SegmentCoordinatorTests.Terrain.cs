@@ -197,7 +197,7 @@ public partial class SegmentCoordinatorTests
             terrainProfiles.Seed(id, key, SyntheticResponseRides.Baseline[i]);
             return new SessionProfileReference(id, key);
         }).ToImmutableArray();
-        return (new(sourceId, key, TerrainClassifier.Classify(current, SyntheticRide.Scale), new(references), TerrainScaleCatalog.Empty), match);
+        return (new(sourceId, key, TerrainClassifier.Classify(current, SyntheticRide.Scale, TerrainLabelSet.None), new(references), TerrainScaleCatalog.Empty), match);
     }
 
     // The matched session belongs to a setup; the catalogue holds the synthetic scale under that setup or under another one.

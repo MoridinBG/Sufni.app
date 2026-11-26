@@ -5,7 +5,9 @@ public static class TerrainProfiles
     /// <summary>The scale on which the readings of <see cref="Window(double, RoughnessClass, GroundSensors, double)"/> take their class.</summary>
     public static readonly TerrainScaleKey Scale = new(0, 0, 0, 0);
 
-    public static ClassifiedProfile Classified(params TerrainWindow[] windows) => TerrainClassifier.Classify(Profile(windows), Scale);
+    public static ClassifiedProfile Classified(params TerrainWindow[] windows) => TerrainClassifier.Classify(Profile(windows), Scale, TerrainLabelSet.None);
+
+    public static TerrainLabelSet Labels(params TerrainLabelRange[] ranges) => new([.. ranges]);
 
     public static TerrainProfile Profile(IEnumerable<TerrainWindow> windows,
         TerrainGradeState grade = TerrainGradeState.Available, double? frameScale = 4096, double? forkScale = 4096) =>

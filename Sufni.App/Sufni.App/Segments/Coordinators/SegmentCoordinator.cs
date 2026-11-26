@@ -441,7 +441,7 @@ internal sealed class SegmentCoordinator(
                         ? SegmentTerrainUnavailable.NoCommonSensor : SegmentTerrainUnavailable.Unaligned);
                 var baseline = profiles.Where(p => p.Key != match.SessionId).Select(p => p.Value).ToArray();
                 var model = SuspensionResponseModel.FitPair(source.Classified.Profile, earlier, baseline, token);
-                return new SegmentTerrainComparison.Compared(TerrainRunComparison.Compare(source.Classified, TerrainClassifier.Classify(earlier, scale), aligned, model, average, token), average?.RunCount);
+                return new SegmentTerrainComparison.Compared(TerrainRunComparison.Compare(source.Classified, TerrainClassifier.Classify(earlier, scale, TerrainLabelSet.None), aligned, model, average, token), average?.RunCount);
             }, token);
         }
         catch (Exception e) when (!token.IsCancellationRequested)
@@ -477,7 +477,7 @@ internal sealed class SegmentCoordinator(
                     token.ThrowIfCancellationRequested();
                     if (profiles.TryGetValue(match.SessionId, out var profile) &&
                         Align(source.Classified.Profile, profile, match, token) is TerrainRunAlignment.Aligned alignment)
-                        aligned.Add(new(TerrainClassifier.Classify(profile, scales[match.SessionId]), alignment));
+                        aligned.Add(new(TerrainClassifier.Classify(profile, scales[match.SessionId], TerrainLabelSet.None), alignment));
                 }
                 return SegmentTrailAverage.Present(TrailAverage.Calculate(source.Classified, range, aligned, token));
             }, token);

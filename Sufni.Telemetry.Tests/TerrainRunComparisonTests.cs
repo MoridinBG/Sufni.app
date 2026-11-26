@@ -80,7 +80,7 @@ public class TerrainRunComparisonTests
             return new TrailAverageWindow(pair.SourceIndex, w.StartSeconds, w.EndSeconds, 1.7, null, null, null,
                 i < 40 ? RoughnessClass.Medium : null, null);
         });
-        var rows = TerrainRunComparison.Compare(TerrainClassifier.Classify(profile, SyntheticRide.Scale), TerrainClassifier.Classify(profile, SyntheticRide.Scale), alignment, SuspensionResponseModel.FitPair(profile, profile, []),
+        var rows = TerrainRunComparison.Compare(TerrainClassifier.Classify(profile, SyntheticRide.Scale, TerrainLabelSet.None), TerrainClassifier.Classify(profile, SyntheticRide.Scale, TerrainLabelSet.None), alignment, SuspensionResponseModel.FitPair(profile, profile, []),
             new TrailAverage.Averaged(4, [.. windows]));
         Assert.Equal(400, rows.Single(r => r.Class == RoughnessClass.Medium).DistanceMetres);
         Assert.Equal(0, rows.Single(r => r.Class == RoughnessClass.Rough).DistanceMetres);
@@ -90,7 +90,7 @@ public class TerrainRunComparisonTests
     private static TerrainComparisonRow CompareWithItself(int windows)
     {
         var profile = earlier.Value;
-        return TerrainRunComparison.Compare(TerrainClassifier.Classify(profile, SyntheticRide.Scale), TerrainClassifier.Classify(profile, SyntheticRide.Scale), TerrainProfiles.Identity(windows),
+        return TerrainRunComparison.Compare(TerrainClassifier.Classify(profile, SyntheticRide.Scale, TerrainLabelSet.None), TerrainClassifier.Classify(profile, SyntheticRide.Scale, TerrainLabelSet.None), TerrainProfiles.Identity(windows),
             SuspensionResponseModel.FitPair(profile, profile, [])).Single(row => row.Class is null);
     }
 
@@ -99,6 +99,6 @@ public class TerrainRunComparisonTests
         var previous = earlier.Value;
         var alignment = Assert.IsType<TerrainRunAlignment.Aligned>(TerrainRunAlignment.Calculate(current, previous, SyntheticTrailRuns.Map(current, previous)));
         var model = SuspensionResponseModel.FitPair(current, previous, SyntheticResponseRides.Baseline);
-        return TerrainRunComparison.Compare(TerrainClassifier.Classify(current, SyntheticRide.Scale), TerrainClassifier.Classify(previous, SyntheticRide.Scale), alignment, model);
+        return TerrainRunComparison.Compare(TerrainClassifier.Classify(current, SyntheticRide.Scale, TerrainLabelSet.None), TerrainClassifier.Classify(previous, SyntheticRide.Scale, TerrainLabelSet.None), alignment, model);
     }
 }

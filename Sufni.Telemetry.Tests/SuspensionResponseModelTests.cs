@@ -30,12 +30,12 @@ public class SuspensionResponseModelTests
     public void ResponseBeyondTheRepeatRangeIsAFindingWithItsSignedDeviation()
     {
         var evaluated = SyntheticResponseRides.Profile(37, gain: 0.6);
-        var rows = TerrainResponse.Describe(TerrainClassifier.Classify(evaluated, SyntheticRide.Scale), SuspensionResponseModel.Fit(evaluated, SyntheticResponseRides.Baseline), null);
+        var rows = TerrainResponse.Describe(TerrainClassifier.Classify(evaluated, SyntheticRide.Scale, TerrainLabelSet.None), SuspensionResponseModel.Fit(evaluated, SyntheticResponseRides.Baseline), null);
         var findings = TerrainResponse.Findings(rows).Where(f => f.Group is null).ToDictionary(f => f.Target);
         Assert.InRange(findings[ResponseTarget.RearPeakRebound].Deviation, -0.45, -0.35);
         Assert.Equal(ResponseConfidence.Full, findings[ResponseTarget.FrontRms].Confidence);
         Assert.DoesNotContain(ResponseTarget.PassedToFrame, findings.Keys);
-        Assert.Empty(TerrainResponse.Findings(TerrainResponse.Describe(TerrainClassifier.Classify(SyntheticResponseRides.Profile(37), SyntheticRide.Scale),
+        Assert.Empty(TerrainResponse.Findings(TerrainResponse.Describe(TerrainClassifier.Classify(SyntheticResponseRides.Profile(37), SyntheticRide.Scale, TerrainLabelSet.None),
             SuspensionResponseModel.Fit(SyntheticResponseRides.Profile(37), SyntheticResponseRides.Baseline), null)));
     }
 
@@ -115,7 +115,7 @@ public class SuspensionResponseModelTests
             Windows = [.. profile.Windows.Select(w => w.StartMetres < 1100
                 ? w with { Band = GradeBand.Climb } : w)]
         };
-        var rows = TerrainResponse.Describe(TerrainClassifier.Classify(evaluated, SyntheticRide.Scale), SuspensionResponseModel.Fit(evaluated, SyntheticResponseRides.Baseline), null);
+        var rows = TerrainResponse.Describe(TerrainClassifier.Classify(evaluated, SyntheticRide.Scale, TerrainLabelSet.None), SuspensionResponseModel.Fit(evaluated, SyntheticResponseRides.Baseline), null);
         Assert.Equal(10 * profile.Windows.Count(w => w.Moving && w.StartMetres >= 1100), rows.Single(row => row.Class is null).DistanceMetres, 6);
         Assert.DoesNotContain(rows, row => row.Class?.IsClimb() == true);
     }
@@ -124,7 +124,7 @@ public class SuspensionResponseModelTests
     public void AFilterLimitsEveryResponseRowToTheWindowsItAdmits()
     {
         var evaluated = SyntheticResponseRides.Profile(37);
-        var rows = TerrainResponse.Describe(TerrainClassifier.Classify(evaluated, SyntheticRide.Scale), SuspensionResponseModel.Fit(evaluated, SyntheticResponseRides.Baseline), null,
+        var rows = TerrainResponse.Describe(TerrainClassifier.Classify(evaluated, SyntheticRide.Scale, TerrainLabelSet.None), SuspensionResponseModel.Fit(evaluated, SyntheticResponseRides.Baseline), null,
             w => w.Window.StartMetres >= 1100);
         Assert.Equal(10 * evaluated.Windows.Count(w => w.Moving && w.StartMetres >= 1100), rows.Single(row => row.Class is null).DistanceMetres, 6);
     }
@@ -133,6 +133,6 @@ public class SuspensionResponseModelTests
         profile with { Windows = [.. profile.Windows.Select(w => w with { Band = GradeBand.Climb })] };
 
     private static Dictionary<ResponseTarget, ResponseCell> WholeRide(TerrainProfile evaluated) =>
-        TerrainResponse.Describe(TerrainClassifier.Classify(evaluated, SyntheticRide.Scale), SuspensionResponseModel.Fit(evaluated, SyntheticResponseRides.Baseline), null)
+        TerrainResponse.Describe(TerrainClassifier.Classify(evaluated, SyntheticRide.Scale, TerrainLabelSet.None), SuspensionResponseModel.Fit(evaluated, SyntheticResponseRides.Baseline), null)
             .Single(row => row.Class is null).Cells.ToDictionary(cell => cell.Target);
 }
