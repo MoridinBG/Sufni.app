@@ -1,6 +1,7 @@
 using Sufni.App.Terrain.Services;
 using Sufni.App.Terrain.Coordinators;
 using Sufni.App.Terrain.Stores;
+using Sufni.App.Terrain.Queries;
 using Sufni.App.LiveDaq.Coordinators.Capture;
 using Sufni.App.Sessions.Services.Preferences;
 using Sufni.App.Shell.Services.Preferences;
@@ -127,6 +128,7 @@ public static class AppComposition
         services.AddSingleton<ITerrainLabelStore>(sp => sp.GetRequiredService<TerrainLabelStore>());
         services.AddSingleton<ITerrainLabelStoreWriter>(sp => sp.GetRequiredService<TerrainLabelStore>());
         services.AddSingleton<ITerrainLabelCoordinator, TerrainLabelCoordinator>();
+        services.AddSingleton<ITerrainLabelQuery, TerrainLabelQuery>();
         services.AddSingleton<ITrackRepository, TrackRepository>();
         services.AddSingleton<ISessionTrackReader, SessionTrackReader>();
         services.AddSingleton<IFullTrackPointReader, FullTrackPointReader>();
