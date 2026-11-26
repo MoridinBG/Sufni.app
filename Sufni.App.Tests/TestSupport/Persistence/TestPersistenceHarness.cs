@@ -86,6 +86,7 @@ internal sealed class TestPersistenceHarness : IAsyncDisposable
     public ISessionVideoRepository SessionVideoRepository => new SessionVideoRepository(context, VideoPresence);
 
     public ISessionSegmentRepository SessionSegmentRepository => new SessionSegmentRepository(context, timeProvider, localDeviceIdentity);
+    public ITerrainLabelRepository TerrainLabelRepository => new TerrainLabelRepository(context, timeProvider, localDeviceIdentity);
 
     public IBikePersistenceTransactionRunner BikeTransactions => new BikePersistenceTransactionRunner(context, timeProvider, localDeviceIdentity);
 

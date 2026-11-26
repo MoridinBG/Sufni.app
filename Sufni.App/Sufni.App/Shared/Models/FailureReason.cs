@@ -82,6 +82,8 @@ public enum StravaSegmentFetchFailureReason { Load }
 
 public enum SegmentWriteFailureReason { Create, Rename, Delete }
 
+public enum TerrainLabelWriteFailureReason { Create, SetClass, Delete }
+
 public enum DaqManagementFailureReason { SetTime, ReadConfig, WriteConfig, SelectConfigFile, InvalidConfigName }
 
 public enum SegmentComparisonFailureReason { Match, Page, Detail, Analysis }
