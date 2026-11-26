@@ -262,6 +262,33 @@ public class SegmentComparisonViewModelTests
     }
 
     [Fact]
+    public async Task ChangedSourceLabelSetStartsANewAverageAndANewTerrainComparison()
+    {
+        await using var vm = CreateComparison(new SegmentTerrainComparison.Compared([RoughRow()]));
+        coordinator.BuildTrailAverageAsync(Arg.Any<SegmentTerrainSource>(), Arg.Any<TelemetryTimeRange>(),
+                Arg.Any<IReadOnlyList<SegmentMatch>>(), Arg.Any<CancellationToken>())
+            .Returns(call => new SegmentTrailAverage.Averaged(new(call.Arg<SegmentTerrainSource>().Classified.Labels.Ranges.IsEmpty ? 3 : 4, []), [], []));
+        var compared = Comparison(TestSegmentMatches.Match(10, 13));
+        sessionState.OnNext(State() with { Terrain = TerrainSource() });
+        MatchReturns(compared, Comparison(TestSegmentMatches.Match(6, 12)));
+        DetailReturns(compared);
+        await vm.MatchCommand.ExecuteAsync(null);
+        await ((IAsyncRelayCommand)CompareAction(vm.TravelRows[0]).Command!).ExecuteAsync(null);
+        var report = vm.TerrainReport;
+        var source = sessionState.Value.Terrain!;
+        var labels = TerrainProfiles.Labels(new TerrainLabelRange(0, 1, RoughnessClass.Rough));
+
+        sessionState.OnNext(sessionState.Value with
+        {
+            Terrain = source with { Classified = TerrainClassifier.Classify(source.Classified.Profile, source.Classified.Scale, labels) }
+        });
+
+        Assert.Equal(4, Assert.IsType<SegmentTrailAverage.Averaged>(vm.TrailAverage).Measurement.RunCount);
+        Assert.NotNull(vm.TerrainReport);
+        Assert.NotSame(report, vm.TerrainReport);
+    }
+
+    [Fact]
     public async Task FailedTerrainComparisonKeepsTheAnalysisComparison()
     {
         await using var vm = CreateComparison(new SegmentTerrainComparison.Failed());

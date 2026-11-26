@@ -39,6 +39,9 @@ public static class TerrainRunComparison
         if (averageClasses is null)
             TerrainProfileCalculator.MergeOutliers(pairs, static p => p.Class, static (p, level) => p with { Class = level },
                 static (a, b) => a.Pair.Current.EndSeconds == b.Pair.Current.StartSeconds);
+        for (var i = 0; i < pairs.Count; i++)
+            if (current.Windows[alignment.Pairs[i].SourceIndex] is { Labelled: true } labelled)
+                pairs[i] = pairs[i] with { Class = labelled.Roughness };
         foreach (var (pair, roughness) in pairs)
         {
             token.ThrowIfCancellationRequested();

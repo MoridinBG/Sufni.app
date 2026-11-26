@@ -164,6 +164,31 @@ public class TrailAverageTests
         Assert.Equal(2, Assert.IsType<TrailAverage.TooFewRuns>(result).RunCount);
     }
 
+    [Fact]
+    public void LabelledSourceWindowKeepsItsLabelClass()
+    {
+        var runs = gradeSeeds.Select(seed => Run(Measurements(seed))).ToArray();
+        var unlabelled = Average(runs);
+
+        var labelled = Average([TerrainClassifier.Classify(runs[0].Profile, TerrainProfiles.Scale, FirstTenSeconds), .. runs.Skip(1)]);
+
+        Assert.All(labelled.Windows.Take(10), w => Assert.Equal(RoughnessClass.Smooth, w.Roughness));
+        Assert.Equal(unlabelled.Windows.Skip(10), labelled.Windows.Skip(10));
+    }
+
+    [Fact]
+    public void LabelOfAMatchedRideHasNoEffect()
+    {
+        var runs = gradeSeeds.Select(seed => Run(Measurements(seed))).ToArray();
+        var unlabelled = Average(runs);
+
+        var labelled = Average([runs[0], TerrainClassifier.Classify(runs[1].Profile, TerrainProfiles.Scale, FirstTenSeconds), .. runs.Skip(2)]);
+
+        Assert.Equal(unlabelled.Windows, labelled.Windows);
+    }
+
+    private static readonly TerrainLabelSet FirstTenSeconds = TerrainProfiles.Labels(new TerrainLabelRange(0, 10, RoughnessClass.Smooth));
+
     /// <summary>
     /// The averaged bands of three equal runs over consecutive stretches of constant grade in degrees. A NaN stretch
     /// has no grade. The gap goes before the second stretch.

@@ -54,6 +54,9 @@ public closed record TrailAverage(int RunCount)
         for (var i = 0; i < windows.Count; i++)
             if (windows[i].Band?.IsClimb() == true) windows[i] = windows[i] with { Roughness = climbLevels[i] };
         TerrainProfileCalculator.MergeOutliers(windows, static w => w.Roughness, static (w, level) => w with { Roughness = level }, Adjacent);
+        for (var i = 0; i < windows.Count; i++)
+            if (source.Windows[windows[i].SourceIndex] is { Labelled: true } labelled)
+                windows[i] = windows[i] with { Roughness = labelled.Roughness };
         return new Averaged(count, [.. windows]);
     }
 

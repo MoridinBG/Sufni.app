@@ -87,6 +87,32 @@ public class TerrainRunComparisonTests
         Assert.Equal(600, rows.Single(r => r.Class is null).DistanceMetres);
     }
 
+    [Fact]
+    public void LabelledWindowOfTheRideOnViewKeepsItsLabelClass()
+    {
+        var profile = earlier.Value;
+        var labels = TerrainProfiles.Labels(new TerrainLabelRange(0, double.MaxValue, RoughnessClass.VeryRough));
+
+        var rows = Distances(TerrainClassifier.Classify(profile, SyntheticRide.Scale, labels), TerrainClassifier.Classify(profile, SyntheticRide.Scale, TerrainLabelSet.None));
+
+        Assert.All(rows.Where(row => row.Class is { } level && level != RoughnessClass.VeryRough), row => Assert.Equal(0, row.Metres));
+        Assert.True(rows.Single(row => row.Class == RoughnessClass.VeryRough).Metres > 0);
+    }
+
+    [Fact]
+    public void LabelOfTheMatchedRideHasNoEffect()
+    {
+        var profile = earlier.Value;
+        var labels = TerrainProfiles.Labels(new TerrainLabelRange(0, double.MaxValue, RoughnessClass.VeryRough));
+        var current = TerrainClassifier.Classify(profile, SyntheticRide.Scale, TerrainLabelSet.None);
+
+        Assert.Equal(Distances(current, current), Distances(current, TerrainClassifier.Classify(profile, SyntheticRide.Scale, labels)));
+    }
+
+    private static (RoughnessClass? Class, double Metres)[] Distances(ClassifiedProfile current, ClassifiedProfile matched) =>
+        [.. TerrainRunComparison.Compare(current, matched, TerrainProfiles.Identity(current.Windows.Length),
+            SuspensionResponseModel.FitPair(current.Profile, matched.Profile, [])).Select(row => (row.Class, row.DistanceMetres))];
+
     private static TerrainComparisonRow CompareWithItself(int windows)
     {
         var profile = earlier.Value;
