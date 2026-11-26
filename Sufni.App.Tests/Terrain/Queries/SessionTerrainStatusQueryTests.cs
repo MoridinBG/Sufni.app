@@ -96,6 +96,35 @@ public class SessionTerrainStatusQueryTests
             SessionTerrainStatusQuery.EvaluateClasses(session, status, TerrainScaleKey.None, Labels));
     }
 
+    [Fact]
+    public void LabelSummaryStoredUnderTheCurrentProfileAndLabelsIsCurrent()
+    {
+        var (session, status) = Current();
+        var summary = new TerrainLabelSummary(null, null, null, null, null);
+        var labelled = session with { TerrainLabelKey = new(status.Key, Labels, TerrainLabels.Version), TerrainLabelSummary = summary };
+        Assert.Equal(new TerrainLabelState.Current(summary), SessionTerrainStatusQuery.EvaluateLabels(labelled, status, Labels));
+    }
+
+    [Fact]
+    public void MissingOrOutdatedLabelKeyIsPending()
+    {
+        var (session, status) = Current();
+        var key = new TerrainLabelKey(status.Key, Labels, TerrainLabels.Version);
+        foreach (var stored in new TerrainLabelKey?[] { null, key with { Labels = TerrainLabelSet.None },
+                     key with { Version = key.Version - 1 },
+                     key with { Profile = key.Profile with { AlgorithmVersion = key.Profile.AlgorithmVersion - 1 } } })
+            Assert.IsType<TerrainLabelState.Pending>(SessionTerrainStatusQuery.EvaluateLabels(
+                session with { TerrainLabelKey = stored, TerrainLabelSummary = new(null, null, null, null, null) }, status, Labels));
+    }
+
+    [Fact]
+    public void LabelStateIsNoneWithoutACurrentProfileOrWithoutLabels()
+    {
+        var (session, status) = Current();
+        Assert.IsType<TerrainLabelState.None>(SessionTerrainStatusQuery.EvaluateLabels(session, status, TerrainLabelSet.None));
+        Assert.IsType<TerrainLabelState.None>(SessionTerrainStatusQuery.EvaluateLabels(session, new TerrainStatus.Pending(), Labels));
+    }
+
     private static readonly TerrainLabelSet Labels = new([new TerrainLabelRange(0, 5, RoughnessClass.Rough)]);
 
     private static readonly TerrainScaleKey Scale = new(0, null, null, null);
