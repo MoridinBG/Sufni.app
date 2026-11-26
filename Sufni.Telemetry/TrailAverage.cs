@@ -84,9 +84,9 @@ public closed record TrailAverage(int RunCount)
         public void Add(ClassifiedWindow classified)
         {
             var window = classified.Window;
-            if (window.Frame is { } frame) logFrame.Add(Math.Log(frame.SpeedRemoved));
-            if (window.Fork is { } fork) logFork.Add(Math.Log(fork.SpeedRemoved));
-            if (window.RearAxle is { } rearAxle) logRearAxle.Add(Math.Log(rearAxle.SpeedRemoved));
+            if (TerrainProfileCalculator.Eligible(window.Frame) is { } frame) logFrame.Add(Math.Log(frame.SpeedRemoved));
+            if (TerrainProfileCalculator.Eligible(window.Fork) is { } fork) logFork.Add(Math.Log(fork.SpeedRemoved));
+            if (TerrainProfileCalculator.Eligible(window.RearAxle) is { } rearAxle) logRearAxle.Add(Math.Log(rearAxle.SpeedRemoved));
             classValue.Add(classified.ClassValue);
             if (classified.Roughness == RoughnessClass.SmoothClimb) smoothClimbs++;
             else if (classified.Roughness == RoughnessClass.TechnicalClimb) technicalClimbs++;

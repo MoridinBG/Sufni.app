@@ -79,6 +79,28 @@ public class TrailAverageTests
         else Assert.Null(level);
     }
 
+    // Readings of 1, 2 and 4 g give the geometric mean 2 g.
+    [Theory]
+    [InlineData(4, 0.03)]
+    [InlineData(0, 0)]
+    public void ClippedOrZeroReadingStaysOutOfTheMeasuredLevels(double level, double clippedShare)
+    {
+        double[] levels = [1, 2, 4];
+        var window = Average(levels.Select(l => TerrainProfiles.Sensor(l)).Append(TerrainProfiles.Sensor(level, clippedShare))
+            .Select(reading => Run(Readings(reading)))).Windows[0];
+        Assert.Equal(2, window.FrameLevel!.Value, 0.0005);
+        Assert.Equal(2, window.ForkLevel!.Value, 0.0005);
+    }
+
+    [Fact]
+    public void TwoEligibleReadingsAndAClippedOneGiveNoMeasuredLevel()
+    {
+        SensorRoughness[] readings = [TerrainProfiles.Sensor(1), TerrainProfiles.Sensor(2), TerrainProfiles.Sensor(4, clippedShare: 0.03)];
+        var window = Average(readings.Select(reading => Run(Readings(reading)))).Windows[0];
+        Assert.Null(window.FrameLevel);
+        Assert.Null(window.ForkLevel);
+    }
+
     [Fact]
     public void GradeBaselineReachesPastAStop()
     {
@@ -168,6 +190,9 @@ public class TrailAverageTests
         return Assert.IsType<TrailAverage.Averaged>(TrailAverage.Calculate(all[0], new(0, WindowCount),
             [.. all.Skip(1).Select(run => new AlignedTerrainRun(run, TerrainProfiles.Identity(WindowCount)))]));
     }
+
+    private static TerrainProfile Readings(SensorRoughness reading) =>
+        TerrainProfiles.Profile(Enumerable.Range(0, WindowCount).Select(i => TerrainProfiles.Window(i) with { Frame = reading, Fork = reading }));
 
     private static TerrainProfile Measurements(int seed, double frameLevel = 2.31, double grade = GroundGrade,
         GradeBand? band = null, double? rearAxleLevel = null)

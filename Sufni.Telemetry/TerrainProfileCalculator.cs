@@ -130,10 +130,14 @@ public static partial class TerrainProfileCalculator
         var bins = new SortedDictionary<int, double>();
         foreach (var window in windows)
         {
-            if (reading(window) is not { Level: > 0 } measured || measured.ClippedShare > ClippedShareLimit) continue;
+            if (Eligible(reading(window)) is not { } measured) continue;
             var bin = TerrainLevels.Bin(level(measured));
             bins[bin] = bins.GetValueOrDefault(bin) + WindowMetres;
         }
         return bins.Count == 0 ? null : new(bins.ToImmutableSortedDictionary());
     }
+
+    /// <summary>The reading when it measured the ground: a level above zero and no more than the clipped share limit.</summary>
+    internal static SensorRoughness? Eligible(SensorRoughness? reading) =>
+        reading is { Level: > 0, ClippedShare: <= ClippedShareLimit } ? reading : null;
 }
