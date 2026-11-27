@@ -29,6 +29,7 @@ using System.ComponentModel;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Store;
+using Sufni.App.Sessions.SensorFindings.ViewModels;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Harness;
@@ -493,23 +494,78 @@ public class SessionDetailViewModelTests
         await harness.CloseAsync(editor);
     }
 
+    private static readonly SensorFinding FrozenShock = new(new SensorIdentity(SensorKind.ShockTravel), SensorFaultReason.Frozen, [new(1, 3)]);
+
+    private static (SessionDetailViewModel Editor, Subject<RecordedSessionDomainSnapshot> Changes) CreateEditorWithFindings(
+        SessionDetailHarness harness, SessionSnapshot snapshot)
+    {
+        harness.SessionStore.Watch(snapshot.Id).Returns(Observable.Return(snapshot));
+        var changes = new Subject<RecordedSessionDomainSnapshot>();
+        var editor = harness.CreateRecordedEditor(snapshot,
+            harness.CreateLoadedResult(TestTelemetryData.CreateProcessed() with { SensorFindings = [FrozenShock] }), changes);
+        return (editor, changes);
+    }
+
     [AvaloniaFact]
-    public async Task SensorFindings_AreOfferedWhileTheLoadedGenerationIsCurrent()
+    public async Task SensorFindings_AreOfferedOnce_WhenTheLoadedGenerationIsCurrent()
     {
         using var harness = new SessionDetailHarness();
         var snapshot = harness.CreateRecordedSession();
-        SensorFinding finding = new(new SensorIdentity(SensorKind.ShockTravel), SensorFaultReason.Frozen, [new(1, 3)]);
-        harness.SessionStore.Watch(snapshot.Id).Returns(Observable.Return(snapshot));
-        using var changes = new Subject<RecordedSessionDomainSnapshot>();
-        var editor = harness.CreateRecordedEditor(snapshot,
-            harness.CreateLoadedResult(TestTelemetryData.CreateProcessed() with { SensorFindings = [finding] }), changes);
+        var (editor, changes) = CreateEditorWithFindings(harness, snapshot);
+        using var _ = changes;
+        await harness.LoadAsync(editor);
+
+        changes.OnNext(DomainFromSnapshot(snapshot, staleness: new SessionStaleness.Stale()));
+        await harness.DialogService.DidNotReceiveWithAnyArgs().ShowContentDialogAsync(default!, default!);
+
+        changes.OnNext(DomainFromSnapshot(snapshot));
+        changes.OnNext(DomainFromSnapshot(snapshot));
+
+        await harness.DialogService.Received(1).ShowContentDialogAsync(Arg.Any<SensorFindingsViewModel>(), Arg.Any<DialogOptions>());
+        await harness.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
+    public async Task SensorFindings_AreNotOffered_WhenDecisionsCoverThem()
+    {
+        using var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession() with
+        {
+            SensorDecisions = SensorDecisions.None.With(FrozenShock.Sensor, SensorDecision.Keep, FrozenShock.Ranges),
+        };
+        var (editor, changes) = CreateEditorWithFindings(harness, snapshot);
+        using var _ = changes;
         await harness.LoadAsync(editor);
 
         changes.OnNext(DomainFromSnapshot(snapshot));
-        Assert.True(editor.SensorFindings?.HasRows);
 
-        changes.OnNext(DomainFromSnapshot(snapshot, staleness: new SessionStaleness.Stale()));
-        Assert.Null(editor.SensorFindings);
+        await harness.DialogService.DidNotReceiveWithAnyArgs().ShowContentDialogAsync(default!, default!);
+        await harness.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
+    public async Task SensorFindings_WaitForTheTabToBeActive()
+    {
+        using var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession();
+        var (editor, changes) = CreateEditorWithFindings(harness, snapshot);
+        using var _ = changes;
+        var offered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        harness.DialogService.ShowContentDialogAsync(default!, default!).ReturnsForAnyArgs(_ =>
+        {
+            offered.TrySetResult();
+            return PromptResult.Cancel;
+        });
+        editor.SetTabActive(false);
+        await harness.LoadAsync(editor);
+        changes.OnNext(DomainFromSnapshot(snapshot));
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.False(offered.Task.IsCompleted);
+
+        editor.SetTabActive(true);
+        await offered.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        await harness.DialogService.Received(1).ShowContentDialogAsync(Arg.Any<SensorFindingsViewModel>(), Arg.Any<DialogOptions>());
         await harness.CloseAsync(editor);
     }
 

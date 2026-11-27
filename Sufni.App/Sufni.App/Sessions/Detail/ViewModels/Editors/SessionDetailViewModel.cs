@@ -12,7 +12,6 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
-using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Serilog;
 using Sufni.App.Bikes.Coordinators;
@@ -31,7 +30,6 @@ using Sufni.App.Sessions.Presentation;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Processing.SessionDetails;
-using Sufni.App.Sessions.SensorFindings.ViewModels;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Services.Preferences;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
@@ -44,7 +42,6 @@ using Sufni.App.Shell.Coordinators;
 using Sufni.App.Shell.ViewModels.Base;
 using Sufni.App.Video.Models;
 using Sufni.App.Video.ViewModels;
-using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
@@ -62,8 +59,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     public ISessionAnalysisWorkspace AnalysisWorkspace { get; }
     public ISessionSidebarWorkspace SidebarWorkspace { get; }
 
-    /// <summary>The undecided sensor findings of the loaded generation while it is current; null otherwise.</summary>
-    [ObservableProperty] public partial SensorFindingsViewModel? SensorFindings { get; private set; }
 
     private readonly CancellationTokenSource editorLifetime = new();
     private readonly TimelineAlignmentController alignmentController;
@@ -74,10 +69,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     private readonly TerrainScopeViewModel terrainScope;
     private readonly RecordedSessionTerrainController terrainController;
     private readonly GpsOffsetSuggestionPrompt gpsOffsetPrompt;
+    private readonly SensorFindingsPrompt sensorFindingsPrompt;
     private readonly RecordedSessionPreferencesController preferencesController;
     private readonly ISessionCoordinator sessionCoordinator;
-    private readonly ISessionStore sessionStore;
-    private TelemetryData? sensorFindingsTelemetry;
     private readonly IRecordedSessionProjection recordedSessionProjection;
     private readonly ObservableCollection<PageViewModelBase> pages = [];
     private readonly SessionTimelineLinkViewModel timeline = new();
@@ -297,7 +291,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         this.deferDomainHandlingWhenInactive = deferDomainHandlingWhenInactive;
 
         this.sessionCoordinator = sessionCoordinator;
-        this.sessionStore = sessionStore;
         this.sessionOperationRunner = sessionOperationRunner;
         this.recordedSessionProjection = recordedSessionProjection;
         editorInputSubjects = new CompositeDisposable(pageCountInput, preferenceReplayInput, loadPresentationInput,
@@ -424,6 +417,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
             backgroundTaskRunner, uiThreadDispatcher, editorActions, recordedSessionProjection, editorLifetime.Token);
         gpsOffsetPrompt = new GpsOffsetSuggestionPrompt(editorStateController.State, sessionCoordinator, dialogService,
             backgroundTaskRunner, uiThreadDispatcher, () => IsTabActive, ReportError, editorLifetime.Token);
+        sensorFindingsPrompt = new SensorFindingsPrompt(Id, editorStateController.State, sessionStore, sessionCoordinator,
+            dialogService, uiThreadDispatcher, () => IsTabActive, ReportError, Notify, editorLifetime.Token);
         preferencesController = new RecordedSessionPreferencesController(Id, editorStateController.State, editorActions, sessionStore,
             sessionPreferences, sessionCoordinator,
             editorLifetime.Token, value => PublishEditorInput(preferenceReplayInput, value), ReportError, Notify);
@@ -472,20 +467,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
             OnPropertyChanged(nameof(MediaLayoutPreferences));
         }
 
-        UpdateSensorFindings(state);
-    }
-
-    private void UpdateSensorFindings(RecordedSessionEditorState state)
-    {
-        var telemetry = lifecycle != EditorLifecycle.Closed && state.Domain is { Staleness: SessionStaleness.Current }
-            ? state.TelemetryData : null;
-        if (ReferenceEquals(telemetry, sensorFindingsTelemetry)) return;
-        sensorFindingsTelemetry = telemetry;
-        SensorFindings?.Dispose();
-        SensorFindings = telemetry is { SensorFindings.IsEmpty: false }
-            ? new SensorFindingsViewModel(Id, telemetry.SensorFindings, sessionStore, sessionCoordinator, UiThreadDispatcher,
-                ReportError, Notify)
-            : null;
     }
 
     // The Bike response page reads its reports from the Insights result.
@@ -621,7 +602,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         plotContextActions.Dispose();
         presentationApplier.Dispose();
         editorStateSubscription.Dispose();
-        SensorFindings?.Dispose();
+        sensorFindingsPrompt.Dispose();
         editorStateController.Dispose();
         editorActions.Dispose();
         viewLoadOperation.Dispose();
@@ -711,6 +692,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     protected override void OnActivated()
     {
         gpsOffsetPrompt.Activate();
+        sensorFindingsPrompt.Activate();
         if (!IsLoaded)
         {
             return;

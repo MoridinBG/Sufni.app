@@ -40,6 +40,7 @@ public class ViewLocator : IDataTemplate
         [typeof(SegmentNamePromptViewModel)] = static () => new global::Sufni.App.Segments.Views.SegmentNamePromptView(),
         [typeof(StravaConnectDialogViewModel)] = static () => new global::Sufni.App.Segments.Views.StravaConnectDialogView(),
         [typeof(global::Sufni.App.Terrain.ViewModels.TerrainLabelClassPromptViewModel)] = static () => new global::Sufni.App.Terrain.Views.TerrainLabelClassPromptView(),
+        [typeof(global::Sufni.App.Sessions.SensorFindings.ViewModels.SensorFindingsViewModel)] = static () => new global::Sufni.App.Sessions.SensorFindings.Views.SensorFindingsView(),
         [typeof(JointRowViewModel)] = static () => new global::Sufni.App.Bikes.Views.Editors.JointView(),
         [typeof(LinearForkSensorConfigurationViewModel)] = static () => new global::Sufni.App.Setups.Views.SensorConfigurations.LinearForkSensorConfigurationView(),
         [typeof(LinearShockSensorConfigurationViewModel)] = static () => new global::Sufni.App.Setups.Views.SensorConfigurations.LinearShockSensorConfigurationView(),

@@ -2,28 +2,41 @@
     x:Class="Sufni.App.Sessions.SensorFindings.Views.SensorFindingsView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vm="clr-namespace:Sufni.App.Sessions.SensorFindings.ViewModels"
-    x:DataType="vm:SensorFindingsViewModel">
+    d:DesignHeight="320"
+    d:DesignWidth="560"
+    x:DataType="vm:SensorFindingsViewModel"
+    Background="{DynamicResource SufniSurfaceInputDisabled}"
+    mc:Ignorable="d">
 
-    <Border
-        Padding="8,6"
-        BorderBrush="{DynamicResource SufniLineInput}"
-        BorderThickness="1"
-        CornerRadius="4">
-        <StackPanel Spacing="4">
-            <TextBlock FontWeight="SemiBold" Text="Sensor findings" />
+    <Grid Margin="16" RowDefinitions="auto auto * auto" RowSpacing="10">
+        <TextBlock
+            Grid.Row="0"
+            FontSize="20"
+            FontWeight="SemiBold"
+            Text="Sensor findings" />
+        <TextBlock
+            Grid.Row="1"
+            Text="Drop removes the readings from the analysis for good. Keep uses them as they are."
+            TextWrapping="Wrap" />
+        <ScrollViewer Grid.Row="2">
             <ItemsControl Name="FindingRows" ItemsSource="{Binding Rows}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:SensorFindingRowViewModel">
-                        <Grid Margin="0,2" ColumnDefinitions="* auto auto">
+                        <Grid Margin="0,4" ColumnDefinitions="* auto auto">
                             <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding SensorName}" />
-                                <TextBlock FontSize="12" Text="{Binding Details}" TextWrapping="Wrap" ToolTip.Tip="{Binding RangesText}" />
+                                <TextBlock FontWeight="SemiBold" Text="{Binding SensorName}" />
+                                <TextBlock
+                                    Text="{Binding Details}"
+                                    TextWrapping="Wrap"
+                                    ToolTip.Tip="{Binding RangesText}" />
                             </StackPanel>
                             <Button
                                 Name="DropButton"
                                 Grid.Column="1"
-                                Margin="4,0"
+                                Margin="8,0,4,0"
                                 VerticalAlignment="Center"
                                 Command="{Binding DropCommand}"
                                 Content="Drop"
@@ -39,6 +52,13 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-        </StackPanel>
-    </Border>
+        </ScrollViewer>
+        <Button
+            Name="CloseButton"
+            Grid.Row="3"
+            HorizontalAlignment="Right"
+            Command="{Binding CloseCommand}"
+            Content="Not now"
+            IsCancel="True" />
+    </Grid>
 </UserControl>

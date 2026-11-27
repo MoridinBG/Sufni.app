@@ -18,30 +18,11 @@ using Sufni.App.Shared.Views.Overlays;
 using Sufni.App.Tests.Sessions.Detail.Views.Editors;
 using Sufni.App.Tests.TestSupport.Harness;
 using Sufni.App.Tests.TestSupport.Fixtures;
-using Sufni.App.Tests.TestSupport.Sessions;
-using Sufni.Telemetry;
 namespace Sufni.App.Tests.Sessions.Detail.DesktopViews.Editors;
 
 [Collection("Ui")]
 public class SessionDetailDesktopViewTests
 {
-    [AvaloniaTheory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task SessionDetailDesktopView_ShowsSensorFindingsPanel_OnlyWhenTheLoadedGenerationHasFindings(bool hasFindings)
-    {
-        var context = new SessionDetailViewTestContext();
-        var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        SensorFinding[] findings = hasFindings ? [new(new SensorIdentity(SensorKind.ShockTravel), SensorFaultReason.Frozen, [new(1, 3)])] : [];
-
-        await using var mounted = await context.MountDesktopAsync(snapshot,
-            context.CreateLoadedState(TestTelemetryData.CreateProcessed() with { SensorFindings = [.. findings] }),
-            domain: SessionDetailHarness.DomainFromSnapshot(snapshot));
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Equal(hasFindings, mounted.View.FindNamedVisual<Panel>("SensorFindingsPanel")!.IsVisible);
-    }
-
     [AvaloniaFact]
     public async Task SessionDetailDesktopView_ReplacesShellWithIncompleteState_WhenLocalDataIsMissing()
     {

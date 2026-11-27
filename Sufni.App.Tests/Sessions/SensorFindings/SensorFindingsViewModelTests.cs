@@ -105,6 +105,23 @@ public sealed class SensorFindingsViewModelTests : IDisposable
         Assert.False(findings.HasRows);
     }
 
+    [Fact]
+    public async Task Dialog_CompletesWhenTheLastRowIsDecided()
+    {
+        using var findings = await CreateAsync(SensorDecisions.None, FrozenShock, GpsGlitch);
+        var completions = 0;
+        findings.Completed += (_, _) => completions++;
+
+        await store.PublishSessionsChangedAsync([session with { SensorDecisions = SensorDecisions.None.With(Shock, SensorDecision.Keep, [new(10, 20)]) }]);
+        Assert.Equal(0, completions);
+
+        await store.PublishSessionsChangedAsync([session with
+        {
+            SensorDecisions = SensorDecisions.None.With(Shock, SensorDecision.Keep, [new(10, 20)]).With(Gps, SensorDecision.Drop, [new(5, 6)]),
+        }]);
+        Assert.Equal(1, completions);
+    }
+
     [Theory]
     [InlineData(SensorDecision.Drop)]
     [InlineData(SensorDecision.Keep)]

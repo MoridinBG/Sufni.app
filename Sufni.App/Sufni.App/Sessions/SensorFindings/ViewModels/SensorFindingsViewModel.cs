@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Store;
@@ -14,10 +15,11 @@ using Sufni.Telemetry;
 namespace Sufni.App.Sessions.SensorFindings.ViewModels;
 
 /// <summary>
-/// The findings of one session that no decision covers, one row per sensor and class. Rows follow the
-/// decisions that the session store publishes; Drop and Keep go to the session coordinator.
+/// Dialog content with the findings of one session that no decision covers, one row per sensor and class. Rows follow
+/// the decisions that the session store publishes; Drop and Keep go to the session coordinator. The dialog completes on
+/// <see cref="CloseCommand"/> and when no row is left.
 /// </summary>
-public sealed partial class SensorFindingsViewModel : ObservableObject, IDisposable
+public sealed partial class SensorFindingsViewModel : ObservableObject, IContentDialogCompletionSource, IDisposable
 {
     private readonly Guid sessionId;
     private readonly ImmutableArray<SensorFinding> findings;
@@ -44,7 +46,12 @@ public sealed partial class SensorFindingsViewModel : ObservableObject, IDisposa
     [ObservableProperty] public partial string SessionName { get; private set; } = string.Empty;
     [ObservableProperty] public partial bool HasRows { get; private set; }
 
+    public event EventHandler? Completed;
+
     public void Dispose() => subscription.Dispose();
+
+    [RelayCommand]
+    private void Close() => Completed?.Invoke(this, EventArgs.Empty);
 
     private void Apply(SessionSnapshot snapshot)
     {
@@ -71,6 +78,7 @@ public sealed partial class SensorFindingsViewModel : ObservableObject, IDisposa
                 [.. group.SelectMany(finding => finding.Ranges)], !group.Key.IsNotice, DecideAsync));
         }
         HasRows = Rows.Count > 0;
+        if (!HasRows) Close();
     }
 
     private async Task DecideAsync(SensorFindingRowViewModel row, SensorDecision decision)
