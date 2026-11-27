@@ -30,6 +30,7 @@ erDiagram
         real window_end_seconds
         real previous_window_start_seconds
         real previous_window_end_seconds
+        text sensor_decisions
         int processed_telemetry_revision
         text front_springrate
         text rear_springrate
@@ -334,6 +335,7 @@ Operations:
 
 - `PutSessionAsync()` — updates user-authored metadata columns, stamps the authored write like `PutAsync` and clears `Deleted`. It preserves processing options, GPS alignment, timestamps and derived summary metrics; their own commands own those writes. Metadata SQL never names the `data` BLOB, so fingerprint, linkage and local revision stay untouched. A session id that has no row is inserted with the complete supplied aggregate. A soft-deleted row receives the same metadata update.
 - `SetProcessingOptionAsync(id, windowMilliseconds)` / `RestoreProcessingOptionAsync(id, expectedWindowMilliseconds, previousWindowMilliseconds)` — write only `velocity_filter_window_ms` as an authored change. The restore applies only while the stored value equals the expected value.
+- `SetSensorDecisionAsync(id, sensor, decision, ranges)` — in one transaction, reads `sensor_decisions`, merges the entries with `SensorDecisions.With`, writes the normalized JSON (null when empty) and stamps an authored change. It returns the updated session, or null when the session is missing. `PutSessionAsync` does not name the column, so metadata saves keep it.
 - `ImportProcessedSessionAsync(session, newFullTrack, source)` — classifies by source hash and content id inside the write transaction and returns `Inserted` or `Exists`:
   - An existing source hash returns `Exists` without changing any rows; the coordinator reports `AlreadyImported`.
   - A live content-id session without a source receives only the source row. Its authored fields, clock and processed data stay unchanged.
@@ -390,6 +392,8 @@ The named `session-terrain-profile` migration adds a device-local table keyed by
 `terrain_label` holds source-owned terrain labels: a range in source-relative seconds, a `kind` (0 roughness, 1 steepness) and a `class` that holds the integer value of the `RoughnessClass` or `GradeBand`. On an older database, the `terrain-steepness-labels` migration renames `roughness_class` to `class` and adds `kind` at 0. `owner_key` is the immutable source hash. `TerrainLabelRepository` inserts, changes the class and deletes; each write stamps the authored sync metadata, and a delete writes the tombstone and the ledger entry. Session deletion and physical purge keep these rows. On an older database, the `terrain-labels` migration creates the `local_seq` and `sync_seq` indexes, which a new database gets from `sync-authority`. See [terrain.md](terrain.md#labels).
 
 `session_segment` holds source-owned named ranges. `owner_key` is the immutable source hash, and both anchors are source-relative. Reads return non-deleted segments without joining sessions. The picker derives visibility from the source identity and the current session window. Session deletion and physical purge keep these rows. Only explicit segment deletion creates a tombstone. On an older database, the `track-materializations` migration converts session-relative anchors and drops `session_id`. It keeps segment IDs and authored clocks. See [segments.md](segments.md).
+
+`sensor_decisions` holds the user's Drop and Keep decisions on [sensor findings](processing.md#sensor-health) as normalized `SensorDecisions` JSON (`SensorDecisionsJson`), or null without decisions. It is authored and synchronized with the session. The processing input bundle reads its Drop ranges for the fingerprint. Split copies it to the second part; trim keeps it. The column is nullable and mapped on `Session`, so the startup `CreateTablesAsync` adds it to an older database; no named migration is needed.
 
 The session derivation window lives on the session row. `source_session_id`, `window_start_seconds` and `window_end_seconds` describe the window. A null `source_session_id` means the session uses its own source in full. The `previous_window_*` columns keep the window before the last trim for undo. These columns are synchronized with the session. On an older database, the `session-derivation-window` migration copies each live, non-full range from `private_session_source_range`. Sessions without a range row take the window stored in their processing fingerprint. The migration then drops the range table. Startup also drops `extension_schema_version`, which held the old tables' schema versions.
 

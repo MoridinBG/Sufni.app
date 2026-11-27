@@ -120,6 +120,14 @@ GPS distance/ascent/descent and `GpsMetricsKey` from the device-local metric tab
 onto the same snapshot. Metadata write models and sync payloads exclude those
 GPS values. Telemetry and raw-source payloads remain in SQLite and load on demand.
 
+`SessionSnapshot.SensorDecisions` is the parsed `sensor_decisions` column: the
+user's Drop and Keep decisions per sensor, in normalized form (`SensorDecisionsJson`
+is the one home of the stored format). `ProcessingOptions.Drops` derives its Drop
+entries. The undecided findings are not stored anywhere: consumers compute
+`SessionSnapshot.SensorDecisions.Undecided(findings)` from the findings of the
+processed telemetry each time, so a published decision removes a row without
+reloading the telemetry. See [Sensor decisions](ui-workflows.md#sensor-decisions).
+
 `SessionStore` additionally exposes `Watch(Guid)`, a low-level per-id
 observable filtered to `Add`/`Update` change reasons. Recorded-session
 screens consume the higher-level `RecordedSessionProjection` instead, so

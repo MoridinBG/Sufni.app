@@ -39,7 +39,7 @@ All coordinators are singletons.
 | `IShellCoordinator` (`ShellWorkspaceCoordinator`) | shared | The only navigation surface: `OpenEditor`, `CloseEditorAsync`, `CompleteEdit`, `SwitchLayoutProfileAsync`, `Open`, `Close`, `GoBack`. It delegates to `ShellWorkspaceViewModel`. |
 | `BikeCoordinator` | shared | Bike save, import, cutoff updates and delete. The bike transaction runner rejects deletion of a referenced bike. |
 | `SetupCoordinator` | shared | Setup save, import, delete and the board association. |
-| `SessionCoordinator` | shared | Session metadata save, processing options, recorded preferences, GPS alignment of one or many sessions, deletion, and the recompute requests from presentation. |
+| `SessionCoordinator` | shared | Session metadata save, processing options, sensor decisions, recorded preferences, GPS alignment of one or many sessions, deletion, and the recompute requests from presentation. |
 | `ISessionEditingCoordinator` (`SessionEditingCoordinator`) | shared | Trim and split of recorded sessions. See [Trim and split](#trim-and-split). |
 | `ISegmentCoordinator` (`SegmentCoordinator`) | shared | Saved segments, segment matching, comparison and analysis comparison, and Strava. See [segments.md](segments.md#store-and-coordinator). |
 | `PairedDeviceCoordinator` | shared | Local unpair and publication of the removal. |
@@ -313,6 +313,46 @@ publication and completion. `RecordedPagePresentationApplier` observes the
 resulting editor state, and the page reads its draft or committed option. The
 option lives on the session row, not in device-local preferences. Live-save metadata and split children carry the
 session option.
+
+### Sensor decisions
+
+The user decides each [sensor finding](processing.md#sensor-health) with Drop or
+Keep. Decisions are authored session facts in the `sensor_decisions` column and
+travel with sync. `SessionCoordinator.SetSensorDecisionAsync(sessionId, sensor,
+decision, ranges)`:
+
+1. Off the UI thread, `ISessionRepository.SetSensorDecisionAsync` merges the
+   entries into the stored decisions in one transaction (`SensorDecisions.With`:
+   the new decision replaces older ones where they overlap; other sensors stay
+   unchanged), writes the normalized form and stamps an authored change.
+2. It publishes the snapshot.
+3. For a Drop, it requests a recompute in the same publication turn. The Drop
+   ranges are part of the processing fingerprint, so the session is stale until
+   the recompute commits.
+
+The result is `Kept | Dropped(recompute result) | Missing | Failed`. A recompute
+failure keeps the decision; the session shows the normal stale state. Drop is
+final: there is no action that restores dropped readings. Metadata saves do not
+write the column, so a save after a decision keeps it and does not conflict. Trim
+leaves decisions unchanged, because their ranges are on the source timeline;
+split copies them to the new part.
+
+The offer uses one shared presentation in `Sessions/SensorFindings/`.
+`SensorFindingsViewModel` holds the findings of one session, watches the session
+store, and shows `SensorDecisions.Undecided(findings)` as rows: one per sensor and
+class, with its ranges (in session time) and reasons. Droppable rows have Drop and
+Keep, which send all undecided droppable ranges of the sensor; notice rows have no
+action. A published decision removes the row. Failures go to the owner's error
+and notification bars.
+
+- **Import:** see [Import Screen Boundaries](acquisition.md#import-screen-boundaries).
+- **Opening a session:** `SessionDetailViewModel.SensorFindings` is built from
+  the loaded telemetry while the domain staleness is `Current`, and is null
+  otherwise. It is replaced only when the loaded telemetry changes and disposed on
+  close. `SessionDetailDesktopView` and the mobile `SessionDetailView` show it
+  above the session shell when it has rows. After a Drop, the session is stale,
+  so the panel hides; the recompute reloads the telemetry and the panel returns
+  without the decided sensor.
 
 ### Pending deletes
 

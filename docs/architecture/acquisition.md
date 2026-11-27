@@ -79,7 +79,7 @@ Key adapter members:
 
 The import-sessions feature is the canonical worked example of the boundary rules:
 
-- `ImportSessionsViewModel` owns only screen-scoped state: available datastores/files, selected datastore/setup, notifications, and errors. Its feature dependencies are `IImportSessionsCoordinator` and `ISetupBoardQuery`.
+- `ImportSessionsViewModel` owns only screen-scoped state: available datastores/files, selected datastore/setup, notifications, and errors. Its feature dependencies are `IImportSessionsCoordinator` and `ISetupBoardQuery`, plus `ISessionStore` and `ISessionCoordinator` for the sensor-findings offer.
 - It resolves the current board's setup through `ISetupBoardQuery.FindByBoardId(Guid)` and never reads persistence repositories directly.
 - It binds the coordinator's `Sources`, acquires/disposes an `ObserveSources` lease in `Loaded` / `Unloaded`, forwards listing and folder intents to the coordinator, and uses `SessionImportState.Running` for import progress. Superseded listings are canceled and late results rejected, including a second request for the same source. Closing drains pending UI listing work.
 - Behind the coordinator, `ITelemetryDataStoreService` owns the live `DataStores` collection, mass-storage/network browse lifetime, storage-provider datastore construction and duplicate detection.
@@ -126,6 +126,18 @@ acknowledgements drained serially, so remote `MARK_SST_UPLOADED` / local move
 operations happen after persistence and app-state publication. If either
 publication fails, the committed imports are reported as unpublished and their
 source files remain unacknowledged.
+
+Each `Imported` event carries the session's undecided [sensor findings](processing.md#sensor-health),
+taken from the processed generation without decoding the BLOB again. A file that
+was already imported skips derivation and carries none; the
+[offer on opening](ui-workflows.md#sensor-decisions) covers it. For each imported
+session with findings, `ImportSessionsViewModel` keeps one shared
+`SensorFindingsViewModel` above the file list: one row per sensor and class with
+its ranges and reasons, and Drop and Keep for droppable rows. Actions go to
+`SessionCoordinator.SetSensorDecisionAsync`. The rows follow the session store, so
+a decided sensor leaves the list, and a reopened tab shows only what is still
+undecided. They belong to the retained import state: the next import run
+replaces them.
 
 ### Mass Storage
 

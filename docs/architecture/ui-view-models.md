@@ -73,7 +73,7 @@ There are five kinds of view model in the presentation layer:
   the initial store refresh and creates pages only after initialization and
   refresh succeed.
 
-- **Feature page view models** — non-entity top-level screens such as `ImportSessionsViewModel` and the pairing pages. They own only screen-scoped state, bind directly to controls, attach subscriptions and browse lifetime in `Loaded` / `Unloaded`, and delegate workflows to coordinators and services. `ImportSessionsViewModel` is the canonical example: it keeps datastore / file selection, notifications, and errors; resolves `SelectedSetup` from `ISetupBoardQuery.FindByBoardId`; and delegates source observation, file listing, folder registration and the import itself to `ImportSessionsCoordinator`. For work that belongs to a screen, generated async-command `IsRunning` remains the busy-state source. Import runs belong to the coordinator: the import tab observes its replayed `SessionImportState` and renders progress/results. It releases the observation on final close. A reopened tab sees the same active batch.
+- **Feature page view models** — non-entity top-level screens such as `ImportSessionsViewModel` and the pairing pages. They own only screen-scoped state, bind directly to controls, attach subscriptions and browse lifetime in `Loaded` / `Unloaded`, and delegate workflows to coordinators and services. `ImportSessionsViewModel` is the canonical example: it keeps datastore / file selection, notifications, and errors; resolves `SelectedSetup` from `ISetupBoardQuery.FindByBoardId`; and delegates source observation, file listing, folder registration and the import itself to `ImportSessionsCoordinator`. For work that belongs to a screen, generated async-command `IsRunning` remains the busy-state source. Import runs belong to the coordinator: the import tab observes its replayed `SessionImportState` and renders progress/results. It releases the observation on final close. A reopened tab sees the same active batch. Each `Imported` event with undecided sensor findings adds a `SensorFindingsViewModel`; the list clears when a new run starts and on close.
 
 - **List view models** (`ViewModels/ItemLists/`) — `BikeListViewModel`,
   `SetupListViewModel`, `SessionListViewModel`,
@@ -286,6 +286,12 @@ There are five kinds of view model in the presentation layer:
   in the initial state; loads preserve the user's explicit overlay choices.
   The media workspace applies map points and timeline context from its state
   subscription.
+  The editor exposes `SensorFindings`, a `SensorFindingsViewModel` from
+  `Sessions/SensorFindings/`, while the loaded generation is current. It builds a
+  new one when the loaded telemetry changes and disposes it on close. The view
+  model follows the session decisions in the store and sends Drop and Keep to
+  `ISessionCoordinator.SetSensorDecisionAsync`; see
+  [Sensor decisions](ui-workflows.md#sensor-decisions).
 
   Readiness and selection highlights are keyed background results. A telemetry or
   range change clears stale outputs; track-only augmentation keeps valid results.
