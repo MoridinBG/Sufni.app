@@ -5,6 +5,7 @@ using System.Reactive.Subjects;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Threading;
@@ -167,7 +168,7 @@ public partial class ImportSessionsCoordinator(
         var totalToProcess = files.Count(f => f.Action != ImportFileAction.Ignore);
         var processedCount = 0;
         var progressGate = new object();
-        var committedImports = new ConcurrentBag<(SessionImportItem Item, SessionSnapshot? Snapshot, RecordedSessionSourceSnapshot Source, bool AlreadyImported, Guid? TrackId)>();
+        var committedImports = new ConcurrentBag<(SessionImportItem Item, SessionSnapshot? Snapshot, RecordedSessionSourceSnapshot Source, bool AlreadyImported, Guid? TrackId, ImmutableArray<SensorFinding> Findings)>();
         var failuresQueue = new ConcurrentQueue<SessionImportFailure>();
 
         void Report(SessionImportEvent importEvent)
@@ -308,7 +309,7 @@ public partial class ImportSessionsCoordinator(
                         {
                             committedImports.Add((item,
                                 existing.Session is { } held ? SessionSnapshot.From(held) : null,
-                                existing.Source, true, null));
+                                existing.Source, true, null, []));
                             continue;
                         }
                         var session = new Session(
@@ -337,7 +338,8 @@ public partial class ImportSessionsCoordinator(
                         var committed = await sessionRepository.ImportProcessedSessionAsync(prepared, newTrack, source);
 
                         var snapshot = committed.Session is { } persisted ? SessionSnapshot.From(persisted) : null;
-                        committedImports.Add((item, snapshot, committed.Source, committed is SessionImportCommitResult.Exists, newTrack?.Id));
+                        var findings = snapshot?.SensorDecisions.Undecided(generation.ProcessedTelemetry.TelemetryData.SensorFindings) ?? [];
+                        committedImports.Add((item, snapshot, committed.Source, committed is SessionImportCommitResult.Exists, newTrack?.Id, findings));
                     }
                     catch (Exception e)
                     {
@@ -422,7 +424,7 @@ public partial class ImportSessionsCoordinator(
             {
                 Report(entry.AlreadyImported
                     ? new SessionImportEvent.AlreadyImported(entry.Item.Name, entry.Source.SessionId)
-                    : new SessionImportEvent.Imported(entry.Snapshot!));
+                    : new SessionImportEvent.Imported(entry.Snapshot!, entry.Findings));
                 try
                 {
                     await entry.Item.File.OnImported();
@@ -472,7 +474,8 @@ public closed record SessionImportEvent
 {
     private SessionImportEvent() { }
 
-    public sealed record Imported(SessionSnapshot Snapshot) : SessionImportEvent;
+    /// <param name="Findings">The sensor findings of the new session that no decision covers.</param>
+    public sealed record Imported(SessionSnapshot Snapshot, ImmutableArray<SensorFinding> Findings) : SessionImportEvent;
     public sealed record AlreadyImported(string FileName, Guid SessionId) : SessionImportEvent;
     public sealed record AcknowledgementFailed(string FileName, string? Details) : SessionImportEvent;
     public sealed record Failed(SessionImportFailure Failure) : SessionImportEvent;
