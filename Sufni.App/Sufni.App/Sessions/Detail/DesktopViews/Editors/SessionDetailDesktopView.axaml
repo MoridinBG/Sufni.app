@@ -14,6 +14,7 @@ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:overlays="clr-namespace:Sufni.App.Shared.Views.Overlays"
 xmlns:vm="clr-namespace:Sufni.App.Sessions.Detail.ViewModels.Editors"
 xmlns:lifecycle="clr-namespace:Sufni.App.Shared.Views"
+xmlns:findings="clr-namespace:Sufni.App.Sessions.SensorFindings.Views"
 d:DesignHeight="800"
 d:DesignWidth="800"
 x:Name="Root"
@@ -52,8 +53,17 @@ mc:Ignorable="d">
         </Style>
     </UserControl.Styles>
 
-    <Grid>
+    <Grid RowDefinitions="auto *">
+        <Panel
+            Name="SensorFindingsPanel"
+            Grid.Row="0"
+            Margin="8,8,8,0"
+            IsVisible="{Binding SensorFindings.HasRows, FallbackValue=False}">
+            <findings:SensorFindingsView DataContext="{Binding SensorFindings}" />
+        </Panel>
+
         <editors:SessionShellDesktopView
+            Grid.Row="1"
             HasMediaContent="{Binding MediaWorkspace.HasMediaContent}"
             IsVisible="{Binding ScreenState.IsReady}"
             LayoutPreferences="{Binding LayoutPreferences, Mode=TwoWay}">
@@ -77,9 +87,10 @@ mc:Ignorable="d">
             </editors:SessionShellDesktopView.SidebarContent>
         </editors:SessionShellDesktopView>
 
-        <presentation:SessionScreenStateOverlay Name="ScreenOverlay" ScreenState="{Binding ScreenState}" />
+        <presentation:SessionScreenStateOverlay Grid.RowSpan="2" Name="ScreenOverlay" ScreenState="{Binding ScreenState}" />
 
         <Border
+            Grid.RowSpan="2"
             Background="{DynamicResource SufniSurfacePage}"
             IsHitTestVisible="False"
             IsVisible="{Binding SessionOperationState.IsVisible}"
@@ -87,6 +98,7 @@ mc:Ignorable="d">
 
         <Border
             Name="SessionOperationOverlay"
+            Grid.RowSpan="2"
             MinWidth="180"
             MaxWidth="260"
             Padding="16,14"
@@ -118,6 +130,7 @@ mc:Ignorable="d">
 
         <controls:ErrorMessagesBar
             Name="SessionErrorMessagesBar"
+            Grid.RowSpan="2"
             Margin="16"
             HorizontalAlignment="Center"
             VerticalAlignment="Bottom"

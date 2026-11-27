@@ -182,7 +182,7 @@ mc:Ignorable="d">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="findingsVm:SensorFindingsViewModel">
                         <StackPanel Margin="0,2,0,6" IsVisible="{Binding HasRows}">
-                            <TextBlock FontWeight="Black" Text="{Binding SessionName, StringFormat='Sensor findings: {0}'}" />
+                            <TextBlock Margin="2" FontWeight="Black" Text="{Binding SessionName}" />
                             <findings:SensorFindingsView />
                         </StackPanel>
                     </DataTemplate>

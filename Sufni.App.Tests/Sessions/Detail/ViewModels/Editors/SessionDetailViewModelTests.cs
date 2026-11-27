@@ -494,6 +494,26 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task SensorFindings_AreOfferedWhileTheLoadedGenerationIsCurrent()
+    {
+        using var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession();
+        SensorFinding finding = new(new SensorIdentity(SensorKind.ShockTravel), SensorFaultReason.Frozen, [new(1, 3)]);
+        harness.SessionStore.Watch(snapshot.Id).Returns(Observable.Return(snapshot));
+        using var changes = new Subject<RecordedSessionDomainSnapshot>();
+        var editor = harness.CreateRecordedEditor(snapshot,
+            harness.CreateLoadedResult(TestTelemetryData.CreateProcessed() with { SensorFindings = [finding] }), changes);
+        await harness.LoadAsync(editor);
+
+        changes.OnNext(DomainFromSnapshot(snapshot));
+        Assert.True(editor.SensorFindings?.HasRows);
+
+        changes.OnNext(DomainFromSnapshot(snapshot, staleness: new SessionStaleness.Stale()));
+        Assert.Null(editor.SensorFindings);
+        await harness.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
     public async Task InactiveTab_DefersStalenessPromptUntilActivated()
     {
         using var harness = new SessionDetailHarness();

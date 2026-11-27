@@ -18,6 +18,7 @@ using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Insights.Services;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Detail.DesktopViews.Editors;
+using Sufni.App.Sessions.Detail.Views.Editors;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
@@ -53,39 +54,52 @@ internal sealed class SessionDetailViewTestContext
         sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(SessionInsightsResult.Hidden);
     }
 
-    public SessionDetailLoadResult.Loaded CreateLoadedState() =>
+    public SessionDetailLoadResult.Loaded CreateLoadedState(TelemetryData? telemetry = null) =>
         new(new SessionDetailData(new SessionTelemetryPresentationData(
-            TestTelemetryData.CreateProcessed(),
+            telemetry ?? TestTelemetryData.CreateProcessed(),
             FullTrackId: null,
             FullTrackPoints: null,
             TrackPoints: null)));
 
-    public async Task<MountedSessionDetailView<SessionDetailDesktopView>> MountDesktopAsync(
+    public Task<MountedSessionDetailView<SessionDetailDesktopView>> MountDesktopAsync(
         SessionSnapshot? snapshot = null,
         SessionDetailLoadResult? loadResult = null,
-        Task<SessionDetailLoadResult>? loadTask = null)
+        Task<SessionDetailLoadResult>? loadTask = null,
+        RecordedSessionDomainSnapshot? domain = null) =>
+        MountAsync(() => new SessionDetailDesktopView(), true, snapshot, loadResult, loadTask, domain);
+
+    public Task<MountedSessionDetailView<SessionDetailView>> MountMobileAsync(
+        SessionSnapshot? snapshot = null,
+        SessionDetailLoadResult? loadResult = null,
+        RecordedSessionDomainSnapshot? domain = null) =>
+        MountAsync(() => new SessionDetailView(), false, snapshot, loadResult, null, domain);
+
+    private async Task<MountedSessionDetailView<TView>> MountAsync<TView>(Func<TView> createView, bool isDesktop,
+        SessionSnapshot? snapshot, SessionDetailLoadResult? loadResult, Task<SessionDetailLoadResult>? loadTask,
+        RecordedSessionDomainSnapshot? domain) where TView : Control
     {
         snapshot ??= TestSnapshots.Session();
-        ConfigureStores(snapshot);
+        ConfigureStores(snapshot, domain);
         sessionLoader.LoadDetailAsync(snapshot.Id, Arg.Any<IProgress<SessionDetailLoadProgress>>(), Arg.Any<CancellationToken>())
             .Returns(_ => loadTask ?? Task.FromResult(loadResult ?? CreateLoadedState()));
 
-        ViewTestHelpers.EnsureSessionDetailViewSetup(isDesktop: true);
+        ViewTestHelpers.EnsureSessionDetailViewSetup(isDesktop);
 
         var editor = CreateEditor(snapshot);
-        var view = new SessionDetailDesktopView
-        {
-            DataContext = editor
-        };
+        var view = createView();
+        view.DataContext = editor;
 
         var host = await ViewTestHelpers.ShowViewAsync(view);
-        return new MountedSessionDetailView<SessionDetailDesktopView>(host, view, editor);
+        return new MountedSessionDetailView<TView>(host, view, editor);
     }
 
-    private void ConfigureStores(SessionSnapshot snapshot)
+    private void ConfigureStores(SessionSnapshot snapshot, RecordedSessionDomainSnapshot? domain)
     {
-        recordedSessionProjection.WatchSession(snapshot.Id).Returns(Observable.Empty<RecordedSessionDomainSnapshot>());
+        recordedSessionProjection.WatchSession(snapshot.Id).Returns(domain is null
+            ? Observable.Empty<RecordedSessionDomainSnapshot>()
+            : Observable.Return(domain));
         sessionStore.Get(snapshot.Id).Returns(snapshot);
+        sessionStore.Watch(snapshot.Id).Returns(Observable.Return(snapshot));
     }
 
     private SessionDetailViewModel CreateEditor(SessionSnapshot snapshot)

@@ -5,6 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:v="clr-namespace:Sufni.App.Sessions.Detail.Views.Editors"
+    xmlns:findings="clr-namespace:Sufni.App.Sessions.SensorFindings.Views"
     xmlns:vm="clr-namespace:Sufni.App.Sessions.Detail.ViewModels.Editors"
     d:DesignHeight="600"
     d:DesignWidth="500"
@@ -13,6 +14,16 @@
     Focusable="True"
     mc:Ignorable="d">
 
-    <v:SessionShellMobileView
-        x:Name="MobileShell" />
+    <Grid RowDefinitions="auto *">
+        <Panel
+            Name="SensorFindingsPanel"
+            Grid.Row="0"
+            Margin="12,8,12,0"
+            IsVisible="{Binding SensorFindings.HasRows, FallbackValue=False}">
+            <findings:SensorFindingsView DataContext="{Binding SensorFindings}" />
+        </Panel>
+        <v:SessionShellMobileView
+            x:Name="MobileShell"
+            Grid.Row="1" />
+    </Grid>
 </UserControl>
