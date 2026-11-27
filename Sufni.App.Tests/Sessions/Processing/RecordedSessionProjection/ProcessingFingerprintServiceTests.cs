@@ -75,6 +75,42 @@ public class ProcessingFingerprintServiceTests
         Assert.IsType<SessionStaleness.Current>(unchanged);
     }
 
+    private static readonly SensorIdentity Shock = new(SensorKind.ShockTravel);
+
+    [Theory]
+    [InlineData(SensorDecision.Drop, true)]
+    [InlineData(SensorDecision.Keep, false)]
+    public void EvaluateState_IsStale_OnlyWhenADecisionChangesTheDropRanges(SensorDecision decision, bool stale)
+    {
+        var context = CreateContext();
+        var session = PersistCurrentFingerprint(context) with
+        {
+            SensorDecisions = SensorDecisions.None.With(Shock, decision, [new(10, 20)])
+        };
+
+        var staleness = service.EvaluateState(session, context.Setup, context.Bike, context.Source, dependencyHash: null).Staleness;
+
+        Assert.Equal(stale, staleness.IsStale);
+    }
+
+    [Fact]
+    public void DatabaseAndSnapshotFingerprintsCarryTheSameDropRanges()
+    {
+        var context = CreateContext();
+        var decisions = SensorDecisions.None.With(Shock, SensorDecision.Drop, [new(10, 20)]);
+        var row = Bike.FromSnapshot(context.Bike, []);
+        var bundle = new SessionProcessingInputBundle(
+            new SessionProcessingInput(context.Session.Id, context.Setup.Id) { Drops = decisions.Drops },
+            new SetupProcessingInput(context.Setup.Id, row.Id, context.Setup.FrontSensorConfigurationJson,
+                context.Setup.RearSensorConfigurationJson),
+            new BikeProcessingInput(row.Id, row.HeadAngle, row.ForkStroke, row.ShockStroke,
+                row.RearSuspensionJson, row.FrontWheelDiameterMm, row.RearWheelDiameterMm), context.Source);
+
+        Assert.Equal(
+            service.CreateCurrent(context.Session with { SensorDecisions = decisions }, context.Setup, context.Bike, context.Source),
+            service.CreateCurrentDatabaseInputs(bundle));
+    }
+
     [Fact]
     public void EvaluateState_ReturnsCurrent_WhenPersistedFingerprintMatchesDerivationWindow()
     {
@@ -143,6 +179,7 @@ public class ProcessingFingerprintServiceTests
     [InlineData(MissingRawSourceCase.DependencyHashChanged, true)]
     [InlineData(MissingRawSourceCase.TrackProjectionVersionDiffers, true)]
     [InlineData(MissingRawSourceCase.CalibrationVersionDiffers, true)]
+    [InlineData(MissingRawSourceCase.SensorDropsDiffer, true)]
     public void EvaluateState_ReturnsMissingRawSource_WhenRawSourceIsUnavailable(
         MissingRawSourceCase testCase,
         bool expectedStale)
@@ -186,6 +223,12 @@ public class ProcessingFingerprintServiceTests
                     TrackProjectionVersion = 0
                 };
                 session = context.Session with { ProcessingFingerprintJson = AppJson.Serialize(persisted) };
+                break;
+            case MissingRawSourceCase.SensorDropsDiffer:
+                session = PersistCurrentFingerprint(context) with
+                {
+                    SensorDecisions = SensorDecisions.None.With(Shock, SensorDecision.Drop, [new(10, 20)])
+                };
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(testCase), testCase, null);
@@ -454,7 +497,8 @@ public class ProcessingFingerprintServiceTests
         ProcessedDataMissing,
         DependencyHashChanged,
         TrackProjectionVersionDiffers,
-        CalibrationVersionDiffers
+        CalibrationVersionDiffers,
+        SensorDropsDiffer
     }
 
     public enum ProcessedDataCase

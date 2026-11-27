@@ -446,14 +446,94 @@ public class SessionCoordinatorTests
         Assert.Equal(250, (await repository.Repository.GetSessionAsync(original.Id))!.VelocityFilterWindowMilliseconds);
     }
 
+    private static readonly SensorIdentity Shock = new(SensorKind.ShockTravel);
+
+    [Fact]
+    public async Task SetSensorDecisionAsync_Keep_PublishesTheDecisionWithoutRecompute()
+    {
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        using var store = new SessionStore(publication);
+        var original = TestSnapshots.Session(hasProcessedData: true);
+        repository.Seed(original);
+        await store.PublishSessionsChangedAsync([original]);
+
+        var result = await CreateCoordinator(store, repository.Repository)
+            .SetSensorDecisionAsync(original.Id, Shock, SensorDecision.Keep, [new(10, 20)]);
+
+        Assert.IsType<SensorDecisionResult.Kept>(result);
+        Assert.Empty(store.Get(original.Id)!.SensorDecisions.Undecided(
+            [new SensorFinding(Shock, SensorFaultReason.Frozen, [new(10, 20)])]));
+        await recomputeEngine.DidNotReceiveWithAnyArgs().RequestRecomputeAsync(default);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SetSensorDecisionAsync_Drop_RecomputesWithThePublishedDecision_AndKeepsItWhenRecomputeFails(bool fails)
+    {
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        using var store = new SessionStore(publication);
+        var original = TestSnapshots.Session(hasProcessedData: true);
+        repository.Seed(original);
+        await store.PublishSessionsChangedAsync([original]);
+        IReadOnlyList<SourceTimeRange>? dropsSeenDuringRecompute = null;
+        recomputeEngine.RequestRecomputeAsync(original.Id, Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                dropsSeenDuringRecompute = store.Get(original.Id)!.SensorDecisions.DropRanges(Shock);
+                return Task.FromResult<SessionRecomputeResult>(fails
+                    ? new SessionRecomputeResult.ProcessingFailed(SessionProcessingFailureReason.NoTravelData)
+                    : new SessionRecomputeResult.Recomputed());
+            });
+
+        var result = await CreateCoordinator(store, repository.Repository)
+            .SetSensorDecisionAsync(original.Id, Shock, SensorDecision.Drop, [new(10, 20)]);
+
+        Assert.Equal([new SourceTimeRange(10, 20)], dropsSeenDuringRecompute);
+        Assert.Equal([new SourceTimeRange(10, 20)], store.Get(original.Id)!.SensorDecisions.DropRanges(Shock));
+        var dropped = Assert.IsType<SensorDecisionResult.Dropped>(result);
+        if (fails) Assert.IsType<SessionRecomputeResult.ProcessingFailed>(dropped.Recompute);
+        else Assert.IsType<SessionRecomputeResult.Recomputed>(dropped.Recompute);
+    }
+
+    [Fact]
+    public async Task SetSensorDecisionAsync_ReturnsMissing_ForADeletedSession()
+    {
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+
+        var result = await CreateCoordinator(repository: repository.Repository)
+            .SetSensorDecisionAsync(Guid.NewGuid(), Shock, SensorDecision.Drop, [new(10, 20)]);
+
+        Assert.IsType<SensorDecisionResult.Missing>(result);
+        await recomputeEngine.DidNotReceiveWithAnyArgs().RequestRecomputeAsync(default);
+    }
+
+    [Fact]
+    public async Task SetSensorDecisionAsync_ReturnsFailed_WhenTheWriteFails()
+    {
+        var repository = new InMemorySessionRepository(new FakeTimeProvider()) { WriteFailure = new InvalidOperationException() };
+        using var store = new SessionStore(publication);
+        var original = TestSnapshots.Session();
+        repository.Seed(original);
+        await store.PublishSessionsChangedAsync([original]);
+
+        var result = await CreateCoordinator(store, repository.Repository)
+            .SetSensorDecisionAsync(original.Id, Shock, SensorDecision.Drop, [new(10, 20)]);
+
+        Assert.IsType<SensorDecisionResult.Failed>(result);
+        Assert.True(store.Get(original.Id)!.SensorDecisions.IsEmpty);
+    }
+
     [Fact]
     public async Task SaveAsync_AcceptsUnchangedDraftFieldsAfterAlignmentProcessingAndDerivedChanges()
     {
         var original = TestSnapshots.Session(updated: 5, timestamp: 100);
+        var shock = new SensorIdentity(SensorKind.ShockTravel);
         var current = original with
         {
             Updated = 10, GpsOffsetSeconds = 2.5, VelocityFilterWindowMilliseconds = 250,
             Timestamp = 200, DurationSeconds = 120, HasProcessedData = true,
+            SensorDecisions = SensorDecisions.None.With(shock, SensorDecision.Drop, [new(10, 20)]),
         };
         var repository = new InMemorySessionRepository(new FakeTimeProvider());
         repository.Seed(current);
@@ -469,6 +549,7 @@ public class SessionCoordinatorTests
         Assert.Equal(250, saved.VelocityFilterWindowMilliseconds);
         Assert.Equal(200, saved.Timestamp);
         Assert.Equal(120, saved.DurationSeconds);
+        Assert.Equal([new SourceTimeRange(10, 20)], saved.SensorDecisions.DropRanges(shock));
         Assert.True(saved.HasProcessedData);
         Assert.Equal(saved, store.Get(original.Id));
     }

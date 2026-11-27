@@ -189,6 +189,7 @@ internal sealed class SessionRepository(
                                                         s.id AS session_id,
                                                         s.setup_id AS setup_id,
                                                         s.velocity_filter_window_ms AS velocity_filter_window_ms,
+                                                        s.sensor_decisions AS sensor_decisions,
                                                         s.source_session_id AS window_source_session_id,
                                                         s.window_start_seconds AS window_start_seconds,
                                                         s.window_end_seconds AS window_end_seconds,
@@ -622,6 +623,9 @@ internal sealed class SessionRepository(
         [Column("velocity_filter_window_ms")]
         public int? VelocityFilterWindowMilliseconds { get; set; }
 
+        [Column("sensor_decisions")]
+        public string? SensorDecisionsJson { get; set; }
+
         [Column("setup_id")]
         public Guid SetupId { get; set; }
 
@@ -704,7 +708,10 @@ internal sealed class SessionRepository(
                     WindowSourceSessionId is { } sourceSessionId
                         ? new RecordedSessionDerivationWindow(sourceSessionId, WindowStartSeconds, WindowEndSeconds)
                         : null,
-                    VelocityFilterWindowMilliseconds),
+                    VelocityFilterWindowMilliseconds)
+                {
+                    Drops = Sessions.Models.SensorDecisionsJson.Parse(SensorDecisionsJson).Drops,
+                },
                 new SetupProcessingInput(
                     SetupId,
                     BikeId,

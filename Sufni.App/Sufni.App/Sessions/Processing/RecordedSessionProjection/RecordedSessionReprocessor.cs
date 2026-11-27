@@ -94,7 +94,7 @@ internal sealed class RecordedSessionReprocessor(
         }
 
         var metadata = MetadataFromRaw(source.SourceName, rawTelemetryData);
-        return TelemetryData.FromRecording(rawTelemetryData, metadata, bikeData, processingOptions);
+        return TelemetryData.FromRecording(rawTelemetryData, metadata, bikeData, processingOptions, window?.StartSeconds ?? 0);
     }
 
     private static TelemetryData ReprocessLiveCapture(
@@ -109,7 +109,7 @@ internal sealed class RecordedSessionReprocessor(
             capture = capture.Slice(window.StartSeconds, window.EndSeconds);
         }
 
-        return TelemetryData.FromLiveCapture(capture, processingOptions);
+        return TelemetryData.FromLiveCapture(capture, processingOptions, window?.StartSeconds ?? 0);
     }
 
     internal static Metadata MetadataFromRaw(string sourceName, RawTelemetryData rawTelemetryData) => new()

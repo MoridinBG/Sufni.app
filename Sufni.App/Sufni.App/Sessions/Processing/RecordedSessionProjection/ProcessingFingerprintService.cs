@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Models;
 using Sufni.App.Bikes.Services;
 using System;
 using System.Text.Json;
@@ -43,6 +44,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         {
             VelocityFilterWindowMilliseconds =
                 session.ProcessingOptions.ClampedVelocityFilterWindowMilliseconds,
+            SensorDrops = SensorDecisionsJson.Write(session.ProcessingOptions.Drops),
         };
 
     public ProcessingFingerprint CreateCurrentDatabaseInputs(SessionProcessingInputBundle input)
@@ -74,7 +76,8 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
             VelocityFilterWindowMilliseconds: new TelemetryProcessingOptions(input.Session.VelocityFilterWindowMilliseconds ??
                 TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds).ClampedVelocityFilterWindowMilliseconds,
             DerivationWindow: window,
-            CalibrationVersion: TelemetryCalibrationVersion.Current);
+            CalibrationVersion: TelemetryCalibrationVersion.Current,
+            SensorDrops: SensorDecisionsJson.Write(input.Session.Drops));
     }
 
     private static ProcessingFingerprint CreateCurrentDatabaseInputs(
@@ -217,6 +220,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
                persisted.CalibrationVersion != TelemetryCalibrationVersion.Current ||
                persisted.VelocityFilterWindowMilliseconds != options.ClampedVelocityFilterWindowMilliseconds ||
                persisted.DerivationWindow != session.DerivationWindow ||
+               persisted.SensorDrops != SensorDecisionsJson.Write(options.Drops) ||
                !StringComparer.Ordinal.Equals(persisted.DependencyHash, currentDependencyHash);
     }
 }

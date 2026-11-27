@@ -75,6 +75,8 @@ public enum SessionImportFailureReason { Import, InvalidFile, Publish, Trash, Ac
 
 public enum SessionDeleteFailureReason { Delete }
 
+public enum SensorDecisionFailureReason { Save }
+
 public enum ServerStartFailureReason { Start }
 
 public enum StravaConnectFailureReason { Connect }

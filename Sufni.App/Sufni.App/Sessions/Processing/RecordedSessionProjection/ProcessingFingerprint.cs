@@ -9,6 +9,7 @@ namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 /// data. It combines the processing algorithm version, dependency identity and
 /// hash, raw-source hash, app calibration version, and velocity-filter option.
 /// Schema v4 adds the calibration version; absent legacy values read as zero.
+/// <see cref="SensorDrops"/> holds the stored form of the Drop decisions and is absent without them.
 /// </summary>
 public sealed record ProcessingFingerprint(
     int SchemaVersion,
@@ -21,4 +22,6 @@ public sealed record ProcessingFingerprint(
     int VelocityFilterWindowMilliseconds = TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     RecordedSessionDerivationWindow? DerivationWindow = null,
-    int CalibrationVersion = 0);
+    int CalibrationVersion = 0,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? SensorDrops = null);

@@ -155,6 +155,33 @@ internal sealed class SessionCoordinator : ISessionCoordinator
         }
     }
 
+    public async Task<SensorDecisionResult> SetSensorDecisionAsync(Guid sessionId, SensorIdentity sensor,
+        SensorDecision decision, IReadOnlyList<SourceTimeRange> ranges)
+    {
+        try
+        {
+            var saved = await backgroundTaskRunner.RunAsync(() =>
+                sessionRepository.SetSensorDecisionAsync(sessionId, sensor, decision, ranges));
+            if (saved is null) return new SensorDecisionResult.Missing();
+            Task<SessionRecomputeResult>? recompute = null;
+            await dispatcher.InvokeAsync(async () =>
+            {
+                await sessionStore.PublishSessionsChangedAsync([SessionSnapshot.From(saved)]);
+                // Mark the request active before queued projection work can prompt.
+                if (decision == SensorDecision.Drop) recompute = recomputeEngine.RequestRecomputeAsync(sessionId);
+            });
+            return recompute is null
+                ? new SensorDecisionResult.Kept()
+                : new SensorDecisionResult.Dropped(await recompute);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception exception)
+        {
+            logger.Error(exception, "Sensor decision failed for {SessionId}", sessionId);
+            return new SensorDecisionResult.Failed(SensorDecisionFailureReason.Save, exception.Message);
+        }
+    }
+
     public async Task<SessionPreferenceLoadResult> LoadPreferencesAsync(Guid sessionId)
     {
         try
@@ -434,6 +461,15 @@ public sealed record SessionRecomputeAllResult(
 /// sessions have finished so far.
 /// </summary>
 public sealed record SessionRecomputeAllProgress(int Completed, int Total);
+
+public closed record SensorDecisionResult
+{
+    private SensorDecisionResult() { }
+    public sealed record Kept : SensorDecisionResult;
+    public sealed record Dropped(SessionRecomputeResult Recompute) : SensorDecisionResult;
+    public sealed record Missing : SensorDecisionResult;
+    public sealed record Failed(SensorDecisionFailureReason Reason, string? Details = null) : SensorDecisionResult;
+}
 
 public closed record SessionDeleteResult
 {

@@ -1,3 +1,4 @@
+using Sufni.Telemetry;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -23,6 +24,13 @@ public interface ISessionCoordinator
     Task<SessionRecomputeResult> RecomputeAsync(Guid sessionId);
 
     Task<SessionRecomputeResult> SetProcessingOptionAsync(Guid sessionId, int windowMilliseconds);
+
+    /// <summary>
+    /// Decides <paramref name="ranges"/> of a sensor's findings as Drop or Keep. A Drop recomputes the session; the
+    /// decision stays saved when the recompute fails.
+    /// </summary>
+    Task<SensorDecisionResult> SetSensorDecisionAsync(Guid sessionId, SensorIdentity sensor, SensorDecision decision,
+        IReadOnlyList<SourceTimeRange> ranges);
 
     Task<SessionPreferenceLoadResult> LoadPreferencesAsync(Guid sessionId);
 

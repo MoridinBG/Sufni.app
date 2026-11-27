@@ -1,3 +1,4 @@
+using Sufni.Telemetry;
 using System;
 
 using Sufni.App.Sessions.Store;
@@ -7,7 +8,10 @@ public sealed record SessionProcessingInput(
     Guid Id,
     Guid SetupId,
     RecordedSessionDerivationWindow? DerivationWindow = null,
-    int? VelocityFilterWindowMilliseconds = null);
+    int? VelocityFilterWindowMilliseconds = null)
+{
+    public SensorDecisions Drops { get; init; } = SensorDecisions.None;
+}
 
 public sealed record SetupProcessingInput(
     Guid Id,
