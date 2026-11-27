@@ -100,13 +100,15 @@ public static partial class TerrainProfileCalculator
         return medians;
     }
 
+    // Older processed telemetry stores continuous data with an empty segment list.
+    private static ImmutableArray<ProcessedSuspensionSegment> SegmentsOf(Suspension side) => side.Segments.IsDefaultOrEmpty
+        ? [new ProcessedSuspensionSegment { SampleCount = side.Travel.Length }] : side.Segments;
+
     private static void MeasureSuspension(Suspension? side, int rate, List<TerrainWindow> windows,
         bool front, CancellationToken token)
     {
         if (side is not { Present: true } || side.Velocity.IsDefaultOrEmpty || rate <= 0) return;
-        // Older processed telemetry stores continuous data with an empty segment list.
-        var segments = side.Segments.IsDefaultOrEmpty
-            ? [new ProcessedSuspensionSegment { SampleCount = side.Velocity.Length }] : side.Segments;
+        var segments = SegmentsOf(side);
         var strokeSizes = MedianStrokeSizes(side, windows);
         foreach (var segment in segments)
         {

@@ -21,8 +21,7 @@ public static partial class TerrainProfileCalculator
         List<TerrainWindow> windows, CancellationToken token)
     {
         if (rear is not { Present: true } || rear.Travel.IsDefaultOrEmpty || rate <= 0) return;
-        var segments = rear.Segments.IsDefaultOrEmpty
-            ? [new ProcessedSuspensionSegment { SampleCount = rear.Travel.Length }] : rear.Segments;
+        var segments = SegmentsOf(rear);
         var travel = segments.Select(s => Decimate(s.StartSeconds, rate,
             rear.Travel.AsSpan(s.FirstDenseIndex, s.SampleCount))).ToArray();
         List<Series>? vertical = null;

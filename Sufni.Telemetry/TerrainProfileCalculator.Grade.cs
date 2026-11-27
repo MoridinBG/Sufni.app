@@ -104,10 +104,7 @@ public static partial class TerrainProfileCalculator
     private static double? TravelAt(Suspension? side, int rate, double seconds)
     {
         if (side is null || rate <= 0) return null;
-        // Older processed telemetry stores continuous data with an empty segment list.
-        var segments = side.Segments.IsDefaultOrEmpty
-            ? [new ProcessedSuspensionSegment { SampleCount = side.Travel.Length }] : side.Segments;
-        foreach (var segment in segments)
+        foreach (var segment in SegmentsOf(side))
         {
             var position = (seconds - segment.StartSeconds) * rate;
             if (position < 0 || position > segment.SampleCount - 1) continue;
