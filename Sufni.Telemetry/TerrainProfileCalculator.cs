@@ -4,7 +4,7 @@ namespace Sufni.Telemetry;
 
 public static partial class TerrainProfileCalculator
 {
-    public const int AlgorithmVersion = 13;
+    public const int AlgorithmVersion = 14;
     public const double ClippedShareLimit = 0.02;
     private const double SilentShareLimit = 0.5;
     private const int MinimumImuRate = 200;
@@ -46,7 +46,11 @@ public static partial class TerrainProfileCalculator
         if (silent.Contains(TerrainSensor.RearAxleImu)) rearAxle = null;
         if (!silent.Contains(TerrainSensor.ShockTravel))
             MeasurePedalling(telemetry.Rear, telemetry.Metadata.SampleRate, imu, frame, windows, cancellationToken);
-        var grade = MeasureGrade(motion, imu, frame, windows, cells, out var gradePieces, cancellationToken);
+        var grade = MeasureGrade(motion, imu, frame,
+            telemetry.Airtimes.IsDefault ? [] : [.. telemetry.Airtimes.OrderBy(airtime => airtime.Start)],
+            silent.Contains(TerrainSensor.ForkTravel) ? null : Present(telemetry.Front),
+            silent.Contains(TerrainSensor.ShockTravel) ? null : Present(telemetry.Rear),
+            telemetry.Metadata.SampleRate, windows, cells, out var gradePieces, cancellationToken);
         var roughnessPieces = MeasureRoughnessPieces(imu, [frame, fork, rearAxle], cells, cancellationToken);
         return new TerrainProfileResult.Computed(new([.. windows], frameSeries, forkSeries, grade,
             frame?.AccelLsbPerG, fork?.AccelLsbPerG)
@@ -59,6 +63,9 @@ public static partial class TerrainProfileCalculator
             RearMaxTravel = telemetry.Rear is { Present: true } ? telemetry.Rear.MaxTravel : null
         });
     }
+
+    private static Suspension? Present(Suspension? side) =>
+        side is { Present: true } && !side.Travel.IsDefaultOrEmpty ? side : null;
 
     // A failed sensor reads zero. Its few non-zero windows would still distort classification and the bike
     // baseline, so the whole sensor is dropped for the ride.

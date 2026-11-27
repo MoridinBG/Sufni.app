@@ -306,9 +306,9 @@ public class TerrainProfileCalculatorTests
     [InlineData(0.5, GradeBand.Flat)]
     public void GradeBandChangesOnlyWhenTheGradePassesAnEdgeByOneDegree(double middleDegrees, GradeBand middle)
     {
-        var windows = SyntheticRide.Build([new(300, 7, 3), new(300, 7, middleDegrees), new(300, 7, 3)]).Profile().Windows;
-        Assert.Equal(GradeBand.GentleDescent, windows.Single(w => w.StartMetres == 150).Band);
-        Assert.Equal(middle, windows.Single(w => w.StartMetres == 450).Band);
+        var windows = SyntheticRide.Build([new(1000, 7, 3), new(1000, 7, middleDegrees)]).Profile().Windows;
+        Assert.Equal(GradeBand.GentleDescent, windows.Single(w => w.StartMetres == 450).Band);
+        Assert.Equal(middle, windows.Single(w => w.StartMetres == 1450).Band);
     }
 
     [Fact]
@@ -331,14 +331,64 @@ public class TerrainProfileCalculatorTests
     }
 
     [Fact]
-    public void GradePiecesEndWhereTheGradeChangesAndGiveTheWindowsTheirBand()
+    public void GradePiecesEndWhereTheGradeChangesAfterBrakingAndGiveTheWindowsTheirBand()
     {
-        var profile = SyntheticRide.Build([new(500, 7, 0), new(500, 7, 8)]).Profile();
+        var profile = SyntheticRide.Build([new(500, 10, 0), new(500, 10, 8)],
+            new RideRecording(FixRate: 3, Braking: new(44, 47))).Profile();
         var change = profile.GradePieces.First(p => p.Band == GradeBand.Descent);
-        Assert.InRange(change.StartMetres, 490, 510);
+        Assert.InRange(change.StartMetres, 498, 502);
         Assert.All(profile.Windows.Where(w => w.StartMetres + 10 <= change.StartMetres), w => Assert.Equal(GradeBand.Flat, w.Band));
         Assert.All(profile.Windows.Where(w => w.StartMetres >= change.StartMetres), w => Assert.Equal(GradeBand.Descent, w.Band));
     }
+
+    [Fact]
+    public void ShortSteepStretchIsAPieceOfItsOwnGrade()
+    {
+        var pieces = SyntheticRide.Build([new(500, 3, 0), new(6, 3, 25), new(500, 3, 0)]).Profile().GradePieces;
+        var steep = Assert.Single(pieces, p => p.Band == GradeBand.VerySteepDescent);
+        Assert.InRange(steep.StartMetres, 498, 502);
+        Assert.InRange(Degrees(steep.Grade), 22, 28);
+    }
+
+    [Fact]
+    public void BrakeDiveOnFlatGroundKeepsTheGradeFlat()
+    {
+        var ride = SyntheticRide.Build([new(1000, 10, 0)],
+            new RideRecording(FixRate: 3, Braking: new(30, 32), DiveMillimetresPerMps2: 30));
+        var braking = ride.Profile().Windows.Where(w => w.StartSeconds < 32 && w.EndSeconds > 30.5).ToArray();
+        Assert.NotEmpty(braking);
+        Assert.All(braking, w => Assert.InRange(Degrees(w.Grade), -1, 1));
+    }
+
+    [Fact]
+    public void NoseUpFrameInTheAirLeavesTheGradeOfTheGround()
+    {
+        var ride = SyntheticRide.Build([new(1000, 7, 4)],
+            new RideRecording(Airtime: new(60, 60.8), AirtimePitch: 30));
+        var window = ride.Profile().Windows.Single(w => w.StartSeconds <= 60.4 && w.EndSeconds > 60.4);
+        Assert.InRange(Degrees(window.Grade), 3.5, 4.5);
+    }
+
+    [Fact]
+    public void LeanedTurnOnFlatGroundKeepsTheGradeFlat()
+    {
+        var ride = SyntheticRide.Build([new(900, 7, 0, TurnRadius: 22), new(100, 7, 0)], new RideRecording(Roll: 20));
+        Assert.All(ride.Profile().Windows.Where(w => w.Moving), w => Assert.InRange(Degrees(w.Grade), -1, 1));
+    }
+
+    [Fact]
+    public void FrameWithoutGyroscopeScaleHasNoGrade()
+    {
+        var ride = SyntheticRide.Build([new(1000)]);
+        var imu = ride.Telemetry.ImuData!;
+        var telemetry = ride.Telemetry with { ImuData = imu with
+        {
+            Meta = [.. imu.Meta.Select(m => m.LocationId == (byte)ImuLocation.Frame ? m with { GyroLsbPerDps = 0 } : m)]
+        } };
+        Assert.Equal(TerrainGradeState.NoFrameSensor, (ride with { Telemetry = telemetry }).Profile().GradeState);
+    }
+
+    private static double Degrees(double? sine) => Math.Asin(sine!.Value) * 180 / Math.PI;
 
     [Fact]
     public void ShortRideKeepsReadingsWithoutGrades()

@@ -6,7 +6,8 @@ public static partial class TerrainProfileCalculator
 {
     // Penalties per piece: in class steps squared for each IMU, in degrees squared for grade. See terrain.md, Pieces.
     private const double RoughnessPiecePenalty = 4;
-    private const double GradePiecePenalty = 100;
+    private const double GradePiecePenalty = 400;
+    private const int GradeMinimumPieceCells = 1;
 
     /// <summary>
     /// Roughness pieces cut on the speed-removed level of every given IMU together, each measured over its whole length.
@@ -24,7 +25,7 @@ public static partial class TerrainProfileCalculator
             signals.Add([.. measured.Select(cell => ReadingOf(cell, (ImuLocation)meta.LocationId) is { SpeedRemoved: > 0 } reading
                 ? Math.Log(reading.SpeedRemoved) / Math.Log(TerrainLevels.Step) : (double?)null)]);
         }
-        var pieces = CutPieces(cells, signals, RoughnessPiecePenalty);
+        var pieces = CutPieces(cells, signals, RoughnessPiecePenalty, CellsPerWindow);
         foreach (var meta in used) MeasureSensor(imu, meta, pieces, [], token);
         return [.. pieces];
     }
@@ -37,10 +38,12 @@ public static partial class TerrainProfileCalculator
     };
 
     /// <summary>
-    /// Cuts each run of adjacent moving cells where the mean of the signals changes. A piece is at least one window long.
-    /// A cell without a value takes the median of its run; a signal without values in a run does not cut it.
+    /// Cuts each run of adjacent moving cells where the mean of the signals changes. A piece is at least
+    /// <paramref name="minimumCells"/> long. A cell without a value takes the median of its run; a signal without values
+    /// in a run does not cut it.
     /// </summary>
-    private static List<TerrainWindow> CutPieces(List<TerrainWindow> cells, IReadOnlyList<double?[]> signals, double penalty)
+    private static List<TerrainWindow> CutPieces(List<TerrainWindow> cells, IReadOnlyList<double?[]> signals, double penalty,
+        int minimumCells)
     {
         var pieces = new List<TerrainWindow>();
         var start = 0;
@@ -50,7 +53,7 @@ public static partial class TerrainProfileCalculator
             if (cells[start].Moving)
             {
                 var run = signals.Select(signal => Filled(signal, start, end)).OfType<double[]>().ToArray();
-                foreach (var (from, to) in Cut(run, end - start, penalty * run.Length))
+                foreach (var (from, to) in Cut(run, end - start, penalty * run.Length, minimumCells))
                 {
                     var first = cells[start + from];
                     var last = cells[start + to - 1];
@@ -74,11 +77,11 @@ public static partial class TerrainProfileCalculator
 
     /// <summary>
     /// The optimal partition by squared error from the segment means plus a penalty per piece (PELT), with pieces of at
-    /// least <see cref="CellsPerWindow"/> cells. Pruning keeps it near linear in the number of cells.
+    /// least <paramref name="minimum"/> cells. Pruning keeps it near linear in the number of cells.
     /// </summary>
-    private static List<(int From, int To)> Cut(double[][] signals, int count, double penalty)
+    private static List<(int From, int To)> Cut(double[][] signals, int count, double penalty, int minimum)
     {
-        if (count < 2 * CellsPerWindow || signals.Length == 0) return [(0, count)];
+        if (count < 2 * minimum || signals.Length == 0) return [(0, count)];
         var sums = signals.Select(Prefix).ToArray();
         var squares = new double[count + 1];
         foreach (var signal in signals)
@@ -94,9 +97,9 @@ public static partial class TerrainProfileCalculator
         var previous = new int[count + 1];
         best[0] = -penalty;
         var candidates = new List<int> { 0 };
-        for (var to = CellsPerWindow; to <= count; to++)
+        for (var to = minimum; to <= count; to++)
         {
-            if (to - CellsPerWindow >= CellsPerWindow) candidates.Add(to - CellsPerWindow);
+            if (to - minimum >= minimum) candidates.Add(to - minimum);
             best[to] = double.PositiveInfinity;
             foreach (var from in candidates)
             {

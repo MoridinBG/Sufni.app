@@ -5,7 +5,8 @@ namespace Sufni.Telemetry;
 public static partial class TerrainProfileCalculator
 {
     private const double MinimumGradeMetres = 800;
-    private const double GradeCutoffHz = 0.15;
+    // Converts the travel difference into pitch. Real wheelbases lie within 8% of it, which errs by 0.35° at most.
+    private const double NominalWheelbaseMillimetres = 1250;
     /// <summary>The boundaries between adjacent grade bands, in degrees downhill.</summary>
     public static IReadOnlyList<double> GradeBandEdges { get; } = [-6, -2, 2, 5, 10, 15];
     public const double GradeHysteresisDegrees = 1;
@@ -16,14 +17,16 @@ public static partial class TerrainProfileCalculator
     private static double Sine(double degrees) => Math.Sin(degrees * Math.PI / 180);
 
     /// <summary>
-    /// Measures the grade of each moving window, cuts the grade pieces and gives each moving window the band of the
-    /// piece that holds its midpoint.
+    /// Measures the grade of the line through the axles for each moving window, cuts the grade pieces and gives each
+    /// moving window the band of the piece that holds its midpoint. The grade is the recorded frame pitch less the
+    /// pitch from the suspension travel, weighted by speed and not counted in the air.
     /// </summary>
     private static TerrainGradeState MeasureGrade(TrackMotion motion, RawImuData? imu, ImuMetaEntry? frame,
+        ImmutableArray<Airtime> airtimes, Suspension? front, Suspension? rear, int suspensionRate,
         List<TerrainWindow> windows, List<TerrainWindow> cells, out ImmutableArray<TerrainWindow> pieces, CancellationToken token)
     {
         pieces = [];
-        if (imu is null || frame is null) return TerrainGradeState.NoFrameSensor;
+        if (imu is null || frame is null || frame.GyroLsbPerDps <= 0) return TerrainGradeState.NoFrameSensor;
         var first = motion.At(windows.First(w => w.Moving).StartSeconds);
         var last = motion.At(windows.Last(w => w.Moving).EndSeconds);
         if (first?.Elevation is not { } startHeight || last?.Elevation is not { } endHeight)
@@ -36,20 +39,22 @@ public static partial class TerrainProfileCalculator
             if (segment.LocationId != frame.LocationId || segment.Count == 0) continue;
             token.ThrowIfCancellationRequested();
             var origin = segment.FirstMonotonicDeltaUs / 1e6;
-            var x = new double[segment.Count];
-            var z = new double[segment.Count];
+            var attitudes = FrameAttitudeEstimator.Recorded(segment, imu.SampleRate, frame, motion);
+            var sine = new double[segment.Count];
             var speed = new double[segment.Count];
+            var airtime = 0;
             for (var i = 0; i < segment.Count; i++)
             {
-                var at = motion.At(origin + (double)i / imu.SampleRate);
-                x[i] = segment[i].Ax / (double)frame.AccelLsbPerG - (at?.Acceleration ?? 0) / 9.80665;
-                z[i] = segment[i].Az / (double)frame.AccelLsbPerG;
-                speed[i] = at?.Speed ?? 0;
+                var seconds = origin + (double)i / imu.SampleRate;
+                while (airtime < airtimes.Length && airtimes[airtime].End < seconds) airtime++;
+                var airborne = airtime < airtimes.Length && airtimes[airtime].Start <= seconds;
+                speed[i] = airborne ? 0 : motion.At(seconds)?.Speed ?? 0;
+                var framePitch = Math.Asin(Math.Clamp(-attitudes[i].Up.X, -1, 1));
+                var suspensionPitch = TravelAt(front, suspensionRate, seconds) is { } frontTravel &&
+                    TravelAt(rear, suspensionRate, seconds) is { } rearTravel
+                    ? Math.Atan((frontTravel - rearTravel) / NominalWheelbaseMillimetres) : 0;
+                sine[i] = Math.Sin(framePitch - suspensionPitch);
             }
-            x = SignalFilters.LowPass(x, imu.SampleRate, GradeCutoffHz);
-            z = SignalFilters.LowPass(z, imu.SampleRate, GradeCutoffHz);
-            var sine = new double[segment.Count];
-            for (var i = 0; i < segment.Count; i++) sine[i] = Math.Sin(-Math.Atan2(x[i], z[i]));
             segments.Add((origin, sine, speed));
         }
 
@@ -86,7 +91,7 @@ public static partial class TerrainProfileCalculator
             if (windows[i].Grade.HasValue) windows[i] = windows[i] with { Grade = windows[i].Grade - zero };
 
         var cut = CutPieces(cells, [[.. cells.Select(cell => cell.Moving && Mean(cell) is { } grade
-            ? Math.Asin(grade) * 180 / Math.PI : (double?)null)]], GradePiecePenalty);
+            ? Math.Asin(grade) * 180 / Math.PI : (double?)null)]], GradePiecePenalty, GradeMinimumPieceCells);
         var grades = cut.Select(piece => Mean(piece) - zero).ToArray();
         var bands = AssignBands(grades, i => Adjacent(cut[i - 1], cut[i]));
         pieces = [.. cut.Select((piece, i) => piece with { Grade = grades[i], Band = bands[i] })];
@@ -94,6 +99,24 @@ public static partial class TerrainProfileCalculator
             if (windows[i].Moving && PieceAt(pieces, Midpoint(windows[i])) is { } piece)
                 windows[i] = windows[i] with { Band = piece.Band };
         return TerrainGradeState.Available;
+    }
+
+    private static double? TravelAt(Suspension? side, int rate, double seconds)
+    {
+        if (side is null || rate <= 0) return null;
+        // Older processed telemetry stores continuous data with an empty segment list.
+        var segments = side.Segments.IsDefaultOrEmpty
+            ? [new ProcessedSuspensionSegment { SampleCount = side.Travel.Length }] : side.Segments;
+        foreach (var segment in segments)
+        {
+            var position = (seconds - segment.StartSeconds) * rate;
+            if (position < 0 || position > segment.SampleCount - 1) continue;
+            var index = (int)position;
+            var next = Math.Min(index + 1, segment.SampleCount - 1);
+            return double.Lerp(side.Travel[segment.FirstDenseIndex + index], side.Travel[segment.FirstDenseIndex + next],
+                position - index);
+        }
+        return null;
     }
 
     /// <summary>

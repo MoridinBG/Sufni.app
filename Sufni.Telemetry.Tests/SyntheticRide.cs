@@ -98,7 +98,7 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
             speeds.Add(speed);
             var ramped = double.Lerp(rampFrom, rampTo, Math.Clamp((seconds - rampStart) / PitchRampSeconds, 0, 1));
             var target = (recording.MountPitch - section.GradeDegrees +
-                (Inside(recording.Airtime, seconds) ? recording.AirtimePitch : 0)) * Radians;
+                (InsideBeforeLanding(recording.Airtime, seconds) ? recording.AirtimePitch : 0)) * Radians;
             if (target != rampTo) (rampFrom, rampTo, rampStart) = (ramped, target, seconds);
             var dive = recording.DiveMillimetresPerMps2 * Math.Max(0, (lastSpeed - speed) * rate);
             var pitch = ramped - Math.Atan(dive / WheelbaseMillimetres);
@@ -193,6 +193,10 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
 
     private static bool Inside(TelemetryTimeRange? range, double seconds) =>
         range is { } r && seconds >= r.StartSeconds && seconds < r.EndSeconds;
+
+    // The frame is level again when the wheels touch down.
+    private static bool InsideBeforeLanding(TelemetryTimeRange? range, double seconds) =>
+        range is { } r && seconds >= r.StartSeconds && seconds < r.EndSeconds - PitchRampSeconds;
 
     private static double Speed(double cruise, double seconds, RideRecording recording)
     {
