@@ -11,6 +11,7 @@ public sealed partial class SensorFindingRowViewModel(
     SensorIdentity sensor,
     string sensorName,
     string details,
+    string rangesText,
     IReadOnlyList<SourceTimeRange> ranges,
     bool canDecide,
     Func<SensorFindingRowViewModel, SensorDecision, Task> decide)
@@ -18,6 +19,7 @@ public sealed partial class SensorFindingRowViewModel(
     public SensorIdentity Sensor => sensor;
     public string SensorName => sensorName;
     public string Details => details;
+    public string RangesText => rangesText;
     public IReadOnlyList<SourceTimeRange> Ranges => ranges;
     public bool CanDecide => canDecide;
 

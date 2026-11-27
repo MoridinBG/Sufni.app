@@ -25,8 +25,7 @@ public sealed partial class SensorFindingsViewModel : ObservableObject, IDisposa
     private readonly Action<FailurePresentation> reportError;
     private readonly Action<string> notify;
     private readonly IDisposable subscription;
-    private ImmutableArray<SensorFinding> shown = [];
-    private double shownOffset;
+    private (ImmutableArray<SensorFinding> Findings, double Offset, double? Duration) shown = ([], 0, null);
 
     public SensorFindingsViewModel(Guid sessionId, ImmutableArray<SensorFinding> findings, ISessionStore sessionStore,
         ISessionCoordinator sessionCoordinator, IUiThreadDispatcher dispatcher, Action<FailurePresentation> reportError,
@@ -50,18 +49,25 @@ public sealed partial class SensorFindingsViewModel : ObservableObject, IDisposa
     private void Apply(SessionSnapshot snapshot)
     {
         SessionName = snapshot.Name;
-        var undecided = snapshot.SensorDecisions.Undecided(findings);
-        if (undecided.SequenceEqual(shown) && snapshot.WindowStartSeconds == shownOffset) return;
-        shown = undecided;
-        shownOffset = snapshot.WindowStartSeconds;
+        var current = (Findings: snapshot.SensorDecisions.Undecided(findings), Offset: snapshot.WindowStartSeconds,
+            Duration: snapshot.DurationSeconds);
+        if (current.Findings.SequenceEqual(shown.Findings) && current.Offset == shown.Offset && current.Duration == shown.Duration)
+            return;
+        shown = current;
 
+        var text = new FindingText(current.Offset, current.Duration);
         Rows.Clear();
-        foreach (var group in undecided.GroupBy(finding => (finding.Sensor, finding.IsNotice))
+        foreach (var group in current.Findings.GroupBy(finding => (finding.Sensor, finding.IsNotice))
                      .OrderBy(group => group.Key.Sensor.Kind).ThenBy(group => group.Key.Sensor.Location)
                      .ThenBy(group => group.Key.IsNotice))
         {
+            var reasons = group.GroupBy(finding => finding.Reason)
+                .Select(reason => (Reason: reason.Key, Ranges: reason.SelectMany(finding => finding.Ranges).OrderBy(range => range.StartSeconds).ToArray()))
+                .OrderByDescending(reason => Total(reason.Ranges))
+                .ToArray();
             Rows.Add(new SensorFindingRowViewModel(group.Key.Sensor, SensorName(group.Key.Sensor),
-                string.Join("; ", group.Select(finding => $"{Reason(finding.Reason)} {Ranges(finding.Ranges, shownOffset)}")),
+                string.Join(", ", reasons.Select(reason => text.Summary(Reason(reason.Reason), reason.Ranges))),
+                string.Join(Environment.NewLine, reasons.Select(reason => $"{Reason(reason.Reason)}: {text.Ranges(reason.Ranges)}")),
                 [.. group.SelectMany(finding => finding.Ranges)], !group.Key.IsNotice, DecideAsync));
         }
         HasRows = Rows.Count > 0;
@@ -113,16 +119,52 @@ public sealed partial class SensorFindingsViewModel : ObservableObject, IDisposa
         SensorFaultReason.OutOfRange => "out of range",
         SensorFaultReason.Frozen => "frozen",
         SensorFaultReason.Zero => "reads zero",
-        SensorFaultReason.Glitch => "glitch",
-        SensorFaultReason.JumpAndStuck => "jumped and stuck",
+        SensorFaultReason.Glitch => "glitches",
+        SensorFaultReason.JumpAndStuck => "stuck after a jump",
         SensorFaultReason.FixLost => "no fix",
         SensorFaultReason.NoValue => "no readings",
         _ => throw new ArgumentOutOfRangeException(nameof(reason)),
     };
 
-    // Ranges are on the recording source timeline; the session starts at its window start.
-    private static string Ranges(IEnumerable<SourceTimeRange> ranges, double offset) =>
-        string.Join(", ", ranges.Select(range => $"{Time(range.StartSeconds - offset)}–{Time(range.EndSeconds - offset)}"));
+    private static double Total(IEnumerable<SourceTimeRange> ranges) => ranges.Sum(range => range.EndSeconds - range.StartSeconds);
 
-    private static string Time(double seconds) => TimeSpan.FromSeconds(Math.Max(0, seconds)).ToString(@"hh\:mm\:ss");
+    // Ranges are on the recording source timeline; the session starts at its window start.
+    private sealed record FindingText(double Offset, double? Duration)
+    {
+        private const double WholeRideShare = 0.95;
+        private const double SpanShownFromSeconds = 60;
+
+        // One clock format for the whole session, so times in different rows line up.
+        private bool WithHours => Duration >= 3600;
+
+        public string Summary(string reason, IReadOnlyList<SourceTimeRange> ranges)
+        {
+            var total = Total(ranges);
+            if (Duration is > 0 and var duration && total >= WholeRideShare * duration) return $"{reason} for the whole ride";
+
+            var start = ranges[0].StartSeconds;
+            var end = ranges.Max(range => range.EndSeconds);
+            var span = end - start < SpanShownFromSeconds ? Time(start) : $"{Time(start)}–{Time(end)}";
+            return $"{reason} for {Length(total)} ({span})";
+        }
+
+        public string Ranges(IEnumerable<SourceTimeRange> ranges) =>
+            string.Join(", ", ranges.Select(range => $"{Time(range.StartSeconds)}–{Time(range.EndSeconds)}"));
+
+        private string Time(double sourceSeconds)
+        {
+            var time = TimeSpan.FromSeconds(Math.Floor(Math.Max(0, sourceSeconds - Offset)));
+            return WithHours ? $"{(int)time.TotalHours}:{time.Minutes:00}:{time.Seconds:00}" : $"{(int)time.TotalMinutes}:{time.Seconds:00}";
+        }
+
+        private static string Length(double seconds)
+        {
+            var rounded = (int)Math.Round(seconds);
+            if (rounded < 1) return "under 1 s";
+            if (rounded < 60) return $"{rounded} s";
+            if (rounded < 3600) return rounded % 60 == 0 ? $"{rounded / 60} min" : $"{rounded / 60} min {rounded % 60} s";
+            var minutes = rounded / 60;
+            return minutes % 60 == 0 ? $"{minutes / 60} h" : $"{minutes / 60} h {minutes % 60} min";
+        }
+    }
 }

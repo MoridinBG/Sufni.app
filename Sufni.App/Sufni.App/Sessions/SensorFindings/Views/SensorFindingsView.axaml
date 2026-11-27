@@ -18,7 +18,7 @@
                         <Grid Margin="0,2" ColumnDefinitions="* auto auto">
                             <StackPanel Grid.Column="0" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding SensorName}" />
-                                <TextBlock FontSize="12" Text="{Binding Details}" TextWrapping="Wrap" />
+                                <TextBlock FontSize="12" Text="{Binding Details}" TextWrapping="Wrap" ToolTip.Tip="{Binding RangesText}" />
                             </StackPanel>
                             <Button
                                 Name="DropButton"
