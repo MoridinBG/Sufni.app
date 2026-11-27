@@ -28,17 +28,18 @@ public class TerrainPresentationShadeTests
     }
 
     [Fact]
-    public void GradeShadesHoldTheBaselineGradeInWholeDegrees()
+    public void GradeShadesHoldThePieceGradeInWholeDegrees()
     {
-        var windows = Enumerable.Range(0, 10).Select(i => TerrainProfiles.Window(i) with
+        static double Sine(double degrees) => Math.Sin(degrees * Math.PI / 180);
+        var windows = Enumerable.Range(0, 10).Select(i => TerrainProfiles.Window(i) with { Band = GradeBand.Flat }).ToArray();
+        var profile = TerrainProfiles.Profile(windows) with
         {
-            Grade = Math.Sin((i < 5 ? 3.4 : 25) * Math.PI / 180),
-            Band = i < 5 ? GradeBand.GentleDescent : GradeBand.VerySteepDescent
-        }).ToArray();
-        var shades = RecordedSessionPresentationDeriver.CreateTerrain(TerrainProfiles.Classified(windows)).GradeShades;
-        // The median baseline keeps 3.4° up to the last gentle window.
+            GradePieces = [TerrainProfiles.Piece(0, 5) with { Grade = Sine(3.4), Band = GradeBand.GentleDescent },
+                TerrainProfiles.Piece(5, 10) with { Grade = Sine(25), Band = GradeBand.VerySteepDescent }]
+        };
+        var shades = RecordedSessionPresentationDeriver.CreateTerrain(TerrainClassifier.Classify(profile, TerrainProfiles.Scale, TerrainLabelSet.None)).GradeShades;
         Assert.Equal(new TerrainShade<GradeBand>(0, 5, GradeBand.GentleDescent, 3), shades[0]);
-        // The shade clamps the median of 25° to 17.5° and rounds it to 18°.
+        // The shade clamps 25° to 17.5° and rounds it to 18°.
         Assert.Equal(new TerrainShade<GradeBand>(5, 10, GradeBand.VerySteepDescent, 18), shades[^1]);
     }
 

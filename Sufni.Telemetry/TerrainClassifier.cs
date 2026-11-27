@@ -12,11 +12,16 @@ public sealed record ClassifiedWindow(TerrainWindow Window, RoughnessClass? Roug
     public bool GradeLabelled { get; init; }
 }
 
-/// <summary>A profile with one classified window per profile window, in the same order.</summary>
-public sealed record ClassifiedProfile(TerrainProfile Profile, TerrainScaleKey Scale, TerrainLabelSet Labels, ImmutableArray<ClassifiedWindow> Windows);
+/// <summary>
+/// A profile with one classified window per profile window, in the same order. The pieces cut the windows at every
+/// edge of a roughness piece, a grade piece and a label, in time order; a window has the classes of the piece that
+/// holds its midpoint.
+/// </summary>
+public sealed record ClassifiedProfile(TerrainProfile Profile, TerrainScaleKey Scale, TerrainLabelSet Labels,
+    ImmutableArray<ClassifiedWindow> Windows, ImmutableArray<ClassifiedWindow> Pieces);
 
 /// <summary>Ride class totals. <see cref="RoughShare"/> is the Rough and Very rough share of
-/// <see cref="ClassifiedMetres"/>, the distance of the windows with a descent class.</summary>
+/// <see cref="ClassifiedMetres"/>, the distance of the pieces with a descent class.</summary>
 public sealed record TerrainClassSummary(double ClassifiedMetres, double RoughShare);
 
 /// <summary>The class that a labelled stretch reads on a scale, and the class steps it lies outside the class of its label.</summary>
@@ -35,35 +40,64 @@ public sealed record GradeReading(GradeBand Band, double Degrees, double Degrees
 }
 
 /// <summary>
-/// Classes a profile on the scale of its setup. A sensor without a ready median sets no class. A steepness label sets
-/// the band of the windows it holds before their class, so a window it makes a climb takes a climb class. A roughness
-/// label sets the class of the windows it holds, after the outlier merge.
+/// Classes a profile on the scale of its setup. A piece reads the IMU levels of its roughness piece and the grade and
+/// band of its grade piece; without one it keeps those of its window. A sensor without a ready median sets no class. A
+/// steepness label sets the band of the pieces it holds before their class, so a piece it makes a climb takes a climb
+/// class. A roughness label sets the class of the pieces it holds.
 /// </summary>
 public static class TerrainClassifier
 {
-    /// <summary>
-    /// Covers the step, the levels, usable readings, the clipping order, the climb rule, the merge rule and the label
-    /// rules.
-    /// </summary>
-    public const int Version = 3;
+    /// <summary>Covers the step, the levels, usable readings, the clipping order, the climb rule, the pieces and the label rules.</summary>
+    public const int Version = 4;
 
     public static ClassifiedProfile Classify(TerrainProfile profile, TerrainScaleKey scale, TerrainLabelSet labels)
     {
-        var windows = profile.Windows.Select(window => labels.GradeAt(window) is { } grade
-            ? Classify(window with { Band = grade.Band }, scale) with { GradeLabelled = true }
-            : Classify(window, scale)).ToList();
-        TerrainProfileCalculator.MergeOutliers(windows, static w => w.Roughness, static (w, level) => w with { Roughness = level },
-            static (a, b) => a.Window.EndSeconds == b.Window.StartSeconds);
-        return new(profile, scale, labels, [.. windows.Select(w =>
-            labels.ClassAt(w.Window) is { } label ? w with { Roughness = label, Labelled = true } : w)]);
+        IEnumerable<(double Start, double End)> ranges = [.. profile.RoughnessPieces.Select(p => (p.StartSeconds, p.EndSeconds)),
+            .. profile.GradePieces.Select(p => (p.StartSeconds, p.EndSeconds)),
+            .. labels.Ranges.Select(r => (r.StartSeconds, r.EndSeconds)), .. labels.Grades.Select(r => (r.StartSeconds, r.EndSeconds))];
+        var edges = ranges.SelectMany(r => new[] { r.Start, r.End }).Distinct().Order().ToArray();
+        var windows = ImmutableArray.CreateBuilder<ClassifiedWindow>(profile.Windows.Length);
+        var pieces = ImmutableArray.CreateBuilder<ClassifiedWindow>();
+        foreach (var window in profile.Windows)
+        {
+            if (!window.Moving)
+            {
+                var stopped = new ClassifiedWindow(window, null, null, null, false);
+                windows.Add(stopped);
+                pieces.Add(stopped);
+                continue;
+            }
+            var midpoint = TerrainProfileCalculator.Midpoint(window);
+            var start = window.StartSeconds;
+            var next = Array.BinarySearch(edges, start);
+            next = next < 0 ? ~next : next + 1;
+            while (start < window.EndSeconds)
+            {
+                var end = next < edges.Length && edges[next] < window.EndSeconds ? edges[next++] : window.EndSeconds;
+                var piece = ClassifyPiece(window with
+                {
+                    StartMetres = window.StartMetres + (start - window.StartSeconds) * window.MeanSpeed,
+                    StartSeconds = start,
+                    EndSeconds = end
+                }, profile, scale, labels);
+                pieces.Add(piece);
+                if (midpoint >= start && midpoint < end) windows.Add(piece with { Window = window with { Band = piece.Window.Band } });
+                start = end;
+            }
+        }
+        return new(profile, scale, labels, windows.MoveToImmutable(), pieces.ToImmutable());
     }
 
     public static TerrainClassSummary Summarize(ClassifiedProfile profile)
     {
-        var classified = profile.Windows.Where(w => w.Roughness is { } level && !level.IsClimb()).ToArray();
-        var rough = classified.Count(w => w.Roughness is RoughnessClass.Rough or RoughnessClass.VeryRough);
-        return new(TerrainProfileCalculator.WindowMetres * (double)classified.Length,
-            classified.Length == 0 ? 0 : (double)rough / classified.Length);
+        double classified = 0, rough = 0;
+        foreach (var piece in profile.Pieces)
+        {
+            if (piece.Roughness is not { } level || level.IsClimb()) continue;
+            classified += piece.Window.Metres;
+            if (level is RoughnessClass.Rough or RoughnessClass.VeryRough) rough += piece.Window.Metres;
+        }
+        return new(classified, classified == 0 ? 0 : rough / classified);
     }
 
     /// <summary>
@@ -95,6 +129,19 @@ public static class TerrainClassifier
         var lower = labelled == 0 ? double.NegativeInfinity : edges[labelled - 1];
         var upper = labelled == edges.Count ? double.PositiveInfinity : edges[labelled];
         return new((GradeBand)edges.Count(edge => degrees >= edge), degrees, Math.Max(Math.Max(lower - degrees, degrees - upper), 0));
+    }
+
+    private static ClassifiedWindow ClassifyPiece(TerrainWindow piece, TerrainProfile profile, TerrainScaleKey scale, TerrainLabelSet labels)
+    {
+        var midpoint = TerrainProfileCalculator.Midpoint(piece);
+        if (TerrainProfileCalculator.PieceAt(profile.RoughnessPieces, midpoint) is { } roughness)
+            piece = piece with { Frame = roughness.Frame, Fork = roughness.Fork, RearAxle = roughness.RearAxle };
+        if (TerrainProfileCalculator.PieceAt(profile.GradePieces, midpoint) is { } grade)
+            piece = piece with { Grade = grade.Grade, Band = grade.Band };
+        var classified = labels.GradeAt(piece) is { } steepness
+            ? Classify(piece with { Band = steepness.Band }, scale) with { GradeLabelled = true }
+            : Classify(piece, scale);
+        return labels.ClassAt(classified.Window) is { } label ? classified with { Roughness = label, Labelled = true } : classified;
     }
 
     private static ClassifiedWindow Classify(TerrainWindow window, TerrainScaleKey scale)

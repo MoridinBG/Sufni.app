@@ -321,6 +321,26 @@ public class TerrainProfileCalculatorTests
     }
 
     [Fact]
+    public void RoughnessPiecesEndWhereTheGroundChangesAndReadEachSideWhole()
+    {
+        var pieces = SyntheticRide.Build([new(300), new(300, LowBandG: 1.2, MiddleBandG: 1.8, HighBandG: 2.1)]).Profile().RoughnessPieces;
+        var before = pieces.Last(p => p.StartMetres < 299);
+        var after = pieces.First(p => p.StartMetres >= 299);
+        Assert.InRange(after.StartMetres, 299, 302);
+        Assert.InRange(after.Frame!.SpeedRemoved / before.Frame!.SpeedRemoved, 2.7, 3.3);
+    }
+
+    [Fact]
+    public void GradePiecesEndWhereTheGradeChangesAndGiveTheWindowsTheirBand()
+    {
+        var profile = SyntheticRide.Build([new(500, 7, 0), new(500, 7, 8)]).Profile();
+        var change = profile.GradePieces.First(p => p.Band == GradeBand.Descent);
+        Assert.InRange(change.StartMetres, 490, 510);
+        Assert.All(profile.Windows.Where(w => w.StartMetres + 10 <= change.StartMetres), w => Assert.Equal(GradeBand.Flat, w.Band));
+        Assert.All(profile.Windows.Where(w => w.StartMetres >= change.StartMetres), w => Assert.Equal(GradeBand.Descent, w.Band));
+    }
+
+    [Fact]
     public void ShortRideKeepsReadingsWithoutGrades()
     {
         var profile = SyntheticRide.Build([new(500)]).Profile();
@@ -366,12 +386,14 @@ public class TerrainProfileCalculatorTests
     }
 
     [Fact]
-    public void SerializedProfilePreservesWindowsSensorMatchingAndSilentSensors()
+    public void SerializedProfilePreservesWindowsPiecesSensorMatchingAndSilentSensors()
     {
         var profile = SyntheticRide.Build([new(210)], new RideRecording(Silence: (TerrainSensor.ShockTravel, new(0, 25)))).Profile();
         var restored = MessagePackSerializer.Deserialize<TerrainProfile>(MessagePackSerializer.Serialize(profile));
         Assert.Equal(profile.Windows.ToArray(), restored.Windows.ToArray());
         Assert.Equal(profile.FrameMatching.ToArray(), restored.FrameMatching.ToArray());
+        Assert.Equal(profile.RoughnessPieces.ToArray(), restored.RoughnessPieces.ToArray());
+        Assert.Equal(profile.GradePieces.ToArray(), restored.GradePieces.ToArray());
         Assert.Equal([TerrainSensor.ShockTravel], restored.SilentSensors);
     }
 

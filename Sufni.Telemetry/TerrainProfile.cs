@@ -5,7 +5,7 @@ namespace Sufni.Telemetry;
 
 /// <summary>Five levels on the speed-corrected descent scale, then two climb levels from frame vibration.</summary>
 public enum RoughnessClass { Smooth, Calm, Medium, Rough, VeryRough, SmoothClimb, TechnicalClimb }
-/// <summary>Band of the signed baseline grade, over 30 m to 50 m. The two climb bands come first.</summary>
+/// <summary>Band of the signed grade of a grade piece. The two climb bands come first.</summary>
 public enum GradeBand { SteepClimb, Climb, Flat, GentleDescent, Descent, SteepDescent, VerySteepDescent }
 /// <summary>The IMUs that read the ground for a response fit, unsprung first.</summary>
 public enum GroundSensors { ForkAndRearAxle, Fork, RearAxle, Frame }
@@ -41,6 +41,9 @@ public sealed record TerrainWindow(double StartMetres, double StartSeconds, doub
     [IgnoreMember]
     public bool Climbing => Band?.IsClimb() == true;
 
+    [IgnoreMember]
+    public double Metres => MeanSpeed * (EndSeconds - StartSeconds);
+
     public SuspensionWindowFigures? Front { get; init; }
     public SuspensionWindowFigures? Rear { get; init; }
 
@@ -69,6 +72,18 @@ public sealed record TerrainProfile(ImmutableArray<TerrainWindow> Windows,
     public double? RearAxleScale { get; init; }
     public double? FrontMaxTravel { get; init; }
     public double? RearMaxTravel { get; init; }
+
+    /// <summary>
+    /// Moving stretches of at least one window, cut where the IMU levels change, each with the IMU readings of its whole
+    /// length. They cover the moving windows of a ride with an IMU.
+    /// </summary>
+    public ImmutableArray<TerrainWindow> RoughnessPieces { get; init; } = [];
+
+    /// <summary>
+    /// Moving stretches of at least one window, cut where the grade changes, each with the grade of its whole length and
+    /// its band. They cover the moving windows of a ride with grade.
+    /// </summary>
+    public ImmutableArray<TerrainWindow> GradePieces { get; init; } = [];
 
     [IgnoreMember]
     public bool HasImu => FrameScale is not null || ForkScale is not null || RearAxleScale is not null;

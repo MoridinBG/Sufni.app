@@ -6,14 +6,21 @@ namespace Sufni.Telemetry;
 public static partial class TerrainProfileCalculator
 {
     public const int WindowMetres = 10;
+    private const int CellMetres = 2;
+    private const int CellsPerWindow = WindowMetres / CellMetres;
     private const double MinimumMovingSpeed = 1;
     private const double MinimumWindowSeconds = 0.4;
 
+    /// <summary>
+    /// Ten-metre windows from the start of each span, and the cells that split each window into equal distances. A
+    /// cell moves with its window.
+    /// </summary>
     private static List<TerrainWindow> CutWindows(TrackMotion motion, CancellationToken cancellationToken,
-        out List<MatchingInterval> positions)
+        out List<MatchingInterval> positions, out List<TerrainWindow> cells)
     {
         var windows = new List<TerrainWindow>();
         positions = [];
+        cells = [];
         foreach (var span in motion.Spans)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -27,7 +34,15 @@ public static partial class TerrainProfileCalculator
                 var endTime = TimeAtDistance(span, metres + WindowMetres);
                 var duration = endTime - startTime;
                 var speed = WindowMetres / duration;
-                windows.Add(new(metres, startTime, endTime, speed, speed > MinimumMovingSpeed && duration >= MinimumWindowSeconds));
+                var moving = speed > MinimumMovingSpeed && duration >= MinimumWindowSeconds;
+                windows.Add(new(metres, startTime, endTime, speed, moving));
+                var cellStart = startTime;
+                for (var c = 1; c <= CellsPerWindow; c++)
+                {
+                    var cellEnd = c == CellsPerWindow ? endTime : TimeAtDistance(span, metres + c * CellMetres);
+                    cells.Add(new(metres + (c - 1) * CellMetres, cellStart, cellEnd, CellMetres / (cellEnd - cellStart), moving));
+                    cellStart = cellEnd;
+                }
                 startTime = endTime;
             }
             for (var i = 0; i <= end - start; i++)

@@ -26,42 +26,45 @@ internal static partial class RecordedSessionPresentationDeriver
         var shares = new double[Enum.GetValues<GroundSensors>().Length];
         bool forkClipped = false, rearAxleClipped = false, frameMissing = false, forkMissing = false, rearAxleMissing = false,
             climbReading = false;
-        int classed = 0, labelled = 0;
-        for (var i = 0; i < profile.Windows.Length; i++)
+        double classed = 0, labelled = 0;
+        foreach (var window in profile.Windows)
         {
-            var classes = classified.Windows[i];
-            var window = classes.Window;
             if (!window.Moving) continue;
-            AddRun(roughness, window, classes.Roughness);
-            AddRun(grade, window, window.Band);
-            if (classes.Roughness is not null)
-            {
-                classed++;
-                if (classes.Labelled) labelled++;
-            }
-            var baseline = TerrainProfileCalculator.BaselineGrade(profile.Windows, i);
-            AddShade(roughnessShades, window, classes.Roughness, !classes.Labelled && classes.Roughness?.IsClimb() == false && classes.ClassValue is { } value
-                ? Math.Round(Math.Clamp(value, -1.5, 2.5) * 4, MidpointRounding.AwayFromZero) / 4 : null);
-            AddShade(gradeShades, window, window.Band, !classes.GradeLabelled && TerrainSignalSections.Degrees(baseline) is { } degrees
-                ? Math.Round(Math.Clamp(degrees, -8, 17.5), MidpointRounding.AwayFromZero) : null);
             frame.Add(window.StartSeconds, window.EndSeconds, window.Frame?.SpeedRemoved);
             fork.Add(window.StartSeconds, window.EndSeconds, window.Fork?.SpeedRemoved);
             rearAxle.Add(window.StartSeconds, window.EndSeconds, window.RearAxle?.SpeedRemoved);
-            grades.Add(window.StartSeconds, window.EndSeconds, TerrainSignalSections.Degrees(baseline));
             bob.Add(window.StartSeconds, window.EndSeconds, window.Pedalling?.BobMillimetres);
-            if (window.Climbing)
+        }
+        foreach (var classes in classified.Pieces)
+        {
+            var piece = classes.Window;
+            if (!piece.Moving) continue;
+            AddRun(roughness, piece, classes.Roughness);
+            AddRun(grade, piece, piece.Band);
+            if (classes.Roughness is not null)
             {
-                climbReading |= window.Frame is not null;
+                classed += piece.Metres;
+                if (classes.Labelled) labelled += piece.Metres;
+            }
+            var degrees = TerrainSignalSections.Degrees(piece.Grade);
+            AddShade(roughnessShades, piece, classes.Roughness, !classes.Labelled && classes.Roughness?.IsClimb() == false && classes.ClassValue is { } value
+                ? Math.Round(Math.Clamp(value, -1.5, 2.5) * 4, MidpointRounding.AwayFromZero) / 4 : null);
+            AddShade(gradeShades, piece, piece.Band, !classes.GradeLabelled && degrees is { } shade
+                ? Math.Round(Math.Clamp(shade, -8, 17.5), MidpointRounding.AwayFromZero) : null);
+            grades.Add(piece.StartSeconds, piece.EndSeconds, degrees);
+            if (piece.Climbing)
+            {
+                climbReading |= piece.Frame is not null;
                 continue;
             }
             if (classes.Source is not { } source) continue;
-            shares[(int)source]++;
-            forkClipped |= LeftOutClipped(window.Fork, scale.ForkImu, source is GroundSensors.Fork or GroundSensors.ForkAndRearAxle);
-            rearAxleClipped |= LeftOutClipped(window.RearAxle, scale.RearAxleImu,
+            shares[(int)source] += piece.Metres;
+            forkClipped |= LeftOutClipped(piece.Fork, scale.ForkImu, source is GroundSensors.Fork or GroundSensors.ForkAndRearAxle);
+            rearAxleClipped |= LeftOutClipped(piece.RearAxle, scale.RearAxleImu,
                 source is GroundSensors.RearAxle or GroundSensors.ForkAndRearAxle);
-            frameMissing |= window.Frame is null;
-            forkMissing |= window.Fork is null;
-            rearAxleMissing |= window.RearAxle is null;
+            frameMissing |= piece.Frame is null;
+            forkMissing |= piece.Fork is null;
+            rearAxleMissing |= piece.RearAxle is null;
         }
 
         var total = Math.Max(1d, shares.Sum());

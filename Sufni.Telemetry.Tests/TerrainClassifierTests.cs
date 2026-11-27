@@ -73,20 +73,6 @@ public class TerrainClassifierTests
         Assert.Equal(new ClassifiedWindow(window.Window, expected, null, null, false), window);
     }
 
-    [Theory]
-    [InlineData(0, RoughnessClass.Calm)]
-    [InlineData(0.5, RoughnessClass.Rough)]
-    public void SingleWindowBetweenTwoOfAnotherClassTakesTheirClassOnlyWithoutAGap(double gapSeconds, RoughnessClass expected)
-    {
-        var windows = Enumerable.Range(0, 3).Select(i => TerrainProfiles.Window(i + (i == 2 ? gapSeconds : 0)) with
-        {
-            Frame = Reading(i == 1 ? 1 : -1)
-        }).ToArray();
-        var middle = TerrainProfiles.Classified(windows).Windows[1];
-        Assert.Equal(expected, middle.Roughness);
-        Assert.Equal(1.5, middle.ClassValue!.Value, 9);
-    }
-
     [Fact]
     public void ScaleWithoutAReadyBinSetsNoClass()
     {
@@ -147,13 +133,33 @@ public class TerrainClassifierTests
     }
 
     [Fact]
-    public void LabelSetsTheClassAfterTheOutlierMerge()
+    public void PiecesCutTheWindowsAndEachWindowTakesTheClassesOfThePieceAtItsMidpoint()
     {
-        var profile = TerrainProfiles.Profile([.. Enumerable.Range(0, 3).Select(i => TerrainProfiles.Window(i, i == 1 ? RoughnessClass.Rough : RoughnessClass.Calm))]);
+        var profile = TerrainProfiles.Profile([.. Enumerable.Range(0, 3).Select(i => TerrainProfiles.Window(i, RoughnessClass.Calm))]) with
+        {
+            RoughnessPieces = [TerrainProfiles.Piece(0, 1.4) with { Frame = TerrainProfiles.Sensor(TerrainProfiles.Level(RoughnessClass.Rough)) },
+                TerrainProfiles.Piece(1.4, 3) with { Frame = TerrainProfiles.Sensor(TerrainProfiles.Level(RoughnessClass.Calm)) }],
+            GradePieces = [TerrainProfiles.Piece(0, 3) with { Grade = 0.1, Band = GradeBand.Descent }]
+        };
 
-        var classes = TerrainClassifier.Classify(profile, TerrainProfiles.Scale, Label(1, 2, RoughnessClass.Rough)).Windows.Select(w => w.Roughness);
+        var classified = TerrainClassifier.Classify(profile, TerrainProfiles.Scale, TerrainLabelSet.None);
 
-        Assert.Equal([RoughnessClass.Calm, RoughnessClass.Rough, RoughnessClass.Calm], classes);
+        Assert.Equal([(0, 1, RoughnessClass.Rough), (1, 1.4, RoughnessClass.Rough), (1.4, 2, RoughnessClass.Calm), (2, 3, RoughnessClass.Calm)],
+            classified.Pieces.Select(p => (p.Window.StartSeconds, p.Window.EndSeconds, p.Roughness!.Value)));
+        Assert.Equal([RoughnessClass.Rough, RoughnessClass.Calm, RoughnessClass.Calm], classified.Windows.Select(w => w.Roughness!.Value));
+        Assert.All(classified.Windows, w => Assert.Equal(GradeBand.Descent, w.Window.Band));
+    }
+
+    [Fact]
+    public void ALabelCutsThePiecesAtItsEdgesAndSetsTheClassOfThePiecesItHolds()
+    {
+        var profile = TerrainProfiles.Profile([.. Enumerable.Range(0, 2).Select(i => TerrainProfiles.Window(i, RoughnessClass.Calm))]);
+
+        var classified = TerrainClassifier.Classify(profile, TerrainProfiles.Scale, Label(0.4, 0.8, RoughnessClass.Rough));
+
+        Assert.Equal([(0, 0.4, RoughnessClass.Calm), (0.4, 0.8, RoughnessClass.Rough), (0.8, 1, RoughnessClass.Calm), (1, 2, RoughnessClass.Calm)],
+            classified.Pieces.Select(p => (p.Window.StartSeconds, p.Window.EndSeconds, p.Roughness!.Value)));
+        Assert.Equal([RoughnessClass.Rough, RoughnessClass.Calm], classified.Windows.Select(w => w.Roughness!.Value));
     }
 
     [Fact]

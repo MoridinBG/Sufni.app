@@ -125,6 +125,8 @@ public class TerrainRunComparisonTests
         var previous = earlier.Value;
         var alignment = Assert.IsType<TerrainRunAlignment.Aligned>(TerrainRunAlignment.Calculate(current, previous, SyntheticTrailRuns.Map(current, previous)));
         var model = SuspensionResponseModel.FitPair(current, previous, SyntheticResponseRides.Baseline);
-        return TerrainRunComparison.Compare(TerrainClassifier.Classify(current, SyntheticRide.Scale, TerrainLabelSet.None), TerrainClassifier.Classify(previous, SyntheticRide.Scale, TerrainLabelSet.None), alignment, model);
+        // The trail model sets each effect by the class of a 2 m section; window classes keep the rows on that model.
+        return TerrainRunComparison.Compare(TerrainClassifier.Classify(current with { RoughnessPieces = [] }, SyntheticRide.Scale, TerrainLabelSet.None),
+            TerrainClassifier.Classify(previous with { RoughnessPieces = [] }, SyntheticRide.Scale, TerrainLabelSet.None), alignment, model);
     }
 }

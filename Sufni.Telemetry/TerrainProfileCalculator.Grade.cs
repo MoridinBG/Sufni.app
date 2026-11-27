@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Sufni.Telemetry;
 
 public static partial class TerrainProfileCalculator
@@ -13,9 +15,14 @@ public static partial class TerrainProfileCalculator
 
     private static double Sine(double degrees) => Math.Sin(degrees * Math.PI / 180);
 
+    /// <summary>
+    /// Measures the grade of each moving window, cuts the grade pieces and gives each moving window the band of the
+    /// piece that holds its midpoint.
+    /// </summary>
     private static TerrainGradeState MeasureGrade(TrackMotion motion, RawImuData? imu, ImuMetaEntry? frame,
-        List<TerrainWindow> windows, CancellationToken token)
+        List<TerrainWindow> windows, List<TerrainWindow> cells, out ImmutableArray<TerrainWindow> pieces, CancellationToken token)
     {
+        pieces = [];
         if (imu is null || frame is null) return TerrainGradeState.NoFrameSensor;
         var first = motion.At(windows.First(w => w.Moving).StartSeconds);
         var last = motion.At(windows.Last(w => w.Moving).EndSeconds);
@@ -23,7 +30,7 @@ public static partial class TerrainProfileCalculator
             return TerrainGradeState.NoElevation;
         if (windows.Count(w => w.Moving) * WindowMetres < MinimumGradeMetres) return TerrainGradeState.TooShort;
 
-        double totalGrade = 0, totalWeight = 0;
+        var segments = new List<(double Origin, double[] Sine, double[] Speed)>();
         foreach (var segment in imu.SampleSegments)
         {
             if (segment.LocationId != frame.LocationId || segment.Count == 0) continue;
@@ -41,57 +48,76 @@ public static partial class TerrainProfileCalculator
             }
             x = SignalFilters.LowPass(x, imu.SampleRate, GradeCutoffHz);
             z = SignalFilters.LowPass(z, imu.SampleRate, GradeCutoffHz);
-            for (var j = 0; j < windows.Count; j++)
+            var sine = new double[segment.Count];
+            for (var i = 0; i < segment.Count; i++) sine[i] = Math.Sin(-Math.Atan2(x[i], z[i]));
+            segments.Add((origin, sine, speed));
+        }
+
+        (double Sum, double Weight) Measure(TerrainWindow window)
+        {
+            foreach (var (origin, sine, speed) in segments)
             {
-                var window = windows[j];
-                if (!window.Moving || !SampleRange(window.StartSeconds, window.EndSeconds, origin, imu.SampleRate,
-                        segment.Count, out var a, out var b)) continue;
+                if (!SampleRange(window.StartSeconds, window.EndSeconds, origin, imu.SampleRate, sine.Length, out var a, out var b))
+                    continue;
                 double sum = 0, weight = 0;
                 for (var i = a; i < b; i++)
                 {
-                    sum += speed[i] * Math.Sin(-Math.Atan2(x[i], z[i]));
+                    sum += speed[i] * sine[i];
                     weight += speed[i];
                 }
-                if (weight <= 0) continue;
-                totalGrade += sum;
-                totalWeight += weight;
-                windows[j] = window with { Grade = sum / weight };
+                return (sum, weight);
             }
+            return (0, 0);
+        }
+
+        double? Mean(TerrainWindow window) => Measure(window) is { Weight: > 0 } measured ? measured.Sum / measured.Weight : null;
+
+        double totalGrade = 0, totalWeight = 0;
+        for (var j = 0; j < windows.Count; j++)
+        {
+            if (!windows[j].Moving || Measure(windows[j]) is not { Weight: > 0 } measured) continue;
+            totalGrade += measured.Sum;
+            totalWeight += measured.Weight;
+            windows[j] = windows[j] with { Grade = measured.Sum / measured.Weight };
         }
         if (totalWeight == 0) return TerrainGradeState.NoFrameSensor;
         var zero = totalGrade / totalWeight - (startHeight - endHeight) / (last.Value.Distance - first.Value.Distance);
         for (var i = 0; i < windows.Count; i++)
             if (windows[i].Grade.HasValue) windows[i] = windows[i] with { Grade = windows[i].Grade - zero };
-        var bands = AssignBands([.. windows.Select((_, i) => BaselineGrade(windows, i))],
-            i => Adjacent(windows[i - 1], windows[i]));
+
+        var cut = CutPieces(cells, [[.. cells.Select(cell => cell.Moving && Mean(cell) is { } grade
+            ? Math.Asin(grade) * 180 / Math.PI : (double?)null)]], GradePiecePenalty);
+        var grades = cut.Select(piece => Mean(piece) - zero).ToArray();
+        var bands = AssignBands(grades, i => Adjacent(cut[i - 1], cut[i]));
+        pieces = [.. cut.Select((piece, i) => piece with { Grade = grades[i], Band = bands[i] })];
         for (var i = 0; i < windows.Count; i++)
-            if (bands[i] is { } band) windows[i] = windows[i] with { Band = band };
-        MergeOutliers(windows, static w => w.Band, static (w, band) => w with { Band = band }, Adjacent);
+            if (windows[i].Moving && PieceAt(pieces, Midpoint(windows[i])) is { } piece)
+                windows[i] = windows[i] with { Band = piece.Band };
         return TerrainGradeState.Available;
     }
 
     /// <summary>
-    /// Bands of consecutive baseline grades. Each edge keeps its side until the grade passes it by
+    /// Bands of consecutive grades. Each edge keeps its side until the grade passes it by
     /// <see cref="GradeHysteresisDegrees"/>, so a grade near an edge does not switch the band on noise. The first
-    /// window, a window after a gap and a window after one without baseline take the plain side of each edge.
+    /// window, a window after a gap and a window after one without a grade take the plain side of each edge.
     /// </summary>
-    internal static GradeBand?[] AssignBands(IReadOnlyList<double?> baselines, Func<int, bool> joinsPrevious)
+    internal static GradeBand?[] AssignBands(IReadOnlyList<double?> grades, Func<int, bool> joinsPrevious)
     {
-        var bands = new GradeBand?[baselines.Count];
+        var bands = new GradeBand?[grades.Count];
         var above = new bool[BandEdges.Length];
         var started = false;
-        for (var i = 0; i < baselines.Count; i++)
+        for (var i = 0; i < grades.Count; i++)
         {
-            if (baselines[i] is not { } baseline)
+            if (grades[i] is not { } grade)
             {
                 started = false;
                 continue;
             }
             if (!started || !joinsPrevious(i))
-                for (var e = 0; e < BandEdges.Length; e++) above[e] = baseline >= BandEdges[e];
+                for (var e = 0; e < BandEdges.Length; e++) above[e] = grade >= BandEdges[e];
             else
                 for (var e = 0; e < BandEdges.Length; e++)
-                    above[e] = above[e] ? baseline >= LowerEdges[e] : baseline >= UpperEdges[e];
+                    above[e] = above[e] ? grade >= LowerEdges[e] : grade >= UpperEdges[e];
             started = true;
             bands[i] = (GradeBand)above.Count(a => a);
         }
@@ -106,9 +132,6 @@ public static partial class TerrainProfileCalculator
     /// Median downhill grade over up to five adjacent windows, requiring three measured grades. A median keeps a
     /// change of grade at its place, where a mean would move it up to two windows early.
     /// </summary>
-    public static double? BaselineGrade(IReadOnlyList<TerrainWindow> windows, int i) =>
-        BaselineGrade(windows, i, static w => w.Grade, static (a, b) => a.EndSeconds == b.StartSeconds);
-
     internal static double? BaselineGrade<T>(IReadOnlyList<T> windows, int i, Func<T, double?> readGrade, Func<T, T, bool> adjacent)
     {
         if (readGrade(windows[i]) is not { } grade) return null;

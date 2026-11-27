@@ -18,6 +18,9 @@ public static class TerrainProfiles
     /// <summary>The ten-metre window that starts at <paramref name="start"/> seconds and lasts one second.</summary>
     public static TerrainWindow Window(double start, bool moving = true) => new(10 * start, start, start + 1, 10, moving);
 
+    /// <summary>A moving piece from <paramref name="start"/> to <paramref name="end"/> seconds at the speed of <see cref="Window(double, bool)"/>.</summary>
+    public static TerrainWindow Piece(double start, double end) => new(10 * start, start, end, 10, true);
+
     /// <summary>
     /// A flat window whose readings take <paramref name="roughness"/> on <see cref="Scale"/> from
     /// <paramref name="source"/>. A climb class reads the frame, so the caller sets a climb band.

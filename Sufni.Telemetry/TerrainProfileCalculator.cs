@@ -4,7 +4,7 @@ namespace Sufni.Telemetry;
 
 public static partial class TerrainProfileCalculator
 {
-    public const int AlgorithmVersion = 12;
+    public const int AlgorithmVersion = 13;
     public const double ClippedShareLimit = 0.02;
     private const double SilentShareLimit = 0.5;
     private const int MinimumImuRate = 200;
@@ -19,7 +19,7 @@ public static partial class TerrainProfileCalculator
     {
         var motion = TrackMotion.FromFixes(fixes, telemetry.Metadata.Duration);
         if (motion.Spans.IsEmpty) return new TerrainProfileResult.Unavailable(TerrainUnavailableReason.NoTrack);
-        var windows = CutWindows(motion, cancellationToken, out var positions);
+        var windows = CutWindows(motion, cancellationToken, out var positions, out var cells);
         if (!windows.Any(w => w.Moving)) return new TerrainProfileResult.Unavailable(TerrainUnavailableReason.NoMovement);
 
         var imu = telemetry.ImuData;
@@ -46,11 +46,14 @@ public static partial class TerrainProfileCalculator
         if (silent.Contains(TerrainSensor.RearAxleImu)) rearAxle = null;
         if (!silent.Contains(TerrainSensor.ShockTravel))
             MeasurePedalling(telemetry.Rear, telemetry.Metadata.SampleRate, imu, frame, windows, cancellationToken);
-        var grade = MeasureGrade(motion, imu, frame, windows, cancellationToken);
+        var grade = MeasureGrade(motion, imu, frame, windows, cells, out var gradePieces, cancellationToken);
+        var roughnessPieces = MeasureRoughnessPieces(imu, [frame, fork, rearAxle], cells, cancellationToken);
         return new TerrainProfileResult.Computed(new([.. windows], frameSeries, forkSeries, grade,
             frame?.AccelLsbPerG, fork?.AccelLsbPerG)
         {
             SilentSensors = silent,
+            RoughnessPieces = roughnessPieces,
+            GradePieces = gradePieces,
             RearAxleScale = rearAxle?.AccelLsbPerG,
             FrontMaxTravel = telemetry.Front is { Present: true } ? telemetry.Front.MaxTravel : null,
             RearMaxTravel = telemetry.Rear is { Present: true } ? telemetry.Rear.MaxTravel : null
@@ -109,6 +112,21 @@ public static partial class TerrainProfileCalculator
     }
 
     private static bool Adjacent(TerrainWindow a, TerrainWindow b) => a.EndSeconds == b.StartSeconds;
+
+    internal static double Midpoint(TerrainWindow window) => (window.StartSeconds + window.EndSeconds) / 2;
+
+    /// <summary>The piece of time-ordered, non-overlapping pieces that holds <paramref name="seconds"/>.</summary>
+    internal static TerrainWindow? PieceAt(IReadOnlyList<TerrainWindow> pieces, double seconds)
+    {
+        int low = 0, high = pieces.Count;
+        while (low < high)
+        {
+            var mid = low + (high - low) / 2;
+            if (pieces[mid].EndSeconds <= seconds) low = mid + 1;
+            else high = mid;
+        }
+        return low < pieces.Count && pieces[low].StartSeconds <= seconds ? pieces[low] : null;
+    }
 
     // The band-pass filter carries a residue from live samples into a silent stretch; below one count is no signal.
     private static double OneCount(ImuMetaEntry? meta) => meta is null ? 0 : 1d / meta.AccelLsbPerG;

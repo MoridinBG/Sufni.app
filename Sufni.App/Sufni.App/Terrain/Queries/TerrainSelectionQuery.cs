@@ -7,7 +7,7 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Terrain.Queries;
 
-/// <summary>The scoped windows inside the analysis range, with the moving distance of each class there.</summary>
+/// <summary>The scoped pieces inside the analysis range, with the moving distance of each class there.</summary>
 public sealed record TerrainSelectionResult(TelemetryTimeSelection Selection, double SelectedMetres, double StoppedSeconds,
     ImmutableArray<double> RoughnessMetres, ImmutableArray<double> GradeMetres, double MovingMetres)
 {
@@ -31,7 +31,7 @@ public static class TerrainSelectionQuery
         var grade = new double[Enum.GetValues<GradeBand>().Length];
         var intervals = new List<TelemetryTimeRange>();
         double start = 0, end = 0, distance = 0, selected = 0, stopped = 0, moving = 0;
-        foreach (var classified in profile.Windows)
+        foreach (var classified in profile.Pieces)
         {
             var window = classified.Window;
             var from = Math.Max(window.StartSeconds, range?.StartSeconds ?? window.StartSeconds);
