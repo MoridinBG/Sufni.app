@@ -9,7 +9,7 @@ The scripts read a copy of the app database. They never write to it. The first a
 1. Close the app.
 2. Copy the app database `sst.db` from the app data folder of your platform to this folder. Name the copy `snap.db`.
 
-For steps 12 to 14 of the gyroscope trial, first align the GPS of all rides with the align GPS command of the session list.
+For steps 12 to 15 of the gyroscope trial, first align the GPS of all rides with the align GPS command of the session list. If the copy keeps the write-ahead log mode, `sqlite3 snap.db "pragma journal_mode=delete"` lets the scripts open it read-only.
 
 The database copy and all output files hold ride data. `.gitignore` keeps them out of the repository.
 
@@ -45,7 +45,7 @@ The gyroscope and elevation trial needs the raw samples:
 | Order | Command | Result |
 |---|---|---|
 | 1 | `venv/bin/python gyro/export.py` | Writes the telemetry and the GPS fixes of each ride to `gyro/raw`. |
-| 2 | `dotnet run --project gyro/cs/Extract -- gyro/raw gyro/ext` | Writes the samples, the attitude and the windows of each ride to `gyro/ext`. |
+| 2 | `dotnet run --project gyro/cs/Extract -- gyro/raw gyro/ext` | Writes the samples, the attitude, the windows and the grade pieces of each ride to `gyro/ext`. The fixes carry the receiver speed of the telemetry. |
 | 3 | `venv/bin/python gyro/step1_v0.py` | Checks that the Python grade equals the stored grade. |
 | 4 | `venv/bin/python gyro/step2_axis.py` | Finds the pitch axis and the sign of the gyroscope. |
 | 5 | `venv/bin/python gyro/step2_variants.py` | Calculates the grade variants to `gyro/variants.pkl`. |
@@ -58,8 +58,13 @@ The gyroscope and elevation trial needs the raw samples:
 | 12 | `venv/bin/python gyro/step8_variants.py` | Calculates the grade at 0.08, 0.15 and 0.3 Hz, with suspension pitch, without the braking correction and with the gyroscope, to `gyro/variants8.pkl`. |
 | 13 | `venv/bin/python gyro/step8_eval.py` | Compares the variants of step 12: noise between runs, detail, band changes, same band, elevation fit. |
 | 14 | `venv/bin/python gyro/step9_baseline.py` | Compares baseline grades (mean, median, weighted mean) with the grade that other runs measured at the same place. |
+| 15 | `venv/bin/python gyro/step10_pieces.py gyro/ext/<run>` | Reads the grade pieces that step 2 wrote to `gyro/ext/<run>`: band changes per km, the noise and the same-band share of matched windows, and the piece edge and grade at each row of `marks.csv`. |
 
-`gyro/step8_eval.py` and `gyro/step9_baseline.py` read `MATCH_M`. `gyro/step9_baseline.py` also reads `MINREF`, the least number of other runs at a place (default 2), and `VAR`, the grade variant of step 12 (default `A0.15`). Both print the windows of one ride by its ride index, set in the script.
+To compare two algorithm versions, run step 2 once for each version, each into its own folder under `gyro/ext`, and run step 15 on each folder. An older version needs its own checkout of the repository, for example a `git worktree`.
+
+`marks.csv` lists moments seen on video: the ride by its start in UTC (`YYYY-MM-DD HH:MM`), the second on the session timeline and a note.
+
+`gyro/step8_eval.py`, `gyro/step9_baseline.py` and `gyro/step10_pieces.py` read `MATCH_M`. `gyro/step9_baseline.py` also reads `MINREF`, the least number of other runs at a place (default 2), and `VAR`, the grade variant of step 12 (default `A0.15`). Both print the windows of one ride by its ride index, set in the script.
 
 `gyro/gcommon.py`, `gyro/ghelp.py`, `gyro/gmatch.py` and `common.py` are shared helpers.
 

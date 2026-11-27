@@ -8,9 +8,11 @@ The measurement summary holds the moving and climb distances and four level dist
 
 ## Grade
 
-Grade comes from the X and Z acceleration of the frame IMU in g. The frame IMU needs a sample rate of at least 200 Hz, an active sensor and a scale above 0. The calculator subtracts the longitudinal GPS acceleration, divided by 9.80665, from X. `TrackMotion` gives this acceleration: the central difference of the speed on a 10 Hz grid, low-passed at 0.4 Hz. X and Z pass a zero-phase second-order Butterworth low-pass at 0.15 Hz (`GradeCutoffHz`), for each IMU segment. See [Grade cutoff](#grade-cutoff).
+Grade is the slope of the line through the two wheel axles. It comes from the recorded attitude of the frame IMU. The frame IMU needs a sample rate of at least 200 Hz, an active sensor, an accelerometer scale above 0 and a gyroscope scale above 0.
 
-The grade of a sample is `sin(−atan2(x, z))`, positive downhill. The window grade is the mean over the window, weighted by the GPS speed. Only moving windows have one. The ride offset is the weighted mean grade of the ride, minus the elevation drop between the first and the last moving window divided by the distance between them. The calculator subtracts the offset from each window grade. Grade needs 800 m of moving distance (`MinimumGradeMetres`).
+For each frame segment, `FrameAttitudeEstimator.Recorded` gives the up direction of each sample. All three gyroscope axes turn it. The measured acceleration in g pulls it towards itself with a time constant of 10 s and is not normalised, so vibration averages out. Before that, the calculator removes the forward acceleration and the turn terms: (`Acceleration`, `ForwardSpeed` × rate about Z, −`ForwardSpeed` × rate about Y) divided by 9.80665. The result of a sample is the normalised sum of a forward and a backward pass. `TrackMotion` gives the forward speed: the receiver speed of the DAQ GPS, moved 0.2 s earlier and low-passed at 0.4 Hz on the 10 Hz grid, when each fix of the span has one. Other spans take the speed from position differences. `Acceleration` is the central difference of the forward speed.
+
+The frame pitch is `asin(−up.X)`, positive nose down. The suspension pitch is `atan((front travel − rear travel) / 1250 mm)` (`NominalWheelbaseMillimetres`), with the travel of each side interpolated at the sample time. It is 0 when a side has no travel at that time, is absent or was dropped as silent. The grade of a sample is `sin(frame pitch − suspension pitch)`, positive downhill. The window grade is the mean over the window, weighted by the speed from position differences. A sample inside an airtime has no weight. Only moving windows have a grade. See [Attitude grade](#attitude-grade). The ride offset is the weighted mean grade of the ride, minus the elevation drop between the first and the last moving window divided by the distance between them. The calculator subtracts the offset from each window grade. Grade needs 800 m of moving distance (`MinimumGradeMetres`).
 
 The grade pieces give the bands (see [Pieces](#pieces)). The band edges are −6°, −2°, 2°, 5°, 10° and 15°, compared as sines. Along adjacent pieces, each edge keeps its side until the piece grade passes it by 1° (`GradeHysteresisDegrees`). The first piece and a piece after a stop or a gap take the plain side of each edge. A moving window takes the band of the grade piece that holds its midpoint.
 
@@ -18,10 +20,10 @@ The grade pieces give the bands (see [Pieces](#pieces)). The band edges are −6
 
 ## Pieces
 
-A piece is a moving stretch of at least one window, cut where the ground changes, so a class or a band does not mix two kinds of ground. The calculator splits each window into five 2 m cells; a cell moves with its window. Each run of time-adjacent moving cells is cut at the partition with the least squared error from the piece means plus a penalty per piece (the PELT algorithm). A piece holds at least five cells.
+A piece is a moving stretch cut where the ground changes, so a class or a band does not mix two kinds of ground. The calculator splits each window into five 2 m cells; a cell moves with its window. Each run of time-adjacent moving cells is cut at the partition with the least squared error from the piece means plus a penalty per piece (the PELT algorithm). A run shorter than two minimum pieces is one piece.
 
-- **Roughness pieces** cut on the speed-removed 1–80 Hz level of every IMU of the ride together, in class steps, with a penalty of 4 per IMU. Each piece has the IMU readings of its whole length, measured as a window is.
-- **Grade pieces** cut on the cell grade in degrees, with a penalty of 100. Each piece has the speed-weighted grade of its whole length, less the ride offset, and its band.
+- **Roughness pieces** cut on the speed-removed 1–80 Hz level of every IMU of the ride together, in class steps, with a penalty of 4 per IMU. A piece holds at least five cells, one window. Each piece has the IMU readings of its whole length, measured as a window is.
+- **Grade pieces** cut on the cell grade in degrees, with a penalty of 400. A piece holds at least one cell. Each piece has the speed-weighted grade of its whole length, less the ride offset, and its band. A stretch inside a longer one becomes its own piece when it differs by more than about 28° over one cell, 20° over two cells or 16° over three cells.
 
 A cell without a value takes the median of its run; a signal without values in a run does not cut it. A ride without an IMU has no roughness pieces, and a ride without grade has no grade pieces. See [Measured basis](#pieces-1).
 
@@ -73,7 +75,7 @@ Grade is measured in degrees, so a steepness label sets no scale. In its ride th
 
 The editor loads on each change of the group of profile status, setup scale key and label set; a domain snapshot without a scale gives `TerrainScaleKey.None`. It reads the exact profile, classifies it on that scale with that label set and derives timed runs for both axes, segmented sensor, grade and pedal bob signals, and the distance share of each class source, on its background runner. The reducer accepts a loaded result only for the current group. A change of status immediately removes the previous plot and map data. A change of only the scale key or the label set keeps the loaded terrain and the chosen scope until the new result replaces it; a result with the same profile key keeps the baseline. Without classes, a preset scope admits every window of its preset.
 
-The strip title names the class source with the largest distance share of the classified descent pieces, or none without classes. When that source is the frame, `TerrainSourceText.IsSprung` is true: the title takes the warning colour and the tooltip says that the frame is sprung, so it reads what the suspension passes on and not the ground itself. The tooltip lists the source shares, a clipped fork or rear axle reading left out of a class value, absent frame, fork or rear axle data in classified descent pieces, what the classes of each sensor with readings in the ride are compared with (the labelled terrain of an anchored sensor, the typical descent or climb of the setup's rides, or the rides and metres it still needs; below 100 m of labels, that labels change the comparison at 100 m and how much is labelled), the share of the classes that labels set, and the ignored sensors. The class strip draws a Roughness labels lane above Roughness and a Steepness labels lane above Grade when the ride has labels of that kind, and the readout names the label classes. A grade-lane piece with a steepness label has no measured shade. The lanes, their shades and the grade trace draw the classified pieces, so a class or band changes where the ground does. The roughness plot draws the speed-removed frame, fork and rear axle levels of the windows; the guides of a curve are the class edges of its ready median bin.
+The strip title names the class source with the largest distance share of the classified descent pieces, or none without classes. When that source is the frame, `TerrainSourceText.IsSprung` is true: the title takes the warning colour and the tooltip says that the frame is sprung, so it reads what the suspension passes on and not the ground itself. The tooltip lists the source shares, a clipped fork or rear axle reading left out of a class value, absent frame, fork or rear axle data in classified descent pieces, what the classes of each sensor with readings in the ride are compared with (the labelled terrain of an anchored sensor, the typical descent or climb of the setup's rides, or the rides and metres it still needs; below 100 m of labels, that labels change the comparison at 100 m and how much is labelled), the share of the classes that labels set, and the ignored sensors. The class strip draws a Roughness labels lane above Roughness and a Steepness labels lane above Grade when the ride has labels of that kind, and the readout names the label classes. A grade-lane piece with a steepness label has no measured shade. The lanes, their shades and the grade trace draw the classified pieces, so a class or band changes where the ground does. The grade trace is level over each piece, with a vertical join where two pieces meet. The roughness plot draws the speed-removed frame, fork and rear axle levels of the windows; the guides of a curve are the class edges of its ready median bin.
 
 ## Analysis selection
 
@@ -172,7 +174,7 @@ The conclusions below are a reading of these values. They are not measured cause
 
 | Method | Measured | Method of today |
 |---|---|---|
-| Grade from an attitude with the gyroscope | 3.6° of noise over 10 m, 2.0° over 50 m. The error grows in turns. | 1.5° and 1.3° |
+| Grade from an attitude with the gyroscope, acceleration normalised (algorithm version 9) | 3.6° of noise over 10 m, 2.0° over 50 m. The error grows in turns. | 1.5° and 1.3° |
 | Slope of the GPS elevation | 2.5° of noise over 50 m, 1.0° over 310 m | 1.3° and 0.6° |
 | IMU grade fused with the GPS elevation over 100 m to 500 m | 1.4° to 2.0° of noise over 50 m | 1.3° |
 | Ride offset from a fit of all GPS points | 1.59° between two runs | 0.89° |
@@ -181,6 +183,8 @@ The conclusions below are a reading of these values. They are not measured cause
 | Fork class from the mean of all runs of a trail | 23.3 class changes per km | 27.0 for one run of that trail |
 
 ### Grade cutoff
+
+This part and the gyroscope row below describe the low-pass grade of algorithm versions up to 13. Version 14 takes the grade from the recorded attitude (see [Attitude grade](#attitude-grade)).
 
 A second analysis ran on 2026-11-27 on the 18 rides with grade, after GPS alignment. Grades and bands were computed from the raw samples for each cutoff, with the 1° hysteresis on the 50 m mean baseline of that time and before the outlier merge. Same-place matching used 3 m and gave 677 window pairs over 7 ride pairs.
 
@@ -195,7 +199,7 @@ A second analysis ran on 2026-11-27 on the 18 rides with grade, after GPS alignm
 
 The 0.08 Hz filter spreads a change of grade over about ±3 s, so the grade rose before the descent began. At 0.15 Hz most of the extra detail repeats between runs, and the same-band share stays the same. At 0.3 Hz the noise grows faster than the detail, and braking errors show as short false climbs.
 
-| Method | Noise over 10 m, 6 m match | Method of today (0.15 Hz) |
+| Method | Noise over 10 m, 6 m match | Version 13 (0.15 Hz) |
 |---|---|---|
 | Suspension pitch removed: `atan((front − rear) / wheelbase)`, wheelbase 1249 mm from the linkage | 1.93° | 1.91° |
 | No GPS braking correction | 2.12° | 1.91° |
@@ -216,7 +220,7 @@ The mean moved a change of grade up to two windows early: on a flat stretch befo
 
 ### Pieces
 
-A fourth analysis ran on 2026-11-27 on 2 m cells of the same rides: 28 with a frame IMU, 22 with a fork IMU and 18 with grade. Each method gives every moving cell the value of its window or piece. The reference is the value of the matched 2 m cell of another run (3 m, heading within 45°), so its own noise adds the same amount to every method. A change is a cell where the reference 10 m before and 10 m after differ by more than one class or 4°.
+A fourth analysis ran on 2026-11-27 on 2 m cells of the same rides, on algorithm version 13: 28 with a frame IMU, 22 with a fork IMU and 18 with grade. Each method gives every moving cell the value of its window or piece. The reference is the value of the matched 2 m cell of another run (3 m, heading within 45°), so its own noise adds the same amount to every method. A change is a cell where the reference 10 m before and 10 m after differ by more than one class or 4°.
 
 | Method | Error against the other run: all cells, at a change | Same class between runs | Class changes per km |
 |---|---|---|---|
@@ -228,5 +232,61 @@ A fourth analysis ran on 2026-11-27 on 2 m cells of the same rides: 28 with a fr
 | Grade, grade pieces | 2.25°, 3.50° | 75.0% | 7.9 |
 
 A rolling 10 m window every 2 m was about as close as the roughness pieces, but changed class 82 to 84 times per km. A penalty of 2 per IMU gave a slightly smaller error and 32 class changes per km; a penalty of 8 per IMU, 12 changes and a larger error than the windows. The noise of one 2 m cell is 0.4 to 1.1 class between rides, so one fixed penalty serves every ride. Grade pieces are farther from the reference than the windows with the median baseline, because the 0.15 Hz filter already spreads a change over about 10 m and a piece holds one grade over its length. On the MSM ride of 2026-06-11, the flat stretch before the descending turn reads 0.2° and the descent begins at 108.2 s.
+
+### Attitude grade
+
+A fifth analysis ran on 2026-11-27 on four rides of the data set with a 240 Hz frame IMU and a 3 Hz receiver. Ride A is the MSM ride of 2026-06-11. Ride B is the same trail on 2026-06-14. It set the constants of algorithm version 14.
+
+Correction time: the disagreement between the forward and the backward pass, in degrees RMS on moving samples.
+
+| Correction time | A | B | C | D | Mean |
+|---|---|---|---|---|---|
+| 5 s | 2.85 | 2.99 | 2.74 | 4.31 | 3.22 |
+| 7 s | 2.70 | 2.95 | 2.48 | 3.58 | 2.93 |
+| 10 s | 2.68 | 3.24 | 2.30 | 3.19 | 2.85 |
+| 15 s | 2.86 | 3.96 | 2.25 | 3.30 | 3.09 |
+| 20 s | 3.21 | 4.70 | 2.35 | 3.76 | 3.51 |
+
+Correction form and speed source at 10 s. The unexplained figure is the forward acceleration that the correction leaves between 0.05 Hz and 0.5 Hz, in degrees RMS.
+
+| Variant | Pass disagreement A, B, C, D | Unexplained A, B, C, D |
+|---|---|---|
+| Position speed, acceleration not normalised | 2.68, 3.24, 2.30, 3.19 | 4.62, 5.19, 4.03, 12.55 |
+| Position speed, acceleration normalised | 4.07, 5.98, 2.61, 4.29 | 4.68, 5.24, 4.23, 12.63 |
+| Receiver speed, 0.4 Hz, 0.2 s earlier, not normalised (today) | 2.70, 3.26, 2.33, 2.42 | 4.51, 5.17, 3.91, 4.15 |
+| No kinematic terms | 3.90, 4.59, 4.01, 3.29 | 5.29, 6.38, 5.17, 5.55 |
+
+The unexplained part is least with the receiver speed moved 0.1 s to 0.3 s earlier, on all four rides.
+
+Grade pieces with a minimum of one cell:
+
+| Method | Pieces per km (A to D) | Band changes per km (A to D) |
+|---|---|---|
+| Version 13 | 16 to 21 | 11.9 to 15.5 |
+| Penalty 100 | 45 to 56 | 39 to 49 |
+| Penalty 200 | 23 to 31 | 20 to 28 |
+| Penalty 400 (today) | 11 to 19 | 8.6 to 16.8 |
+
+Rides A and B, each 2 m cell with the grade of its piece, cells matched within 3 m:
+
+| Method | Noise of one run | Same band | Error against the cell grade of the other run |
+|---|---|---|---|
+| Version 13 | 1.55° | 85% | 6.20° |
+| Penalty 200 | 3.12° | 61% | 6.08° |
+| Penalty 400 (today) | 2.18° | 70% | 5.68° |
+| Penalty 600 | 2.08° | 72% | 5.76° |
+
+The largest measured suspension pitch is 4.5°. Mountain bike wheelbases lie within 8% of 1250 mm, so the constant errs by 0.35° or less. On ride A suspension pitch changed the cell noise from 4.93° to 4.79°.
+
+The export tool and `gyro/step10_pieces.py` then compared versions 13 and 14 on all 18 rides with grade (57.4 km), after GPS alignment. Windows match within 6 m, and each window takes the grade of the piece at its midpoint.
+
+| Subject | Version 13 | Version 14 |
+|---|---|---|
+| Band changes per km | 7.89 | 6.58 |
+| Noise of one run, 1668 matched windows | 1.81° | 2.96° |
+| Matched windows in the same band | 72% | 57% |
+| MSM 2026-06-11, roll-in at 109.3 s on video: nearest piece edge, grade of the piece after | 108.49 s, 8.4° for 15.6 s | 109.13 s, 24.5° for 1.2 s (6 m) |
+
+Version 14 puts a change of grade at its place and reads a short steep stretch at its own grade. It repeats less well between runs: a position error of 3 m to 6 m between two runs adds to every sharp change, and the level of a long stretch is uncertain by about 3°, the disagreement of the two passes. A ride whose fixes have no receiver speed uses the position speed; on ride D that left three times more unexplained acceleration. A ride with a GPS offset that is not aligned keeps the braking error of the low-pass grade.
 
 The scripts of the analysis are in `analysis/terrain/`. Its `README.md` shows how to run them.
