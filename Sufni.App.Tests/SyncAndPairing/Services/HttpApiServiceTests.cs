@@ -174,7 +174,7 @@ public class HttpApiServiceTests : IAsyncDisposable
 
         await service.GetIncompleteSessionIdsAsync();
 
-        Assert.Equal(["8", "8"], seenProtocolHeaders);
+        Assert.Equal(["9", "9"], seenProtocolHeaders);
     }
 
     [Fact]

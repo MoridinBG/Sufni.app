@@ -1,6 +1,8 @@
 using Sufni.App.Terrain.ViewModels;
 using Sufni.App.Terrain.Coordinators;
 using Sufni.App.Terrain.Services;
+using Sufni.App.Terrain.Models;
+using Sufni.App.Terrain.Queries;
 using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -334,7 +336,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
                 state.Intent.AnalysisRange,
                 state.Domain?.Source?.SourceHash,
                 state.Session?.WindowStartSeconds ?? 0,
-                state.Domain?.TerrainScale)),
+                state.Domain?.TerrainScale,
+                state.Domain is { } domain &&
+                SessionTerrainStatusQuery.EvaluateLabels(domain.Session, domain.Terrain, domain.TerrainLabels) is TerrainLabelState.Current labelled
+                    ? labelled.Summary
+                    : null)),
             range =>
             {
                 if (editorLifetime.IsCancellationRequested) return;

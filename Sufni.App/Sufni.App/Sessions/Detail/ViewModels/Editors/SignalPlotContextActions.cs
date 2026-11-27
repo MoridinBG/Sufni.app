@@ -8,6 +8,7 @@ using Sufni.App.Segments.ViewModels;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Shared.Views.Plots;
+using Sufni.App.Terrain.Models;
 
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
@@ -22,7 +23,8 @@ internal sealed class SignalPlotContextActions : IDisposable
     public IRelayCommand<TelemetryPlotContextMenuContext?> SetAnalysisRangeEndCommand { get; }
     public IRelayCommand<TelemetryPlotContextMenuContext?> ClearAnalysisRangeFromContextCommand { get; }
     public IAsyncRelayCommand<TelemetryPlotContextMenuContext?> SaveSelectionAsSegmentCommand { get; }
-    public IAsyncRelayCommand<TelemetryPlotContextMenuContext?> LabelSelectionCommand { get; }
+    public IAsyncRelayCommand<TelemetryPlotContextMenuContext?> LabelRoughnessCommand { get; }
+    public IAsyncRelayCommand<TelemetryPlotContextMenuContext?> LabelSteepnessCommand { get; }
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; }
 
     public SignalPlotContextActions(IObservable<RecordedSessionEditorState> state, RecordedSessionEditorActions editorActions,
@@ -45,8 +47,11 @@ internal sealed class SignalPlotContextActions : IDisposable
         SaveSelectionAsSegmentCommand = new AsyncRelayCommand<TelemetryPlotContextMenuContext?>(
             SaveSelectionAsSegmentFromPlotContextAsync,
             CanSaveSelectionAsSegmentFromPlotContext);
-        LabelSelectionCommand = new AsyncRelayCommand<TelemetryPlotContextMenuContext?>(
-            LabelSelectionFromPlotContextAsync,
+        LabelRoughnessCommand = new AsyncRelayCommand<TelemetryPlotContextMenuContext?>(
+            context => LabelSelectionFromPlotContextAsync(context, TerrainLabelKind.Roughness),
+            CanLabelSelectionFromPlotContext);
+        LabelSteepnessCommand = new AsyncRelayCommand<TelemetryPlotContextMenuContext?>(
+            context => LabelSelectionFromPlotContextAsync(context, TerrainLabelKind.Steepness),
             CanLabelSelectionFromPlotContext);
         SignalPlotContextMenuActionsBySignalRowId = CreateSignalPlotContextMenuActionsBySignalRowId(
             autozoom.ActionsBySignalRowId, alignment, windowEdits);
@@ -57,7 +62,8 @@ internal sealed class SignalPlotContextActions : IDisposable
             SetAnalysisRangeEndCommand.NotifyCanExecuteChanged();
             ClearAnalysisRangeFromContextCommand.NotifyCanExecuteChanged();
             SaveSelectionAsSegmentCommand.NotifyCanExecuteChanged();
-            LabelSelectionCommand.NotifyCanExecuteChanged();
+            LabelRoughnessCommand.NotifyCanExecuteChanged();
+            LabelSteepnessCommand.NotifyCanExecuteChanged();
         });
     }
 
@@ -124,10 +130,14 @@ internal sealed class SignalPlotContextActions : IDisposable
             "save-current-selection",
             "Save current selection",
             SaveSelectionAsSegmentCommand);
-        var labelSelection = new TelemetryPlotContextMenuAction(
-            "label-current-selection",
-            "Label current selection",
-            LabelSelectionCommand);
+        var labelRoughness = new TelemetryPlotContextMenuAction(
+            "label-roughness",
+            "Label roughness",
+            LabelRoughnessCommand);
+        var labelSteepness = new TelemetryPlotContextMenuAction(
+            "label-steepness",
+            "Label steepness",
+            LabelSteepnessCommand);
         TelemetryPlotContextMenuAction[] actions =
         [
             setAnalysisRangeStart,
@@ -144,7 +154,8 @@ internal sealed class SignalPlotContextActions : IDisposable
             split,
             undoTrim,
             saveSelectionAsSegment,
-            labelSelection,
+            labelRoughness,
+            labelSteepness,
         ];
 
         return new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>
@@ -241,8 +252,8 @@ internal sealed class SignalPlotContextActions : IDisposable
     private bool CanLabelSelectionFromPlotContext(TelemetryPlotContextMenuContext? context) =>
         CanSaveSelectionAsSegmentFromPlotContext(context) && currentState.Terrain is RecordedTerrainState.Loaded;
 
-    private Task LabelSelectionFromPlotContextAsync(TelemetryPlotContextMenuContext? context) =>
+    private Task LabelSelectionFromPlotContextAsync(TelemetryPlotContextMenuContext? context, TerrainLabelKind kind) =>
         CanLabelSelectionFromPlotContext(context)
-            ? segmentPicker.LabelSelectionAsync(context!.AnalysisRange!.Value)
+            ? segmentPicker.LabelSelectionAsync(context!.AnalysisRange!.Value, kind)
             : Task.CompletedTask;
 }

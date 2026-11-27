@@ -364,7 +364,7 @@ public class RecordedSessionProjectionTests
         using var watch = projection.WatchSession(sibling.Session.Id).Subscribe(siblingDomains.Add);
         siblingDomains.Clear();
 
-        await stores.Labels.PublishLabelsAsync([new(Guid.NewGuid(), "labelled-source", 0, 5, RoughnessClass.Rough)], []);
+        await stores.Labels.PublishLabelsAsync([new(Guid.NewGuid(), "labelled-source", 0, 5, new TerrainLabelClass.Roughness(RoughnessClass.Rough))], []);
         await scheduler.DrainAsync();
 
         Assert.IsType<TerrainClassState.Pending>(summaries.Single(summary => summary.Id == labelled.Session.Id).TerrainClasses);
@@ -384,7 +384,7 @@ public class RecordedSessionProjectionTests
         await stores.AddAsync(labelled);
         await stores.AddAsync(sibling);
         await stores.AddAsync(Measured(Sibling(context)));
-        await stores.Labels.PublishLabelsAsync([new(Guid.NewGuid(), "labelled-source", 0, 5, RoughnessClass.Medium)], []);
+        await stores.Labels.PublishLabelsAsync([new(Guid.NewGuid(), "labelled-source", 0, 5, new TerrainLabelClass.Roughness(RoughnessClass.Medium))], []);
         await scheduler.DrainAsync();
         var siblingDomains = new List<RecordedSessionDomainSnapshot>();
         using var watch = projection.WatchSession(sibling.Session.Id).Subscribe(siblingDomains.Add);
@@ -417,11 +417,11 @@ public class RecordedSessionProjectionTests
         var domains = new List<RecordedSessionDomainSnapshot>();
         using var watch = projection.WatchSession(withoutSetup.Session.Id).Subscribe(domains.Add);
         domains.Clear();
-        var label = new TerrainLabelSnapshot(Guid.NewGuid(), context.Source.SourceHash, 0, 5, RoughnessClass.Rough);
+        var label = new TerrainLabelSnapshot(Guid.NewGuid(), context.Source.SourceHash, 0, 5, new TerrainLabelClass.Roughness(RoughnessClass.Rough));
 
         await stores.Labels.PublishLabelsAsync([label], []);
         await scheduler.DrainAsync();
-        await stores.Labels.PublishLabelsAsync([label with { Class = RoughnessClass.Smooth }], []);
+        await stores.Labels.PublishLabelsAsync([label with { Class = new TerrainLabelClass.Roughness(RoughnessClass.Smooth) }], []);
         await CompleteEvaluationAsync(runner, scheduler);
         Assert.Empty(domains);
         await CompleteEvaluationAsync(runner, scheduler);

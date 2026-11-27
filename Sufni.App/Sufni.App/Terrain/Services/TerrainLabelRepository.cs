@@ -20,7 +20,7 @@ public interface ITerrainLabelRepository
     /// <summary>
     /// Returns the updated row, or null when the label is missing or deleted.
     /// </summary>
-    Task<TerrainLabel?> SetClassAsync(Guid labelId, RoughnessClass roughnessClass);
+    Task<TerrainLabel?> SetClassAsync(Guid labelId, TerrainLabelClass labelClass);
 
     /// <summary>
     /// Returns the deleted row, or null when the label is missing or already deleted.
@@ -47,8 +47,8 @@ internal sealed class TerrainLabelRepository(SqliteConnectionContext connectionC
         });
     }
 
-    public Task<TerrainLabel?> SetClassAsync(Guid labelId, RoughnessClass roughnessClass) =>
-        UpdateLiveAsync(labelId, (label, _) => label.Class = roughnessClass);
+    public Task<TerrainLabel?> SetClassAsync(Guid labelId, TerrainLabelClass labelClass) =>
+        UpdateLiveAsync(labelId, (label, _) => label.LabelClass = labelClass);
 
     public Task<TerrainLabel?> DeleteAsync(Guid labelId) =>
         UpdateLiveAsync(labelId, (label, now) => label.Deleted = now);

@@ -36,7 +36,7 @@ public static class SessionTerrainStatusQuery
     /// <summary>The label summary state of a session with the given profile status and its labels.</summary>
     public static TerrainLabelState EvaluateLabels(SessionSnapshot session, TerrainStatus status, TerrainLabelSet labels)
     {
-        if (status is not TerrainStatus.Current current || labels.Ranges.IsEmpty) return new TerrainLabelState.None();
+        if (status is not TerrainStatus.Current current || labels.IsEmpty) return new TerrainLabelState.None();
         return session.TerrainLabelKey == new TerrainLabelKey(current.Key, labels, TerrainLabels.Version) &&
                session.TerrainLabelSummary is { } summary
             ? new TerrainLabelState.Current(summary)

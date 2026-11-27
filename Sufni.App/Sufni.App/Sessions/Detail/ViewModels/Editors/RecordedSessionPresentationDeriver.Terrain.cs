@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Sufni.App.Terrain.Models;
@@ -28,9 +29,9 @@ internal static partial class RecordedSessionPresentationDeriver
         int classed = 0, labelled = 0;
         for (var i = 0; i < profile.Windows.Length; i++)
         {
-            var window = profile.Windows[i];
-            if (!window.Moving) continue;
             var classes = classified.Windows[i];
+            var window = classes.Window;
+            if (!window.Moving) continue;
             AddRun(roughness, window, classes.Roughness);
             AddRun(grade, window, window.Band);
             if (classes.Roughness is not null)
@@ -41,7 +42,7 @@ internal static partial class RecordedSessionPresentationDeriver
             var baseline = TerrainProfileCalculator.BaselineGrade(profile.Windows, i);
             AddShade(roughnessShades, window, classes.Roughness, !classes.Labelled && classes.Roughness?.IsClimb() == false && classes.ClassValue is { } value
                 ? Math.Round(Math.Clamp(value, -1.5, 2.5) * 4, MidpointRounding.AwayFromZero) / 4 : null);
-            AddShade(gradeShades, window, window.Band, TerrainSignalSections.Degrees(baseline) is { } degrees
+            AddShade(gradeShades, window, window.Band, !classes.GradeLabelled && TerrainSignalSections.Degrees(baseline) is { } degrees
                 ? Math.Round(Math.Clamp(degrees, -8, 17.5), MidpointRounding.AwayFromZero) : null);
             frame.Add(window.StartSeconds, window.EndSeconds, window.Frame?.SpeedRemoved);
             fork.Add(window.StartSeconds, window.EndSeconds, window.Fork?.SpeedRemoved);
@@ -62,12 +63,7 @@ internal static partial class RecordedSessionPresentationDeriver
             forkMissing |= window.Fork is null;
             rearAxleMissing |= window.RearAxle is null;
         }
-        var labels = ImmutableArray.CreateBuilder<TerrainRun<RoughnessClass>>();
-        foreach (var range in classified.Labels.Ranges)
-        {
-            var start = labels.Count > 0 ? Math.Max(range.StartSeconds, labels[^1].EndSeconds) : range.StartSeconds;
-            if (start < range.EndSeconds) labels.Add(new(start, range.EndSeconds, range.Class));
-        }
+
         var total = Math.Max(1d, shares.Sum());
         return new(roughness.ToImmutable(), grade.ToImmutable(), frame.Build(), fork.Build(), grades.Build(),
             new([.. shares.Select(count => count / total)], forkClipped, rearAxleClipped, frameMissing, forkMissing,
@@ -76,13 +72,26 @@ internal static partial class RecordedSessionPresentationDeriver
         {
             RoughnessShades = roughnessShades.ToImmutable(),
             GradeShades = gradeShades.ToImmutable(),
-            LabelRuns = labels.ToImmutable(),
+            RoughnessLabelRuns = LabelRuns(classified.Labels.Ranges.Select(range => (range.StartSeconds, range.EndSeconds, range.Class))),
+            SteepnessLabelRuns = LabelRuns(classified.Labels.Grades.Select(range => (range.StartSeconds, range.EndSeconds, range.Band))),
             FrameEdges = Edges(scale.FrameImu),
             ForkEdges = Edges(scale.ForkImu),
             RearAxleEdges = Edges(scale.RearAxleImu),
             RearAxle = rearAxle.Build(),
             PedalBob = bob.Build()
         };
+
+        static ImmutableArray<TerrainRun<TClass>> LabelRuns<TClass>(IEnumerable<(double Start, double End, TClass Class)> ranges)
+            where TClass : struct, Enum
+        {
+            var runs = ImmutableArray.CreateBuilder<TerrainRun<TClass>>();
+            foreach (var (start, end, labelClass) in ranges)
+            {
+                var from = runs.Count > 0 ? Math.Max(start, runs[^1].EndSeconds) : start;
+                if (from < end) runs.Add(new(from, end, labelClass));
+            }
+            return runs.ToImmutable();
+        }
 
         static ImmutableArray<double> Edges(int? medianBin) => medianBin is { } bin ? [.. TerrainLevels.Edges(bin)] : [];
 

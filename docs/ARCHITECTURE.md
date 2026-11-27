@@ -330,7 +330,7 @@ Topics in [architecture/segments.md](architecture/segments.md):
 - [Store And Coordinator](architecture/segments.md#store-and-coordinator) — `SessionSegmentStore`, `SegmentCoordinator`, name rule
 - [Synchronization](architecture/segments.md#synchronization) — segment list in the sync payload
 - [Trim And Split](architecture/segments.md#trim-and-split) — how windows select source-owned segments
-- [Segments Picker](architecture/segments.md#segments-picker) — per-editor picker, "Save current selection", "Label current selection", terrain label rows, name and class prompts
+- [Segments Picker](architecture/segments.md#segments-picker) — per-editor picker, "Save current selection", "Label roughness" and "Label steepness", terrain label rows by kind, name and class prompts
 - [Strava](architecture/segments.md#strava) — `IStravaSegmentService` behind `ISegmentCoordinator`, connect dialog, cancellation on close
 - [Matching And Comparison](architecture/segments.md#matching-and-comparison) — matched runs, analysis comparison, same-trail terrain with the tune block, trail average
 

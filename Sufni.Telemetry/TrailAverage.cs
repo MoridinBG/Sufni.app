@@ -52,6 +52,9 @@ public closed record TrailAverage(int RunCount)
             if (bands[i] is { } band) windows[i] = windows[i] with { Band = band };
         TerrainProfileCalculator.MergeOutliers(windows, static w => w.Band, static (w, band) => w with { Band = band }, Adjacent);
         for (var i = 0; i < windows.Count; i++)
+            if (source.Windows[windows[i].SourceIndex] is { GradeLabelled: true } steepness)
+                windows[i] = windows[i] with { Band = steepness.Window.Band };
+        for (var i = 0; i < windows.Count; i++)
             if (windows[i].Band?.IsClimb() == true) windows[i] = windows[i] with { Roughness = climbLevels[i] };
         TerrainProfileCalculator.MergeOutliers(windows, static w => w.Roughness, static (w, level) => w with { Roughness = level }, Adjacent);
         for (var i = 0; i < windows.Count; i++)

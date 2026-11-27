@@ -30,6 +30,30 @@ public class TerrainLabelSummaryTests
     }
 
     [Fact]
+    public void RoughnessLabelReadsAWindowThatASteepnessLabelMakesAClimbAsAClimb()
+    {
+        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0) with { Band = GradeBand.Flat, Frame = new SensorRoughness(2, 1, 1, 1, 9, 0) }]);
+        var labels = TerrainProfiles.Labels(new TerrainLabelRange(0, 1, RoughnessClass.TechnicalClimb)) with
+        {
+            Grades = [new GradeLabelRange(0, 1, GradeBand.Climb)]
+        };
+
+        Assert.Equal(2, Assert.Single(TerrainLabels.Summarize(profile, labels).Stretches).FrameImu!.Level);
+    }
+
+    [Fact]
+    public void SteepnessStretchHoldsTheMeanGradeOfItsMovingWindows()
+    {
+        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0) with { Grade = 0.1 }, TerrainProfiles.Window(1) with { Grade = 0.2 },
+            TerrainProfiles.Window(2, moving: false) with { Grade = 0.9 }]);
+        var label = new GradeLabelRange(0, 3, GradeBand.Descent);
+
+        var stretch = Assert.Single(TerrainLabels.Summarize(profile, TerrainProfiles.GradeLabels(label)).Grades);
+
+        Assert.Equal((label, 0.15), (stretch.Label, Math.Round(stretch.Grade, 9)));
+    }
+
+    [Fact]
     public void EachLabelGivesItsOwnStretchInLabelOrder()
     {
         var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0) with { Frame = TerrainProfiles.Sensor(1) },

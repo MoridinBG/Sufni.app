@@ -50,7 +50,7 @@ All coordinators are singletons.
 | `IMapLayerCoordinator` (`MapLayerCoordinator`) | shared | Custom map-layer additions and the device's map-layer selection. |
 | `TrackCoordinator` | shared | GPS metric recomputation, GPX import and read-only session-track loading. |
 | `ITerrainProfileCoordinator` (`TerrainProfileCoordinator`) | shared | Device-local terrain profile backfill, label summaries, per-setup ride class summaries, editor priority and the terrain fields of published session snapshots. See [Terrain profiles](terrain.md). |
-| `ITerrainLabelCoordinator` (`TerrainLabelCoordinator`) | shared | Terrain label create, class change and delete, the overlap check, and publication to `TerrainLabelStore`. See [Labels](terrain.md#labels). |
+| `ITerrainLabelCoordinator` (`TerrainLabelCoordinator`) | shared | Terrain label create, class change and delete, the overlap check within a label kind, and publication to `TerrainLabelStore`. See [Labels](terrain.md#labels). |
 | `LiveDaqCoordinator` | shared | `LiveDaqStore` writes, the browse lease, live-capture save and DAQ management. See [Live DAQ Streaming](live-streaming.md). |
 
 Details per coordinator:

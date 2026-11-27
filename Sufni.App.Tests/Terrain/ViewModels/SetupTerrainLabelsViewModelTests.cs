@@ -40,12 +40,25 @@ public sealed class SetupTerrainLabelsViewModelTests : IDisposable
         var second = Row(RoughnessClass.Calm);
         query.ForSetup(setupId).Returns(new SetupTerrainLabels(null, [first]));
         using var viewModel = Create();
-        Assert.Equal([first], viewModel.Labels.Select(item => item.Row));
+        Assert.Equal([first.LabelId], viewModel.Labels.Select(item => item.LabelId));
 
         query.ForSetup(setupId).Returns(new SetupTerrainLabels(null, [second, first]));
         changes.OnNext(Unit.Default);
 
-        Assert.Equal([second, first], viewModel.Labels.Select(item => item.Row));
+        Assert.Equal([second.LabelId, first.LabelId], viewModel.Labels.Select(item => item.LabelId));
+    }
+
+    [Fact]
+    public void SteepnessRowsAreListedApart()
+    {
+        var roughness = Row(RoughnessClass.Rough);
+        var steepness = SteepnessRow(GradeBand.SteepDescent);
+        query.ForSetup(setupId).Returns(new SetupTerrainLabels(null, [roughness]) { SteepnessLabels = [steepness] });
+
+        using var viewModel = Create();
+
+        Assert.Equal(roughness.LabelId, Assert.Single(viewModel.Labels).LabelId);
+        Assert.Equal(steepness.LabelId, Assert.Single(viewModel.SteepnessLabels).LabelId);
     }
 
     [Fact]
@@ -77,17 +90,37 @@ public sealed class SetupTerrainLabelsViewModelTests : IDisposable
     {
         var row = Row(RoughnessClass.Rough);
         query.ForSetup(setupId).Returns(new SetupTerrainLabels(null, [row]));
-        coordinator.SetClassAsync(row.LabelId, RoughnessClass.Smooth).Returns(new TerrainLabelChangeResult.Applied());
+        coordinator.SetClassAsync(row.LabelId, new TerrainLabelClass.Roughness(RoughnessClass.Smooth)).Returns(new TerrainLabelChangeResult.Applied());
         dialogService.AnswerClassPrompt(prompt =>
         {
-            prompt.SelectedClass = RoughnessClass.Smooth;
+            prompt.SelectedClass = new TerrainLabelClass.Roughness(RoughnessClass.Smooth);
             prompt.ConfirmCommand.Execute(null);
         });
         using var viewModel = Create();
 
         await viewModel.ChangeClassCommand.ExecuteAsync(viewModel.Labels[0]);
 
-        await coordinator.Received(1).SetClassAsync(row.LabelId, RoughnessClass.Smooth);
+        await coordinator.Received(1).SetClassAsync(row.LabelId, new TerrainLabelClass.Roughness(RoughnessClass.Smooth));
+    }
+
+    [Fact]
+    public async Task ChangeClassOfASteepnessLabelOffersTheGradeBands()
+    {
+        var row = SteepnessRow(GradeBand.Descent);
+        query.ForSetup(setupId).Returns(new SetupTerrainLabels(null, []) { SteepnessLabels = [row] });
+        IEnumerable<TerrainLabelClass>? offered = null;
+        dialogService.AnswerClassPrompt(prompt =>
+        {
+            offered = prompt.Classes.Select(option => option.Class);
+            prompt.SelectedClass = new TerrainLabelClass.Steepness(GradeBand.SteepDescent);
+            prompt.ConfirmCommand.Execute(null);
+        });
+        using var viewModel = Create();
+
+        await viewModel.ChangeClassCommand.ExecuteAsync(viewModel.SteepnessLabels[0]);
+
+        Assert.All(offered!, option => Assert.IsType<TerrainLabelClass.Steepness>(option));
+        await coordinator.Received(1).SetClassAsync(row.LabelId, new TerrainLabelClass.Steepness(GradeBand.SteepDescent));
     }
 
     [Theory]
@@ -126,4 +159,7 @@ public sealed class SetupTerrainLabelsViewModelTests : IDisposable
 
     private static SetupTerrainLabelRow Row(RoughnessClass roughness) =>
         new(Guid.NewGuid(), Guid.NewGuid(), "ride", 1_767_261_600, roughness, new TelemetryTimeRange(2, 4));
+
+    private static SetupSteepnessLabelRow SteepnessRow(GradeBand band) =>
+        new(Guid.NewGuid(), Guid.NewGuid(), "ride", 1_767_261_600, band, new TelemetryTimeRange(2, 4));
 }

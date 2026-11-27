@@ -14,6 +14,10 @@ namespace Sufni.App.Tests.Terrain.Coordinators;
 
 public sealed class TerrainLabelCoordinatorTests : IDisposable
 {
+    private static readonly TerrainLabelClass Rough = new TerrainLabelClass.Roughness(RoughnessClass.Rough);
+    private static readonly TerrainLabelClass Calm = new TerrainLabelClass.Roughness(RoughnessClass.Calm);
+    private static readonly TerrainLabelClass Smooth = new TerrainLabelClass.Roughness(RoughnessClass.Smooth);
+
     private readonly ITerrainLabelRepository repository = Substitute.For<ITerrainLabelRepository>();
     private readonly ISessionStore sessionStore = Substitute.For<ISessionStore>();
     private readonly IRecordedSessionSourceStore sourceStore = Substitute.For<IRecordedSessionSourceStore>();
@@ -37,33 +41,35 @@ public sealed class TerrainLabelCoordinatorTests : IDisposable
         TerrainLabel? saved = null;
         repository.InsertAsync(Arg.Do<TerrainLabel>(label => saved = label)).Returns(Task.CompletedTask);
 
-        var result = await coordinator.CreateAsync(session.Id, RoughnessClass.Rough, 2, 5);
+        var result = await coordinator.CreateAsync(session.Id, Rough, 2, 5);
 
         Assert.IsType<TerrainLabelChangeResult.Applied>(result);
         Assert.Equal((12d, 15d), (saved!.StartSeconds, saved.EndSeconds));
-        Assert.Equal(new TerrainLabelSnapshot(saved.Id, "source-hash", 12, 15, RoughnessClass.Rough),
+        Assert.Equal(new TerrainLabelSnapshot(saved.Id, "source-hash", 12, 15, Rough),
             Assert.Single(labels.GetForOwner("source-hash")));
     }
 
     [Fact]
     public async Task CreateAsync_ReturnsInvalidWithoutWriting_WhenTheRangeOverlapsALabelOfTheSource()
     {
-        await labels.PublishLabelsAsync([new(Guid.NewGuid(), "source-hash", 14, 20, RoughnessClass.Calm)], []);
+        await labels.PublishLabelsAsync([new(Guid.NewGuid(), "source-hash", 14, 20, Calm)], []);
 
-        var result = await coordinator.CreateAsync(session.Id, RoughnessClass.Rough, 2, 5);
+        var result = await coordinator.CreateAsync(session.Id, Rough, 2, 5);
 
         Assert.IsType<TerrainLabelChangeResult.Invalid>(result);
         await repository.DidNotReceive().InsertAsync(Arg.Any<TerrainLabel>());
     }
 
     [Theory]
-    [InlineData(2, 5, true)]
-    [InlineData(10, 12, false)]
-    public async Task ValidateRange_ReportsOnlyARangeThatOverlapsALabel(double start, double end, bool overlaps)
+    [InlineData(TerrainLabelKind.Roughness, 2, 5, true)]
+    [InlineData(TerrainLabelKind.Roughness, 10, 12, false)]
+    [InlineData(TerrainLabelKind.Steepness, 2, 5, false)]
+    public async Task ValidateRange_ReportsOnlyARangeThatOverlapsALabelOfTheKind(TerrainLabelKind kind, double start, double end,
+        bool overlaps)
     {
-        await labels.PublishLabelsAsync([new(Guid.NewGuid(), "source-hash", 14, 20, RoughnessClass.Calm)], []);
+        await labels.PublishLabelsAsync([new(Guid.NewGuid(), "source-hash", 14, 20, Calm)], []);
 
-        Assert.Equal(overlaps, coordinator.ValidateRange(session.Id, start, end) is not null);
+        Assert.Equal(overlaps, coordinator.ValidateRange(session.Id, kind, start, end) is not null);
     }
 
     [Fact]
@@ -71,7 +77,7 @@ public sealed class TerrainLabelCoordinatorTests : IDisposable
     {
         sourceStore.Get(session.RecordingSourceSessionId).Returns((RecordedSessionSourceSnapshot?)null);
 
-        var result = await coordinator.CreateAsync(session.Id, RoughnessClass.Rough, 2, 5);
+        var result = await coordinator.CreateAsync(session.Id, Rough, 2, 5);
 
         Assert.IsType<TerrainLabelChangeResult.SourceUnavailable>(result);
         await repository.DidNotReceive().InsertAsync(Arg.Any<TerrainLabel>());
@@ -80,22 +86,22 @@ public sealed class TerrainLabelCoordinatorTests : IDisposable
     [Fact]
     public async Task SetClassAsync_PublishesTheChangedLabel()
     {
-        var label = new TerrainLabel { OwnerKey = "source-hash", StartSeconds = 12, EndSeconds = 15, Class = RoughnessClass.Rough };
+        var label = new TerrainLabel { OwnerKey = "source-hash", StartSeconds = 12, EndSeconds = 15, LabelClass = Rough };
         await labels.PublishLabelsAsync([TerrainLabelSnapshot.From(label)], []);
-        repository.SetClassAsync(label.Id, RoughnessClass.Smooth).Returns(new TerrainLabel
+        repository.SetClassAsync(label.Id, Smooth).Returns(new TerrainLabel
         {
-            Id = label.Id, OwnerKey = label.OwnerKey, StartSeconds = 12, EndSeconds = 15, Class = RoughnessClass.Smooth
+            Id = label.Id, OwnerKey = label.OwnerKey, StartSeconds = 12, EndSeconds = 15, LabelClass = Smooth
         });
 
-        Assert.IsType<TerrainLabelChangeResult.Applied>(await coordinator.SetClassAsync(label.Id, RoughnessClass.Smooth));
+        Assert.IsType<TerrainLabelChangeResult.Applied>(await coordinator.SetClassAsync(label.Id, Smooth));
 
-        Assert.Equal(RoughnessClass.Smooth, labels.Get(label.Id)!.Class);
+        Assert.Equal(Smooth, labels.Get(label.Id)!.Class);
     }
 
     [Fact]
     public async Task DeleteAsync_PublishesTheRemoval()
     {
-        var label = new TerrainLabel { OwnerKey = "source-hash", StartSeconds = 12, EndSeconds = 15, Class = RoughnessClass.Rough };
+        var label = new TerrainLabel { OwnerKey = "source-hash", StartSeconds = 12, EndSeconds = 15, LabelClass = Rough };
         await labels.PublishLabelsAsync([TerrainLabelSnapshot.From(label)], []);
         repository.DeleteAsync(label.Id).Returns(new TerrainLabel { Id = label.Id, OwnerKey = label.OwnerKey, Deleted = 100 });
 
@@ -107,9 +113,9 @@ public sealed class TerrainLabelCoordinatorTests : IDisposable
     [Fact]
     public async Task SetClassAsync_ReturnsLabelMissing_WhenTheLabelIsGone()
     {
-        repository.SetClassAsync(Arg.Any<Guid>(), Arg.Any<RoughnessClass>()).Returns((TerrainLabel?)null);
+        repository.SetClassAsync(Arg.Any<Guid>(), Arg.Any<TerrainLabelClass>()).Returns((TerrainLabel?)null);
 
-        Assert.IsType<TerrainLabelChangeResult.LabelMissing>(await coordinator.SetClassAsync(Guid.NewGuid(), RoughnessClass.Calm));
+        Assert.IsType<TerrainLabelChangeResult.LabelMissing>(await coordinator.SetClassAsync(Guid.NewGuid(), Calm));
     }
 
     [Fact]

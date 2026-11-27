@@ -177,6 +177,17 @@ public class TrailAverageTests
     }
 
     [Fact]
+    public void SteepnessLabelledSourceWindowKeepsItsLabelBand()
+    {
+        var runs = gradeSeeds.Select(seed => Run(Measurements(seed))).ToArray();
+        var labels = TerrainProfiles.GradeLabels(new GradeLabelRange(0, 10, GradeBand.VerySteepDescent));
+
+        var labelled = Average([TerrainClassifier.Classify(runs[0].Profile, TerrainProfiles.Scale, labels), .. runs.Skip(1)]);
+
+        Assert.All(labelled.Windows.Take(10), w => Assert.Equal(GradeBand.VerySteepDescent, w.Band));
+    }
+
+    [Fact]
     public void LabelOfAMatchedRideHasNoEffect()
     {
         var runs = gradeSeeds.Select(seed => Run(Measurements(seed))).ToArray();

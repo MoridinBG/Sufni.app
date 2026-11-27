@@ -9,12 +9,12 @@ public sealed record TerrainLabelSnapshot(
     string OwnerKey,
     double StartSeconds,
     double EndSeconds,
-    RoughnessClass Class)
+    TerrainLabelClass Class)
 {
     public static TerrainLabelSnapshot From(TerrainLabel label) => new(
         label.Id,
         label.OwnerKey,
         label.StartSeconds,
         label.EndSeconds,
-        label.Class);
+        label.LabelClass);
 }

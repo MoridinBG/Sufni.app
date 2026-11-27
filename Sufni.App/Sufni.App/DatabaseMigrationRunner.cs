@@ -85,6 +85,13 @@ internal sealed class DatabaseMigrationRunner(
         // Stored label summaries hold level distributions, which no longer parse; the summaries recompute.
         await coreMigrations.ApplyAsync("terrain-label-stretches", transaction =>
             transaction.Execute("UPDATE session_terrain_profile SET terrain_labels_key = NULL, terrain_labels = NULL"));
+        // A new database creates terrain_label with the kind and class columns.
+        await coreMigrations.ApplyAsync("terrain-steepness-labels", transaction =>
+        {
+            if (transaction.GetTableInfo("terrain_label").All(column => column.Name != "roughness_class")) return;
+            transaction.Execute("ALTER TABLE terrain_label RENAME COLUMN roughness_class TO class");
+            transaction.Execute("ALTER TABLE terrain_label ADD COLUMN kind INTEGER NOT NULL DEFAULT 0");
+        });
         await EnsureSessionBlobSwapRequestIntegrityAsync();
         await coreMigrations.MarkAppliedAsync("session-segment");
         await DropSchemaVersionTableAsync();

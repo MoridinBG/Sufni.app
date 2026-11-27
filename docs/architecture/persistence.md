@@ -177,7 +177,8 @@ erDiagram
         text owner_key
         real start_seconds
         real end_seconds
-        int roughness_class
+        int kind
+        int class
         int updated
         int version
         text updated_by
@@ -386,7 +387,7 @@ The named `session-terrain-profile` migration adds a device-local table keyed by
 
 `session_video` links a local file to an immutable recording source through `owner_key`. One source/file pair shares one owner-relative alignment offset. `ISessionVideoRepository.LinkAsync` writes distinct source links in one transaction. Re-import keeps an existing ID, added time and alignment. Session deletion and startup purge leave links intact. On an older database, the `track-materializations` migration converts session links to source links. It collapses duplicates by the widest-window policy and drops `session_id`. See [video.md](video.md).
 
-`terrain_label` holds source-owned terrain labels: a range in source-relative seconds and a `RoughnessClass` stored as its integer value. `owner_key` is the immutable source hash. `TerrainLabelRepository` inserts, changes the class and deletes; each write stamps the authored sync metadata, and a delete writes the tombstone and the ledger entry. Session deletion and physical purge keep these rows. On an older database, the `terrain-labels` migration creates the `local_seq` and `sync_seq` indexes, which a new database gets from `sync-authority`. See [terrain.md](terrain.md#labels).
+`terrain_label` holds source-owned terrain labels: a range in source-relative seconds, a `kind` (0 roughness, 1 steepness) and a `class` that holds the integer value of the `RoughnessClass` or `GradeBand`. On an older database, the `terrain-steepness-labels` migration renames `roughness_class` to `class` and adds `kind` at 0. `owner_key` is the immutable source hash. `TerrainLabelRepository` inserts, changes the class and deletes; each write stamps the authored sync metadata, and a delete writes the tombstone and the ledger entry. Session deletion and physical purge keep these rows. On an older database, the `terrain-labels` migration creates the `local_seq` and `sync_seq` indexes, which a new database gets from `sync-authority`. See [terrain.md](terrain.md#labels).
 
 `session_segment` holds source-owned named ranges. `owner_key` is the immutable source hash, and both anchors are source-relative. Reads return non-deleted segments without joining sessions. The picker derives visibility from the source identity and the current session window. Session deletion and physical purge keep these rows. Only explicit segment deletion creates a tombstone. On an older database, the `track-materializations` migration converts session-relative anchors and drops `session_id`. It keeps segment IDs and authored clocks. See [segments.md](segments.md).
 

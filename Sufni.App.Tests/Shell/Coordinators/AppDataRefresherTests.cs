@@ -48,7 +48,7 @@ public class AppDataRefresherTests
             reachedLastRead.TrySetResult();
             return lastRead.Task;
         });
-        var observed = new List<(string?, Guid?, string?, string?, string?, string?, string?, bool, TrackSnapshot?, BoardSnapshot?, CustomTileLayerSnapshot?, RoughnessClass?)>();
+        var observed = new List<(string?, Guid?, string?, string?, string?, string?, string?, bool, TrackSnapshot?, BoardSnapshot?, CustomTileLayerSnapshot?, TerrainLabelClass?)>();
         using var subscription = fixture.Publication.Committed.Subscribe(_ => observed.Add((
             fixture.Bikes.Get(fixture.Bike.Id)?.Name,
             fixture.Setups.Get(fixture.Setup.Id)?.Id,
@@ -69,7 +69,7 @@ public class AppDataRefresherTests
         lastRead.SetResult([fixture.Segment]);
         await refresh.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
-        Assert.Equal(("bike", fixture.Setup.Id, "session", "source hash", "Phone", "", "segment", true, fixture.Track, BoardSnapshot.From(fixture.Board), CustomTileLayerSnapshot.From(fixture.CustomLayer), RoughnessClass.Rough),
+        Assert.Equal(("bike", fixture.Setup.Id, "session", "source hash", "Phone", "", "segment", true, fixture.Track, BoardSnapshot.From(fixture.Board), CustomTileLayerSnapshot.From(fixture.CustomLayer), new TerrainLabelClass.Roughness(RoughnessClass.Rough)),
             Assert.Single(observed));
     }
 
@@ -141,7 +141,7 @@ public class AppDataRefresherTests
         public SessionVideoStore Videos { get; }
         public SessionSegmentStore Segments { get; }
         public TerrainLabelStore TerrainLabels { get; }
-        public TerrainLabel Label { get; } = new() { OwnerKey = "source-hash", StartSeconds = 1, EndSeconds = 2, Class = RoughnessClass.Rough };
+        public TerrainLabel Label { get; } = new() { OwnerKey = "source-hash", StartSeconds = 1, EndSeconds = 2, LabelClass = new TerrainLabelClass.Roughness(RoughnessClass.Rough) };
         public AppDataRefresher Refresher { get; }
 
         public Fixture()

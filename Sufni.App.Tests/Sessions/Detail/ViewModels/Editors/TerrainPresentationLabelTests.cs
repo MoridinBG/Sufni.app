@@ -14,9 +14,21 @@ public class TerrainPresentationLabelTests
             new TerrainLabelRange(2, 5, RoughnessClass.Calm), new TerrainLabelRange(4, 12, RoughnessClass.VeryRough));
         var classified = TerrainClassifier.Classify(TerrainProfiles.Profile([TerrainProfiles.Window(0)]), TerrainProfiles.Scale, labels);
 
-        var runs = RecordedSessionPresentationDeriver.CreateTerrain(classified).LabelRuns;
+        var runs = RecordedSessionPresentationDeriver.CreateTerrain(classified).RoughnessLabelRuns;
 
         Assert.Equal([new TerrainRun<RoughnessClass>(0, 10, RoughnessClass.Rough), new(10, 12, RoughnessClass.VeryRough)], runs);
+    }
+
+    [Fact]
+    public void GradeLaneShowsTheBandOfASteepnessLabelWithoutAMeasuredShade()
+    {
+        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0, RoughnessClass.Rough) with { Band = GradeBand.Descent }]);
+        var labels = TerrainProfiles.GradeLabels(new GradeLabelRange(0, 1, GradeBand.SteepDescent));
+
+        var terrain = RecordedSessionPresentationDeriver.CreateTerrain(TerrainClassifier.Classify(profile, TerrainProfiles.Scale, labels));
+
+        Assert.Equal([new TerrainRun<GradeBand>(0, 1, GradeBand.SteepDescent)], terrain.GradeRuns);
+        Assert.Null(Assert.Single(terrain.GradeShades).Value);
     }
 
     [Fact]

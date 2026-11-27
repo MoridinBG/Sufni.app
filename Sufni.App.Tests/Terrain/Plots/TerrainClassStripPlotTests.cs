@@ -11,6 +11,7 @@ namespace Sufni.App.Tests.Terrain.Plots;
 
 public class TerrainClassStripPlotTests
 {
+    private static readonly string[] LaneNames = ["Roughness", "Roughness labels", "Grade", "Steepness labels"];
     private static readonly TerrainPresentation Terrain = new(
         [new(0, 1, RoughnessClass.Smooth), new(1, 9, RoughnessClass.VeryRough)],
         [new(0, 9, GradeBand.SteepDescent)],
@@ -61,35 +62,77 @@ public class TerrainClassStripPlotTests
         Assert.Equal([scales.ShadeFor(RoughnessClass.Smooth, -1.5).ToScottPlotColor(),
                 scales.ShadeFor(RoughnessClass.VeryRough, 2).ToScottPlotColor(), scales.ShadeFor(RoughnessClass.VeryRough, 2.5).ToScottPlotColor()],
             plot.PlottableList.OfType<Rectangle>().Select(r => r.FillColor));
-        Assert.Equal(["Smooth", "Very rough"], plot.PlottableList.OfType<Text>().Select(t => t.LabelText).Order());
+        Assert.Equal(["Smooth", "Very rough"], RunNames(plot).Select(t => t.LabelText).Order());
     }
 
     [Theory]
-    [InlineData(false, 2)]
-    [InlineData(true, 3)]
-    public void LabelsAddALaneOnTop(bool labelled, double lanes)
+    [InlineData(false, false, 2)]
+    [InlineData(true, false, 3)]
+    [InlineData(false, true, 3)]
+    [InlineData(true, true, 4)]
+    public void EachKindOfLabelsAddsALane(bool roughnessLabelled, bool steepnessLabelled, double lanes)
     {
-        var terrain = labelled ? Terrain with { LabelRuns = [new(4, 6, RoughnessClass.Calm)] } : Terrain;
+        var terrain = Terrain with
+        {
+            RoughnessLabelRuns = roughnessLabelled ? [new(4, 6, RoughnessClass.Calm)] : [],
+            SteepnessLabelRuns = steepnessLabelled ? [new(4, 6, GradeBand.Climb)] : []
+        };
         var plot = new Plot();
         new TerrainClassStripPlot(plot).Load(terrain, TestTelemetryData.CreateProcessed(sampleRate: 20));
 
         Assert.Equal(lanes, plot.Axes.GetLimits().Top);
-        Assert.Equal(labelled, plot.PlottableList.OfType<Rectangle>()
-            .Any(r => r.Y1 >= 2 && r.FillColor == SufniThemes.SignalSeries.Terrain.ColorFor(RoughnessClass.Calm).ToScottPlotColor()));
     }
 
     [Fact]
-    public void ReadoutHoldsTheLabelClassUnderTheCursor()
+    public void EachLabelLaneSitsAboveTheLaneItLabels()
+    {
+        var scales = SufniThemes.SignalSeries.Terrain;
+        var terrain = Terrain with
+        {
+            RoughnessLabelRuns = [new(4, 6, RoughnessClass.Calm)],
+            SteepnessLabelRuns = [new(4, 6, GradeBand.Climb)]
+        };
+        var plot = new Plot();
+        new TerrainClassStripPlot(plot).Load(terrain, TestTelemetryData.CreateProcessed(sampleRate: 20));
+
+        var rectangles = plot.PlottableList.OfType<Rectangle>().ToArray();
+        Assert.Equal(1, Lane(rectangles.Single(r => r.FillColor == scales.ColorFor(RoughnessClass.Calm).ToScottPlotColor())));
+        Assert.Equal(3, Lane(rectangles.Single(r => r.FillColor == scales.ColorFor(GradeBand.Climb).ToScottPlotColor())));
+    }
+
+    [Fact]
+    public void LaneNamesFollowTheLeftEdge()
     {
         var plot = new Plot();
         var strip = new TerrainClassStripPlot(plot);
-        strip.Load(Terrain with { LabelRuns = [new(4, 6, RoughnessClass.Calm)] }, TestTelemetryData.CreateProcessed(sampleRate: 20));
+        strip.Load(Terrain, TestTelemetryData.CreateProcessed(sampleRate: 20));
+
+        strip.LayoutRunNames(5, 9, 300);
+
+        Assert.All(plot.PlottableList.OfType<Text>().Where(t => LaneNames.Contains(t.LabelText)), name => Assert.Equal(5, name.Location.X));
+    }
+
+    [Fact]
+    public void ReadoutHoldsTheLabelClassesUnderTheCursor()
+    {
+        var plot = new Plot();
+        var strip = new TerrainClassStripPlot(plot);
+        strip.Load(Terrain with
+        {
+            RoughnessLabelRuns = [new(4, 6, RoughnessClass.Calm)],
+            SteepnessLabelRuns = [new(4, 6, GradeBand.Climb)]
+        }, TestTelemetryData.CreateProcessed(sampleRate: 20));
 
         strip.SetCursorPositionWithReadout(5);
 
-        Assert.Contains(TerrainClassText.Name(RoughnessClass.Calm), Assert.Single(plot.PlottableList.OfType<Tooltip>()).LabelText);
+        var text = Assert.Single(plot.PlottableList.OfType<Tooltip>()).LabelText;
+        Assert.Contains(TerrainClassText.Name(RoughnessClass.Calm), text);
+        Assert.Contains(TerrainClassText.Name(GradeBand.Climb), text);
     }
 
-    private static string[] VisibleNames(Plot plot) =>
-        [.. plot.PlottableList.OfType<Text>().Where(t => t.IsVisible).Select(t => t.LabelText).Order()];
+    private static string[] VisibleNames(Plot plot) => [.. RunNames(plot).Where(t => t.IsVisible).Select(t => t.LabelText).Order()];
+
+    private static IEnumerable<Text> RunNames(Plot plot) => plot.PlottableList.OfType<Text>().Where(t => !LaneNames.Contains(t.LabelText));
+
+    private static int Lane(Rectangle rectangle) => (int)Math.Floor(rectangle.Y1);
 }

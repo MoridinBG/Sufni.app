@@ -15,22 +15,24 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Terrain.ViewModels;
 
-public sealed record SetupTerrainLabelItem(SetupTerrainLabelRow Row)
+/// <summary>A label of a setup with the ride it belongs to.</summary>
+public sealed record SetupTerrainLabelItem(Guid LabelId, Guid SessionId, string SessionName, long Timestamp, TerrainLabelClass Class,
+    TelemetryTimeRange Range, LabelReadingText Reading)
 {
-    public string SessionName => Row.SessionName;
-    public string DateText => DateTimeOffset.FromUnixTimeSeconds(Row.Timestamp).LocalDateTime.ToString("d", CultureInfo.CurrentCulture);
-    public RoughnessClass Class => Row.Class;
-    public string ClassName => TerrainClassText.Name(Row.Class);
-    public string RangeText => string.Create(CultureInfo.InvariantCulture, $"{Row.Range.StartSeconds:F1}-{Row.Range.EndSeconds:F1}s");
+    public string DateText => DateTimeOffset.FromUnixTimeSeconds(Timestamp).LocalDateTime.ToString("d", CultureInfo.CurrentCulture);
+    public string ClassName => TerrainClassText.Name(Class);
+    public string RangeText => string.Create(CultureInfo.InvariantCulture, $"{Range.StartSeconds:F1}-{Range.EndSeconds:F1}s");
 
-    public string? ReadsText => TerrainClassText.ReadsAs(Row.Class, Row.Reading);
+    public static SetupTerrainLabelItem From(SetupTerrainLabelRow row) => new(row.LabelId, row.SessionId, row.SessionName,
+        row.Timestamp, new TerrainLabelClass.Roughness(row.Class), row.Range, LabelReadingText.Of(row.Class, row.Reading));
 
-    public bool Clashes => Row.Reading?.Clashes == true;
+    public static SetupTerrainLabelItem From(SetupSteepnessLabelRow row) => new(row.LabelId, row.SessionId, row.SessionName,
+        row.Timestamp, new TerrainLabelClass.Steepness(row.Band), row.Range, LabelReadingText.Of(row.Band, row.Reading));
 }
 
 /// <summary>
-/// The terrain labels of a saved setup and what sets the scale of each sensor with readings or labels. Its commands act
-/// at once; they are not part of the setup draft.
+/// The roughness and steepness labels of a saved setup and what sets the scale of each sensor with readings or labels.
+/// Its commands act at once; they are not part of the setup draft.
 /// </summary>
 public sealed partial class SetupTerrainLabelsViewModel : ObservableObject, IDisposable
 {
@@ -64,31 +66,39 @@ public sealed partial class SetupTerrainLabelsViewModel : ObservableObject, IDis
 
     public bool HasLabels => Labels.Count > 0;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSteepnessLabels))]
+    public partial IReadOnlyList<SetupTerrainLabelItem> SteepnessLabels { get; private set; } = [];
+
+    public bool HasSteepnessLabels => SteepnessLabels.Count > 0;
+
     public void Dispose() => subscription.Dispose();
 
     [RelayCommand]
-    private void OpenRide(SetupTerrainLabelItem item) => openSession(item.Row.SessionId);
+    private void OpenRide(SetupTerrainLabelItem item) => openSession(item.SessionId);
 
     [RelayCommand]
     private async Task ChangeClass(SetupTerrainLabelItem item)
     {
-        if (await TerrainLabelClassPromptViewModel.AskAsync(dialogService, "Change terrain label", "Change", item.Class, null) is { } roughness)
-            Report(await coordinator.SetClassAsync(item.Row.LabelId, roughness));
+        if (await TerrainLabelClassPromptViewModel.AskAsync(dialogService, $"Change {TerrainClassText.KindName(item.Class.Kind)} label",
+                "Change", item.Class.Kind, item.Class, null) is { } chosen)
+            Report(await coordinator.SetClassAsync(item.LabelId, chosen));
     }
 
     [RelayCommand]
     private async Task Delete(SetupTerrainLabelItem item)
     {
-        if (await dialogService.ShowConfirmationAsync("Delete terrain label?",
+        if (await dialogService.ShowConfirmationAsync($"Delete {TerrainClassText.KindName(item.Class.Kind)} label?",
                 $"Delete the {item.ClassName} label of {item.SessionName} at {item.RangeText}?"))
-            Report(await coordinator.DeleteAsync(item.Row.LabelId));
+            Report(await coordinator.DeleteAsync(item.LabelId));
     }
 
     private void Refresh()
     {
         var setup = query.ForSetup(setupId);
         ScaleLines = setup.Scale is { } scale ? TerrainSourceText.ScaleLines(scale, sensor => HasData(scale, sensor)) : [];
-        Labels = [.. setup.Labels.Select(row => new SetupTerrainLabelItem(row))];
+        Labels = [.. setup.Labels.Select(SetupTerrainLabelItem.From)];
+        SteepnessLabels = [.. setup.SteepnessLabels.Select(SetupTerrainLabelItem.From)];
     }
 
     private static bool HasData(SetupTerrainScale scale, TerrainSensor? sensor) => sensor switch

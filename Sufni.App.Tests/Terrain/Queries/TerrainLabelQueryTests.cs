@@ -45,6 +45,17 @@ public sealed class TerrainLabelQueryTests : IDisposable
         Assert.Equal([new TerrainLabelRange(5, 10, RoughnessClass.Rough)], query.LabelsOf(Session(10, 30)).Ranges);
     }
 
+    [Fact]
+    public async Task SteepnessLabelIsInTheGradesOfTheSet()
+    {
+        await labels.PublishLabelsAsync([Label(15, 20, GradeBand.SteepDescent)], []);
+
+        var set = query.LabelsOf(Session(10, 30));
+
+        Assert.Empty(set.Ranges);
+        Assert.Equal([new GradeLabelRange(5, 10, GradeBand.SteepDescent)], set.Grades);
+    }
+
     [Theory]
     [InlineData(5, 15)]
     [InlineData(35, 45)]
@@ -127,6 +138,28 @@ public sealed class TerrainLabelQueryTests : IDisposable
     }
 
     [Fact]
+    public async Task ForSetupSteepnessRowsCarryTheReadingOfTheLabelSummary()
+    {
+        var setupId = Guid.NewGuid();
+        await labels.PublishLabelsAsync([Label(2, 4, GradeBand.SteepDescent)], []);
+        var measured = Measured(setupId);
+        var set = query.LabelsOf(measured);
+        var session = measured with
+        {
+            TerrainLabelKey = new(measured.TerrainProfileKey!, set, TerrainLabels.Version),
+            TerrainLabelSummary = new TerrainLabelSummary([])
+            {
+                Grades = [new GradeStretch(set.Grades[0], Math.Sin(5 * Math.PI / 180))]
+            }
+        };
+        sessionStore.GetAll().Returns([session]);
+
+        var row = Assert.Single(query.ForSetup(setupId).SteepnessLabels);
+
+        Assert.True(row.Reading!.Clashes);
+    }
+
+    [Fact]
     public async Task ForSetupRowHasNoReadingWithoutACurrentLabelSummary()
     {
         var setupId = Guid.NewGuid();
@@ -183,5 +216,8 @@ public sealed class TerrainLabelQueryTests : IDisposable
     }
 
     private static TerrainLabelSnapshot Label(double start, double end, RoughnessClass roughness) =>
-        new(Guid.NewGuid(), "source-hash", start, end, roughness);
+        new(Guid.NewGuid(), "source-hash", start, end, new TerrainLabelClass.Roughness(roughness));
+
+    private static TerrainLabelSnapshot Label(double start, double end, GradeBand band) =>
+        new(Guid.NewGuid(), "source-hash", start, end, new TerrainLabelClass.Steepness(band));
 }

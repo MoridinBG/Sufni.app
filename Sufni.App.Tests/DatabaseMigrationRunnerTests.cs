@@ -1276,6 +1276,28 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
+    public async Task UpgradeKeepsEarlierLabelsAsRoughnessLabels()
+    {
+        using var temp = new TempDatabase();
+        var label = new TerrainLabel
+        {
+            OwnerKey = "source-hash", StartSeconds = 1, EndSeconds = 2, LabelClass = new TerrainLabelClass.Roughness(RoughnessClass.Rough)
+        };
+        await using (var earlier = new TestPersistenceHarness(temp.DatabasePath))
+        {
+            await earlier.TerrainLabelRepository.InsertAsync(label);
+            var connection = await earlier.GetInitializedConnectionAsync();
+            await connection.ExecuteAsync("ALTER TABLE terrain_label DROP COLUMN kind");
+            await connection.ExecuteAsync("ALTER TABLE terrain_label RENAME COLUMN class TO roughness_class");
+            await connection.ExecuteAsync("DELETE FROM core_migration WHERE id = 'terrain-steepness-labels'");
+        }
+
+        await using var reopened = new TestPersistenceHarness(temp.DatabasePath);
+
+        Assert.Equal(label.LabelClass, Assert.Single(await reopened.TerrainLabelRepository.GetLiveAsync()).LabelClass);
+    }
+
+    [Fact]
     public async Task StartupCleanup_PurgesOnlyTerrainLabelTombstonesOlderThanOneDay()
     {
         using var tempDatabase = new TempDatabase("label-purge.db");

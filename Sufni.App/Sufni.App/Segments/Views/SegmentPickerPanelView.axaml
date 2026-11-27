@@ -14,6 +14,79 @@
 
     <UserControl.Resources>
         <terrain:TerrainSwatchConverter x:Key="Swatch" />
+        <DataTemplate x:Key="LabelRow" x:DataType="vm:TerrainLabelRow">
+            <Grid
+                Margin="0,2"
+                ColumnDefinitions="*,auto,auto"
+                ColumnSpacing="6">
+                <Button
+                    x:Name="TerrainLabelRowButton"
+                    Grid.Column="0"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Stretch"
+                    Classes="embedded savedSegmentRow"
+                    Classes.selected="{Binding IsSelected}"
+                    Command="{Binding #Root.((vm:SegmentPickerViewModel)DataContext).SelectTerrainLabelCommand}"
+                    CommandParameter="{Binding}">
+                    <Grid ColumnDefinitions="3,auto,*" ColumnSpacing="8">
+                        <Border
+                            Grid.Column="0"
+                            Width="3"
+                            Background="{DynamicResource SufniSelectionIndicator}"
+                            CornerRadius="2"
+                            IsVisible="{Binding IsSelected}" />
+                        <Border
+                            Grid.Column="1"
+                            Width="12"
+                            Height="12"
+                            VerticalAlignment="Center"
+                            Background="{Binding Class, Converter={StaticResource Swatch}}"
+                            CornerRadius="2" />
+                        <StackPanel Grid.Column="2">
+                            <TextBlock
+                                FontWeight="SemiBold"
+                                Text="{Binding ClassName}" />
+                            <TextBlock Opacity="0.72" Text="{Binding RangeText}" />
+                            <TextBlock
+                                Classes="reading"
+                                Classes.clash="{Binding Reading.Clashes}"
+                                IsVisible="{Binding Reading.Text, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                Text="{Binding Reading.Text}"
+                                TextWrapping="Wrap"
+                                ToolTip.Tip="{Binding Reading.ToolTip}" />
+                        </StackPanel>
+                    </Grid>
+                </Button>
+                <Button
+                    x:Name="ChangeTerrainLabelClassButton"
+                    Grid.Column="1"
+                    Width="32"
+                    Height="32"
+                    Padding="0"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    Classes="embedded"
+                    Command="{Binding #Root.((vm:SegmentPickerViewModel)DataContext).ChangeTerrainLabelClassCommand}"
+                    CommandParameter="{Binding}"
+                    ToolTip.Tip="Change class">
+                    <Image Width="14" Source="{SvgImage /Assets/fa-edit.svg}" />
+                </Button>
+                <Button
+                    x:Name="DeleteTerrainLabelButton"
+                    Grid.Column="2"
+                    Width="32"
+                    Height="32"
+                    Padding="0"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    Classes="embedded dangerous"
+                    Command="{Binding #Root.((vm:SegmentPickerViewModel)DataContext).DeleteTerrainLabelCommand}"
+                    CommandParameter="{Binding}"
+                    ToolTip.Tip="Delete">
+                    <Image Width="14" Source="{SvgImage /Assets/fa-trash-can.svg}" />
+                </Button>
+            </Grid>
+        </DataTemplate>
     </UserControl.Resources>
 
     <UserControl.Styles>
@@ -142,89 +215,32 @@
                     <TextBlock
                         FontWeight="SemiBold"
                         Opacity="0.78"
-                        Text="Terrain Labels" />
+                        Text="Roughness Labels" />
                     <TextBlock
                         x:Name="EmptyTerrainLabelsMessage"
                         IsVisible="{Binding !HasTerrainLabels}"
                         Opacity="0.72"
-                        Text="No terrain labels" />
-                    <ItemsControl x:Name="TerrainLabelsItems" ItemsSource="{Binding TerrainLabels}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:TerrainLabelRow">
-                                <Grid
-                                    Margin="0,2"
-                                    ColumnDefinitions="*,auto,auto"
-                                    ColumnSpacing="6">
-                                    <Button
-                                        x:Name="TerrainLabelRowButton"
-                                        Grid.Column="0"
-                                        HorizontalAlignment="Stretch"
-                                        HorizontalContentAlignment="Stretch"
-                                        Classes="embedded savedSegmentRow"
-                                        Classes.selected="{Binding IsSelected}"
-                                        Command="{Binding #Root.((vm:SegmentPickerViewModel)DataContext).SelectTerrainLabelCommand}"
-                                        CommandParameter="{Binding}">
-                                        <Grid ColumnDefinitions="3,auto,*" ColumnSpacing="8">
-                                            <Border
-                                                Grid.Column="0"
-                                                Width="3"
-                                                Background="{DynamicResource SufniSelectionIndicator}"
-                                                CornerRadius="2"
-                                                IsVisible="{Binding IsSelected}" />
-                                            <Border
-                                                Grid.Column="1"
-                                                Width="12"
-                                                Height="12"
-                                                VerticalAlignment="Center"
-                                                Background="{Binding Class, Converter={StaticResource Swatch}}"
-                                                CornerRadius="2" />
-                                            <StackPanel Grid.Column="2">
-                                                <TextBlock
-                                                    FontWeight="SemiBold"
-                                                    Text="{Binding ClassName}" />
-                                                <TextBlock Opacity="0.72" Text="{Binding RangeText}" />
-                                                <TextBlock
-                                                    Classes="reading"
-                                                    Classes.clash="{Binding Clashes}"
-                                                    IsVisible="{Binding ReadsText, Converter={x:Static ObjectConverters.IsNotNull}}"
-                                                    Text="{Binding ReadsText}"
-                                                    TextWrapping="Wrap"
-                                                    ToolTip.Tip="How the labelled stretch reads on the scale set without this label. Yellow: more than one class away from its label." />
-                                            </StackPanel>
-                                        </Grid>
-                                    </Button>
-                                    <Button
-                                        x:Name="ChangeTerrainLabelClassButton"
-                                        Grid.Column="1"
-                                        Width="32"
-                                        Height="32"
-                                        Padding="0"
-                                        HorizontalContentAlignment="Center"
-                                        VerticalContentAlignment="Center"
-                                        Classes="embedded"
-                                        Command="{Binding #Root.((vm:SegmentPickerViewModel)DataContext).ChangeTerrainLabelClassCommand}"
-                                        CommandParameter="{Binding}"
-                                        ToolTip.Tip="Change class">
-                                        <Image Width="14" Source="{SvgImage /Assets/fa-edit.svg}" />
-                                    </Button>
-                                    <Button
-                                        x:Name="DeleteTerrainLabelButton"
-                                        Grid.Column="2"
-                                        Width="32"
-                                        Height="32"
-                                        Padding="0"
-                                        HorizontalContentAlignment="Center"
-                                        VerticalContentAlignment="Center"
-                                        Classes="embedded dangerous"
-                                        Command="{Binding #Root.((vm:SegmentPickerViewModel)DataContext).DeleteTerrainLabelCommand}"
-                                        CommandParameter="{Binding}"
-                                        ToolTip.Tip="Delete">
-                                        <Image Width="14" Source="{SvgImage /Assets/fa-trash-can.svg}" />
-                                    </Button>
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                        Text="No roughness labels" />
+                    <ItemsControl
+                        x:Name="TerrainLabelsItems"
+                        ItemTemplate="{StaticResource LabelRow}"
+                        ItemsSource="{Binding TerrainLabels}" />
+                </StackPanel>
+
+                <StackPanel Spacing="8">
+                    <TextBlock
+                        FontWeight="SemiBold"
+                        Opacity="0.78"
+                        Text="Steepness Labels" />
+                    <TextBlock
+                        x:Name="EmptySteepnessLabelsMessage"
+                        IsVisible="{Binding !HasSteepnessLabels}"
+                        Opacity="0.72"
+                        Text="No steepness labels" />
+                    <ItemsControl
+                        x:Name="SteepnessLabelsItems"
+                        ItemTemplate="{StaticResource LabelRow}"
+                        ItemsSource="{Binding SteepnessLabels}" />
                 </StackPanel>
 
                 <StackPanel Spacing="8">

@@ -12,6 +12,10 @@ public class TerrainLabelSetTests
         Assert.Equal(a.GetHashCode(), b.GetHashCode());
     }
 
+    [Fact]
+    public void SteepnessLabelsTellSetsApart() =>
+        Assert.NotEqual(TerrainLabelSet.None, TerrainProfiles.GradeLabels(new GradeLabelRange(0, 5, GradeBand.Descent)));
+
     [Theory]
     [InlineData(0.5, 2, true)]
     [InlineData(0, 0.5, false)]

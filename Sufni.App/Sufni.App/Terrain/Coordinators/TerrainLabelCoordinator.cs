@@ -26,22 +26,22 @@ public closed record TerrainLabelChangeResult
 }
 
 /// <summary>
-/// Owns the terrain label workflows: create, change the class and delete. The labels of one recording source never
-/// overlap when this device creates them.
+/// Owns the terrain label workflows: create, change the class and delete. The labels of one kind of one recording source
+/// never overlap when this device creates them.
 /// </summary>
 public interface ITerrainLabelCoordinator
 {
     /// <param name="startSeconds">Telemetry seconds of the session.</param>
-    Task<TerrainLabelChangeResult> CreateAsync(Guid sessionId, RoughnessClass roughnessClass, double startSeconds, double endSeconds);
+    Task<TerrainLabelChangeResult> CreateAsync(Guid sessionId, TerrainLabelClass labelClass, double startSeconds, double endSeconds);
 
-    Task<TerrainLabelChangeResult> SetClassAsync(Guid labelId, RoughnessClass roughnessClass);
+    Task<TerrainLabelChangeResult> SetClassAsync(Guid labelId, TerrainLabelClass labelClass);
 
     Task<TerrainLabelChangeResult> DeleteAsync(Guid labelId);
 
     /// <summary>
-    /// Returns the error for a new label over the range of the session, or null when the range is free.
+    /// Returns the error for a new label of the kind over the range of the session, or null when the range is free.
     /// </summary>
-    string? ValidateRange(Guid sessionId, double startSeconds, double endSeconds);
+    string? ValidateRange(Guid sessionId, TerrainLabelKind kind, double startSeconds, double endSeconds);
 }
 
 internal sealed class TerrainLabelCoordinator(
@@ -53,7 +53,7 @@ internal sealed class TerrainLabelCoordinator(
 {
     private static readonly ILogger logger = Log.ForContext<TerrainLabelCoordinator>();
 
-    public async Task<TerrainLabelChangeResult> CreateAsync(Guid sessionId, RoughnessClass roughnessClass, double startSeconds,
+    public async Task<TerrainLabelChangeResult> CreateAsync(Guid sessionId, TerrainLabelClass labelClass, double startSeconds,
         double endSeconds)
     {
         if (sessionStore.Get(sessionId) is not { } session) return new TerrainLabelChangeResult.SessionMissing();
@@ -70,9 +70,9 @@ internal sealed class TerrainLabelCoordinator(
             OwnerKey = source.SourceHash,
             StartSeconds = timeline.TelemetryToOwnerSeconds(startSeconds),
             EndSeconds = timeline.TelemetryToOwnerSeconds(endSeconds),
-            Class = roughnessClass
+            LabelClass = labelClass
         };
-        if (OverlapError(label.OwnerKey, label.StartSeconds, label.EndSeconds) is { } error)
+        if (OverlapError(label.OwnerKey, labelClass.Kind, label.StartSeconds, label.EndSeconds) is { } error)
         {
             logger.Warning("Overlapping terrain label for session {SessionId}", sessionId);
             return new TerrainLabelChangeResult.Invalid(error);
@@ -85,24 +85,25 @@ internal sealed class TerrainLabelCoordinator(
         });
     }
 
-    public Task<TerrainLabelChangeResult> SetClassAsync(Guid labelId, RoughnessClass roughnessClass) =>
-        WriteAsync(TerrainLabelWriteFailureReason.SetClass, labelId, () => repository.SetClassAsync(labelId, roughnessClass));
+    public Task<TerrainLabelChangeResult> SetClassAsync(Guid labelId, TerrainLabelClass labelClass) =>
+        WriteAsync(TerrainLabelWriteFailureReason.SetClass, labelId, () => repository.SetClassAsync(labelId, labelClass));
 
     public Task<TerrainLabelChangeResult> DeleteAsync(Guid labelId) =>
         WriteAsync(TerrainLabelWriteFailureReason.Delete, labelId, () => repository.DeleteAsync(labelId));
 
-    public string? ValidateRange(Guid sessionId, double startSeconds, double endSeconds)
+    public string? ValidateRange(Guid sessionId, TerrainLabelKind kind, double startSeconds, double endSeconds)
     {
         if (sessionStore.Get(sessionId) is not { } session ||
             sourceStore.Get(session.RecordingSourceSessionId) is not { } source) return null;
         var timeline = new SessionTrackTimeline(0, OwnerOriginSeconds: session.WindowStartSeconds);
-        return OverlapError(source.SourceHash, timeline.TelemetryToOwnerSeconds(startSeconds),
+        return OverlapError(source.SourceHash, kind, timeline.TelemetryToOwnerSeconds(startSeconds),
             timeline.TelemetryToOwnerSeconds(endSeconds));
     }
 
-    private string? OverlapError(string ownerKey, double startSeconds, double endSeconds) =>
-        labelStore.GetForOwner(ownerKey).Any(label => label.StartSeconds < endSeconds && startSeconds < label.EndSeconds)
-            ? "The range overlaps a terrain label."
+    private string? OverlapError(string ownerKey, TerrainLabelKind kind, double startSeconds, double endSeconds) =>
+        labelStore.GetForOwner(ownerKey).Any(label =>
+            label.Class.Kind == kind && label.StartSeconds < endSeconds && startSeconds < label.EndSeconds)
+            ? kind == TerrainLabelKind.Steepness ? "The range overlaps a steepness label." : "The range overlaps a roughness label."
             : null;
 
     private async Task<TerrainLabelChangeResult> WriteAsync(TerrainLabelWriteFailureReason reason, Guid labelId,

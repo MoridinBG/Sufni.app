@@ -392,7 +392,7 @@ public class SynchronizationMergeEngineTests
         using var hubDatabase = new TempDatabase("label-hub.db");
         await using var device = new TestPersistenceHarness(deviceDatabase.DatabasePath, writerId: "device");
         await using var hub = new TestPersistenceHarness(hubDatabase.DatabasePath, writerId: "hub");
-        var label = new TerrainLabel { OwnerKey = "source-hash", StartSeconds = 1, EndSeconds = 4, Class = RoughnessClass.Rough };
+        var label = new TerrainLabel { OwnerKey = "source-hash", StartSeconds = 1, EndSeconds = 4, LabelClass = new TerrainLabelClass.Steepness(GradeBand.SteepDescent) };
         await device.TerrainLabelRepository.InsertAsync(label);
 
         var added = await hub.SyncDataStore.MergeAllAsync(AppJson.Deserialize<SynchronizationData>(
@@ -400,7 +400,7 @@ public class SynchronizationMergeEngineTests
 
         Assert.Equal([label.Id], added.TerrainLabelIds);
         var merged = Assert.Single(await hub.TerrainLabelRepository.GetLiveAsync());
-        Assert.Equal((label.Id, "source-hash", RoughnessClass.Rough), (merged.Id, merged.OwnerKey, merged.Class));
+        Assert.Equal((label.Id, "source-hash", new TerrainLabelClass.Steepness(GradeBand.SteepDescent)), (merged.Id, merged.OwnerKey, merged.LabelClass));
 
         var bound = await device.GetSequenceUpperBoundAsync(SynchronizationDirection.Push);
         await device.TerrainLabelRepository.DeleteAsync(label.Id);

@@ -30,6 +30,6 @@ public class TerrainClassStripPlotViewTests
         Assert.Equal([(1d, 2d), (2d, 4d), (6d, 7d)], rectangles.Where(r => r.Top < 1).Select(r => (r.Left, r.Right)));
         var grade = Assert.Single(rectangles, r => r.Bottom > 1);
         Assert.Equal((1d, 4d), (grade.Left, grade.Right));
-        Assert.Equal(["Grade", "Roughness"], plot.PlottableList.OfType<Annotation>().Select(a => a.Text));
+        Assert.Subset(plot.PlottableList.OfType<Text>().Select(t => t.LabelText).ToHashSet(), new HashSet<string> { "Grade", "Roughness" });
     }
 }

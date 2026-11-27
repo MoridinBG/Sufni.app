@@ -1,4 +1,5 @@
 using System;
+using Sufni.App.Terrain.Models;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Terrain.Formatting;
@@ -29,7 +30,12 @@ internal static class TerrainClassText
         _ => throw new ArgumentOutOfRangeException(nameof(level))
     };
 
-    /// <summary>The class a labelled stretch reads, only where it differs from the label.</summary>
-    public static string? ReadsAs(RoughnessClass label, LabelReading? reading) =>
-        reading is { } read && read.Class != label ? $"Reads as {Name(read.Class)}" : null;
+    public static string Name(TerrainLabelClass labelClass) => labelClass switch
+    {
+        TerrainLabelClass.Roughness roughness => Name(roughness.Class),
+        TerrainLabelClass.Steepness steepness => Name(steepness.Band)
+    };
+
+
+    public static string KindName(TerrainLabelKind kind) => kind == TerrainLabelKind.Steepness ? "steepness" : "roughness";
 }

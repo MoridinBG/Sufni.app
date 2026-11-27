@@ -27,18 +27,18 @@ public class SignalPlotContextActionsTests
             "gps-mark-gps-event", "gps-mark-telemetry-event", "gps-cancel-alignment",
             "video-mark-video-event", "video-mark-telemetry-event", "video-cancel-alignment",
             "session-trim-from-beginning", "session-trim-until-end", "session-split-here", "session-undo-trim", "save-current-selection",
-            "label-current-selection"];
+            "label-roughness", "label-steepness"];
         foreach (var row in new[] { SignalRowIds.Travel, SignalRowIds.Velocity, SignalRowIds.Imu,
                      SignalRowIds.PitchRoll, SignalRowIds.Speed, SignalRowIds.Elevation })
             Assert.Equal(expected, harness.ContextActions.SignalPlotContextMenuActionsBySignalRowId[row].Select(action => action.Id));
     }
 
     [Fact]
-    public void LabelCurrentSelection_IsOnEveryRowThatSavesTheSelection()
+    public void LabelActions_AreOnEveryRowThatSavesTheSelection()
     {
         using var harness = new SessionPlotActionsFixture();
         foreach (var actions in harness.ContextActions.SignalPlotContextMenuActionsBySignalRowId.Values)
-            Assert.Contains(actions, action => action.Id == "label-current-selection");
+            Assert.Equal(2, actions.Count(action => action.Id is "label-roughness" or "label-steepness"));
         Assert.Equal(10, harness.ContextActions.SignalPlotContextMenuActionsBySignalRowId.Count);
     }
 
@@ -46,7 +46,7 @@ public class SignalPlotContextActionsTests
     [InlineData(3, true, true)]
     [InlineData(6, true, false)]
     [InlineData(3, false, false)]
-    public void LabelCurrentSelection_NeedsAClickInTheSelectionAndLoadedTerrain(double clickSeconds, bool loaded, bool available)
+    public void LabelActions_NeedAClickInTheSelectionAndLoadedTerrain(double clickSeconds, bool loaded, bool available)
     {
         using var harness = new SessionPlotActionsFixture();
         if (loaded)
@@ -60,7 +60,8 @@ public class SignalPlotContextActionsTests
         }
         var context = CreatePlotContext(clickSeconds) with { AnalysisRange = new TelemetryTimeRange(2, 4) };
 
-        Assert.Equal(available, harness.ContextActions.LabelSelectionCommand.CanExecute(context));
+        Assert.Equal((available, available), (harness.ContextActions.LabelRoughnessCommand.CanExecute(context),
+            harness.ContextActions.LabelSteepnessCommand.CanExecute(context)));
     }
 
     private static TelemetryPlotContextMenuContext CreatePlotContext(double clickSeconds) => SessionPlotActionsFixture.Context(clickSeconds);

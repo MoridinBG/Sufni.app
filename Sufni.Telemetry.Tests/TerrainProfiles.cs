@@ -9,6 +9,8 @@ public static class TerrainProfiles
 
     public static TerrainLabelSet Labels(params TerrainLabelRange[] ranges) => new([.. ranges]);
 
+    public static TerrainLabelSet GradeLabels(params GradeLabelRange[] ranges) => TerrainLabelSet.None with { Grades = [.. ranges] };
+
     public static TerrainProfile Profile(IEnumerable<TerrainWindow> windows,
         TerrainGradeState grade = TerrainGradeState.Available, double? frameScale = 4096, double? forkScale = 4096) =>
         new([.. windows], [], [], grade, frameScale, forkScale);

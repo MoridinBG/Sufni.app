@@ -1,17 +1,21 @@
 using Sufni.App.Terrain.ViewModels;
+using Sufni.App.Terrain.Models;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Terrain.ViewModels;
 
 public class TerrainLabelClassPromptViewModelTests
 {
+    private static readonly TerrainLabelClass Rough = new TerrainLabelClass.Roughness(RoughnessClass.Rough);
+
     [Theory]
-    [InlineData(null, null, false)]
-    [InlineData(RoughnessClass.Rough, "The range overlaps a terrain label.", false)]
-    [InlineData(RoughnessClass.Rough, null, true)]
-    public void ConfirmNeedsAClassAndNoValidationMessage(RoughnessClass? selected, string? message, bool canConfirm)
+    [InlineData(false, null, false)]
+    [InlineData(true, "The range overlaps a roughness label.", false)]
+    [InlineData(true, null, true)]
+    public void ConfirmNeedsAClassAndNoValidationMessage(bool selected, string? message, bool canConfirm)
     {
-        var prompt = new TerrainLabelClassPromptViewModel("Label terrain", "Label", selected, message);
+        var prompt = new TerrainLabelClassPromptViewModel("Label roughness", "Label", TerrainLabelKind.Roughness,
+            selected ? Rough : null, message);
 
         Assert.Equal(canConfirm, prompt.ConfirmCommand.CanExecute(null));
     }
@@ -19,21 +23,21 @@ public class TerrainLabelClassPromptViewModelTests
     [Fact]
     public void ConfirmCompletesWithTheSelectedClass()
     {
-        var prompt = new TerrainLabelClassPromptViewModel("Label terrain", "Label", null, null);
+        var prompt = new TerrainLabelClassPromptViewModel("Label roughness", "Label", TerrainLabelKind.Roughness, null, null);
         var completed = false;
         prompt.Completed += (_, _) => completed = true;
 
-        prompt.SelectedClass = RoughnessClass.TechnicalClimb;
+        prompt.SelectedClass = new TerrainLabelClass.Roughness(RoughnessClass.TechnicalClimb);
         prompt.ConfirmCommand.Execute(null);
 
         Assert.True(completed);
-        Assert.Equal(RoughnessClass.TechnicalClimb, prompt.ConfirmedClass);
+        Assert.Equal(new TerrainLabelClass.Roughness(RoughnessClass.TechnicalClimb), prompt.ConfirmedClass);
     }
 
     [Fact]
     public void CancelCompletesWithoutAClass()
     {
-        var prompt = new TerrainLabelClassPromptViewModel("Label terrain", "Label", RoughnessClass.Rough, null);
+        var prompt = new TerrainLabelClassPromptViewModel("Label roughness", "Label", TerrainLabelKind.Roughness, Rough, null);
         var completed = false;
         prompt.Completed += (_, _) => completed = true;
 
@@ -44,10 +48,20 @@ public class TerrainLabelClassPromptViewModelTests
     }
 
     [Fact]
-    public void ClassesListEveryRoughnessClass()
+    public void RoughnessClassesListEveryRoughnessClass()
     {
-        var prompt = new TerrainLabelClassPromptViewModel("Label terrain", "Label", null, null);
+        var prompt = new TerrainLabelClassPromptViewModel("Label roughness", "Label", TerrainLabelKind.Roughness, null, null);
 
-        Assert.Equal(Enum.GetValues<RoughnessClass>(), prompt.Classes.Select(option => option.Class));
+        Assert.Equal(Enum.GetValues<RoughnessClass>().Select(level => new TerrainLabelClass.Roughness(level)),
+            prompt.Classes.Select(option => option.Class));
+    }
+
+    [Fact]
+    public void SteepnessClassesListEveryGradeBand()
+    {
+        var prompt = new TerrainLabelClassPromptViewModel("Label steepness", "Label", TerrainLabelKind.Steepness, null, null);
+
+        Assert.Equal(Enum.GetValues<GradeBand>().Select(band => new TerrainLabelClass.Steepness(band)),
+            prompt.Classes.Select(option => option.Class));
     }
 }

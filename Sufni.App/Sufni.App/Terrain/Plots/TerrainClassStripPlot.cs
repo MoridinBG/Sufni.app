@@ -15,14 +15,15 @@ using Sufni.Telemetry;
 namespace Sufni.App.Terrain.Plots;
 
 /// <summary>
-/// Named lanes of class runs on the recorded timeline: the terrain labels on top when the ride has any, then grade, then
-/// roughness.
+/// Named lanes of class runs on the recorded timeline: grade and roughness, each with a lane of its labels above it when
+/// the ride has any.
 /// </summary>
 public sealed class TerrainClassStripPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPlot(plot, theme)
 {
     private const double LaneGap = 0.04;
     private const float RunNameFontSize = 11;
     private readonly List<RunName> runNames = [];
+    private readonly List<(Text Text, double Lane)> laneNames = [];
     private TerrainPresentation? terrain;
 
     private sealed record RunName(Text Text, double StartSeconds, double EndSeconds, double Lane);
@@ -31,25 +32,31 @@ public sealed class TerrainClassStripPlot(Plot plot, SufniTheme? theme = null) :
     {
         terrain = presentation;
         runNames.Clear();
+        laneNames.Clear();
         ConfigureTimeSeriesFrame("Terrain");
         Plot.Axes.Left.IsVisible = false;
         Plot.Axes.Right.IsVisible = false;
         var duration = telemetry.Metadata.Duration;
-        var labelled = !presentation.LabelRuns.IsEmpty;
-        var lanes = labelled ? 3 : 2;
-        Plot.Axes.SetLimits(0, duration, 0, lanes);
-        AddMirroredTimeSeriesAxisRules(0, duration, 0, lanes);
         var scales = PlotTheme.Series.Terrain;
-        if (labelled)
+        var lane = 0;
+        DrawLane(presentation.RoughnessShades, presentation.RoughnessRuns, lane, scales.ShadeFor, scales.ColorFor, TerrainClassText.Name);
+        AddLaneName("Roughness", lane++);
+        if (!presentation.RoughnessLabelRuns.IsEmpty)
         {
-            DrawLane([.. presentation.LabelRuns.Select(run => new TerrainShade<RoughnessClass>(run.StartSeconds, run.EndSeconds, run.Class, null))],
-                presentation.LabelRuns, 2, (level, _) => scales.ColorFor(level), scales.ColorFor, TerrainClassText.Name);
-            AddLaneLabel("Labels", Alignment.UpperLeft);
+            DrawLane(Plain(presentation.RoughnessLabelRuns), presentation.RoughnessLabelRuns, lane, (level, _) => scales.ColorFor(level),
+                scales.ColorFor, TerrainClassText.Name);
+            AddLaneName("Roughness labels", lane++);
         }
-        DrawLane(presentation.GradeShades, presentation.GradeRuns, 1, scales.ShadeFor, scales.ColorFor, TerrainClassText.Name);
-        DrawLane(presentation.RoughnessShades, presentation.RoughnessRuns, 0, scales.ShadeFor, scales.ColorFor, TerrainClassText.Name);
-        AddLaneLabel("Grade", labelled ? Alignment.MiddleLeft : Alignment.UpperLeft);
-        AddLaneLabel("Roughness", Alignment.LowerLeft);
+        DrawLane(presentation.GradeShades, presentation.GradeRuns, lane, scales.ShadeFor, scales.ColorFor, TerrainClassText.Name);
+        AddLaneName("Grade", lane++);
+        if (!presentation.SteepnessLabelRuns.IsEmpty)
+        {
+            DrawLane(Plain(presentation.SteepnessLabelRuns), presentation.SteepnessLabelRuns, lane, (band, _) => scales.ColorFor(band),
+                scales.ColorFor, TerrainClassText.Name);
+            AddLaneName("Steepness labels", lane++);
+        }
+        Plot.Axes.SetLimits(0, duration, 0, lane);
+        AddMirroredTimeSeriesAxisRules(0, duration, 0, lane);
         var airtime = RecordedTimeRangeOverlayFactory.CreateAirtimeRegistration(telemetry.Airtimes, PlotTheme);
         SetRangeOverlaySet(airtime.Id, airtime.Set);
         SetRangeOverlayVisibility(airtime.Id, airtime.IsVisible);
@@ -57,9 +64,13 @@ public sealed class TerrainClassStripPlot(Plot plot, SufniTheme? theme = null) :
         CursorLine = AddTimeSeriesCursorLine();
     }
 
-    /// <summary>Shows each run name centred on the visible part of its run, where the name fits.</summary>
+    /// <summary>
+    /// Shows each run name centred on the visible part of its run, where the name fits, and keeps the lane names at the
+    /// left edge.
+    /// </summary>
     public void LayoutRunNames(double visibleMinimumSeconds, double visibleMaximumSeconds, double dataAreaWidthPixels)
     {
+        foreach (var (text, lane) in laneNames) text.Location = new(visibleMinimumSeconds, lane + 1);
         var pixelsPerSecond = dataAreaWidthPixels / Math.Max(visibleMaximumSeconds - visibleMinimumSeconds, double.Epsilon);
         foreach (var name in runNames)
         {
@@ -77,15 +88,18 @@ public sealed class TerrainClassStripPlot(Plot plot, SufniTheme? theme = null) :
         if (terrain is null || !double.IsFinite(position)) return null;
         var scales = PlotTheme.Series.Terrain;
         var lines = new List<CursorReadoutLine>();
-        if (RunAt(terrain.LabelRuns, position) is { } label)
-            lines.Add(new("Label", 0, string.Empty, scales.ColorFor(label).ToScottPlotColor(),
-                DisplayValue: TerrainClassText.Name(label)));
+        if (RunAt(terrain.SteepnessLabelRuns, position) is { } steepness)
+            lines.Add(new("Steepness label", 0, string.Empty, scales.ColorFor(steepness).ToScottPlotColor(),
+                DisplayValue: TerrainClassText.Name(steepness)));
         if (RunAt(terrain.GradeRuns, position) is { } band)
         {
             var degrees = ValueAt(terrain.Grade, position);
             var text = degrees is { } value ? $"{TerrainClassText.Name(band)} · {value.ToString("0.#", CultureInfo.InvariantCulture)}°" : TerrainClassText.Name(band);
             lines.Add(new("Grade", degrees ?? 0, "°", scales.ColorFor(band).ToScottPlotColor(), DisplayValue: text));
         }
+        if (RunAt(terrain.RoughnessLabelRuns, position) is { } roughness)
+            lines.Add(new("Roughness label", 0, string.Empty, scales.ColorFor(roughness).ToScottPlotColor(),
+                DisplayValue: TerrainClassText.Name(roughness)));
         if (RunAt(terrain.RoughnessRuns, position) is { } level)
             lines.Add(new("Roughness", 0, string.Empty, scales.ColorFor(level).ToScottPlotColor(),
                 DisplayValue: TerrainClassText.Name(level)));
@@ -119,17 +133,21 @@ public sealed class TerrainClassStripPlot(Plot plot, SufniTheme? theme = null) :
         }
     }
 
-    private void AddLaneLabel(string label, Alignment alignment)
+    private void AddLaneName(string name, double lane)
     {
-        var annotation = Plot.Add.Annotation(label, alignment);
-        annotation.LabelFontSize = 12;
-        annotation.LabelFontColor = PlotTheme.InPlotLabelText.ToScottPlotColor();
-        annotation.LabelBackgroundColor = PlotTheme.Legend.Background.ToScottPlotColor().WithAlpha(0.85);
-        annotation.LabelBorderColor = Colors.Transparent;
-        annotation.LabelShadowColor = Colors.Transparent;
-        annotation.OffsetX = 2;
-        annotation.OffsetY = 2;
+        var text = Plot.Add.Text(name, 0, lane + 1);
+        text.LabelFontSize = 12;
+        text.LabelAlignment = Alignment.UpperLeft;
+        text.LabelFontColor = PlotTheme.InPlotLabelText.ToScottPlotColor();
+        text.LabelBackgroundColor = PlotTheme.Legend.Background.ToScottPlotColor().WithAlpha(0.85);
+        text.LabelBorderColor = Colors.Transparent;
+        text.OffsetX = 2;
+        text.OffsetY = 2;
+        laneNames.Add((text, lane));
     }
+
+    private static ImmutableArray<TerrainShade<TClass>> Plain<TClass>(ImmutableArray<TerrainRun<TClass>> runs) where TClass : struct, Enum =>
+        [.. runs.Select(run => new TerrainShade<TClass>(run.StartSeconds, run.EndSeconds, run.Class, null))];
 
     private static bool IsLight(Avalonia.Media.Color colour) =>
         0.2126 * colour.R + 0.7152 * colour.G + 0.0722 * colour.B > 150;

@@ -133,6 +133,20 @@ public class TerrainClassifierTests
     }
 
     [Fact]
+    public void SteepnessLabelSetsTheBandBeforeTheClass()
+    {
+        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0) with
+        {
+            Band = GradeBand.Flat, Frame = TerrainProfiles.Sensor(TerrainLevels.Median(0) / 2)
+        }]);
+
+        var window = TerrainClassifier.Classify(profile, TerrainProfiles.Scale,
+            TerrainProfiles.GradeLabels(new GradeLabelRange(0, 1, GradeBand.Climb))).Windows.Single();
+
+        Assert.Equal((GradeBand.Climb, true, RoughnessClass.SmoothClimb), (window.Window.Band, window.GradeLabelled, window.Roughness));
+    }
+
+    [Fact]
     public void LabelSetsTheClassAfterTheOutlierMerge()
     {
         var profile = TerrainProfiles.Profile([.. Enumerable.Range(0, 3).Select(i => TerrainProfiles.Window(i, i == 1 ? RoughnessClass.Rough : RoughnessClass.Calm))]);
@@ -200,6 +214,21 @@ public class TerrainClassifierTests
         var reading = TerrainClassifier.Read(TerrainProfiles.Stretch(RoughnessClass.SmoothClimb, TerrainProfiles.Steps(steps)), TerrainProfiles.Scale);
 
         Assert.Equal((reads, clashes), (reading!.Class, reading.Clashes));
+    }
+
+    [Theory]
+    [InlineData(12, GradeBand.SteepDescent, false)]
+    [InlineData(8.5, GradeBand.Descent, false)]
+    [InlineData(7.5, GradeBand.Descent, true)]
+    [InlineData(-3, GradeBand.Climb, true)]
+    public void SteepnessStretchReadsTheBandOfItsMeanGradeAndClashesMoreThanTwoDegreesOutside(double degrees, GradeBand reads,
+        bool clashes)
+    {
+        var stretch = new GradeStretch(new GradeLabelRange(0, 1, GradeBand.SteepDescent), Math.Sin(degrees * Math.PI / 180));
+
+        var reading = TerrainClassifier.Read(stretch);
+
+        Assert.Equal((reads, clashes), (reading.Band, reading.Clashes));
     }
 
     [Fact]

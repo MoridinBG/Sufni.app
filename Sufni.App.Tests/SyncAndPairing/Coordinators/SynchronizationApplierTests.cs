@@ -35,8 +35,8 @@ public class SynchronizationApplierTests
         var track = new Track { Points = [new TrackPoint(100, 1, 2, 3), new TrackPoint(101, 2, 3, 4)] };
         var layer = new CustomTileLayer { Name = "Trail", UrlTemplate = "https://tiles/{z}/{x}/{y}" };
         var segment = new SessionSegment { OwnerKey = "source-hash", Name = "climb", StartSeconds = 1, EndSeconds = 2 };
-        var label = new TerrainLabel { OwnerKey = "source-hash", StartSeconds = 1, EndSeconds = 2, Class = RoughnessClass.Rough };
-        var observed = new List<(string?, Guid?, Guid?, string?, bool, string?, string?, RoughnessClass?)>();
+        var label = new TerrainLabel { OwnerKey = "source-hash", StartSeconds = 1, EndSeconds = 2, LabelClass = new TerrainLabelClass.Roughness(RoughnessClass.Rough) };
+        var observed = new List<(string?, Guid?, Guid?, string?, bool, string?, string?, TerrainLabelClass?)>();
         using var subscription = fixture.Publication.Committed.Subscribe(_ => observed.Add((
             fixture.Bikes.Get(bike.Id)?.Name, fixture.Setups.Get(setup.Id)?.BikeId,
             fixture.Boards.Get(board.Id)?.SetupId, fixture.Sessions.Get(session.Id)?.Name,
@@ -54,7 +54,7 @@ public class SynchronizationApplierTests
         Assert.NotNull(await fixture.Database.GetAsync<Board>(board.Id));
         await dispatcher.DrainAsync();
         Assert.Contains(session.Id, (await apply.AwaitBoundedAsync(TimeSpan.FromSeconds(5))).SessionIds);
-        Assert.Equal(("bike", bike.Id, setup.Id, "ride", true, "Trail", "climb", RoughnessClass.Rough), Assert.Single(observed));
+        Assert.Equal(("bike", bike.Id, setup.Id, "ride", true, "Trail", "climb", new TerrainLabelClass.Roughness(RoughnessClass.Rough)), Assert.Single(observed));
 
         var deletion = applier.ApplyAsync(new SynchronizationData
         {
@@ -64,7 +64,7 @@ public class SynchronizationApplierTests
         await dispatcher.WaitForWorkAsync(TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         await dispatcher.DrainAsync();
         await deletion.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(("bike", bike.Id, setup.Id, null, false, "Trail", "climb", RoughnessClass.Rough), observed[1]);
+        Assert.Equal(("bike", bike.Id, setup.Id, null, false, "Trail", "climb", new TerrainLabelClass.Roughness(RoughnessClass.Rough)), observed[1]);
     }
 
 }

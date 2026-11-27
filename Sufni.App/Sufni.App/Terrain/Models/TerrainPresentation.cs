@@ -52,12 +52,14 @@ public sealed record TerrainPresentation(ImmutableArray<TerrainRun<RoughnessClas
 {
     /// <summary>The class value of each window in steps of 0.25 class.</summary>
     public ImmutableArray<TerrainShade<RoughnessClass>> RoughnessShades { get; init; } = [];
-    /// <summary>The baseline grade of each window in steps of 1°.</summary>
+    /// <summary>The baseline grade of each window in steps of 1°; none in a window with a steepness label.</summary>
     public ImmutableArray<TerrainShade<GradeBand>> GradeShades { get; init; } = [];
     /// <summary>
-    /// The terrain labels in time order. Where labels overlap, the part that the first label holds is cut from the later one.
+    /// The roughness labels in time order. Where labels overlap, the part that the first label holds is cut from the later one.
     /// </summary>
-    public ImmutableArray<TerrainRun<RoughnessClass>> LabelRuns { get; init; } = [];
+    public ImmutableArray<TerrainRun<RoughnessClass>> RoughnessLabelRuns { get; init; } = [];
+    /// <summary>The steepness labels, cut as the roughness labels are.</summary>
+    public ImmutableArray<TerrainRun<GradeBand>> SteepnessLabelRuns { get; init; } = [];
     /// <summary>Speed-removed frame levels at the descent class boundaries; empty without a ready or anchored frame median.</summary>
     public ImmutableArray<double> FrameEdges { get; init; } = [];
     public ImmutableArray<double> ForkEdges { get; init; } = [];

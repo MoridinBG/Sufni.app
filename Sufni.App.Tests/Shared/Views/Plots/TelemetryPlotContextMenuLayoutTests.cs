@@ -14,7 +14,7 @@ public class TelemetryPlotContextMenuLayoutTests
     {
         var actions = CreateActions(
             "session-split-here", "gps-mark-gps-event", "analysis-range-clear", "zoom-selection",
-            "label-current-selection", "session-trim-from-beginning", "save-current-selection",
+            "label-steepness", "label-roughness", "session-trim-from-beginning", "save-current-selection",
             "video-mark-video-event", "analysis-range-set-start");
 
         var entries = TelemetryPlotContextMenuLayout.Create(ContextInsideRange, actions);
@@ -23,7 +23,7 @@ public class TelemetryPlotContextMenuLayoutTests
             entries,
             entry => Assert.Equal("zoom-selection", Assert.IsType<TelemetryPlotContextMenuEntry.Item>(entry).Action.Id),
             entry => AssertSubmenu(entry, "save-current-selection", "analysis-range-set-start", "analysis-range-clear"),
-            entry => AssertSubmenu(entry, "label-current-selection"),
+            entry => AssertSubmenu(entry, "label-roughness", "label-steepness"),
             entry => AssertSubmenu(entry, "gps-mark-gps-event", "video-mark-video-event"),
             entry => AssertSubmenu(entry, "session-trim-from-beginning", "session-split-here"));
     }

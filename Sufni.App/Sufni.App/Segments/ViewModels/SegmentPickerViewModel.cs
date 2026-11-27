@@ -16,6 +16,7 @@ using Sufni.App.Segments.Coordinators;
 using Sufni.App.Segments.Models;
 using Sufni.App.Segments.Stores;
 using Sufni.App.Terrain.Coordinators;
+using Sufni.App.Terrain.Formatting;
 using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Queries;
 using Sufni.App.Terrain.Stores;
@@ -24,7 +25,7 @@ namespace Sufni.App.Segments.ViewModels;
 
 /// <summary>
 /// The open session's start (unix seconds), processed telemetry duration, and
-/// analysis range, and the scale of its setup.
+/// analysis range, the scale of its setup, and its current label summary.
 /// </summary>
 public sealed record SegmentPickerSessionState(
     long? Timestamp,
@@ -32,7 +33,8 @@ public sealed record SegmentPickerSessionState(
     TelemetryTimeRange? AnalysisRange,
     string? OwnerKey = null,
     double WindowStartSeconds = 0,
-    SetupTerrainScale? TerrainScale = null);
+    SetupTerrainScale? TerrainScale = null,
+    TerrainLabelSummary? LabelSummary = null);
 
 /// <summary>
 /// Segments picker of one open recorded session. It lives as long as the
@@ -59,6 +61,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     private IReadOnlyCollection<TerrainLabelSnapshot> labels = [];
     private string? ownerKey;
     private SetupTerrainScale? terrainScale;
+    private TerrainLabelSummary? labelSummary;
     private SessionTrackTimeline ownerTimeline;
     private long? sessionTimestamp;
     private double? telemetryDurationSeconds;
@@ -76,6 +79,10 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasTerrainLabels))]
     public partial IReadOnlyList<TerrainLabelRow> TerrainLabels { get; private set; } = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSteepnessLabels))]
+    public partial IReadOnlyList<TerrainLabelRow> SteepnessLabels { get; private set; } = [];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsStravaConnected), nameof(IsStravaSegmentsLoading), nameof(StravaMessage),
@@ -127,6 +134,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     public bool CanOpen => telemetryDurationSeconds is not null;
     public bool HasSavedSegments => SavedSegments.Count > 0;
     public bool HasTerrainLabels => TerrainLabels.Count > 0;
+    public bool HasSteepnessLabels => SteepnessLabels.Count > 0;
     public bool HasStravaMessage => StravaMessage is not null;
 
     // The picker closes when the telemetry is gone.
@@ -134,6 +142,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     {
         ownerKey = state.OwnerKey;
         terrainScale = state.TerrainScale;
+        labelSummary = state.LabelSummary;
         ownerTimeline = new SessionTrackTimeline(0, OwnerOriginSeconds: state.WindowStartSeconds);
         sessionTimestamp = state.Timestamp;
         telemetryDurationSeconds = state.TelemetryDurationSeconds is > 0 ? state.TelemetryDurationSeconds : null;
@@ -166,14 +175,15 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     }
 
     /// <summary>
-    /// Asks for a class and labels <paramref name="range"/> of the session with it. A range over a label shows the
-    /// message and cannot be confirmed.
+    /// Asks for a class of the kind and labels <paramref name="range"/> of the session with it. A range over a label of
+    /// the kind shows the message and cannot be confirmed.
     /// </summary>
-    public async Task LabelSelectionAsync(TelemetryTimeRange range)
+    public async Task LabelSelectionAsync(TelemetryTimeRange range, TerrainLabelKind kind)
     {
-        var roughness = await TerrainLabelClassPromptViewModel.AskAsync(dialogService, "Label terrain", "Label", null,
-            labelCoordinator.ValidateRange(sessionId, range.StartSeconds, range.EndSeconds));
-        if (roughness is { } chosen)
+        var chosen = await TerrainLabelClassPromptViewModel.AskAsync(dialogService, $"Label {TerrainClassText.KindName(kind)}",
+            "Label", kind, null,
+            labelCoordinator.ValidateRange(sessionId, kind, range.StartSeconds, range.EndSeconds));
+        if (chosen is not null)
             Report(await labelCoordinator.CreateAsync(sessionId, chosen, range.StartSeconds, range.EndSeconds));
     }
 
@@ -241,14 +251,16 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     [RelayCommand]
     private async Task ChangeTerrainLabelClass(TerrainLabelRow row)
     {
-        if (await TerrainLabelClassPromptViewModel.AskAsync(dialogService, "Change terrain label", "Change", row.Class, null) is { } roughness)
-            Report(await labelCoordinator.SetClassAsync(row.Id, roughness));
+        if (await TerrainLabelClassPromptViewModel.AskAsync(dialogService, $"Change {TerrainClassText.KindName(row.Class.Kind)} label",
+                "Change", row.Class.Kind, row.Class, null) is { } chosen)
+            Report(await labelCoordinator.SetClassAsync(row.Id, chosen));
     }
 
     [RelayCommand]
     private async Task DeleteTerrainLabel(TerrainLabelRow row)
     {
-        if (await dialogService.ShowConfirmationAsync("Delete terrain label?", $"Delete the {row.ClassName} label at {row.RangeText}?"))
+        if (await dialogService.ShowConfirmationAsync($"Delete {TerrainClassText.KindName(row.Class.Kind)} label?",
+                $"Delete the {row.ClassName} label at {row.RangeText}?"))
             Report(await labelCoordinator.DeleteAsync(row.Id));
     }
 
@@ -428,11 +440,19 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
 
     private void RefreshTerrainLabels()
     {
-        TerrainLabels = telemetryDurationSeconds is { } duration && ownerKey is { } owner
-            ? [.. TerrainLabelQuery.InWindow(labels.Where(label => label.OwnerKey == owner), ownerTimeline.OwnerOriginSeconds, duration)
-                .Select(label => new TerrainLabelRow(label.Id, label.Class, label.Range, IsSelected(label.Range),
-                    terrainScale?.ReadingOf(sessionId, new TerrainLabelRange(label.Range.StartSeconds, label.Range.EndSeconds, label.Class))))]
+        var inWindow = telemetryDurationSeconds is { } duration && ownerKey is { } owner
+            ? TerrainLabelQuery.InWindow(labels.Where(label => label.OwnerKey == owner), ownerTimeline.OwnerOriginSeconds, duration)
             : [];
+        var rows = inWindow.Select(label => new TerrainLabelRow(label.Id, label.Class, label.Range, IsSelected(label.Range),
+            label.Class switch
+            {
+                TerrainLabelClass.Roughness roughness => LabelReadingText.Of(roughness.Class, terrainScale?.ReadingOf(sessionId,
+                    new TerrainLabelRange(label.Range.StartSeconds, label.Range.EndSeconds, roughness.Class))),
+                TerrainLabelClass.Steepness steepness => LabelReadingText.Of(steepness.Band, labelSummary?.ReadingOf(
+                    new GradeLabelRange(label.Range.StartSeconds, label.Range.EndSeconds, steepness.Band)))
+            })).ToArray();
+        TerrainLabels = [.. rows.Where(row => row.Class.Kind == TerrainLabelKind.Roughness)];
+        SteepnessLabels = [.. rows.Where(row => row.Class.Kind == TerrainLabelKind.Steepness)];
     }
 
     private bool IsSelected(TelemetryTimeRange segment) =>

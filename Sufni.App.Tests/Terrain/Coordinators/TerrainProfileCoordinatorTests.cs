@@ -509,7 +509,8 @@ public class TerrainProfileCoordinatorTests
             [new RecordedSessionSourceSnapshot(session.Id, RecordedSessionSourceKind.ImportedSst, "ride.SST", 1, session.Id.ToString())]));
 
         public Task PublishLabelAsync(SessionSnapshot session, double start, double end, RoughnessClass roughness) =>
-            DrainAsync(Labels.PublishLabelsAsync([new TerrainLabelSnapshot(Guid.NewGuid(), session.Id.ToString(), start, end, roughness)], []));
+            DrainAsync(Labels.PublishLabelsAsync([new TerrainLabelSnapshot(Guid.NewGuid(), session.Id.ToString(), start, end,
+                new TerrainLabelClass.Roughness(roughness))], []));
 
         public SessionContentSnapshotResult Available(SessionContentToken key, TelemetryData? telemetry = null) =>
             new SessionContentSnapshotResult.Available(new(key, SessionContentSelection.ProcessedTelemetry, telemetry ?? ride.Telemetry, null));

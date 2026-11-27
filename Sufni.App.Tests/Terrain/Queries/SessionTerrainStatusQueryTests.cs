@@ -118,6 +118,15 @@ public class SessionTerrainStatusQueryTests
     }
 
     [Fact]
+    public void SteepnessLabelsAloneAskForALabelSummary()
+    {
+        var (session, status) = Current();
+        var labels = TerrainLabelSet.None with { Grades = [new GradeLabelRange(0, 5, GradeBand.Descent)] };
+
+        Assert.IsType<TerrainLabelState.Pending>(SessionTerrainStatusQuery.EvaluateLabels(session, status, labels));
+    }
+
+    [Fact]
     public void LabelStateIsNoneWithoutACurrentProfileOrWithoutLabels()
     {
         var (session, status) = Current();

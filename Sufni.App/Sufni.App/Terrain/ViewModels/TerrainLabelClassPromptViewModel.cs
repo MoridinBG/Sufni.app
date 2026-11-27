@@ -6,31 +6,36 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Infrastructure;
 using Sufni.App.Terrain.Formatting;
+using Sufni.App.Terrain.Models;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Terrain.ViewModels;
 
-public sealed record TerrainLabelClassOption(RoughnessClass Class, string Name);
+public sealed record TerrainLabelClassOption(TerrainLabelClass Class, string Name);
 
 /// <summary>
-/// Content of the dialog that asks for the class of a terrain label. The dialog completes on confirm and on cancel;
-/// <see cref="ConfirmedClass"/> stays null after cancel. A validation message blocks the confirm.
+/// Content of the dialog that asks for the class of a terrain label of one kind. The dialog completes on confirm and on
+/// cancel; <see cref="ConfirmedClass"/> stays null after cancel. A validation message blocks the confirm.
 /// </summary>
 public sealed partial class TerrainLabelClassPromptViewModel : ObservableObject, IContentDialogCompletionSource
 {
-    public TerrainLabelClassPromptViewModel(string title, string confirmText, RoughnessClass? selected, string? validationMessage)
+    public TerrainLabelClassPromptViewModel(string title, string confirmText, TerrainLabelKind kind, TerrainLabelClass? selected,
+        string? validationMessage)
     {
         Title = title;
         ConfirmText = confirmText;
+        Classes = kind == TerrainLabelKind.Steepness
+            ? [.. Enum.GetValues<GradeBand>().Select(band => Option(new TerrainLabelClass.Steepness(band)))]
+            : [.. Enum.GetValues<RoughnessClass>().Select(level => Option(new TerrainLabelClass.Roughness(level)))];
         SelectedClass = selected;
         ValidationMessage = validationMessage;
     }
 
     /// <summary>Shows the prompt in a dialog and returns the confirmed class, or null after cancel.</summary>
-    public static async Task<RoughnessClass?> AskAsync(IDialogService dialogService, string title, string confirmText,
-        RoughnessClass? selected, string? validationMessage)
+    public static async Task<TerrainLabelClass?> AskAsync(IDialogService dialogService, string title, string confirmText,
+        TerrainLabelKind kind, TerrainLabelClass? selected, string? validationMessage)
     {
-        var prompt = new TerrainLabelClassPromptViewModel(title, confirmText, selected, validationMessage);
+        var prompt = new TerrainLabelClassPromptViewModel(title, confirmText, kind, selected, validationMessage);
         await dialogService.ShowContentDialogAsync(
             prompt,
             new DialogOptions(
@@ -47,14 +52,13 @@ public sealed partial class TerrainLabelClassPromptViewModel : ObservableObject,
     public string ConfirmText { get; }
     public string? ValidationMessage { get; }
     public bool HasValidationMessage => ValidationMessage is not null;
-    public RoughnessClass? ConfirmedClass { get; private set; }
+    public TerrainLabelClass? ConfirmedClass { get; private set; }
 
-    public IReadOnlyList<TerrainLabelClassOption> Classes { get; } =
-        [.. Enum.GetValues<RoughnessClass>().Select(level => new TerrainLabelClassOption(level, TerrainClassText.Name(level)))];
+    public IReadOnlyList<TerrainLabelClassOption> Classes { get; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ConfirmCommand))]
-    public partial RoughnessClass? SelectedClass { get; set; }
+    public partial TerrainLabelClass? SelectedClass { get; set; }
 
     public event EventHandler? Completed;
 
@@ -69,4 +73,6 @@ public sealed partial class TerrainLabelClassPromptViewModel : ObservableObject,
     }
 
     private bool CanConfirm() => SelectedClass is not null && ValidationMessage is null;
+
+    private static TerrainLabelClassOption Option(TerrainLabelClass labelClass) => new(labelClass, TerrainClassText.Name(labelClass));
 }

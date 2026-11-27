@@ -170,13 +170,13 @@ There are five kinds of view model in the presentation layer:
   the current Board ID text.
   A saved setup editor holds a `SetupTerrainLabelsViewModel` in `TerrainLabels`;
   a new setup has none. It reads `ITerrainLabelQuery.ForSetup` at creation and
-  on each `Changes` item and shows the scale lines and the label rows. A row
-  names the class its stretch reads on the scale set without it, where the
-  class differs from the label, in the warning colour when the reading clashes
-  with the label. Its
+  on each `Changes` item and shows the scale lines with the roughness label
+  rows, then the steepness label rows. Both lists hold `SetupTerrainLabelItem`.
+  A row names the class its stretch reads where it differs from the label, in
+  the warning colour when the reading clashes with the label. Its
   commands act at once through `ITerrainLabelCoordinator` and the shell: open
-  the ride, change the class through the class prompt, and delete after a
-  confirmation. A failure goes to the editor's error messages. The section is
+  the ride, change the class through the class prompt of the row's kind, and
+  delete after a confirmation. A failure goes to the editor's error messages. The section is
   not part of `SetupDraft`, so Save, Reset and dirtiness ignore it. Both setup
   layouts place it between the common fields and the error bar.
   Imported bikes enter the factory as a validated `BikeDraft` on `EditorKey.NewBike`;
@@ -266,7 +266,7 @@ There are five kinds of view model in the presentation layer:
   | `RecordedSessionPreferencesController` | Owns the persisted preference baseline and pending local edits, derives effective preferences, forwards commits and retains pending writes. Processing completions return to the reducer with their captured draft. |
   | `SessionWindowEditController` | Owns the four window-edit commands and their common availability, result feedback and split navigation. |
   | `TimelineAlignmentController` | Owns the one GPS/video mark, six alignment commands and result feedback. |
-  | `SignalPlotContextActions` | Owns range, segment and terrain label commands and the per-row context menus, composed with autozoom, alignment and window edits. The label command needs a click inside the analysis range and loaded terrain, and calls the segment picker. |
+  | `SignalPlotContextActions` | Owns range, segment and terrain label commands (roughness and steepness) and the per-row context menus, composed with autozoom, alignment and window edits. The label command needs a click inside the analysis range and loaded terrain, and calls the segment picker. |
 
   All these recorded-editor parts, including the recorded analysis, signals and
   media workspace adapters and signal-row actions, live in
