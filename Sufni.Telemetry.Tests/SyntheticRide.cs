@@ -45,6 +45,17 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
         Build([new(112), new(70, TurnRadius: -26), new(91, TurnRadius: 18), new(49),
             new(140, TurnRadius: 33), new(77, TurnRadius: -19), new(91), new(63, TurnRadius: -35)], recording);
 
+    /// <summary>The braking window of <see cref="BrakingDescent"/>, in seconds.</summary>
+    public static readonly TelemetryTimeRange BrakingDescentWindow = new(12, 18);
+
+    /// <summary>
+    /// A quiet 10° descent at 25 m/s with long braking. In <see cref="BrakingDescentWindow"/> the braking tilts an
+    /// attitude without the track by more than 2°.
+    /// </summary>
+    public static SyntheticRide BrakingDescent() =>
+        Build([new(800, Speed: 25, GradeDegrees: 10, LowBandG: 0, MiddleBandG: 0, HighBandG: 0)],
+            new RideRecording(Braking: new TelemetryTimeRange(10, 25), BrakingAcceleration: 1.5, FixRate: 3));
+
     public TerrainProfile Profile() =>
         Assert.IsType<TerrainProfileResult.Computed>(TerrainProfileCalculator.Calculate(Telemetry, Fixes)).Profile;
 

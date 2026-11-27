@@ -56,10 +56,10 @@ public class FrameAttitudeEstimatorTests
     public void OriginalFixAccelerationRemovesBrakingBias()
     {
         const int rate = 200;
-        var ride = SyntheticRide.Build([Quiet(800, 10) with { Speed = 25 }],
-            new RideRecording(Braking: new TelemetryTimeRange(10, 25), BrakingAcceleration: 1.5, FixRate: 3));
-        double DuringBraking(bool aided) => Recorded(ride, aided)
-            .Skip(12 * rate).Take(6 * rate).Average(a => a.PitchDegrees);
+        var ride = SyntheticRide.BrakingDescent();
+        var window = SyntheticRide.BrakingDescentWindow;
+        double DuringBraking(bool aided) => Recorded(ride, aided).Skip((int)(window.StartSeconds * rate))
+            .Take((int)(window.DurationSeconds * rate)).Average(a => a.PitchDegrees);
         Assert.InRange(DuringBraking(true), -12, -8);
         Assert.True(Math.Abs(DuringBraking(false) + 10) > 2);
     }

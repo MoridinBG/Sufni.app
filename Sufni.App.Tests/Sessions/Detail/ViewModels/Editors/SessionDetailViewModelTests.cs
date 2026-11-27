@@ -567,9 +567,8 @@ public class SessionDetailViewModelTests
     public async Task FramePitchUsesOriginalFixesWhenTheyArriveAfterTelemetry()
     {
         using var harness = new SessionDetailHarness();
-        var ride = SyntheticRide.Build([new RideSection(800, Speed: 25, GradeDegrees: 10,
-            LowBandG: 0, MiddleBandG: 0, HighBandG: 0)],
-            new RideRecording(Braking: new TelemetryTimeRange(10, 17), FixRate: 3));
+        var ride = SyntheticRide.BrakingDescent();
+        var window = SyntheticRide.BrakingDescentWindow;
         const double descentPitch = -10;
         var loaded = SessionDetailHarness.CreateLoadedRide(ride);
         var snapshot = harness.CreateRecordedSession();
@@ -594,7 +593,8 @@ public class SessionDetailViewModelTests
         {
             var pitch = PlotViewTestSupport.GetRenderedPlot(view).Plot.GetPlottables()
                 .OfType<ScottPlot.Plottables.Signal>().Single(signal => signal.LegendText == "Pitch").Data;
-            return pitch.GetYs().Where((_, i) => pitch.XOffset + i * pitch.Period is >= 12 and < 15).Average();
+            return pitch.GetYs().Where((_, i) => pitch.XOffset + i * pitch.Period is var t &&
+                t >= window.StartSeconds && t < window.EndSeconds).Average();
         }
 
         try
