@@ -65,6 +65,17 @@ internal static class SyntheticSensorRecording
         DateTimeOffset.FromUnixTimeMilliseconds(StartUnixSeconds * 1000 + (long)Math.Round(seconds * 1000)).UtcDateTime,
         0, eastMetres / MetresPerDegree, 0, 0, 0, 3, 12, 2, 3);
 
+    /// <summary>Derives <paramref name="raw"/>, starting at <paramref name="sourceStartSeconds"/> on its source
+    /// timeline, with <paramref name="drops"/> decided as Drop.</summary>
+    public static TelemetryData Derive(RawTelemetryData raw, double sourceStartSeconds,
+        params (SensorIdentity Sensor, double Start, double End)[] drops)
+    {
+        var decisions = drops.Aggregate(SensorDecisions.None, (current, drop) =>
+            current.With(drop.Sensor, SensorDecision.Drop, [new SourceTimeRange(drop.Start, drop.End)]));
+        var metadata = new Metadata { SourceName = "synthetic", Version = 4, SampleRate = Rate, Duration = raw.RecordingDurationSeconds!.Value };
+        return TelemetryData.FromRecording(raw, metadata, Bike, new TelemetryProcessingOptions { Drops = decisions }, sourceStartSeconds);
+    }
+
     public static TemperatureSample Temperature(long seconds, float celsius, byte location = 0) =>
         new(StartUnixSeconds + seconds, location, celsius);
 }

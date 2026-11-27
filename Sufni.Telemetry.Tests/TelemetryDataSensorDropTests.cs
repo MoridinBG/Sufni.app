@@ -8,13 +8,8 @@ public class TelemetryDataSensorDropTests
     private const double SourceStart = 100;
     private static readonly SensorIdentity Shock = new(SensorKind.ShockTravel);
 
-    private static TelemetryData Derive(RawTelemetryData raw, params (SensorIdentity Sensor, double Start, double End)[] drops)
-    {
-        var decisions = drops.Aggregate(SensorDecisions.None, (current, drop) =>
-            current.With(drop.Sensor, SensorDecision.Drop, [new SourceTimeRange(drop.Start, drop.End)]));
-        var metadata = new Metadata { SourceName = "drop", Version = 4, SampleRate = Rate, Duration = raw.RecordingDurationSeconds!.Value };
-        return TelemetryData.FromRecording(raw, metadata, Bike, new TelemetryProcessingOptions { Drops = decisions }, SourceStart);
-    }
+    private static TelemetryData Derive(RawTelemetryData raw, params (SensorIdentity Sensor, double Start, double End)[] drops) =>
+        SyntheticSensorRecording.Derive(raw, SourceStart, drops);
 
     [Fact]
     public void DroppedTravel_LeavesAGapInThatSideOnly()

@@ -18,7 +18,8 @@ public static partial class TelemetryStatistics
         BalanceType type,
         BalanceStatisticsOptions options)
     {
-        if (!HasStrokeData(telemetryData, SuspensionType.Front, options.Selection) ||
+        if (!BothSidesCover(telemetryData, options.Selection) ||
+            !HasStrokeData(telemetryData, SuspensionType.Front, options.Selection) ||
             !HasStrokeData(telemetryData, SuspensionType.Rear, options.Selection))
         {
             return false;
@@ -43,6 +44,11 @@ public static partial class TelemetryStatistics
         BalanceType type,
         BalanceStatisticsOptions options)
     {
+        if (!BothSidesCover(telemetryData, options.Selection))
+        {
+            return new BalanceData([], [], [], [], [], [], 0);
+        }
+
         var frontTravelVelocity = TravelVelocity(telemetryData, SuspensionType.Front, type, options);
         var rearTravelVelocity = TravelVelocity(telemetryData, SuspensionType.Rear, type, options);
 
@@ -81,6 +87,43 @@ public static partial class TelemetryStatistics
             rearSlope,
             signedSlopeDeltaPercent,
             Math.Abs(signedSlopeDeltaPercent));
+    }
+
+    /// <summary>
+    /// Whether both sides have samples over the whole selection, or over the whole session without one. A side
+    /// lacks samples only where its segments leave a gap of at least
+    /// <see cref="SensorHealthParameters.MinimumFaultSeconds"/>, so that short stream gaps do not count.
+    /// </summary>
+    private static bool BothSidesCover(TelemetryData telemetryData, TelemetryTimeSelection? selection)
+    {
+        var rate = telemetryData.Metadata.SampleRate;
+        if (rate <= 0) return false;
+        (double Start, double End)[] wanted = selection is null
+            ? [(0, telemetryData.Metadata.Duration)]
+            : [.. selection.Ranges.Select(range => (range.StartSeconds, range.EndSeconds))];
+        return Covers(telemetryData.Front, rate, wanted) && Covers(telemetryData.Rear, rate, wanted);
+    }
+
+    private static bool Covers(Suspension side, int rate, (double Start, double End)[] wanted)
+    {
+        var spans = (side.Segments.IsDefaultOrEmpty
+                ? [(0d, side.Travel.Length / (double)rate)]
+                : side.Segments.Select(segment => (segment.StartSeconds, segment.StartSeconds + segment.SampleCount / (double)rate)))
+            .Where(span => span.Item2 > span.Item1)
+            .OrderBy(span => span.Item1);
+        foreach (var (start, end) in wanted)
+        {
+            var reached = start;
+            foreach (var (spanStart, spanEnd) in spans)
+            {
+                if (spanEnd <= reached) continue;
+                if (spanStart >= end) break;
+                if (spanStart - reached >= SensorHealthParameters.MinimumFaultSeconds) return false;
+                reached = Math.Max(reached, spanEnd);
+            }
+            if (end - reached >= SensorHealthParameters.MinimumFaultSeconds) return false;
+        }
+        return true;
     }
 
     private readonly record struct LinearTrend(double Slope, double Intercept)
