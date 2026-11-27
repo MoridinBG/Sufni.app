@@ -19,8 +19,7 @@ foreach (var blobPath in Directory.GetFiles(raw, "r*.blob").Order())
     // The receiver speed of a fix, matched by the rule of TrackSampleAdapter.FromOriginalFixes.
     var receiverSpeeds = new Dictionary<long, double>();
     foreach (var record in telemetry.GpsData ?? [])
-        if (float.IsFinite(record.Speed) && record.Speed >= 0)
-            receiverSpeeds.TryAdd(new DateTimeOffset(record.Timestamp).ToUnixTimeMilliseconds(), record.Speed);
+        receiverSpeeds.TryAdd(new DateTimeOffset(record.Timestamp).ToUnixTimeMilliseconds(), record.Speed);
     var fixes = new List<TrackSample>();
     for (var i = 0; i < f.Length / 5; i++)
         fixes.Add(new TrackSample(f[5 * i], f[5 * i + 1], f[5 * i + 2], double.IsNaN(f[5 * i + 3]) ? null : f[5 * i + 3],

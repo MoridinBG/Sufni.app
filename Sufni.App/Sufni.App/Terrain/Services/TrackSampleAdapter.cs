@@ -19,8 +19,7 @@ public static class TrackSampleAdapter
     {
         var receiverSpeeds = new Dictionary<long, double>();
         foreach (var record in receiverRecords ?? [])
-            if (float.IsFinite(record.Speed) && record.Speed >= 0)
-                receiverSpeeds.TryAdd(new DateTimeOffset(record.Timestamp).ToUnixTimeMilliseconds(), record.Speed);
+            receiverSpeeds.TryAdd(new DateTimeOffset(record.Timestamp).ToUnixTimeMilliseconds(), record.Speed);
         var result = ImmutableArray.CreateBuilder<TrackSample>();
         TrackPoint? origin = null;
         var scale = 0d;
