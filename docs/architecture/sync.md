@@ -52,11 +52,12 @@ Both directions use the same version/deletion/timestamp/writer ordering from [Pe
 
 `AppStartup` starts the server after database initialization and the first store refresh. Pairing and data endpoints directly await their owners. `AppShutdown` stops advertising, stops Kestrel and disposes its application before it disposes the shared service provider. Server startup returns `ServerStartResult.Started | Failed(reason, details)`. The service logs a startup failure once and cleans up a partially started host. `AppStartup` then publishes the server failure and starts no repair jobs. When no address is advertisable, the service logs a warning and still attempts advertisement.
 
-All sync HTTP requests, including pairing, carry `X-Sufni-Sync-Protocol: 9`. The anonymous pairing group and the JWT-protected sync group both reject a missing or different value with `426 Upgrade Required`. Protocol version 9 carries absolute item counts for the active run and the terrain label family, and the kind of each terrain label. The payload rules are as follows.
+All sync HTTP requests, including pairing, carry `X-Sufni-Sync-Protocol: 10`. The anonymous pairing group and the JWT-protected sync group both reject a missing or different value with `426 Upgrade Required`. Protocol version 10 carries absolute item counts for the active run and the terrain label family, the kind of each terrain label, and the sensor decisions of each session. The payload rules are as follows.
 
 - Push and pull use separate persisted cursors. One sampled `upper_bound` bounds each metadata snapshot.
 - Session rows carry the derivation-window columns as authored metadata, like `timestamp`. The merge engine writes them in both remote-update variants, including the one that keeps the held processed generation.
 - Session rows carry the authored velocity filter option. Processing fingerprints carry the app calibration version.
+- Session rows carry `sensor_decisions` as authored metadata. The shared merge rule applies, and the merge engine writes the column in both remote-update variants. The processing input of the merge engine reads the Drop ranges of the incoming decisions. A generation made with a different Drop set therefore does not match, and the held generation becomes stale. Keep decisions do not change the fingerprint.
 - The payload carries saved segments with source-owned anchors.
 - The payload carries terrain labels with source-owned ranges.
 - Session rows carry no track links, session-window payloads or GPS metrics.
