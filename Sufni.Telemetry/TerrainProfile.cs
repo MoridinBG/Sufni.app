@@ -67,8 +67,6 @@ public sealed record TerrainProfile(ImmutableArray<TerrainWindow> Windows,
     ImmutableArray<TerrainMatchSample> FrameMatching, ImmutableArray<TerrainMatchSample> ForkMatching,
     TerrainGradeState GradeState, double? FrameScale, double? ForkScale)
 {
-    /// <summary>Sensors that read zero in most measured moving windows; the profile holds no readings from them.</summary>
-    public ImmutableArray<TerrainSensor> SilentSensors { get; init; } = [];
     public double? RearAxleScale { get; init; }
     public double? FrontMaxTravel { get; init; }
     public double? RearMaxTravel { get; init; }

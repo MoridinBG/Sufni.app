@@ -16,7 +16,7 @@ public class TerrainClassStripPlotTests
         [new(0, 1, RoughnessClass.Smooth), new(1, 9, RoughnessClass.VeryRough)],
         [new(0, 9, GradeBand.SteepDescent)],
         [new([0.5, 1.5, 2.5], [0.8, 3.6, 3.7])], [], [new([0.5, 1.5, 2.5], [11, 12.4, 13])],
-        new([1, 0, 0, 0], false, false, false, false, false, false, [], 0))
+        new([1, 0, 0, 0], false, false, false, false, false, false, 0))
     {
         RearAxle = [new([0.5, 1.5, 2.5], [1.9, 2.1, 2.2])]
     };

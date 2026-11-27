@@ -41,7 +41,6 @@ internal static class TerrainSourceText
                 _ => false
             }));
         if (coverage.LabelledShare > 0) lines.Add($"Your labels set {coverage.LabelledShare:P0} of the classes of this ride.");
-        foreach (var sensor in coverage.Silent) lines.Add($"{SensorName(sensor)} sensor ignored: no movement recorded.");
         return lines.Count == 0 ? null : string.Join("\n", lines);
     }
 
@@ -102,14 +101,5 @@ internal static class TerrainSourceText
         GroundSensors.Fork => "Fork",
         GroundSensors.RearAxle => "Rear axle",
         _ => "Frame"
-    };
-
-    private static string SensorName(TerrainSensor sensor) => sensor switch
-    {
-        TerrainSensor.ForkTravel => "Fork suspension",
-        TerrainSensor.ShockTravel => "Rear suspension",
-        TerrainSensor.FrameImu => "Frame",
-        TerrainSensor.ForkImu => "Fork",
-        _ => "Rear axle"
     };
 }

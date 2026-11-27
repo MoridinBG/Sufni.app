@@ -70,8 +70,7 @@ internal static partial class RecordedSessionPresentationDeriver
         var total = Math.Max(1d, shares.Sum());
         return new(roughness.ToImmutable(), grade.ToImmutable(), frame.Build(), fork.Build(), grades.Build(),
             new([.. shares.Select(count => count / total)], forkClipped, rearAxleClipped, frameMissing, forkMissing,
-                rearAxleMissing, climbReading, profile.SilentSensors,
-                labelled / Math.Max(1d, classed)))
+                rearAxleMissing, climbReading, labelled / Math.Max(1d, classed)))
         {
             RoughnessShades = roughnessShades.ToImmutable(),
             GradeShades = gradeShades.ToImmutable(),

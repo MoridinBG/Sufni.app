@@ -4,9 +4,8 @@ namespace Sufni.Telemetry;
 
 public static partial class TerrainProfileCalculator
 {
-    public const int AlgorithmVersion = 14;
+    public const int AlgorithmVersion = 15;
     public const double ClippedShareLimit = 0.02;
-    private const double SilentShareLimit = 0.5;
     private const int MinimumImuRate = 200;
     private const double ReferenceSpeed = 7;
     private const double FrameSpeedExponent = 0.7;
@@ -34,28 +33,15 @@ public static partial class TerrainProfileCalculator
         MeasureSensor(imu, rearAxle, windows, positions, cancellationToken);
         MeasureSuspension(telemetry.Front, telemetry.Metadata.SampleRate, windows, true, cancellationToken);
         MeasureSuspension(telemetry.Rear, telemetry.Metadata.SampleRate, windows, false, cancellationToken);
-        var silent = Enum.GetValues<TerrainSensor>().Where(sensor => DropIfSilent(windows, sensor, sensor switch
-        {
-            TerrainSensor.FrameImu => OneCount(frame),
-            TerrainSensor.ForkImu => OneCount(fork),
-            TerrainSensor.RearAxleImu => OneCount(rearAxle),
-            _ => 0
-        })).ToImmutableArray();
-        if (silent.Contains(TerrainSensor.FrameImu)) (frame, frameSeries) = (null, []);
-        if (silent.Contains(TerrainSensor.ForkImu)) (fork, forkSeries) = (null, []);
-        if (silent.Contains(TerrainSensor.RearAxleImu)) rearAxle = null;
-        if (!silent.Contains(TerrainSensor.ShockTravel))
-            MeasurePedalling(telemetry.Rear, telemetry.Metadata.SampleRate, imu, frame, windows, cancellationToken);
+        MeasurePedalling(telemetry.Rear, telemetry.Metadata.SampleRate, imu, frame, windows, cancellationToken);
         var grade = MeasureGrade(motion, imu, frame,
             telemetry.Airtimes.IsDefault ? [] : [.. telemetry.Airtimes.OrderBy(airtime => airtime.Start)],
-            silent.Contains(TerrainSensor.ForkTravel) ? null : Present(telemetry.Front),
-            silent.Contains(TerrainSensor.ShockTravel) ? null : Present(telemetry.Rear),
+            Present(telemetry.Front), Present(telemetry.Rear),
             telemetry.Metadata.SampleRate, windows, cells, out var gradePieces, cancellationToken);
         var roughnessPieces = MeasureRoughnessPieces(imu, [frame, fork, rearAxle], cells, cancellationToken);
         return new TerrainProfileResult.Computed(new([.. windows], frameSeries, forkSeries, grade,
             frame?.AccelLsbPerG, fork?.AccelLsbPerG)
         {
-            SilentSensors = silent,
             RoughnessPieces = roughnessPieces,
             GradePieces = gradePieces,
             RearAxleScale = rearAxle?.AccelLsbPerG,
@@ -66,41 +52,6 @@ public static partial class TerrainProfileCalculator
 
     private static Suspension? Present(Suspension? side) =>
         side is { Present: true } && !side.Travel.IsDefaultOrEmpty ? side : null;
-
-    // A failed sensor reads zero. Its few non-zero windows would still distort classification and the bike
-    // baseline, so the whole sensor is dropped for the ride.
-    private static bool DropIfSilent(List<TerrainWindow> windows, TerrainSensor sensor, double floor)
-    {
-        double? Reading(TerrainWindow w) => sensor switch
-        {
-            TerrainSensor.ForkTravel => w.Front?.RmsVelocity,
-            TerrainSensor.ShockTravel => w.Rear?.RmsVelocity,
-            TerrainSensor.FrameImu => w.Frame?.Level,
-            TerrainSensor.ForkImu => w.Fork?.Level,
-            _ => w.RearAxle?.Level
-        };
-        int measured = 0, zero = 0;
-        foreach (var window in windows)
-        {
-            if (!window.Moving || Reading(window) is not { } value) continue;
-            measured++;
-            if (value <= floor) zero++;
-        }
-        if (zero <= measured * SilentShareLimit) return false;
-        for (var i = 0; i < windows.Count; i++)
-        {
-            var w = windows[i];
-            windows[i] = sensor switch
-            {
-                TerrainSensor.ForkTravel => w with { Front = null },
-                TerrainSensor.ShockTravel => w with { Rear = null },
-                TerrainSensor.FrameImu => w with { Frame = null },
-                TerrainSensor.ForkImu => w with { Fork = null },
-                _ => w with { RearAxle = null }
-            };
-        }
-        return true;
-    }
 
     /// <summary>
     /// A single window between two adjacent windows of one other class takes their class. A stop, a gap or an
@@ -134,9 +85,6 @@ public static partial class TerrainProfileCalculator
         }
         return low < pieces.Count && pieces[low].StartSeconds <= seconds ? pieces[low] : null;
     }
-
-    // The band-pass filter carries a residue from live samples into a silent stretch; below one count is no signal.
-    private static double OneCount(ImuMetaEntry? meta) => meta is null ? 0 : 1d / meta.AccelLsbPerG;
 
     public static TerrainSummary Summarize(TerrainProfile profile)
     {

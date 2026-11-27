@@ -207,24 +207,6 @@ public class RecordedTerrainTests
         await h.CloseAsync(editor);
     }
 
-    [AvaloniaTheory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task SourceNoteReportsAnIgnoredSensorEvenWithoutClassifiedWindows(bool silent)
-    {
-        using var h = new SessionDetailHarness();
-        var session = h.CreateRecordedSession();
-        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0), TerrainProfiles.Window(1)],
-            frameScale: null, forkScale: null) with
-        {
-            SilentSensors = silent ? [TerrainSensor.FrameImu] : []
-        };
-        var editor = h.CreateRecordedEditor(session, projectionChanges: Observable.Return(h.WithTerrain(session, profile)));
-        await h.LoadAsync(editor);
-        Assert.Equal(silent, editor.SignalsWorkspace.TerrainSourceDescription is not null);
-        await h.CloseAsync(editor);
-    }
-
     [AvaloniaFact]
     public async Task PendingTerrainIsPrioritizedAndShowsBusyRows()
     {

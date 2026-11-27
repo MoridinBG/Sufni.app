@@ -11,7 +11,7 @@ public sealed record RideRecording(
     TelemetryTimeRange? FixLoss = null, TelemetryTimeRange? RecordingGap = null, TelemetryTimeRange? Stop = null,
     TelemetryTimeRange? Braking = null, double BrakingAcceleration = 2.94, double MountPitch = 0, double Roll = 0,
     bool Frame = true, bool Fork = true, bool RearAxle = false, int AccelScale = 4096,
-    int Seed = 17, double NoiseG = 0, int? ForkAccelScale = null, (TerrainSensor Sensor, TelemetryTimeRange Range)? Silence = null,
+    int Seed = 17, double NoiseG = 0, int? ForkAccelScale = null, (TerrainSensor Sensor, TelemetryTimeRange Range)? Dropped = null,
     double ShakeG = 0, double DiveMillimetresPerMps2 = 0, TelemetryTimeRange? Airtime = null, double AirtimePitch = 0);
 
 public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<TrackSample> Fixes)
@@ -115,15 +115,11 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
                 section.HighBandG * Math.Sin(2 * Math.PI * 45 * seconds + phases[2]));
             if (!Inside(recording.RecordingGap, seconds))
             {
-                bool Silent(TerrainSensor sensor) => recording.Silence is { } silence && silence.Sensor == sensor &&
-                    Inside(silence.Range, seconds);
+                bool Dropped(TerrainSensor sensor) => recording.Dropped is { } dropped && dropped.Sensor == sensor &&
+                    Inside(dropped.Range, seconds);
                 foreach (var sensor in sensors)
                 {
-                    if (Silent(sensor.Identity))
-                    {
-                        sensor.Add(tick, rate, 0, 0, 0, 0, 0, 0);
-                        continue;
-                    }
+                    if (Dropped(sensor.Identity)) continue;
                     var vibration = ground * sensor.LevelScale(speed) + recording.NoiseG * (2 * random.NextDouble() - 1);
                     var frame = sensor.Identity == TerrainSensor.FrameImu;
                     var pedal = frame ? PedalFrameG * Math.Sin(2 * Math.PI * section.PedalHz * seconds) : 0;
@@ -137,8 +133,8 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
                 var level = Math.Sqrt(section.LowBandG * section.LowBandG +
                     section.MiddleBandG * section.MiddleBandG + section.HighBandG * section.HighBandG);
                 var response = ResponseAmplitude(level, speed);
-                front.Add(tick, Silent(TerrainSensor.ForkTravel) ? 0 : response, section, 0, dive);
-                rear.Add(tick, Silent(TerrainSensor.ShockTravel) ? 0 : response * 0.8, section, Silent(TerrainSensor.ShockTravel) ? 0 : section.BobMillimetres);
+                if (!Dropped(TerrainSensor.ForkTravel)) front.Add(tick, response, section, 0, dive);
+                if (!Dropped(TerrainSensor.ShockTravel)) rear.Add(tick, response * 0.8, section, section.BobMillimetres);
             }
 
             var remaining = section.Length - (distance - sectionStart);

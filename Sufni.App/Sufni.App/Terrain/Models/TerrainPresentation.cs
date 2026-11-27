@@ -29,8 +29,7 @@ public sealed record TerrainSignalSection(ImmutableArray<double> Seconds, Immuta
 /// with a frame reading. <see cref="LabelledShare"/> is the share of the moving windows with a class whose class is a label.
 /// </summary>
 public sealed record TerrainSourceCoverage(ImmutableArray<double> SourceShares, bool ForkClipped, bool RearAxleClipped,
-    bool FrameMissing, bool ForkMissing, bool RearAxleMissing, bool ClimbReading, ImmutableArray<TerrainSensor> Silent,
-    double LabelledShare)
+    bool FrameMissing, bool ForkMissing, bool RearAxleMissing, bool ClimbReading, double LabelledShare)
 {
     /// <summary>The source of the largest share; equal shares give the first source.</summary>
     public GroundSensors? Source
