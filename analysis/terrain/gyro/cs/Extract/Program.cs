@@ -16,9 +16,15 @@ foreach (var blobPath in Directory.GetFiles(raw, "r*.blob").Order())
     var fixRaw = File.ReadAllBytes(Path.ChangeExtension(blobPath, ".fix"));
     var f = new double[fixRaw.Length / 8];
     Buffer.BlockCopy(fixRaw, 0, f, 0, fixRaw.Length);
+    // The receiver speed of a fix, matched by the rule of TrackSampleAdapter.FromOriginalFixes.
+    var receiverSpeeds = new Dictionary<long, double>();
+    foreach (var record in telemetry.GpsData ?? [])
+        if (float.IsFinite(record.Speed) && record.Speed >= 0)
+            receiverSpeeds.TryAdd(new DateTimeOffset(record.Timestamp).ToUnixTimeMilliseconds(), record.Speed);
     var fixes = new List<TrackSample>();
-    for (var i = 0; i < f.Length / 4; i++)
-        fixes.Add(new TrackSample(f[4 * i], f[4 * i + 1], f[4 * i + 2], double.IsNaN(f[4 * i + 3]) ? null : f[4 * i + 3]));
+    for (var i = 0; i < f.Length / 5; i++)
+        fixes.Add(new TrackSample(f[5 * i], f[5 * i + 1], f[5 * i + 2], double.IsNaN(f[5 * i + 3]) ? null : f[5 * i + 3],
+            receiverSpeeds.TryGetValue((long)Math.Round(f[5 * i + 4] * 1000), out var speed) ? speed : null));
 
     // 1. Full recomputation with the repository calculator (validation of inputs against stored profiles).
     var result = TerrainProfileCalculator.Calculate(telemetry, fixes);
@@ -33,6 +39,15 @@ foreach (var blobPath in Directory.GetFiles(raw, "r*.blob").Order())
                 w.WriteLine(FormattableString.Invariant(
                     $"{win.StartSeconds:R},{win.EndSeconds:R},{win.MeanSpeed:R},{(win.Moving ? 1 : 0)},{(win.Grade is { } g ? g.ToString("R", System.Globalization.CultureInfo.InvariantCulture) : "")},{(win.Band is { } b ? ((int)b).ToString() : "")}"));
         }
+    }
+
+    using (var w = new StreamWriter(Path.Combine(dir, "pieces.csv")))
+    {
+        w.WriteLine("start,end,grade,band");
+        if (result is TerrainProfileResult.Computed computed)
+            foreach (var piece in computed.Profile.GradePieces)
+                w.WriteLine(FormattableString.Invariant(
+                    $"{piece.StartSeconds:R},{piece.EndSeconds:R},{(piece.Grade is { } g ? g.ToString("R", System.Globalization.CultureInfo.InvariantCulture) : "")},{(piece.Band is { } b ? ((int)b).ToString() : "")}"));
     }
 
     // 2. Motion grid.

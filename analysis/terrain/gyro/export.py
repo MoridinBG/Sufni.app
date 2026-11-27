@@ -1,8 +1,9 @@
 """Export per-ride processed-telemetry BLOBs and terrain GPS fixes from the read-only snapshot.
 
 Ride index = position in common.computed_sessions() (time order), as in the earlier scripts.
-Fixes follow TrackSampleAdapter.FromOriginalFixes: telemetry seconds, local metres east/north, elevation (NaN = none).
-Output: gyro/raw/rNN.blob, gyro/raw/rNN.fix (float64 n x 4), gyro/raw/index.json.
+Fixes follow TrackSampleAdapter.FromOriginalFixes: telemetry seconds, local metres east/north, elevation (NaN = none),
+and the Unix time of the track point, which the export tool matches to the receiver records of the telemetry.
+Output: gyro/raw/rNN.blob, gyro/raw/rNN.fix (float64 n x 5), gyro/raw/index.json.
 """
 import json, math, os, sqlite3, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -38,7 +39,7 @@ for idx, (sid, s, e) in enumerate(computed_sessions()):
             lat = math.degrees(2 * math.atan(math.exp(y / R)) - math.pi / 2)
             k = math.cos(math.radians(lat))
         h = p.get("ele")
-        rows.append((sec, (x - x0) * k, (y - y0) * k, h if h is not None and math.isfinite(h) else np.nan))
+        rows.append((sec, (x - x0) * k, (y - y0) * k, h if h is not None and math.isfinite(h) else np.nan, t))
     np.asarray(rows, float).tofile(os.path.join(OUT, f"r{idx:02d}.fix"))
     open(os.path.join(OUT, f"r{idx:02d}.blob"), "wb").write(blob)
     index.append(dict(idx=idx, telemetry_revision_db=rev, telemetry_revision_key=c["ProcessedTelemetryRevision"],
