@@ -382,10 +382,10 @@ internal static class TelemetrySlicer
         };
     }
 
-    private static long RawBaseUtcMs(RawTelemetryData raw) =>
+    internal static long RawBaseUtcMs(RawTelemetryData raw) =>
         raw.SessionStartUtcMs != 0 ? raw.SessionStartUtcMs : checked(raw.Timestamp * 1000);
 
-    private static double RawBaseUtcSeconds(RawTelemetryData raw) =>
+    internal static double RawBaseUtcSeconds(RawTelemetryData raw) =>
         raw.SessionStartUtcMs != 0 ? raw.SessionStartUtcMs / 1000.0 : raw.Timestamp;
 
     private static ulong RebaseMonotonicUs(ulong firstMonotonicDeltaUs, int sampleOffset, int sampleRate, ulong startUs)

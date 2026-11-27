@@ -2,14 +2,14 @@ namespace Sufni.Telemetry;
 
 internal static class SourceTimeRanges
 {
-    /// <summary>Sorted ranges where ranges that overlap, or lie less than <paramref name="joinGapSeconds"/> apart,
-    /// become one.</summary>
+    /// <summary>Sorted ranges where ranges that overlap, touch, or lie less than <paramref name="joinGapSeconds"/>
+    /// apart become one.</summary>
     public static List<SourceTimeRange> Union(IEnumerable<SourceTimeRange> ranges, double joinGapSeconds = 0)
     {
         var result = new List<SourceTimeRange>();
         foreach (var range in ranges.Where(range => range.EndSeconds > range.StartSeconds).OrderBy(range => range.StartSeconds))
         {
-            if (result.Count > 0 && range.StartSeconds - result[^1].EndSeconds <= joinGapSeconds)
+            if (result.Count > 0 && range.StartSeconds - result[^1].EndSeconds is var gap && (gap <= 0 || gap < joinGapSeconds))
             {
                 var last = result[^1];
                 result[^1] = last with { EndSeconds = Math.Max(last.EndSeconds, range.EndSeconds) };

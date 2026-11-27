@@ -408,7 +408,7 @@ public sealed record TelemetryData
         return SavitzkyGolay.Create(windowSize, 1, 3);
     }
 
-    private static bool HasUsableTravel(IEnumerable<ushort> samples, double? maxTravel, Func<ushort, double>? calibration)
+    internal static bool HasUsableTravel(IEnumerable<ushort> samples, double? maxTravel, Func<ushort, double>? calibration)
     {
         if (maxTravel is null || calibration is null) return false;
         var hasNonZero = false;

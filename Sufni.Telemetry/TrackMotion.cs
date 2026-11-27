@@ -18,7 +18,7 @@ public readonly record struct TrackMotionSample(
 public sealed class TrackMotion
 {
     public const int GridRate = 10;
-    private const double GapSeconds = 5;
+    internal const double GapSeconds = 5;
     private const int MinimumFixes = 4;
     private const double SpeedCutoffHz = 0.4;
     // The receiver reports a Doppler speed that trails the true speed by about this much.

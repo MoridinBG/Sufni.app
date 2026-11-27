@@ -37,13 +37,18 @@ public sealed record Suspension
     public bool HasGaps { get; init; }
 }
 
+/// <param name="FrontMaxTravelCount">The lowest count at which the fork reaches its maximum travel. Counts from 0
+/// up to it are reachable.</param>
+/// <param name="RearMaxTravelCount">The lowest count at which the shock reaches its maximum travel.</param>
 public record BikeData(
     double? FrontMaxTravel,
     double? RearMaxTravel,
     Func<ushort, double>? FrontMeasurementToTravel,
     Func<ushort, double>? RearMeasurementToTravel,
     bool FrontMeasurementWraps = false,
-    bool RearMeasurementWraps = false);
+    bool RearMeasurementWraps = false,
+    ushort? FrontMaxTravelCount = null,
+    ushort? RearMaxTravelCount = null);
 
 public record HistogramData(List<double> Bins, List<double> Values);
 
