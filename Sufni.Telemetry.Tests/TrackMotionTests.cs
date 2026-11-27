@@ -4,6 +4,10 @@ public class TrackMotionTests
 {
     private static TrackSample Fix(double time) => new(time, 7 * time + 4 * Math.Max(0, time - 30), 0, 200 - time);
 
+    // Positions move at a steady 7 m/s while the receiver reports a speed that rises by 0.5 m/s each second.
+    private static TrackSample[] ReceiverFixes() =>
+        Enumerable.Range(0, 41).Select(t => new TrackSample(t, 7 * t, 0, ReceiverSpeed: 0.5 * t)).ToArray();
+
     [Fact]
     public void VelocityStepIsCentredOnTheChangeInGroundSpeed()
     {
@@ -64,5 +68,33 @@ public class TrackMotionTests
         Assert.Null(motion.At(14));
         Assert.Equal(7, motion.At(11.5)!.Value.Speed, 6);
         Assert.Equal(188.5, motion.At(11.5)!.Value.Elevation!.Value, 6);
+    }
+
+    [Fact]
+    public void ReceiverSpeedGivesTheForwardSpeedAheadOfItsLagAndItsDerivative()
+    {
+        var sample = TrackMotion.FromFixes(ReceiverFixes(), 40).At(20)!.Value;
+        Assert.Equal(0.5 * 20.2, sample.ForwardSpeed, 0.01);
+        Assert.Equal(0.5, sample.Acceleration, 0.01);
+    }
+
+    [Fact]
+    public void SpanWithAFixWithoutReceiverSpeedTakesThePositionSpeedAsForwardSpeed()
+    {
+        var fixes = ReceiverFixes();
+        fixes[10] = fixes[10] with { ReceiverSpeed = null };
+        var sample = TrackMotion.FromFixes(fixes, 40).At(20)!.Value;
+        Assert.Equal(7, sample.ForwardSpeed, 6);
+        Assert.Equal(0, sample.Acceleration, 6);
+    }
+
+    [Fact]
+    public void ReceiverSpeedLeavesSpeedAndDistanceUnchanged()
+    {
+        var fixes = ReceiverFixes();
+        var with = TrackMotion.FromFixes(fixes, 40).At(20)!.Value;
+        var without = TrackMotion.FromFixes(fixes.Select(p => p with { ReceiverSpeed = null }), 40).At(20)!.Value;
+        Assert.Equal(without.Speed, with.Speed);
+        Assert.Equal(without.Distance, with.Distance);
     }
 }

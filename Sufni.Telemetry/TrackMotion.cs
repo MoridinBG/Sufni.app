@@ -2,10 +2,17 @@ using System.Collections.Immutable;
 
 namespace Sufni.Telemetry;
 
-public readonly record struct TrackSample(double Seconds, double East, double North, double? Elevation = null);
+/// <param name="ReceiverSpeed">Ground speed the GPS receiver reported with the fix, in m/s.</param>
+public readonly record struct TrackSample(
+    double Seconds, double East, double North, double? Elevation = null, double? ReceiverSpeed = null);
 
+/// <param name="Speed">Speed from position differences, in m/s. It gives <paramref name="Distance"/>.</param>
+/// <param name="ForwardSpeed">Speed of the bike along its heading, in m/s: the receiver speed when the whole span
+/// has one, else <paramref name="Speed"/>.</param>
+/// <param name="Acceleration">Time derivative of <paramref name="ForwardSpeed"/>, in m/s².</param>
 public readonly record struct TrackMotionSample(
-    double Seconds, double East, double North, double? Elevation, double Speed, double Acceleration, double Distance);
+    double Seconds, double East, double North, double? Elevation, double Speed, double ForwardSpeed,
+    double Acceleration, double Distance);
 
 /// <summary>Motion on a session-relative grid within each continuous span of original fixes.</summary>
 public sealed class TrackMotion
@@ -14,6 +21,8 @@ public sealed class TrackMotion
     private const double GapSeconds = 5;
     private const int MinimumFixes = 4;
     private const double SpeedCutoffHz = 0.4;
+    // The receiver reports a Doppler speed that trails the true speed by about this much.
+    private const double ReceiverSpeedLagSeconds = 0.2;
 
     public ImmutableArray<ImmutableArray<TrackMotionSample>> Spans { get; }
 
@@ -67,7 +76,8 @@ public sealed class TrackMotion
                 return new TrackMotionSample(seconds, double.Lerp(a.East, b.East, weight),
                     double.Lerp(a.North, b.North, weight),
                     a.Elevation is { } e && b.Elevation is { } f ? double.Lerp(e, f, weight) : null,
-                    double.Lerp(a.Speed, b.Speed, weight), double.Lerp(a.Acceleration, b.Acceleration, weight),
+                    double.Lerp(a.Speed, b.Speed, weight), double.Lerp(a.ForwardSpeed, b.ForwardSpeed, weight),
+                    double.Lerp(a.Acceleration, b.Acceleration, weight),
                     double.Lerp(a.Distance, b.Distance, weight));
             }
         }
@@ -91,12 +101,13 @@ public sealed class TrackMotion
         }
 
         var length = checked((int)Math.Floor((times[^1] - times[0]) * GridRate) + 1);
-        var gridSpeed = new double[length];
-        for (var i = 0; i < length; i++)
-            gridSpeed[i] = Interpolate(midpoints, speeds, times[0] + (double)i / GridRate);
-        gridSpeed = SignalFilters.LowPass(gridSpeed, GridRate, SpeedCutoffHz);
-        // A zero-phase filter can undershoot at a stop. Distance along the track must stay monotone.
-        for (var i = 0; i < length; i++) gridSpeed[i] = Math.Max(0, gridSpeed[i]);
+        var gridSpeed = GridSpeed(midpoints, speeds, times[0], length);
+        var forwardSpeed = gridSpeed;
+        if (fixes.All(p => p.ReceiverSpeed is { } v && double.IsFinite(v) && v >= 0))
+        {
+            var receiverTimes = times.Select(t => t - ReceiverSpeedLagSeconds).ToArray();
+            forwardSpeed = GridSpeed(receiverTimes, fixes.Select(p => p.ReceiverSpeed!.Value).ToArray(), times[0], length);
+        }
 
         var grid = ImmutableArray.CreateBuilder<TrackMotionSample>(length);
         for (var i = 0; i < length; i++)
@@ -104,14 +115,24 @@ public sealed class TrackMotion
             var seconds = times[0] + (double)i / GridRate;
             var left = Math.Max(0, i - 1);
             var right = Math.Min(length - 1, i + 1);
-            var acceleration = right == left ? 0 : (gridSpeed[right] - gridSpeed[left]) * GridRate / (right - left);
+            var acceleration = right == left ? 0 : (forwardSpeed[right] - forwardSpeed[left]) * GridRate / (right - left);
             if (i > 0) distance += (gridSpeed[i - 1] + gridSpeed[i]) / (2 * GridRate);
             double? height = heightTimes.Length > 0 && seconds >= heightTimes[0] && seconds <= heightTimes[^1]
                 ? Interpolate(heightTimes, elevation, seconds) : null;
             grid.Add(new TrackMotionSample(seconds, Interpolate(times, east, seconds), Interpolate(times, north, seconds),
-                height, gridSpeed[i], acceleration, distance));
+                height, gridSpeed[i], forwardSpeed[i], acceleration, distance));
         }
         return grid.MoveToImmutable();
+    }
+
+    private static double[] GridSpeed(double[] times, double[] speeds, double start, int length)
+    {
+        var grid = new double[length];
+        for (var i = 0; i < length; i++) grid[i] = Interpolate(times, speeds, start + (double)i / GridRate);
+        grid = SignalFilters.LowPass(grid, GridRate, SpeedCutoffHz);
+        // A zero-phase filter can undershoot at a stop. Distance along the track must stay monotone.
+        for (var i = 0; i < length; i++) grid[i] = Math.Max(0, grid[i]);
+        return grid;
     }
 
     private static double Interpolate(double[] times, double[] values, double time)
