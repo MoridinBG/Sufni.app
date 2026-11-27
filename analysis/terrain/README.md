@@ -2,12 +2,14 @@
 
 These scripts measured the values in the "Measured basis" section of `docs/architecture/terrain.md`. They are not a part of the app. No build and no test uses them.
 
-The scripts read a copy of the app database. They never write to it. They describe terrain profiles of algorithm version 9.
+The scripts read a copy of the app database. They never write to it. The first analysis described terrain profiles of algorithm version 9. The grade cutoff and baseline grade analyses of 2026-11-27 (steps 12 to 14 of the gyroscope trial) ran on version 11, after GPS alignment.
 
 ## Input
 
 1. Close the app.
 2. Copy the app database `sst.db` from the app data folder of your platform to this folder. Name the copy `snap.db`.
+
+For steps 12 to 14 of the gyroscope trial, first align the GPS of all rides with the align GPS command of the session list.
 
 The database copy and all output files hold ride data. `.gitignore` keeps them out of the repository.
 
@@ -53,6 +55,11 @@ The gyroscope and elevation trial needs the raw samples:
 | 9 | `venv/bin/python gyro/step6_elevation.py` | Tests the GPS elevation as a grade input, alone and fused. |
 | 10 | `venv/bin/python gyro/step7_guards.py` | Tests guards on the two end points of the ride offset. |
 | 11 | `venv/bin/python gyro/step7_detail.py` | Shows the detail of the rides that a guard changed. |
+| 12 | `venv/bin/python gyro/step8_variants.py` | Calculates the grade at 0.08, 0.15 and 0.3 Hz, with suspension pitch, without the braking correction and with the gyroscope, to `gyro/variants8.pkl`. |
+| 13 | `venv/bin/python gyro/step8_eval.py` | Compares the variants of step 12: noise between runs, detail, band changes, same band, elevation fit. |
+| 14 | `venv/bin/python gyro/step9_baseline.py` | Compares baseline grades (mean, median, weighted mean) with the grade that other runs measured at the same place. |
+
+`gyro/step8_eval.py` and `gyro/step9_baseline.py` read `MATCH_M`. `gyro/step9_baseline.py` also reads `MINREF`, the least number of other runs at a place (default 2), and `VAR`, the grade variant of step 12 (default `A0.15`). Both print the windows of one ride by its ride index, set in the script.
 
 `gyro/gcommon.py`, `gyro/ghelp.py`, `gyro/gmatch.py` and `common.py` are shared helpers.
 
@@ -62,4 +69,6 @@ The gyroscope and elevation trial needs the raw samples:
 - `common.py` and `gyro/gcommon.py` hold Python copies of app rules: the baseline grade, the band comparison, the outlier merge, the class limits and the grade path. Update a copy when the app rule changes. `bef_switching_scale_clipping.py` and `gyro/step1_v0.py` compare the copies with the stored values and report a difference.
 - The scripts assume one setup. With more setups, group the rides by setup first.
 - No ride in the measured data set has a rear axle IMU. The scripts read the frame and the fork readings only.
+- The app takes the median baseline grade from algorithm version 12, and `common.py` follows it. The figures of version 9 and of the cutoff analysis used the mean, which `baseline(..., median=False)` gives. `gyro/step8_eval.py` and the longer mean of `bef_switching_scale_clipping.py` pass it. The other scripts now give median figures.
+- `gyro/step1_v0.py` uses the grade cutoff of 0.15 Hz of algorithm version 11.
 - The app uses a hysteresis on the grade bands from algorithm version 10. `common.py` holds the plain comparison of version 9, so the rebuild check of `bef_switching_scale_clipping.py` reports the windows that the hysteresis changed.

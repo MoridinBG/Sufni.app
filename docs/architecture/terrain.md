@@ -8,11 +8,11 @@ The measurement summary holds the moving and climb distances and four level dist
 
 ## Grade
 
-Grade comes from the X and Z acceleration of the frame IMU in g. The frame IMU needs a sample rate of at least 200 Hz, an active sensor and a scale above 0. The calculator subtracts the longitudinal GPS acceleration, divided by 9.80665, from X. `TrackMotion` gives this acceleration: the central difference of the speed on a 10 Hz grid, low-passed at 0.4 Hz. X and Z pass a zero-phase second-order Butterworth low-pass at 0.08 Hz (`GradeCutoffHz`), for each IMU segment.
+Grade comes from the X and Z acceleration of the frame IMU in g. The frame IMU needs a sample rate of at least 200 Hz, an active sensor and a scale above 0. The calculator subtracts the longitudinal GPS acceleration, divided by 9.80665, from X. `TrackMotion` gives this acceleration: the central difference of the speed on a 10 Hz grid, low-passed at 0.4 Hz. X and Z pass a zero-phase second-order Butterworth low-pass at 0.15 Hz (`GradeCutoffHz`), for each IMU segment. See [Grade cutoff](#grade-cutoff).
 
 The grade of a sample is `sin(−atan2(x, z))`, positive downhill. The window grade is the mean over the window, weighted by the GPS speed. Only moving windows have one. The ride offset is the weighted mean grade of the ride, minus the elevation drop between the first and the last moving window divided by the distance between them. The calculator subtracts the offset from each window grade. Grade needs 800 m of moving distance (`MinimumGradeMetres`).
 
-The baseline grade is the mean of the window and up to two time-adjacent windows on each side. It needs the grade of the window and at least three grades. The band edges are −6°, −2°, 2°, 5°, 10° and 15°, compared as sines. Each edge keeps its side until the baseline grade passes it by 1° (`GradeHysteresisDegrees`). The first window, a window after a time gap and a window after one without a baseline grade take the plain side of each edge. See [Measured basis](#measured-basis). Single-window outliers merge after that.
+The baseline grade is the median of the window and up to two time-adjacent windows on each side; an even count takes the mean of the two middle grades. It needs the grade of the window and at least three grades. A median keeps a change of grade at its place, where a mean moved it up to two windows early. The band edges are −6°, −2°, 2°, 5°, 10° and 15°, compared as sines. Each edge keeps its side until the baseline grade passes it by 1° (`GradeHysteresisDegrees`). The first window, a window after a time gap and a window after one without a baseline grade take the plain side of each edge. See [Measured basis](#measured-basis). Single-window outliers merge after that.
 
 `TerrainGradeState` reports the availability: `Available`; `NoFrameSensor` for a ride without a usable frame IMU; `NoElevation` when an end point has no elevation; `TooShort` under 800 m.
 
@@ -56,7 +56,7 @@ Grade is measured in degrees, so a steepness label sets no scale. In its ride th
 
 `SetupTerrainScaleQuery` collects the stretches of the current label summaries of a setup. A sensor with 100 m of labelled stretches (`MinimumLabelledMetres`) is `Anchored` in place of the median of the rides; a new ride does not move it. See [Measured basis](#measured-basis). `TerrainLabels.Anchor` reads a label as a range of levels, not as the centre of its class. It takes the median bin that puts the most stretches inside the class of their label, each stretch counting once, whatever its length. Of equal choices, it takes the bin nearest the median of the bins that each stretch alone would set, so one stretch reads at the centre of its class. The climb limit needs 100 m of each climb class. `TerrainLabels.ClimbAnchor` takes the bin that puts the most climb stretches on the side of their class, and of equal choices the bin nearest midway between the median bins of the two classes, rounded down. `TerrainLabelCoverage` holds the labelled metres of each sensor and climb class. A label change inside a ride changes its class key also when the scale key stays, because the class key holds the label set.
 
-`TerrainClassifier.Read` gives the `LabelReading` of a stretch on a scale: the class it reads, with the source order of a window, and the class steps by which it lies outside the class of its label. The reading clashes with the label above one class step (`TerrainLabels.ClashSteps`), because the typical level of 100 m varies by about 0.26 class between runs. `SetupTerrainScaleQuery` reads each stretch on the scale set without it: the other stretches, or the rides where the other stretches do not anchor a sensor. A stretch that anchors a sensor alone reads its own class on the scale it sets, so it can only be tested against everything else. `SetupTerrainScale.Readings` holds these readings by session and label range, and `ReadingOf` looks one up. `TerrainClassifier.Read` gives the `GradeReading` of a steepness stretch: the band of its mean grade on the plain band edges, its degrees and the degrees by which it lies outside the band of its label. It clashes above 2° (`TerrainLabels.GradeClashDegrees`), a chosen limit; the baseline grade varies by about 1.3° over 50 m. `TerrainLabelSummary.ReadingOf` looks one up.
+`TerrainClassifier.Read` gives the `LabelReading` of a stretch on a scale: the class it reads, with the source order of a window, and the class steps by which it lies outside the class of its label. The reading clashes with the label above one class step (`TerrainLabels.ClashSteps`), because the typical level of 100 m varies by about 0.26 class between runs. `SetupTerrainScaleQuery` reads each stretch on the scale set without it: the other stretches, or the rides where the other stretches do not anchor a sensor. A stretch that anchors a sensor alone reads its own class on the scale it sets, so it can only be tested against everything else. `SetupTerrainScale.Readings` holds these readings by session and label range, and `ReadingOf` looks one up. `TerrainClassifier.Read` gives the `GradeReading` of a steepness stretch: the band of its mean grade on the plain band edges, its degrees and the degrees by which it lies outside the band of its label. It clashes above 2° (`TerrainLabels.GradeClashDegrees`), a chosen limit; the baseline grade varies by about 1.4° between runs. `TerrainLabelSummary.ReadingOf` looks one up.
 
 `ITerrainLabelQuery.ForSetup` gives each roughness row its reading in `Labels` and each steepness row the reading of the ride's label summary in `SteepnessLabels`, and no reading while the label summary of the ride is not current. The Segments panel reads roughness rows on the scale and steepness rows from the current label summary of the open session's domain snapshot ([segments.md](segments.md)). `LabelReadingText` gives the "Reads as" text, the clash flag and the tooltip of both lists.
 
@@ -170,5 +170,39 @@ The conclusions below are a reading of these values. They are not measured cause
 | Guard on the two end points of the ride offset | 0.86° between two runs | 0.89° |
 | Baseline grade from the window and 4 neighbours on each side | 8.04 band changes per km. The values change by 0.86° (RMS). | 7.71 with the hysteresis |
 | Fork class from the mean of all runs of a trail | 23.3 class changes per km | 27.0 for one run of that trail |
+
+### Grade cutoff
+
+A second analysis ran on 2026-11-27 on the 18 rides with grade, after GPS alignment. Grades and bands were computed from the raw samples for each cutoff, with the 1° hysteresis on the 50 m mean baseline of that time and before the outlier merge. Same-place matching used 3 m and gave 677 window pairs over 7 ride pairs.
+
+| Subject | Value |
+|---|---|
+| GPS clock lag before alignment | 26 rides had a reliable estimate. 23 lagged by 0.1 s or more, the largest by 3.0 s. 2 rides had too little movement. |
+| Noise of the window grade (10 m) at 0.08 Hz after alignment, 6 m match | 1.33°. The earlier analysis measured 1.5° without alignment. |
+| Cutoff 0.08 Hz | Noise 1.09° (10 m) and 1.00° (50 m). 7.2 band changes per km. 74% of matched windows in the same band. |
+| Cutoff 0.15 Hz | Noise 1.51° (10 m) and 1.09° (50 m). 8.9 band changes per km. 73% in the same band. |
+| Cutoff 0.3 Hz | Noise 2.19° (10 m) and 1.23° (50 m). 10.0 band changes per km. 73% in the same band. |
+| Between-run correlation of the 10 m detail (window grade minus baseline) | 0.48 at 0.08 Hz, 0.43 at 0.15 Hz, 0.39 at 0.3 Hz |
+
+The 0.08 Hz filter spreads a change of grade over about ±3 s, so the grade rose before the descent began. At 0.15 Hz most of the extra detail repeats between runs, and the same-band share stays the same. At 0.3 Hz the noise grows faster than the detail, and braking errors show as short false climbs.
+
+| Method | Noise over 10 m, 6 m match | Method of today (0.15 Hz) |
+|---|---|---|
+| Suspension pitch removed: `atan((front − rear) / wheelbase)`, wheelbase 1249 mm from the linkage | 1.93° | 1.91° |
+| No GPS braking correction | 2.12° | 1.91° |
+| Gyroscope pitch rate corrected for roll, above 0.04 Hz or 0.08 Hz | 4.4° to 8.2° | 1.91° |
+
+### Baseline grade
+
+A third analysis ran on 2026-11-27 on the same rides at 0.15 Hz. The reference of a window is the mean 10 m grade of the other runs at the same place (6 m match). The figures below use the 928 windows with at least two other runs. 55 of them lie at a change of grade: their reference differs by more than 2° from the mean reference of the two windows on each side.
+
+| Baseline over the window and up to two neighbours on each side | Error against the reference: all windows, changes of grade | Same band as the reference | Noise between runs | Band changes per km with the hysteresis |
+|---|---|---|---|---|
+| Median (today) | 1.81°, 3.16° | 68.0% | 1.43° | 8.4 |
+| Mean (before) | 1.77°, 3.36° | 69.6% | 1.27° | 8.9 |
+| Weighted mean 1-2-3-2-1 | 1.78°, 3.15° | 69.7% | 1.39° | 10.1 |
+| Mean of the window and one neighbour on each side | 1.85°, 3.07° | 68.1% | 1.56° | 12.6 |
+
+The mean moved a change of grade up to two windows early: on a flat stretch before a steep drop, two steep neighbours lifted a flat window of 0.5° to 3.2°, a gentle descent. The median keeps the flat window flat. Over all windows the median is about as close to the reference as the mean, and it changes band least often. Only 55 windows lie at a change of grade, so the difference there is weak evidence.
 
 The scripts of the analysis are in `analysis/terrain/`. Its `README.md` shows how to run them.

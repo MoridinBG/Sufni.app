@@ -111,8 +111,11 @@ class Ride:
 
     def o1_offset(self, g, tg, tw):
         mov = [w for w in self.ws if w["Moving"]]
-        (e0,), (d0,) = self.motion_at(np.array([mov[0]["StartSeconds"]]))
-        (e1,), (d1,) = self.motion_at(np.array([mov[-1]["EndSeconds"]]))
+        st = self.motion_at(np.array([w["StartSeconds"] for w in mov]))
+        en = self.motion_at(np.array([w["EndSeconds"] for w in mov]))
+        a = next(i for i in range(len(mov)) if np.isfinite(st[0][i]) and np.isfinite(st[1][i]))
+        b = next(i for i in reversed(range(len(mov))) if np.isfinite(en[0][i]) and np.isfinite(en[1][i]))
+        e0, d0, e1, d1 = st[0][a], st[1][a], en[0][b], en[1][b]
         return tg / tw - (e0 - e1) / (d1 - d0)
 
 

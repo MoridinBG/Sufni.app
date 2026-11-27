@@ -184,7 +184,7 @@ for ws in grade_rides:
     rawb.append((ws, pb))
     hl = hysteresis(ws, bd, EDEG, 1.0)
     hyst.append((ws, hl)); hyst_m.append((ws, merge_outliers(ws, hl)))
-    bl4 = [baseline(ws, i, rd, reach=4, need=3) for i in range(len(ws))]
+    bl4 = [baseline(ws, i, rd, reach=4, need=3, median=False) for i in range(len(ws))]
     b4 = [deg(b) if b is not None else None for b in bl4]
     wide_val.append(b4)
     p4 = plain(b4, EDEG)

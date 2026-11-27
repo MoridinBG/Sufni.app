@@ -45,11 +45,12 @@ def adjacent(a, b):
     return a["EndSeconds"] == b["StartSeconds"]
 
 
-def baseline(ws, i, read, reach=2, need=3):
+def baseline(ws, i, read, reach=2, need=3, median=True):
+    """The app takes the median from algorithm version 12. median=False gives the mean of the earlier versions."""
     g = read(ws[i])
     if g is None:
         return None
-    s, n = g, 1
+    vals = [g]
     for d in (-1, 1):
         for o in range(1, reach + 1):
             j = i + d * o
@@ -60,9 +61,10 @@ def baseline(ws, i, read, reach=2, need=3):
                 break
             v = read(ws[j])
             if v is not None:
-                s += v
-                n += 1
-    return None if n < need else s / n
+                vals.append(v)
+    if len(vals) < need:
+        return None
+    return float(np.median(vals)) if median else sum(vals) / len(vals)
 
 
 def merge_outliers(ws, classes):

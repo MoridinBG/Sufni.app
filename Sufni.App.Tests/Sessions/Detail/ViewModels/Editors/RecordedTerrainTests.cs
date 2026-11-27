@@ -148,9 +148,9 @@ public class RecordedTerrainTests
     {
         using var h = new SessionDetailHarness();
         var session = h.CreateRecordedSession();
-        var clipped = TerrainProfiles.Window(3, RoughnessClass.Rough) with
+        var clipped = TerrainProfiles.Window(3, RoughnessClass.Rough, grade: 0.1) with
         {
-            Fork = forkClipped ? TerrainProfiles.Sensor(TerrainProfiles.Level(RoughnessClass.VeryRough), clippedShare: 0.12) : null
+            Fork =forkClipped ? TerrainProfiles.Sensor(TerrainProfiles.Level(RoughnessClass.VeryRough), clippedShare: 0.12) : null
         };
         var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0, RoughnessClass.Calm, GroundSensors.Fork),
             TerrainProfiles.Window(1, RoughnessClass.Rough, GroundSensors.Fork),
@@ -168,6 +168,7 @@ public class RecordedTerrainTests
         Assert.Equal(0.4, presentation.Coverage.SourceShares[(int)GroundSensors.Fork]);
         Assert.Equal(forkClipped, presentation.Coverage.ForkClipped);
         Assert.Equal(4.5, presentation.Grade[^1].Seconds[^2]);
+        // Window 4 has a grade of 0 and draws the median of 0.1, 0 and 0.3: the stop limits the baseline.
         Assert.Equal(Math.Asin(0.1) * 180 / Math.PI, presentation.Grade[^1].Values[^2], 8);
         await h.CloseAsync(editor);
     }

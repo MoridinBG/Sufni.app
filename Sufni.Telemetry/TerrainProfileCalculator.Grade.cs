@@ -3,7 +3,7 @@ namespace Sufni.Telemetry;
 public static partial class TerrainProfileCalculator
 {
     private const double MinimumGradeMetres = 800;
-    private const double GradeCutoffHz = 0.08;
+    private const double GradeCutoffHz = 0.15;
     /// <summary>The boundaries between adjacent grade bands, in degrees downhill.</summary>
     public static IReadOnlyList<double> GradeBandEdges { get; } = [-6, -2, 2, 5, 10, 15];
     public const double GradeHysteresisDegrees = 1;
@@ -102,14 +102,18 @@ public static partial class TerrainProfileCalculator
 
     public static bool IsClimb(this RoughnessClass level) => level >= RoughnessClass.SmoothClimb;
 
-    /// <summary>Mean downhill grade over up to five adjacent windows, requiring three measured grades.</summary>
+    /// <summary>
+    /// Median downhill grade over up to five adjacent windows, requiring three measured grades. A median keeps a
+    /// change of grade at its place, where a mean would move it up to two windows early.
+    /// </summary>
     public static double? BaselineGrade(IReadOnlyList<TerrainWindow> windows, int i) =>
         BaselineGrade(windows, i, static w => w.Grade, static (a, b) => a.EndSeconds == b.StartSeconds);
 
     internal static double? BaselineGrade<T>(IReadOnlyList<T> windows, int i, Func<T, double?> readGrade, Func<T, T, bool> adjacent)
     {
         if (readGrade(windows[i]) is not { } grade) return null;
-        var sum = grade;
+        Span<double> grades = stackalloc double[5];
+        grades[0] = grade;
         var count = 1;
         for (var direction = -1; direction <= 1; direction += 2)
         {
@@ -119,9 +123,12 @@ public static partial class TerrainProfileCalculator
                 if (j < 0 || j >= windows.Count) break;
                 var lower = Math.Min(j, j - direction);
                 if (!adjacent(windows[lower], windows[lower + 1])) break;
-                if (readGrade(windows[j]) is { } neighbour) { sum += neighbour; count++; }
+                if (readGrade(windows[j]) is { } neighbour) grades[count++] = neighbour;
             }
         }
-        return count < 3 ? null : sum / count;
+        if (count < 3) return null;
+        grades = grades[..count];
+        grades.Sort();
+        return count % 2 == 1 ? grades[count / 2] : (grades[count / 2 - 1] + grades[count / 2]) / 2;
     }
 }

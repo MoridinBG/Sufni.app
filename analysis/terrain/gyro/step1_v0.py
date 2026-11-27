@@ -8,8 +8,8 @@ for idx in range(len(CS)):
     r = Ride(idx)
     if not r.has_imu or r.entry["profile"]["GradeState"] != 0:
         continue
-    x = per_segment(r, lambda s: lowpass(r.acc[s, 0] - r.lacc[s] / G0, r.rate, 0.08))
-    z = per_segment(r, lambda s: lowpass(r.acc[s, 2], r.rate, 0.08))
+    x = per_segment(r, lambda s: lowpass(r.acc[s, 0] - r.lacc[s] / G0, r.rate, 0.15))
+    z = per_segment(r, lambda s: lowpass(r.acc[s, 2], r.rate, 0.15))
     samp = np.sin(-np.arctan2(x, z))
     g, tg, tw = r.window_grades(samp)
     zero = r.o1_offset(g, tg, tw)

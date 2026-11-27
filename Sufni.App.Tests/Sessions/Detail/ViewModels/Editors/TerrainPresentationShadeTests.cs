@@ -36,9 +36,10 @@ public class TerrainPresentationShadeTests
             Band = i < 5 ? GradeBand.GentleDescent : GradeBand.VerySteepDescent
         }).ToArray();
         var shades = RecordedSessionPresentationDeriver.CreateTerrain(TerrainProfiles.Classified(windows)).GradeShades;
-        Assert.Equal(new TerrainShade<GradeBand>(0, 3, GradeBand.GentleDescent, 3), shades[0]);
-        // From window 6, four of the five baseline grades are 25°, which the shade clamps to 17.5° and rounds to 18°.
-        Assert.Equal(new TerrainShade<GradeBand>(6, 10, GradeBand.VerySteepDescent, 18), shades[^1]);
+        // The median baseline keeps 3.4° up to the last gentle window.
+        Assert.Equal(new TerrainShade<GradeBand>(0, 5, GradeBand.GentleDescent, 3), shades[0]);
+        // The shade clamps the median of 25° to 17.5° and rounds it to 18°.
+        Assert.Equal(new TerrainShade<GradeBand>(5, 10, GradeBand.VerySteepDescent, 18), shades[^1]);
     }
 
     private static TerrainWindow Descent(int start, double classValue) => TerrainProfiles.Window(start) with
