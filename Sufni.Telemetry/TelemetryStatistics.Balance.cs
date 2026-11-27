@@ -98,9 +98,10 @@ public static partial class TelemetryStatistics
     {
         var rate = telemetryData.Metadata.SampleRate;
         if (rate <= 0) return false;
+        var duration = telemetryData.Metadata.Duration;
         (double Start, double End)[] wanted = selection is null
-            ? [(0, telemetryData.Metadata.Duration)]
-            : [.. selection.Ranges.Select(range => (range.StartSeconds, range.EndSeconds))];
+            ? [(0, duration)]
+            : [.. selection.Ranges.Select(range => (range.StartSeconds, Math.Min(range.EndSeconds, duration)))];
         return Covers(telemetryData.Front, rate, wanted) && Covers(telemetryData.Rear, rate, wanted);
     }
 
