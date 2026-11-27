@@ -68,12 +68,13 @@ internal sealed class RecordedSessionAnalysisDemand : IAsyncDisposable
         currentState = state;
         if (previous.TelemetryData != state.TelemetryData) telemetryGeneration++;
         if (!ReferenceEquals(previous.FullTrackPoints, state.FullTrackPoints) || previous.TrackTimeline != state.TrackTimeline ||
-            previous.TelemetryData?.Metadata.Duration != state.TelemetryData?.Metadata.Duration)
+            previous.TelemetryData != state.TelemetryData)
         {
             trackGeneration++;
             trackSamples = state.FullTrackPoints is { } fixes && state.TrackTimeline is { } timeline &&
-                state.TelemetryData?.Metadata.Duration is { } duration
-                ? new(() => TrackSampleAdapter.FromOriginalFixes(fixes, timeline, duration)) : null;
+                state.TelemetryData is { } telemetry
+                ? new(() => TrackSampleAdapter.FromOriginalFixes(fixes, timeline, telemetry.Metadata.Duration,
+                    telemetry.GpsData)) : null;
         }
         UpdateAnalysisRequests(previous);
     }

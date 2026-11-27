@@ -295,7 +295,8 @@ internal sealed class SessionCoordinator : ISessionCoordinator
 
         var timeline = SessionTrackTimeline.FromSessionWindow(telemetry.Metadata.Timestamp, current.GpsOffsetSeconds,
             current.WindowStartSeconds);
-        var fixes = TrackSampleAdapter.FromOriginalFixes(track.Points, timeline, telemetry.Metadata.Duration);
+        var fixes = TrackSampleAdapter.FromOriginalFixes(track.Points, timeline, telemetry.Metadata.Duration,
+            telemetry.GpsData);
         if (GpsTimeOffsetEstimator.Estimate(telemetry, fixes, cancellationToken) is not
             GpsTimeOffsetEstimate.Measured { IsReliable: true } measured)
             return (GpsAlignOutcome.NotAligned, null);

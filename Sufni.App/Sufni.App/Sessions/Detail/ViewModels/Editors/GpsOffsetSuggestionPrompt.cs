@@ -65,7 +65,7 @@ internal sealed class GpsOffsetSuggestionPrompt : IAsyncDisposable
         current = inputs;
         var token = calculation.Start(lifetime);
         pending = RunAsync(pending, session.Id, trackId, timeline.GpsOffsetSeconds, () => GpsTimeOffsetEstimator.Estimate(telemetry,
-            TrackSampleAdapter.FromOriginalFixes(fixes, timeline, telemetry.Metadata.Duration), token), token);
+            TrackSampleAdapter.FromOriginalFixes(fixes, timeline, telemetry.Metadata.Duration, telemetry.GpsData), token), token);
     }
 
     private async Task RunAsync(Task previous, Guid sessionId, Guid trackId, double offsetSeconds,

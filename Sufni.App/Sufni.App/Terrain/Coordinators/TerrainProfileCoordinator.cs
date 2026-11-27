@@ -387,7 +387,7 @@ internal sealed class TerrainProfileCoordinator : ITerrainProfileCoordinator, ID
                 .ConfigureAwait(false);
             if (fixes is null) return TerrainMaterialization.WithoutProfile(TerrainOutcome.ContentMissing);
             var timeline = SessionTrackTimeline.FromSessionWindow(track.Timestamp, track.GpsOffsetSeconds, track.WindowOriginFraction);
-            var samples = TrackSampleAdapter.FromOriginalFixes(fixes, timeline, track.DurationSeconds);
+            var samples = TrackSampleAdapter.FromOriginalFixes(fixes, timeline, track.DurationSeconds, telemetry.GpsData);
             return TerrainProfileCalculator.Calculate(telemetry, samples, token) switch
             {
                 TerrainProfileResult.Computed computed => TerrainMaterialization.Computed(computed.Profile),
