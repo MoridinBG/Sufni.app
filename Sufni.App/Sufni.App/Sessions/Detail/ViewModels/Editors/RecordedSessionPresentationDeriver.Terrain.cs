@@ -51,7 +51,7 @@ internal static partial class RecordedSessionPresentationDeriver
                 ? Math.Round(Math.Clamp(value, -1.5, 2.5) * 4, MidpointRounding.AwayFromZero) / 4 : null);
             AddShade(gradeShades, piece, piece.Band, !classes.GradeLabelled && degrees is { } shade
                 ? Math.Round(Math.Clamp(shade, -8, 17.5), MidpointRounding.AwayFromZero) : null);
-            grades.Add(piece.StartSeconds, piece.EndSeconds, degrees);
+            grades.AddConstant(piece.StartSeconds, piece.EndSeconds, degrees);
             if (piece.Climbing)
             {
                 climbReading |= piece.Frame is not null;

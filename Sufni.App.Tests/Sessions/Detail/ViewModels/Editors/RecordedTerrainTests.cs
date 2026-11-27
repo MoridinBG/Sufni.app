@@ -170,9 +170,10 @@ public class RecordedTerrainTests
         Assert.Equal(0.6, presentation.Coverage.SourceShares[(int)GroundSensors.Frame]);
         Assert.Equal(0.4, presentation.Coverage.SourceShares[(int)GroundSensors.Fork]);
         Assert.Equal(forkClipped, presentation.Coverage.ForkClipped);
-        Assert.Equal(4.5, presentation.Grade[^1].Seconds[^2]);
-        // Window 4 has a grade of 0 and draws the grade of its piece.
-        Assert.Equal(Math.Asin(0.1) * 180 / Math.PI, presentation.Grade[^1].Values[^2], 8);
+        // Window 4 has a grade of 0 and draws the grade of its piece, level from its start to its end.
+        Assert.Equal(3, presentation.Grade[^1].Seconds[0]);
+        Assert.Equal(6, presentation.Grade[^1].Seconds[^1]);
+        Assert.All(presentation.Grade[^1].Values, value => Assert.Equal(Math.Asin(0.1) * 180 / Math.PI, value, 8));
         await h.CloseAsync(editor);
     }
 
