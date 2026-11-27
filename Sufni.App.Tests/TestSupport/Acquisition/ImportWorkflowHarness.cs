@@ -20,7 +20,6 @@ using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;
 using Sufni.App.MapsAndTracks.Services;
-using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Store;
@@ -41,7 +40,6 @@ internal sealed class ImportWorkflowHarness : IDisposable
 {
     public ImportWorkflowHarness()
     {
-        SessionReadStore = new SessionStore(Publication);
         TelemetryDataStoreService.DataStores.Returns(DataStores);
         TelemetryDataStoreService.LoadFilesAsync(Arg.Any<ITelemetryDataStore>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([], null)));
@@ -76,8 +74,6 @@ internal sealed class ImportWorkflowHarness : IDisposable
     public IShellCoordinator Shell { get; } = Substitute.For<IShellCoordinator>();
     public IDialogService DialogService { get; } = Substitute.For<IDialogService>();
     public ISetupCoordinator SetupCoordinator { get; } = TestCoordinatorSubstitutes.Setup();
-    public ISessionCoordinator SessionCoordinator { get; } = TestCoordinatorSubstitutes.Session();
-    public SessionStore SessionReadStore { get; }
     public IImportSessionsCoordinator ImportSessionsCoordinatorSubstitute { get; } = TestCoordinatorSubstitutes.ImportSessions();
     public SetupBoardQueryStub SetupQuery { get; } = new();
     public ObservableCollection<ITelemetryDataStore> DataStores { get; } = [];
@@ -108,8 +104,6 @@ internal sealed class ImportWorkflowHarness : IDisposable
         DialogService,
         ImportSessionsCoordinatorSubstitute,
         SetupQuery,
-        SessionReadStore,
-        SessionCoordinator,
         dispatcher ?? new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
 
     public (Setup Setup, Bike Bike) SeedSetupAndBike(double headAngle = 65.0)
@@ -174,7 +168,6 @@ internal sealed class ImportWorkflowHarness : IDisposable
     }
     public void Dispose()
     {
-        SessionReadStore.Dispose();
         SetupQuery.Dispose();
         SourceIssues.Dispose();
         ImportState.Dispose();

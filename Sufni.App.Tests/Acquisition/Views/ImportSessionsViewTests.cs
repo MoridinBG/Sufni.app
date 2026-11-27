@@ -12,14 +12,12 @@ using Sufni.App.Acquisition.Coordinators;
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Acquisition.Views;
 using Sufni.App.Acquisition.Views.Shared;
-using Sufni.App.Sessions.SensorFindings.Views;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Shared.Views.Overlays;
 using Sufni.App.Tests.TestSupport.Acquisition;
 using Sufni.App.Tests.TestSupport.Async;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Harness;
-using Sufni.Telemetry;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetrySources;
 
 namespace Sufni.App.Tests.Acquisition.Views;
@@ -147,25 +145,6 @@ public class ImportSessionsViewTests
             .OfType<TextBlock>()
             .First(textBlock => textBlock.Text == "(Malformed)");
         Assert.Equal(reason, ToolTip.GetTip(label));
-    }
-
-    [AvaloniaFact]
-    public async Task ImportSessionsView_OffersTheFindingsOfAnImportedSession()
-    {
-        using var harness = new ImportWorkflowHarness();
-        var session = TestSnapshots.Session();
-        await harness.SessionReadStore.PublishSessionsChangedAsync([session]);
-        var viewModel = harness.CreateViewModel();
-        ViewTestHelpers.EnsureFluentTheme();
-        await using var mounted = await MountAsync(viewModel);
-        Assert.Empty(mounted.View.GetVisualDescendants().OfType<SensorFindingsView>());
-
-        harness.ImportState.OnNext(new SessionImportState.Completed(new SessionImportResult([session], []),
-            [new SessionImportEvent.Imported(session,
-                [new SensorFinding(new SensorIdentity(SensorKind.ShockTravel), SensorFaultReason.Frozen, [new(10, 20)])])]));
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.True(Assert.Single(mounted.View.GetVisualDescendants().OfType<SensorFindingsView>()).IsEffectivelyVisible);
     }
 
     private static async Task<MountedView<ImportSessionsView>> MountAsync(object dataContext)

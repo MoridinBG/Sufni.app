@@ -43,7 +43,6 @@ public sealed partial class SensorFindingsViewModel : ObservableObject, IContent
 
     public ObservableCollection<SensorFindingRowViewModel> Rows { get; } = [];
 
-    [ObservableProperty] public partial string SessionName { get; private set; } = string.Empty;
     [ObservableProperty] public partial bool HasRows { get; private set; }
 
     public event EventHandler? Completed;
@@ -55,7 +54,6 @@ public sealed partial class SensorFindingsViewModel : ObservableObject, IContent
 
     private void Apply(SessionSnapshot snapshot)
     {
-        SessionName = snapshot.Name;
         var current = (Findings: snapshot.SensorDecisions.Undecided(findings), Offset: snapshot.WindowStartSeconds,
             Duration: snapshot.DurationSeconds);
         if (current.Findings.SequenceEqual(shown.Findings) && current.Offset == shown.Offset && current.Duration == shown.Duration)

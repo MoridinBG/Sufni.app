@@ -22,8 +22,6 @@ using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Tests.TestSupport.Acquisition;
-using Sufni.App.Tests.TestSupport.Fixtures;
-using Sufni.Telemetry;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetrySources;
 
 namespace Sufni.App.Tests.Acquisition.Coordinators;
@@ -71,23 +69,6 @@ public class ImportSessionsCoordinatorTests
         var committed = Assert.Single(observed);
         Assert.Equal(id, committed.Session!.Id);
         Assert.Equal(id, committed.Source!.SessionId);
-    }
-
-    [Fact]
-    public async Task ImportAsync_ImportedEvent_CarriesTheSensorFindingsOfTheProcessedGeneration()
-    {
-        using var harness = new ImportWorkflowHarness();
-        var (setup, _) = harness.SeedSetupAndBike();
-        SensorFinding finding = new(new SensorIdentity(SensorKind.ShockTravel), SensorFaultReason.Frozen, [new(10, 20)]);
-        harness.Reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
-            .Returns(call => Task.FromResult(ImportWorkflowHarness.CreateReprocessResult(call.Arg<RecordedSessionDerivationInput>(),
-                TestTelemetryData.CreateMinimal() with { SensorFindings = [finding] })));
-        using var coordinator = harness.CreateCoordinator(new InMemorySessionRepository(new FakeTimeProvider()).Repository);
-
-        await coordinator.ImportAsync(CreateDataStore(), [CreateImportItem()], setup.Id, TestContext.Current.CancellationToken);
-
-        var imported = Assert.Single(coordinator.State.Events.OfType<SessionImportEvent.Imported>());
-        Assert.Equal([finding], imported.Findings);
     }
 
     [Fact]

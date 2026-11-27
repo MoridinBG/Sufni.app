@@ -10,8 +10,6 @@ xmlns:converters="clr-namespace:Sufni.App.Acquisition.Views.Converters"
 xmlns:v="clr-namespace:Sufni.App.Shared.Views.Controls"
 xmlns:views="clr-namespace:Sufni.App.Acquisition.Views"
 xmlns:vm="clr-namespace:Sufni.App.Acquisition.ViewModels"
-xmlns:findings="clr-namespace:Sufni.App.Sessions.SensorFindings.Views"
-xmlns:findingsVm="clr-namespace:Sufni.App.Sessions.SensorFindings.ViewModels"
 d:DesignHeight="600"
 d:DesignWidth="500"
 x:DataType="vm:ImportSessionsViewModel"
@@ -176,18 +174,6 @@ mc:Ignorable="d">
         Grid.Column="0"
         Grid.ColumnSpan="3"
         Margin="0,5,0,5">
-            <StackPanel>
-            <!--  Sensor findings of the sessions the last import created  -->
-            <ItemsControl Name="SensorFindingsGroups" ItemsSource="{Binding SensorFindings}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="findingsVm:SensorFindingsViewModel">
-                        <StackPanel Margin="0,2,0,6" IsVisible="{Binding HasRows}">
-                            <TextBlock Margin="2" FontWeight="Black" Text="{Binding SessionName}" />
-                            <findings:SensorFindingsView />
-                        </StackPanel>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
             <ItemsRepeater ItemsSource="{Binding TelemetryFiles}">
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate x:DataType="vm:ImportFileRowViewModel">
@@ -345,7 +331,6 @@ mc:Ignorable="d">
                     </DataTemplate>
                 </ItemsRepeater.ItemTemplate>
             </ItemsRepeater>
-            </StackPanel>
         </ScrollViewer>
 
         <!--  Notifications  -->
