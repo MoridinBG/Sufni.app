@@ -17,6 +17,14 @@ public class TelemetryCodecSchemaTests
     }
 
     [Fact]
+    public void LegacyGraph_DecodesWithNoSensorFindings()
+    {
+        var source = GoldenTelemetryCompatibilityFixtures.All.Single(fixture => fixture.Id == "processed-source-less");
+
+        Assert.Empty(TelemetryData.FromBinary(source.GetBytes()).SensorFindings);
+    }
+
+    [Fact]
     public async Task FullGraph_UsesFrozenCurrentSchema()
     {
         var expected = await ReadFixtureAsync("full-graph");

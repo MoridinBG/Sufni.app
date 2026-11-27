@@ -17,6 +17,9 @@ public sealed record TelemetryProcessingOptions(int VelocityFilterWindowMillisec
 
     public static TelemetryProcessingOptions Default { get; } = new();
 
+    /// <summary>The Drop decisions on sensor findings, on the recording source timeline.</summary>
+    public SensorDecisions Drops { get; init; } = SensorDecisions.None;
+
     public int ClampedVelocityFilterWindowMilliseconds =>
         Math.Clamp(
             VelocityFilterWindowMilliseconds,

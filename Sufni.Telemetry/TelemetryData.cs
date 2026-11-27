@@ -24,6 +24,7 @@ public sealed record TelemetryData
     public RawImuData? ImuData { get; init; }
     public ImmutableArray<GpsRecord>? GpsData { get; init; }
     public ImmutableArray<TemperatureAverage> TemperatureAverages { get; init; } = [];
+    public ImmutableArray<SensorFinding> SensorFindings { get; init; } = [];
     [IgnoreMember] public byte[] BinaryForm => TelemetryCodec.Encode(this);
     [IgnoreMember] internal StrokeCoarseIndexes CoarseStrokeIndexes => strokeCoarseIndexes.Value;
 
@@ -50,6 +51,7 @@ public sealed record TelemetryData
         ImuData = source.ImuData;
         GpsData = source.GpsData;
         TemperatureAverages = source.TemperatureAverages;
+        SensorFindings = source.SensorFindings;
     }
 
     public static TelemetryData FromBinary(byte[]? data) => TelemetryCodec.Decode(data);
@@ -86,16 +88,15 @@ public sealed record TelemetryData
 
             var maxMean = (front.MaxTravel + rear.MaxTravel) / 2.0;
 
+            // Strokes index their own side's samples, which differ from the other side's once either has gaps.
+            var byTime = front.HasGaps || rear.HasGaps;
             foreach (var f in frontIdlings)
             {
                 if (!f.AirCandidate) continue;
-                if (!TryGetMeanTravel(front, f, sampleRate, out var fMean) ||
-                    !TryGetMeanTravel(rear, f, sampleRate, out var rMean))
-                {
-                    continue;
-                }
-
-                if (!((fMean + rMean) / 2 <= maxMean * Parameters.AirtimeTravelMeanThresholdRatio)) continue;
+                if (!TryGetMeanTravel(front, f, sampleRate, byTime, out var fMean)) continue;
+                // Where the rear has no samples, the front-only rule applies.
+                if (TryGetMeanTravel(rear, f, sampleRate, byTime, out var rMean) &&
+                    !((fMean + rMean) / 2 <= maxMean * Parameters.AirtimeTravelMeanThresholdRatio)) continue;
                 var at = new Airtime
                 {
                     Start = StrokeStartSeconds(f, sampleRate),
@@ -107,13 +108,9 @@ public sealed record TelemetryData
             foreach (var r in rearIdlings)
             {
                 if (!r.AirCandidate) continue;
-                if (!TryGetMeanTravel(front, r, sampleRate, out var fMean) ||
-                    !TryGetMeanTravel(rear, r, sampleRate, out var rMean))
-                {
-                    continue;
-                }
-
-                if (!((fMean + rMean) / 2 <= maxMean * Parameters.AirtimeTravelMeanThresholdRatio)) continue;
+                if (!TryGetMeanTravel(rear, r, sampleRate, byTime, out var rMean)) continue;
+                if (TryGetMeanTravel(front, r, sampleRate, byTime, out var fMean) &&
+                    !((fMean + rMean) / 2 <= maxMean * Parameters.AirtimeTravelMeanThresholdRatio)) continue;
                 var at = new Airtime
                 {
                     Start = StrokeStartSeconds(r, sampleRate),
@@ -182,9 +179,9 @@ public sealed record TelemetryData
     private static double StrokeEndSeconds(Stroke stroke, int sampleRate) =>
         stroke.EndSeconds > stroke.StartSeconds ? stroke.EndSeconds : stroke.End / (double)sampleRate;
 
-    private static bool TryGetMeanTravel(Suspension suspension, Stroke stroke, int sampleRate, out double mean)
+    private static bool TryGetMeanTravel(Suspension suspension, Stroke stroke, int sampleRate, bool byTime, out double mean)
     {
-        if (!suspension.HasGaps)
+        if (!byTime)
         {
             if (suspension.Travel.Length == 0)
             {
@@ -447,13 +444,22 @@ public sealed record TelemetryData
         return FromRecording(rawData, metadata, bikeData, TelemetryProcessingOptions.Default);
     }
 
+    /// <param name="sourceStartSeconds">Where <paramref name="rawData"/> starts on the recording source timeline.
+    /// Sensor findings and drops are on that timeline, so without it the derivation finds and drops nothing.</param>
     public static TelemetryData FromRecording(
         RawTelemetryData rawData,
         Metadata metadata,
         BikeData bikeData,
-        TelemetryProcessingOptions processingOptions)
+        TelemetryProcessingOptions processingOptions,
+        double? sourceStartSeconds = null)
     {
         ArgumentNullException.ThrowIfNull(processingOptions);
+        ImmutableArray<SensorFinding> findings = [];
+        if (sourceStartSeconds is { } sourceStart)
+        {
+            findings = SensorHealthInspector.Inspect(rawData, bikeData, metadata.Duration, sourceStart);
+            rawData = SensorDrops.Apply(rawData, processingOptions.Drops, sourceStart);
+        }
 
         ProcessedSide? front = null, rear = null;
         if (UsesSegmentAwareTravel(rawData))
@@ -494,6 +500,7 @@ public sealed record TelemetryData
             ImuData = rawData.ImuData,
             GpsData = rawData.GpsData?.ToImmutableArray(),
             TemperatureAverages = [.. CalculateTemperatureAverages(rawData.TemperatureData)],
+            SensorFindings = findings,
         };
     }
 
@@ -503,9 +510,12 @@ public sealed record TelemetryData
         return FromLiveCapture(capture, TelemetryProcessingOptions.Default);
     }
 
+    /// <param name="sourceStartSeconds">As for <see cref="FromRecording(RawTelemetryData, Metadata, BikeData,
+    /// TelemetryProcessingOptions, double?)"/>.</param>
     public static TelemetryData FromLiveCapture(
         LiveTelemetryCapture capture,
-        TelemetryProcessingOptions processingOptions)
+        TelemetryProcessingOptions processingOptions,
+        double? sourceStartSeconds = null)
     {
         var front = capture.FrontMeasurements;
         var rear = capture.RearMeasurements;
@@ -529,7 +539,7 @@ public sealed record TelemetryData
             TemperatureData = capture.TemperatureData,
         };
 
-        return FromRecording(rawData, capture.Metadata, capture.BikeData, processingOptions);
+        return FromRecording(rawData, capture.Metadata, capture.BikeData, processingOptions, sourceStartSeconds);
     }
 
     #endregion

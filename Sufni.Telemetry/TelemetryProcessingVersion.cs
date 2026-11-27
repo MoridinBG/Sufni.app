@@ -2,5 +2,5 @@ namespace Sufni.Telemetry;
 
 public static class TelemetryProcessingVersion
 {
-    public const int Current = 6;
+    public const int Current = 7;
 }

@@ -42,8 +42,14 @@ public static class TelemetryCodec
         var value = MessagePackSerializer.Deserialize<TelemetryData>(bytes);
         var front = NormalizeSegmentSampleCounts(value.Front);
         var rear = NormalizeSegmentSampleCounts(value.Rear);
-        if (ReferenceEquals(front, value.Front) && ReferenceEquals(rear, value.Rear)) return value;
-        return value with { Front = front, Rear = rear };
+        if (ReferenceEquals(front, value.Front) && ReferenceEquals(rear, value.Rear) && !value.SensorFindings.IsDefault)
+            return value;
+        return value with
+        {
+            Front = front,
+            Rear = rear,
+            SensorFindings = value.SensorFindings.IsDefault ? [] : value.SensorFindings,
+        };
     }
 
     private static Suspension NormalizeSegmentSampleCounts(Suspension suspension)

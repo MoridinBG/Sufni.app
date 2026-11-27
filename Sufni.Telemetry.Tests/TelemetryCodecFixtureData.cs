@@ -28,6 +28,7 @@ internal static class TelemetryCodecFixtureData
         },
         GpsData = [new GpsRecord(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), 47, 19, 100, 5, 90, 3, 12, 1.5f, 2)],
         TemperatureAverages = [new TemperatureAverage(1, 22.5)],
+        SensorFindings = [new SensorFinding(new SensorIdentity(SensorKind.Imu, 1), SensorFaultReason.Zero, [new SourceTimeRange(0.25, 1.25)])],
     };
 
     public static LiveTelemetryCapture LiveCapture()
