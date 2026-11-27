@@ -1,29 +1,18 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Avalonia;
+using Avalonia.Controls;
 using ScottPlot;
 using ScottPlot.Avalonia;
 
 namespace Sufni.App.Shared.Views.Plots;
 
+// ScottPlot's AvaPlotMenu renders a flat list only, so this menu builds the Avalonia
+// ContextMenu itself to show grouped actions as submenus.
 internal sealed class TelemetryPlotContextMenu : IPlotMenu
 {
-    private static readonly string[] NormalActionOrder =
-    [
-        "zoom-selection",
-        "save-current-selection",
-        "label-current-selection",
-        "analysis-range-set-start",
-        "analysis-range-clear",
-        "gps-mark-gps-event",
-        "video-mark-video-event",
-        "session-trim-from-beginning",
-        "session-trim-until-end",
-        "session-split-here",
-        "session-undo-trim",
-    ];
-
-    private readonly IPlotMenu innerMenu;
+    private readonly SufniAvaPlot plotControl;
     private readonly Func<List<ContextMenuItem>> getDefaultContextMenuItems;
     private readonly Func<Pixel, TelemetryPlotContextMenuContext?> createContext;
     private readonly Func<TelemetryPlotContextMenuContext, IReadOnlyList<TelemetryPlotContextMenuAction>> getActions;
@@ -33,22 +22,9 @@ internal sealed class TelemetryPlotContextMenu : IPlotMenu
         Func<Pixel, TelemetryPlotContextMenuContext?> createContext,
         Func<TelemetryPlotContextMenuContext, IReadOnlyList<TelemetryPlotContextMenuAction>> getActions)
     {
+        this.plotControl = plotControl;
         var avaPlotMenu = new AvaPlotMenu(plotControl);
-        innerMenu = avaPlotMenu;
         getDefaultContextMenuItems = () => avaPlotMenu.GetDefaultContextMenuItems().ToList();
-        this.createContext = createContext;
-        this.getActions = getActions;
-        Reset();
-    }
-
-    internal TelemetryPlotContextMenu(
-        IPlotMenu innerMenu,
-        IEnumerable<ContextMenuItem> defaultContextMenuItems,
-        Func<Pixel, TelemetryPlotContextMenuContext?> createContext,
-        Func<TelemetryPlotContextMenuContext, IReadOnlyList<TelemetryPlotContextMenuAction>> getActions)
-    {
-        this.innerMenu = innerMenu;
-        getDefaultContextMenuItems = () => defaultContextMenuItems.ToList();
         this.createContext = createContext;
         this.getActions = getActions;
         Reset();
@@ -85,147 +61,81 @@ internal sealed class TelemetryPlotContextMenu : IPlotMenu
 
     public void ShowContextMenu(Pixel pixel)
     {
-        innerMenu.ContextMenuItems.Clear();
-        innerMenu.ContextMenuItems.AddRange(ContextMenuItems);
+        var plot = plotControl.GetPlotAtPixel(pixel);
+        if (plot is null)
+        {
+            return;
+        }
+
+        var items = ContextMenuItems
+            .Select(item => item.IsSeparator ? CreateSeparator() : CreatePlotMenuItem(item, plot))
+            .ToList();
 
         var context = createContext(pixel);
-        if (context is null)
+        var entries = context is null
+            ? []
+            : TelemetryPlotContextMenuLayout.Create(context, getActions(context));
+        if (entries.Count > 0 && items.Count > 0)
         {
-            innerMenu.ShowContextMenu(pixel);
+            items.Add(CreateSeparator());
+        }
+
+        items.AddRange(entries.Select(entry => CreateEntryMenuItem(entry, context!)));
+        if (items.Count == 0)
+        {
             return;
         }
 
-        var executableActions = getActions(context)
-            .Where(action => !string.IsNullOrWhiteSpace(action.Label) &&
-                             action.Command.CanExecute(context))
-            .ToArray();
-        var actions = CreateDisplayActions(context, executableActions);
-        if (actions.Length == 0)
+        var menu = new ContextMenu
         {
-            innerMenu.ShowContextMenu(pixel);
-            return;
-        }
+            ItemsSource = items,
+            PlacementRect = new Rect(pixel.X, pixel.Y, 1, 1),
+        };
+        menu.Open(plotControl);
+    }
 
-        if (innerMenu.ContextMenuItems.Count > 0)
-        {
-            innerMenu.AddSeparator();
-        }
+    // Matches the separator that ScottPlot's AvaPlotMenu renders.
+    private static MenuItem CreateSeparator() => new() { Header = "-" };
 
-        foreach (var action in actions)
+    private static MenuItem CreatePlotMenuItem(ContextMenuItem item, Plot plot)
+    {
+        var menuItem = new MenuItem { Header = item.Label };
+        menuItem.Click += (_, _) => item.OnInvoke(plot);
+        return menuItem;
+    }
+
+    private static MenuItem CreateEntryMenuItem(
+        TelemetryPlotContextMenuEntry entry,
+        TelemetryPlotContextMenuContext context)
+    {
+        return entry switch
         {
-            innerMenu.Add(action.Label, _ =>
+            TelemetryPlotContextMenuEntry.Item item => CreateActionMenuItem(item, context),
+            TelemetryPlotContextMenuEntry.Submenu submenu => new MenuItem
             {
-                if (action.Command.CanExecute(context))
-                {
-                    action.Command.Execute(context);
-                }
-            });
-        }
-
-        innerMenu.ShowContextMenu(pixel);
-    }
-
-    private static TelemetryPlotContextMenuAction[] CreateDisplayActions(
-        TelemetryPlotContextMenuContext context,
-        IReadOnlyList<TelemetryPlotContextMenuAction> executableActions)
-    {
-        var actionsById = executableActions
-            .GroupBy(action => action.Id, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
-
-        if (HasPendingAnalysisBoundary(context, actionsById))
-        {
-            return MaterializeKnownActions(
-                actionsById,
-                [
-                    ("analysis-range-set-end", "Analysis > End here"),
-                    ("analysis-range-clear", "Analysis > Cancel"),
-                ]);
-        }
-
-        if (actionsById.ContainsKey("gps-mark-telemetry-event"))
-        {
-            return MaterializeKnownActions(
-                actionsById,
-                [
-                    ("gps-mark-telemetry-event", "Sync > Mark telemetry event"),
-                    ("gps-cancel-alignment", "Sync > Cancel"),
-                ]);
-        }
-
-        if (actionsById.ContainsKey("video-mark-telemetry-event"))
-        {
-            return MaterializeKnownActions(
-                actionsById,
-                [
-                    ("video-mark-telemetry-event", "Sync > Mark telemetry event"),
-                    ("video-cancel-alignment", "Sync > Cancel"),
-                ]);
-        }
-
-        var orderedActions = MaterializeKnownActions(
-            actionsById,
-            NormalActionOrder.Select(id => (id, ResolveNormalLabel(id))));
-        var knownIds = NormalActionOrder.ToHashSet(StringComparer.Ordinal);
-        var remainingActions = executableActions
-            .Where(action => !knownIds.Contains(action.Id) && !IsPendingOnlyAction(action.Id))
-            .ToArray();
-
-        return [.. orderedActions, .. remainingActions];
-    }
-
-    private static bool HasPendingAnalysisBoundary(
-        TelemetryPlotContextMenuContext context,
-        IReadOnlyDictionary<string, TelemetryPlotContextMenuAction> actionsById)
-    {
-        return context.AnalysisRange is null &&
-               actionsById.ContainsKey("analysis-range-clear");
-    }
-
-    private static TelemetryPlotContextMenuAction[] MaterializeKnownActions(
-        IReadOnlyDictionary<string, TelemetryPlotContextMenuAction> actionsById,
-        IEnumerable<(string Id, string Label)> actionOrder)
-    {
-        return actionOrder
-            .Where(entry => actionsById.ContainsKey(entry.Id))
-            .Select(entry => WithDisplayLabel(actionsById[entry.Id], entry.Label))
-            .ToArray();
-    }
-
-    private static TelemetryPlotContextMenuAction WithDisplayLabel(
-        TelemetryPlotContextMenuAction action,
-        string label)
-    {
-        return string.Equals(action.Label, label, StringComparison.Ordinal)
-            ? action
-            : action with { Label = label };
-    }
-
-    private static string ResolveNormalLabel(string id)
-    {
-        return id switch
-        {
-            "save-current-selection" => "Analysis > Save current selection",
-            "label-current-selection" => "Terrain > Label current selection",
-            "analysis-range-set-start" => "Analysis > Start here",
-            "analysis-range-clear" => "Analysis > Clear",
-            "gps-mark-gps-event" => "Sync > Mark GPS event",
-            "video-mark-video-event" => "Sync > Mark video event",
-            "session-trim-from-beginning" => "Trim > Trim from beginning",
-            "session-trim-until-end" => "Trim > Trim until end",
-            "session-split-here" => "Trim > Split here",
-            "session-undo-trim" => "Trim > Undo trim",
-            "zoom-selection" => "Zoom selection",
-            _ => id,
+                Header = submenu.Header,
+                ItemsSource = submenu.Items
+                    .Select(item => CreateActionMenuItem(item, context))
+                    .ToList(),
+            },
+            _ => throw new ArgumentOutOfRangeException(nameof(entry)),
         };
     }
 
-    private static bool IsPendingOnlyAction(string id)
+    private static MenuItem CreateActionMenuItem(
+        TelemetryPlotContextMenuEntry.Item item,
+        TelemetryPlotContextMenuContext context)
     {
-        return id is "analysis-range-set-end" or
-            "gps-mark-telemetry-event" or
-            "gps-cancel-alignment" or
-            "video-mark-telemetry-event" or
-            "video-cancel-alignment";
+        var action = item.Action;
+        var menuItem = new MenuItem { Header = action.Label };
+        ToolTip.SetTip(menuItem, item.ToolTip);
+        menuItem.Click += (_, _) =>
+        {
+            if (action.Command.CanExecute(context))
+            {
+                action.Command.Execute(context);
+            }
+        };
+        return menuItem;
     }
 }

@@ -126,7 +126,7 @@ internal sealed class SignalPlotContextActions : IDisposable
             SaveSelectionAsSegmentCommand);
         var labelSelection = new TelemetryPlotContextMenuAction(
             "label-current-selection",
-            "Terrain > Label current selection",
+            "Label current selection",
             LabelSelectionCommand);
         TelemetryPlotContextMenuAction[] actions =
         [
