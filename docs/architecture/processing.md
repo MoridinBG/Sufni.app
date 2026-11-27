@@ -112,7 +112,7 @@ An idling stroke is marked as an air candidate during stroke categorization when
 - IMU: the samples of that location inside the ranges are removed, splitting its segments.
 - GPS fixes and temperature samples inside the ranges are removed.
 
-`SensorDecisions.Undecided(findings)` is the pure function that the import screen and the session detail use: per sensor, it subtracts the decided ranges from the finding ranges. A part that a decision cut shorter than `MinimumFaultSeconds` is left out; an uncut range stays. Notices pass unchanged.
+`SensorDecisions.Undecided(findings)` is the pure function that the sensor findings dialog uses: per sensor, it subtracts the decided ranges from the finding ranges. A part that a decision cut shorter than `MinimumFaultSeconds` is left out; an uncut range stays. Notices pass unchanged.
 
 **Balance coverage.** `HasBalanceData` and `CalculateBalance` require both sides to cover the selection, or the whole recording without one. Coverage is the union of the processed segment spans; a gap shorter than `MinimumFaultSeconds` is ignored, so short v5 stream gaps do not turn balance off. The selection is clamped to the recording duration.
 
