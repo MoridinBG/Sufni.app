@@ -353,6 +353,9 @@ and notification bars.
   above the session shell when it has rows. After a Drop, the session is stale,
   so the panel hides; the recompute reloads the telemetry and the panel returns
   without the decided sensor.
+- **Live captures:** a saved capture is derived through the recorded-session
+  reprocessor, so the offer on opening covers it. The live preview runs no
+  detection and shows no findings.
 
 ### Pending deletes
 
