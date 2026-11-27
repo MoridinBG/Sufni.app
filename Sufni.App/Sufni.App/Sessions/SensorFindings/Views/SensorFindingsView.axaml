@@ -5,60 +5,103 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vm="clr-namespace:Sufni.App.Sessions.SensorFindings.ViewModels"
-    d:DesignHeight="320"
+    d:DesignHeight="420"
     d:DesignWidth="560"
     x:DataType="vm:SensorFindingsViewModel"
     Background="{DynamicResource SufniSurfaceInputDisabled}"
     mc:Ignorable="d">
 
-    <Grid Margin="16" RowDefinitions="auto auto * auto" RowSpacing="10">
-        <TextBlock
+    <Grid Margin="20" RowDefinitions="auto auto * auto" RowSpacing="14">
+        <StackPanel
             Grid.Row="0"
-            FontSize="20"
-            FontWeight="SemiBold"
-            Text="Sensor findings" />
-        <TextBlock
-            Grid.Row="1"
-            Text="Drop removes the readings from the analysis for good. Keep uses them as they are."
-            TextWrapping="Wrap" />
+            Orientation="Horizontal"
+            Spacing="10">
+            <Image
+                Width="20"
+                Height="20"
+                VerticalAlignment="Center"
+                Source="{SvgImage /Assets/fa-circle-exclamation.svg}"
+                Svg.Css="{DynamicResource SufniIconSecondarySvgCss}" />
+            <TextBlock
+                VerticalAlignment="Center"
+                FontSize="{StaticResource SufniFontSizeHeading}"
+                FontWeight="SemiBold"
+                Foreground="{DynamicResource SufniTextPrimary}"
+                Text="Some readings look wrong" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Spacing="6">
+            <TextBlock
+                Text="These sensors recorded readings that a working sensor cannot produce, for example from a loose sensor, a bad connection or a GPS glitch. They distort the analysis of this session."
+                TextWrapping="Wrap" />
+            <TextBlock
+                Text="Drop the readings you think are wrong, so that the analysis leaves them out. Keep them if they are right."
+                TextWrapping="Wrap" />
+        </StackPanel>
+
         <ScrollViewer Grid.Row="2">
-            <ItemsControl Name="FindingRows" ItemsSource="{Binding Rows}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:SensorFindingRowViewModel">
-                        <Grid Margin="0,4" ColumnDefinitions="* auto auto">
-                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                <TextBlock FontWeight="SemiBold" Text="{Binding SensorName}" />
-                                <TextBlock
-                                    Text="{Binding Details}"
-                                    TextWrapping="Wrap"
-                                    ToolTip.Tip="{Binding RangesText}" />
-                            </StackPanel>
-                            <Button
-                                Name="DropButton"
-                                Grid.Column="1"
-                                Margin="8,0,4,0"
-                                VerticalAlignment="Center"
-                                Command="{Binding DropCommand}"
-                                Content="Drop"
-                                IsVisible="{Binding CanDecide}" />
-                            <Button
-                                Name="KeepButton"
-                                Grid.Column="2"
-                                VerticalAlignment="Center"
-                                Command="{Binding KeepCommand}"
-                                Content="Keep"
-                                IsVisible="{Binding CanDecide}" />
-                        </Grid>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <Border
+                VerticalAlignment="Top"
+                Background="{DynamicResource SufniListRowDivider}"
+                ClipToBounds="True"
+                CornerRadius="6">
+                <ItemsControl Name="FindingRows" ItemsSource="{Binding Rows}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Spacing="1" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SensorFindingRowViewModel">
+                            <Grid
+                                Background="{DynamicResource SufniListRowSurface}"
+                                ColumnDefinitions="* auto"
+                                ColumnSpacing="12">
+                                <StackPanel
+                                    Grid.Column="0"
+                                    Margin="12,8,0,8"
+                                    VerticalAlignment="Center"
+                                    Spacing="2">
+                                    <TextBlock Foreground="{DynamicResource SufniTextPrimary}" Text="{Binding SensorName}" />
+                                    <TextBlock
+                                        FontSize="{StaticResource SufniFontSizeCaption}"
+                                        Text="{Binding Details}"
+                                        TextWrapping="Wrap"
+                                        ToolTip.Tip="{Binding RangesText}" />
+                                </StackPanel>
+                                <StackPanel
+                                    Grid.Column="1"
+                                    Margin="0,0,12,0"
+                                    VerticalAlignment="Center"
+                                    IsVisible="{Binding CanDecide}"
+                                    Orientation="Horizontal"
+                                    Spacing="8">
+                                    <Button
+                                        Name="DropButton"
+                                        Classes="dangerous"
+                                        Command="{Binding DropCommand}"
+                                        Content="Drop"
+                                        ToolTip.Tip="Leave these readings out of the analysis and recompute the session. You cannot undo this." />
+                                    <Button
+                                        Name="KeepButton"
+                                        Command="{Binding KeepCommand}"
+                                        Content="Keep"
+                                        ToolTip.Tip="Use these readings as they are. The app does not ask about them again." />
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Border>
         </ScrollViewer>
+
         <Button
             Name="CloseButton"
             Grid.Row="3"
             HorizontalAlignment="Right"
             Command="{Binding CloseCommand}"
             Content="Not now"
-            IsCancel="True" />
+            IsCancel="True"
+            ToolTip.Tip="Decide later. The app asks again the next time you open this session." />
     </Grid>
 </UserControl>

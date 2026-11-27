@@ -34,6 +34,6 @@ public class SensorFindingsViewTests
 
         var dropButtons = mounted.View.GetVisualDescendants().OfType<Button>().Where(button => button.Name == "DropButton").ToArray();
 
-        Assert.Equal([true, false], dropButtons.Select(button => button.IsVisible));
+        Assert.Equal([true, false], dropButtons.Select(button => button.IsEffectivelyVisible));
     }
 }

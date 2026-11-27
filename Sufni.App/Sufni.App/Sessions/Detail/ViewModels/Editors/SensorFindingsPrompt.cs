@@ -22,9 +22,9 @@ internal sealed class SensorFindingsPrompt : IDisposable
     private static readonly DialogOptions Options = new(
         Title: "Sensor findings",
         Width: 560,
-        Height: 360,
+        Height: 420,
         MinWidth: 420,
-        MinHeight: 240,
+        MinHeight: 320,
         CanResize: true);
 
     private readonly Guid sessionId;
