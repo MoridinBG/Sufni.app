@@ -124,6 +124,12 @@ public sealed record FailurePresentation
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
 
+    public static FailurePresentation From(SensorDecisionFailureReason reason, string? details = null) => new(reason switch
+    {
+        SensorDecisionFailureReason.Save => "The sensor decision could not be saved. Try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
     public static FailurePresentation From(GpsOffsetFailureReason reason, string? details = null) => new(reason switch
     {
         GpsOffsetFailureReason.Save => "GPS alignment could not be saved. Try again.",

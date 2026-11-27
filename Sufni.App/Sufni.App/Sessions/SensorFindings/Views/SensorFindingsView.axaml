@@ -1,0 +1,36 @@
+<UserControl
+    x:Class="Sufni.App.Sessions.SensorFindings.Views.SensorFindingsView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="clr-namespace:Sufni.App.Sessions.SensorFindings.ViewModels"
+    x:DataType="vm:SensorFindingsViewModel"
+    IsVisible="{Binding HasRows}">
+
+    <ItemsControl Name="FindingRows" ItemsSource="{Binding Rows}">
+        <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:SensorFindingRowViewModel">
+                <Grid Margin="0,2" ColumnDefinitions="* auto auto">
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock FontWeight="SemiBold" Text="{Binding SensorName}" />
+                        <TextBlock FontSize="12" Text="{Binding Details}" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Button
+                        Name="DropButton"
+                        Grid.Column="1"
+                        Margin="4,0"
+                        VerticalAlignment="Center"
+                        Command="{Binding DropCommand}"
+                        Content="Drop"
+                        IsVisible="{Binding CanDecide}" />
+                    <Button
+                        Name="KeepButton"
+                        Grid.Column="2"
+                        VerticalAlignment="Center"
+                        Command="{Binding KeepCommand}"
+                        Content="Keep"
+                        IsVisible="{Binding CanDecide}" />
+                </Grid>
+            </DataTemplate>
+        </ItemsControl.ItemTemplate>
+    </ItemsControl>
+</UserControl>

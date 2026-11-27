@@ -91,7 +91,7 @@ internal sealed class EditorFactory(
         EditorKey.Session session => sessionStore.Get(session.Id) is { } snapshot ? CreateSessionDetail(snapshot, shell) : null,
         EditorKey.ImportSessions => new ImportSessionsViewModel(
             shell, dialogService,
-            importSessionsCoordinator, setupQuery, uiThreadDispatcher, timeProvider),
+            importSessionsCoordinator, setupQuery, sessionStore, sessionCoordinator, uiThreadDispatcher, timeProvider),
         EditorKey.LiveDaq daq => liveDaqStore.Get(daq.IdentityKey) is { } snapshot
             ? CreateLiveDaqDetail(snapshot, sharedStreamRegistry.GetOrCreate(snapshot), shell) : null,
         EditorKey.LiveSession session => CreateLiveSession(session.IdentityKey, shell)

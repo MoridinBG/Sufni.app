@@ -13,6 +13,7 @@ using Sufni.App.Shared.Models;
 using Sufni.App.Tests.TestSupport.Acquisition;
 using Sufni.App.Tests.TestSupport.Async;
 using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.Telemetry;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetrySources;
 
 namespace Sufni.App.Tests.Acquisition.ViewModels;
@@ -412,6 +413,28 @@ public class ImportSessionsViewModelTests
         Assert.False(reopened.IsImporting);
         Assert.True(reopened.ImportSessionsCommand.CanExecute(null));
         Assert.Single(reopened.Notifications);
+    }
+
+    [Fact]
+    public async Task ImportedSessionWithFindings_OffersThemUntilTheNextImportRun()
+    {
+        using var harness = new ImportWorkflowHarness();
+        var withFindings = TestSnapshots.Session(name: "faulty");
+        var healthy = TestSnapshots.Session(name: "healthy");
+        await harness.SessionReadStore.PublishSessionsChangedAsync([withFindings, healthy]);
+        SensorFinding finding = new(new SensorIdentity(SensorKind.ShockTravel), SensorFaultReason.Frozen, [new(10, 20)]);
+        var vm = harness.CreateViewModel();
+
+        harness.ImportState.OnNext(new SessionImportState.Completed(new SessionImportResult([withFindings, healthy], []),
+            [new SessionImportEvent.Imported(withFindings, [finding]), new SessionImportEvent.Imported(healthy, [])]));
+
+        var offered = Assert.Single(vm.SensorFindings);
+        Assert.Equal("faulty", offered.SessionName);
+        Assert.True(offered.HasRows);
+
+        harness.ImportState.OnNext(new SessionImportState.Running(0, 0, []));
+
+        Assert.Empty(vm.SensorFindings);
     }
 
     public enum OpenStoreResult

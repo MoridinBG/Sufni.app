@@ -18,6 +18,9 @@ using Sufni.App.Acquisition.Coordinators;
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Acquisition.Services;
 using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Coordination;
+using Sufni.App.Sessions.SensorFindings.ViewModels;
+using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Coordinators;
 using Sufni.App.Setups.Stores;
 using Sufni.App.Shared.Base;
@@ -31,6 +34,9 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     public ReadOnlyObservableCollection<ITelemetryDataStore> TelemetryDataStores { get; }
     public ObservableCollection<ImportFileRowViewModel> TelemetryFiles { get; } = [];
+
+    /// <summary>The findings of the sessions that the retained import run created.</summary>
+    public ObservableCollection<SensorFindingsViewModel> SensorFindings { get; } = [];
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ImportSessionsCommand))]
@@ -75,6 +81,8 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     private readonly IImportSessionsCoordinator importSessionsCoordinator;
     private readonly ISetupBoardQuery setupQuery;
+    private readonly ISessionStore sessionStore;
+    private readonly ISessionCoordinator sessionCoordinator;
     private readonly IDisposable importSubscription;
     private int displayedEventCount;
     private IDisposable? sourceObservation;
@@ -94,6 +102,8 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         IDialogService dialogService,
         IImportSessionsCoordinator importSessionsCoordinator,
         ISetupBoardQuery setupQuery,
+        ISessionStore sessionStore,
+        ISessionCoordinator sessionCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
         TimeProvider timeProvider)
         : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
@@ -101,6 +111,8 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         Name = "Import Sessions";
         this.importSessionsCoordinator = importSessionsCoordinator;
         this.setupQuery = setupQuery;
+        this.sessionStore = sessionStore;
+        this.sessionCoordinator = sessionCoordinator;
 
         importSubscription = importSessionsCoordinator.Observe()
             .ObserveOnUiThread(uiThreadDispatcher)
@@ -199,13 +211,20 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         IsImporting = state is SessionImportState.Running;
         CurrentFileIndex = state is SessionImportState.Running running ? running.Current : 0;
         TotalFiles = state is SessionImportState.Running active ? active.Total : 0;
-        if (state.Events.Count == 0) displayedEventCount = 0;
+        if (state.Events.Count == 0)
+        {
+            displayedEventCount = 0;
+            ClearSensorFindings();
+        }
         foreach (var message in state.Events.Skip(displayedEventCount))
         {
             switch (message)
             {
                 case SessionImportEvent.Imported imported:
                     Notifications.Insert(0, $"{imported.Snapshot.Name} was successfully imported.");
+                    if (!imported.Findings.IsEmpty)
+                        SensorFindings.Add(new SensorFindingsViewModel(imported.Snapshot.Id, imported.Findings, sessionStore,
+                            sessionCoordinator, UiThreadDispatcher, ErrorMessages.Add, Notifications.Add));
                     break;
                 case SessionImportEvent.AlreadyImported existing:
                     Notifications.Insert(0, $"{existing.FileName} was already imported.");
@@ -242,6 +261,12 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
                 ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
+    }
+
+    private void ClearSensorFindings()
+    {
+        foreach (var findings in SensorFindings) findings.Dispose();
+        SensorFindings.Clear();
     }
 
     private void AddImportSummary(SessionImportResult result)
@@ -402,6 +427,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     protected override async Task CloseImplementation()
     {
         importSubscription.Dispose();
+        ClearSensorFindings();
         ((INotifyCollectionChanged)TelemetryDataStores).CollectionChanged -= OnTelemetryDataStoresCollectionChanged;
         Unloaded();
         listingOperation.Dispose();
