@@ -75,6 +75,7 @@ internal sealed class SynchronizationMergeEngine(
                                                                        window_end_seconds,
                                                                        previous_window_start_seconds,
                                                                        previous_window_end_seconds,
+                                                                       sensor_decisions,
                                                                        {SessionSqlProjection.ProcessingFingerprintColumn},
                                                                       front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
                                                                       rear_springrate, rear_hsc, rear_lsc, rear_lsr, rear_hsr,
@@ -97,6 +98,7 @@ internal sealed class SynchronizationMergeEngine(
                                                                   window_end_seconds=?,
                                                                   previous_window_start_seconds=?,
                                                                   previous_window_end_seconds=?,
+                                                                  sensor_decisions=?,
                                                                   front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
                                                                   rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
                                                                   updated=?,
@@ -124,6 +126,7 @@ internal sealed class SynchronizationMergeEngine(
                                                                   window_end_seconds=?,
                                                                   previous_window_start_seconds=?,
                                                                   previous_window_end_seconds=?,
+                                                                  sensor_decisions=?,
                                                                   front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
                                                                   rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
                                                                   updated=?,
@@ -401,7 +404,10 @@ internal sealed class SynchronizationMergeEngine(
         try
         {
             return fingerprintService.CreateCurrentDatabaseInputs(new SessionProcessingInputBundle(
-                new SessionProcessingInput(session.Id, setupId, SessionSnapshot.From(session).DerivationWindow, session.VelocityFilterWindowMilliseconds),
+                new SessionProcessingInput(session.Id, setupId, SessionSnapshot.From(session).DerivationWindow, session.VelocityFilterWindowMilliseconds)
+                {
+                    Drops = SensorDecisionsJson.Parse(session.SensorDecisionsJson).Drops
+                },
                 new SetupProcessingInput(
                     setup.Id, setup.BikeId, setup.FrontSensorConfigurationJson, setup.RearSensorConfigurationJson),
                 new BikeProcessingInput(
@@ -451,6 +457,7 @@ internal sealed class SynchronizationMergeEngine(
         session.WindowEndSeconds,
         session.PreviousWindowStartSeconds,
         session.PreviousWindowEndSeconds,
+        session.SensorDecisionsJson,
         session.FrontSpringRate,
         session.FrontHighSpeedCompression,
         session.FrontLowSpeedCompression,
@@ -481,6 +488,7 @@ internal sealed class SynchronizationMergeEngine(
         session.WindowEndSeconds,
         session.PreviousWindowStartSeconds,
         session.PreviousWindowEndSeconds,
+        session.SensorDecisionsJson,
         session.FrontSpringRate,
         session.FrontHighSpeedCompression,
         session.FrontLowSpeedCompression,

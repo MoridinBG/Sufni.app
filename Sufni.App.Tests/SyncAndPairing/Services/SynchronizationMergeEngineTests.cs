@@ -868,12 +868,84 @@ public class SynchronizationMergeEngineTests
         Assert.Null(await database.GetSessionRawPsstAsync(id));
     }
 
+    private static readonly SensorIdentity Shock = new(SensorKind.ShockTravel);
+    private static readonly SensorDecisions ShockDrop = SensorDecisions.None.With(Shock, SensorDecision.Drop, [new(10, 20)]);
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task SensorDecisions_TravelToThePeer(bool peerHoldsTheSession, bool peerHoldsProcessedData)
+    {
+        using var sourceFile = new TempDatabase();
+        using var peerFile = new TempDatabase();
+        await using var source = new TestPersistenceHarness(sourceFile.DatabasePath);
+        await using var peer = new TestPersistenceHarness(peerFile.DatabasePath);
+        var id = Guid.NewGuid();
+        await source.PutSessionAsync(new Session(id, "ride", "", null, 100));
+        if (peerHoldsTheSession)
+        {
+            _ = await peer.GetSessionsAsync();
+            using var connection = new SQLiteConnection(peerFile.DatabasePath);
+            connection.Insert(new Session(id, "ride", "", null, 100)
+            {
+                ProcessedData = peerHoldsProcessedData ? [1, 2, 3] : null,
+                Updated = 1,
+            });
+        }
+
+        await source.SessionRepository.SetSensorDecisionAsync(id, Shock, SensorDecision.Drop, [new(10, 20)]);
+        await peer.MergeAllAsync(AppJson.Deserialize<SynchronizationData>(
+            AppJson.Serialize(await source.GetSynchronizationDataAsync(0, long.MaxValue)))!);
+
+        Assert.Equal(ShockDrop, SessionSnapshot.From((await peer.GetSessionAsync(id))!).SensorDecisions);
+    }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public async Task MergeAllAsync_SwapsInOnlyAGenerationMadeWithTheIncomingDropRanges(bool incomingMadeWithDrops, bool expectSwap)
+    {
+        using var file = new TempDatabase();
+        await using var database = new TestPersistenceHarness(file.DatabasePath);
+        _ = await database.GetSessionsAsync();
+        var sessionId = Guid.NewGuid();
+        var setupId = Guid.NewGuid();
+        var (heldFingerprint, incomingFingerprint, _) = await SeedPushSwapScenarioAsync(
+            database, sessionId, setupId, Guid.NewGuid(), PushSwapScenario.CurrentInputs,
+            decisions: incomingMadeWithDrops ? ShockDrop : null);
+        using (var connection = new SQLiteConnection(file.DatabasePath))
+        {
+            connection.Insert(new Session(sessionId, "ride", "desc", setupId, 100)
+            {
+                ProcessedData = [1, 2, 3],
+                ProcessingFingerprintJson = heldFingerprint,
+                Updated = 1,
+            });
+        }
+
+        await database.MergeAllAsync(new SynchronizationData
+        {
+            Sessions =
+            [
+                new Session(sessionId, "ride", "desc", setupId, 100)
+                {
+                    ProcessingFingerprintJson = incomingFingerprint,
+                    SensorDecisionsJson = SensorDecisionsJson.Write(ShockDrop),
+                    Updated = 99,
+                }
+            ]
+        });
+
+        Assert.Equal(expectSwap, await database.GetSessionBlobSwapRequestAsync(sessionId) is not null);
+    }
+
     private static async Task<(string HeldFingerprint, string IncomingFingerprint, (RecordedSessionDerivationWindow? Held, RecordedSessionDerivationWindow? Incoming) Window)> SeedPushSwapScenarioAsync(
         TestPersistenceHarness database,
         Guid sessionId,
         Guid setupId,
         Guid bikeId,
-        PushSwapScenario scenario, int? velocityWindow = null)
+        PushSwapScenario scenario, int? velocityWindow = null, SensorDecisions? decisions = null)
     {
         var setup = new Setup { Id = setupId, BikeId = bikeId, Name = "setup" };
         var bike = new Bike { Id = bikeId, Name = "bike", HeadAngle = 65 };
@@ -881,7 +953,11 @@ public class SynchronizationMergeEngineTests
         await database.PutAsync(bike);
 
         var fingerprintService = new ProcessingFingerprintService();
-        var session = new Session(sessionId, "session", "desc", setupId, 100) { VelocityFilterWindowMilliseconds = velocityWindow };
+        var session = new Session(sessionId, "session", "desc", setupId, 100)
+        {
+            VelocityFilterWindowMilliseconds = velocityWindow,
+            SensorDecisionsJson = decisions is null ? null : SensorDecisionsJson.Write(decisions),
+        };
         var setupSnapshot = SetupSnapshot.From(setup);
         var bikeSnapshot = BikeSnapshot.From(bike);
 
