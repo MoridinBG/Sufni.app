@@ -419,6 +419,7 @@ public class TravelPlotViewTests
         public Sufni.App.Terrain.ViewModels.TerrainScopeViewModel? TerrainScope => null;
         public TerrainPresentation? TerrainPresentation => null;
         public string TerrainTitle => "Terrain";
+        public bool TerrainSourceIsSprung => false;
         public string? TerrainSourceDescription => null;
         public SurfacePresentationState TerrainSignalState => SurfacePresentationState.Hidden;
         public SurfacePresentationState RoughnessSignalState => SurfacePresentationState.Hidden;

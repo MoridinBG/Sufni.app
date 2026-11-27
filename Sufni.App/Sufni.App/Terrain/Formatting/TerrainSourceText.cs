@@ -13,6 +13,9 @@ internal static class TerrainSourceText
     public static string StripTitle(TerrainSourceCoverage? coverage) =>
         coverage?.Source is { } source ? $"Terrain · {SourceName(source)}" : "Terrain";
 
+    /// <summary>True when the frame IMU, which sits on the sprung part of the bike, sets most of the classes.</summary>
+    public static bool IsSprung(TerrainSourceCoverage? coverage) => coverage?.Source is GroundSensors.Frame;
+
     public static string? Description(TerrainPresentation? presentation, SetupTerrainScale? scale)
     {
         if (presentation is null) return null;
@@ -21,6 +24,8 @@ internal static class TerrainSourceText
         var shares = Enum.GetValues<GroundSensors>().Where(source => coverage.SourceShares[(int)source] > 0)
             .Select(source => $"{SourceName(source)} {coverage.SourceShares[(int)source]:P0}").ToArray();
         if (shares.Length > 0) lines.Add(string.Join(" · ", shares));
+        if (IsSprung(coverage))
+            lines.Add("The frame is sprung. It reads what the suspension passes on, not the ground itself.");
         if (coverage.ForkClipped) lines.Add("Fork reached full scale.");
         if (coverage.RearAxleClipped) lines.Add("Rear axle reached full scale.");
         if (coverage.FrameMissing) lines.Add("Frame data absent in part or all of the ride.");
@@ -55,13 +60,15 @@ internal static class TerrainSourceText
         {
             if (scale.FrameClimb is SensorScale.Anchored)
             {
-                lines.Add($"Climbs: set by your labels ({Distance(labels.SmoothClimb)} smooth, {Distance(labels.TechnicalClimb)} technical).");
+                lines.Add($"Climbs: compared with the climbs you labelled ({Distance(labels.SmoothClimb)} smooth, " +
+                          $"{Distance(labels.TechnicalClimb)} technical).");
                 return lines;
             }
-            lines.Add(Line("Climbs", scale.FrameClimb));
+            lines.Add(Line("Climbs", scale.FrameClimb, "climb"));
             if (labels.SmoothClimb + labels.TechnicalClimb > 0)
-                lines.Add($"Labels: {Distance(labels.SmoothClimb)} of {Distance(SetupTerrainScaleQuery.MinimumLabelledMetres)} smooth, " +
-                          $"{Distance(labels.TechnicalClimb)} of {Distance(SetupTerrainScaleQuery.MinimumLabelledMetres)} technical.");
+                lines.Add($"Your climb labels change this comparison when each class reaches " +
+                          $"{Distance(SetupTerrainScaleQuery.MinimumLabelledMetres)}. You labelled {Distance(labels.SmoothClimb)} smooth and " +
+                          $"{Distance(labels.TechnicalClimb)} technical.");
         }
         return lines;
 
@@ -69,20 +76,22 @@ internal static class TerrainSourceText
         {
             if (sensor is SensorScale.Anchored)
             {
-                lines.Add($"{name}: set by your labels ({Distance(labelled)}).");
+                lines.Add($"{name}: compared with the terrain you labelled ({Distance(labelled)}).");
                 return;
             }
-            lines.Add(Line(name, sensor));
-            if (labelled > 0) lines.Add($"Labels: {Distance(labelled)} of {Distance(SetupTerrainScaleQuery.MinimumLabelledMetres)}.");
+            lines.Add(Line(name, sensor, "descent"));
+            if (labelled > 0)
+                lines.Add($"Your labels change this comparison when they reach {Distance(SetupTerrainScaleQuery.MinimumLabelledMetres)}. " +
+                          $"You labelled {Distance(labelled)}.");
         }
     }
 
-    private static string Line(string name, SensorScale sensor) => sensor switch
+    private static string Line(string name, SensorScale sensor, string ground) => sensor switch
     {
         SensorScale.NotEnoughData data =>
             $"{name}: no classes yet. The setup has {data.Rides} of {SetupTerrainScaleQuery.MinimumRides} rides and " +
             $"{Distance(data.Metres)} of {Distance(SetupTerrainScaleQuery.MinimumMetres)}.",
-        _ => $"{name}: set by the median of the rides."
+        _ => $"{name}: compared with your typical {ground} on this setup."
     };
 
     private static string Distance(double metres) => UnitsFormatter.FormatDistance(metres);

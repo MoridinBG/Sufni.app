@@ -74,6 +74,22 @@ public class SignalRowTests
             received.Container);
     }
 
+    [AvaloniaFact]
+    public async Task SignalRow_TitleForeground_ColoursTheTitle_AndClearingRestoresTheInheritedColour()
+    {
+        var row = CreateRow("Terrain");
+        await using var mounted = await MountAsync(row);
+        var title = row.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Text == "Terrain");
+        var inherited = title.Foreground;
+        var highlight = new SolidColorBrush(Colors.Goldenrod);
+
+        row.TitleForeground = highlight;
+        Assert.Same(highlight, title.Foreground);
+
+        row.TitleForeground = null;
+        Assert.Same(inherited, title.Foreground);
+    }
+
     private static SignalRow CreateRow(string title)
     {
         return new SignalRow

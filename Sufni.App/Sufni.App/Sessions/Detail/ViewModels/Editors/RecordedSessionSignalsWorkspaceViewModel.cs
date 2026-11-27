@@ -70,6 +70,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
 
     public TerrainPresentation? TerrainPresentation => (currentState.Terrain as RecordedTerrainState.Loaded)?.Presentation;
     public string TerrainTitle => TerrainSourceText.StripTitle(TerrainPresentation?.Coverage);
+    public bool TerrainSourceIsSprung => TerrainSourceText.IsSprung(TerrainPresentation?.Coverage);
     public string? TerrainSourceDescription => TerrainSourceText.Description(TerrainPresentation, currentState.Domain?.TerrainScale);
     public SurfacePresentationState TerrainSignalState => currentState.Presentation.Signals.Terrain;
     public SurfacePresentationState RoughnessSignalState => currentState.Presentation.Signals.Roughness;
@@ -195,6 +196,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
         var previousPresentation = (previous.Terrain as RecordedTerrainState.Loaded)?.Presentation;
         NotifyChanged(previousPresentation, TerrainPresentation, nameof(TerrainPresentation));
         NotifyChanged(TerrainSourceText.StripTitle(previousPresentation?.Coverage), TerrainTitle, nameof(TerrainTitle));
+        NotifyChanged(TerrainSourceText.IsSprung(previousPresentation?.Coverage), TerrainSourceIsSprung, nameof(TerrainSourceIsSprung));
         NotifyChanged(TerrainSourceText.Description(previousPresentation, previous.Domain?.TerrainScale), TerrainSourceDescription,
             nameof(TerrainSourceDescription));
         NotifyChanged(previous.Presentation.Signals.Terrain, state.Presentation.Signals.Terrain, nameof(TerrainSignalState));

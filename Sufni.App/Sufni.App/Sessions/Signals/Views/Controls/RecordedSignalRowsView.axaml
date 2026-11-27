@@ -26,6 +26,12 @@ behaviors:HapticFeedbackBehavior.IsEnabled="True"
 x:DataType="vm:IRecordedSessionSignalsWorkspace"
 mc:Ignorable="d">
 
+    <UserControl.Styles>
+        <Style Selector="sessionSignals|SignalRow.sprungSource">
+            <Setter Property="TitleForeground" Value="{DynamicResource SufniStatusWarningBrush}" />
+        </Style>
+    </UserControl.Styles>
+
     <sessionSignals:SignalRowsRoot x:Name="SignalRowsRoot" SignalLayoutPreferences="{Binding SignalLayoutPreferences, Mode=TwoWay}">
         <sessionSignals:SignalRowsRoot.Rows>
             <sessionSignals:SignalRow
@@ -200,7 +206,8 @@ mc:Ignorable="d">
                 </sessionSignals:SignalRow.ChildRows>
             </sessionSignals:SignalRow>
             <sessionSignals:SignalRow RowId="{x:Static sessionPreferences:SignalRowIds.Terrain}"
-                Title="{Binding TerrainTitle}" FixedPlotHeight="{Binding #Root.TerrainPlotHeight}" TitleToolTip="{Binding TerrainSourceDescription}"
+                Title="{Binding TerrainTitle}" Classes.sprungSource="{Binding TerrainSourceIsSprung}"
+                FixedPlotHeight="{Binding #Root.TerrainPlotHeight}" TitleToolTip="{Binding TerrainSourceDescription}"
                 HeaderActions="{Binding TerrainHeaderActions}" PresentationState="{Binding TerrainSignalState}">
                 <sessionSignals:SignalRow.HeaderAccessory>
                     <terrainViews:TerrainScopeChipView DataContext="{Binding TerrainScope}" ShowLegends="{Binding #Root.CompactTerrainRow}" />

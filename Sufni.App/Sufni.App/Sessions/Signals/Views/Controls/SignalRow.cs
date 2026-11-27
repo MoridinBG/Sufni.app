@@ -65,6 +65,10 @@ public sealed class SignalRow : UserControl
     public static readonly StyledProperty<object?> TitleToolTipProperty =
         AvaloniaProperty.Register<SignalRow, object?>(nameof(TitleToolTip));
 
+    /// <summary>The title colour; null keeps the inherited foreground.</summary>
+    public static readonly StyledProperty<IBrush?> TitleForegroundProperty =
+        AvaloniaProperty.Register<SignalRow, IBrush?>(nameof(TitleForeground));
+
     public static readonly StyledProperty<Control?> HeaderAccessoryProperty =
         AvaloniaProperty.Register<SignalRow, Control?>(nameof(HeaderAccessory));
 
@@ -138,6 +142,12 @@ public sealed class SignalRow : UserControl
     {
         get => GetValue(TitleToolTipProperty);
         set => SetValue(TitleToolTipProperty, value);
+    }
+
+    public IBrush? TitleForeground
+    {
+        get => GetValue(TitleForegroundProperty);
+        set => SetValue(TitleForegroundProperty, value);
     }
 
     public string? RowId
@@ -380,6 +390,7 @@ public sealed class SignalRow : UserControl
         {
             if (e.Property == TitleProperty ||
                 e.Property == TitleToolTipProperty ||
+                e.Property == TitleForegroundProperty ||
                 e.Property == PresentationStateProperty ||
                 e.Property == PlotContentProperty ||
                 e.Property == PlaceholderContentProperty ||
@@ -705,6 +716,10 @@ public sealed class SignalRow : UserControl
     private void UpdateVisualState()
     {
         titleText.Text = Title;
+        if (TitleForeground is { } titleForeground)
+            titleText.Foreground = titleForeground;
+        else
+            titleText.ClearValue(TextBlock.ForegroundProperty);
         ToolTip.SetTip(titleText, TitleToolTip);
         headerActionsPresenter.Actions = HeaderActions;
         headerAccessory.Content = HeaderAccessory;

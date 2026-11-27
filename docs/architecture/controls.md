@@ -27,6 +27,8 @@ removes the whole collection. Notifications are plain progress and completion te
 
 `SignalRow` owns reusable signal-row chrome: title, expand/collapse, drag/drop affordances, child-row hosting, row-depth backgrounds, and right-aligned header actions.
 
+- `TitleForeground` sets the title colour; null keeps the inherited foreground. A view sets it through a style class, for example the `sprungSource` class of the terrain row in `RecordedSignalRowsView`.
+
 - Its plot slot wraps the plot content host in the shared `PlotZoomContainer`, so recorded, live and child signal rows use the same zoom request path.
 - A row without a `RowId` (such as a segment comparison row) keeps its declared place, is not stored in the layout preference, and cannot be dragged.
 - `SignalRowsRoot` owns the divider handles between visible root rows. It stores completed drags as normalized height ratios in `SessionPreferences.SignalLayout`. A missing ratio for any visible resizable root row resets the group to default sizing.

@@ -62,6 +62,7 @@ public interface IRecordedSessionSignalsWorkspace : ITimeSeriesPlotInteractions
     TrackTimeRange? TrackTimelineContext { get; }
     TerrainPresentation? TerrainPresentation { get; }
     string TerrainTitle { get; }
+    bool TerrainSourceIsSprung { get; }
     string? TerrainSourceDescription { get; }
     SurfacePresentationState TerrainSignalState { get; }
     SurfacePresentationState RoughnessSignalState { get; }

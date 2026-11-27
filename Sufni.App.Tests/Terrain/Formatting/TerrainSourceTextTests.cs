@@ -75,6 +75,41 @@ public class TerrainSourceTextTests
         Assert.Equal(Lines(TerrainLabelSet.None).Length + 1, Lines(labels).Length);
     }
 
+    [Theory]
+    [InlineData(GroundSensors.Frame, true)]
+    [InlineData(GroundSensors.Fork, false)]
+    [InlineData(GroundSensors.RearAxle, false)]
+    [InlineData(GroundSensors.ForkAndRearAxle, false)]
+    public void OnlyTheFrameIsASprungSource(GroundSensors source, bool sprung)
+    {
+        var presentation = RecordedSessionPresentationDeriver.CreateTerrain(TerrainProfiles.Classified(
+            TerrainProfiles.Window(0, RoughnessClass.Rough, source)));
+
+        Assert.Equal(sprung, TerrainSourceText.IsSprung(presentation.Coverage));
+    }
+
+    [Fact]
+    public void ARideWithoutClassesIsNotSprung()
+    {
+        var presentation = RecordedSessionPresentationDeriver.CreateTerrain(TerrainProfiles.Classified(TerrainProfiles.Window(0)));
+
+        Assert.False(TerrainSourceText.IsSprung(presentation.Coverage));
+        Assert.False(TerrainSourceText.IsSprung(null));
+    }
+
+    [Fact]
+    public void AFrameMajorityAddsTheSprungLine()
+    {
+        // Both rides mix the two sources, so they differ only in the source of the largest share.
+        string[] Lines(GroundSensors majority, GroundSensors minority) =>
+            TerrainSourceText.Description(RecordedSessionPresentationDeriver.CreateTerrain(TerrainProfiles.Classified(
+                TerrainProfiles.Window(0, RoughnessClass.Rough, majority),
+                TerrainProfiles.Window(1, RoughnessClass.Rough, majority),
+                TerrainProfiles.Window(2, RoughnessClass.Rough, minority))), null)!.Split('\n');
+
+        Assert.Equal(Lines(GroundSensors.Fork, GroundSensors.Frame).Length + 1, Lines(GroundSensors.Frame, GroundSensors.Fork).Length);
+    }
+
     private static IReadOnlyList<string> FrameLines(SetupTerrainScale scale) =>
         TerrainSourceText.ScaleLines(scale, sensor => sensor == TerrainSensor.FrameImu);
 
