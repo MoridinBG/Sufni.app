@@ -33,6 +33,7 @@ using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Extensions;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.Telemetry;
+using Sufni.Telemetry.Tests;
 
 namespace Sufni.App.Tests.Sessions.Coordination;
 
@@ -246,6 +247,96 @@ public class SessionCoordinatorTests
         Assert.IsType<GpsOffsetResult.NoMatchingTrack>(result);
         Assert.Equal(original, store.Get(original.Id));
         Assert.Equal(original, SessionSnapshot.From((await repository.Repository.GetSessionAsync(original.Id))!));
+    }
+
+    [Fact]
+    public async Task AlignGpsAsync_AlignsShiftedRides_AndPublishesThemInOneStep()
+    {
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        using var store = new SessionStore(publication);
+        var tracks = new List<TrackSnapshot>();
+        var late = PrepareRide(repository, tracks, 1_000_000, trackShift: 2);
+        var early = PrepareRide(repository, tracks, 2_000_000, trackShift: -2);
+        var aligned = PrepareRide(repository, tracks, 3_000_000, trackShift: 0);
+        var noTelemetry = PrepareRide(repository, tracks, 4_000_000, trackShift: 2, withTelemetry: false);
+        trackStore.GetAll().Returns(tracks);
+        SessionSnapshot[] all = [late, early, aligned, noTelemetry];
+        await store.PublishSessionsChangedAsync(all);
+        var commits = 0;
+        using var subscription = publication.Committed.Subscribe(_ => commits++);
+
+        var result = await CreateCoordinator(store, repository.Repository).AlignGpsAsync([.. all.Select(s => s.Id)]);
+
+        Assert.Equal(new GpsAlignAllResult(4, 2, 1, 1, 0), result);
+        Assert.Equal(1, commits);
+        Assert.InRange(store.Get(late.Id)!.GpsOffsetSeconds, 1.7, 2.3);
+        Assert.InRange(store.Get(early.Id)!.GpsOffsetSeconds, -2.3, -1.7);
+        Assert.Equal(aligned, store.Get(aligned.Id));
+        Assert.Equal(noTelemetry, store.Get(noTelemetry.Id));
+        foreach (var session in all)
+            Assert.Equal(store.Get(session.Id), SessionSnapshot.From((await repository.Repository.GetSessionAsync(session.Id))!));
+    }
+
+    [Fact]
+    public async Task AlignGpsAsync_CountsAFailedSession_AndAlignsTheRest()
+    {
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        using var store = new SessionStore(publication);
+        var tracks = new List<TrackSnapshot>();
+        var failing = PrepareRide(repository, tracks, 1_000_000, trackShift: 2);
+        var other = PrepareRide(repository, tracks, 2_000_000, trackShift: 2);
+        trackStore.GetAll().Returns(tracks);
+        await store.PublishSessionsChangedAsync([failing, other]);
+        repository.Repository.Configure().UpdateGpsAlignmentAsync(failing.Id, Arg.Any<double>())
+            .Returns(Task.FromException(new IOException("disk full")));
+
+        var result = await CreateCoordinator(store, repository.Repository).AlignGpsAsync([failing.Id, other.Id]);
+
+        Assert.Equal(new GpsAlignAllResult(2, 1, 0, 0, 1), result);
+        Assert.Equal(failing, store.Get(failing.Id));
+        Assert.InRange(store.Get(other.Id)!.GpsOffsetSeconds, 1.7, 2.3);
+    }
+
+    [Fact]
+    public async Task StopAsync_EndsBulkAlignmentBeforeTheNextSession()
+    {
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        using var store = new SessionStore(publication);
+        var tracks = new List<TrackSnapshot>();
+        var first = PrepareRide(repository, tracks, 1_000_000, trackShift: 2);
+        var second = PrepareRide(repository, tracks, 2_000_000, trackShift: 2);
+        trackStore.GetAll().Returns(tracks);
+        await store.PublishSessionsChangedAsync([first, second]);
+        var write = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        repository.Repository.Configure().UpdateGpsAlignmentAsync(first.Id, Arg.Any<double>()).Returns(async call =>
+        {
+            await write.Task;
+            repository.Seed(first with { GpsOffsetSeconds = call.ArgAt<double>(1) });
+        });
+        var coordinator = CreateCoordinator(store, repository.Repository);
+        var operation = coordinator.AlignGpsAsync([first.Id, second.Id]);
+
+        var stop = coordinator.StopAsync();
+        write.SetResult();
+        await stop.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operation);
+        Assert.Equal(second, SessionSnapshot.From((await repository.Repository.GetSessionAsync(second.Id))!));
+    }
+
+    private SessionSnapshot PrepareRide(InMemorySessionRepository repository, List<TrackSnapshot> tracks, long timestamp,
+        double trackShift, bool withTelemetry = true)
+    {
+        var ride = SyntheticRide.TurningRide(new RideRecording(TrackShift: trackShift));
+        var telemetry = ride.Telemetry with { Metadata = ride.Telemetry.Metadata with { Timestamp = timestamp } };
+        var (track, points) = SyntheticRideTracks.FullTrack(ride, new SessionTrackTimeline(timestamp));
+        trackRepository.Seed(new Track { Id = track.Id, Points = [.. points] });
+        tracks.Add(track);
+        var session = TestSnapshots.Session(hasProcessedData: true, updated: 5, timestamp: timestamp)
+            with { GpsOffsetSeconds = 0, DurationSeconds = telemetry.Metadata.Duration };
+        repository.Seed(session);
+        processedTelemetryReader.Set(session.Id, withTelemetry ? telemetry : null);
+        return session;
     }
 
     private SessionSnapshot PrepareAlignment(InMemorySessionRepository repository, double? storedDuration)

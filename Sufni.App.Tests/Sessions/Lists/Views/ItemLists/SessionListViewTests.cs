@@ -8,6 +8,7 @@ using Avalonia.Labs.Controls;
 using Avalonia.VisualTree;
 using DynamicData;
 using NSubstitute;
+using Sufni.App.Infrastructure;
 
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Lists.DesktopViews.Controls;
@@ -40,7 +41,7 @@ public class SessionListViewTests
         var recomputeCoordinator = TestCoordinatorSubstitutes.Session();
         using var pending = TestPendingDeletes.Create(sessions: coordinator, shell: shell);
         using var viewModel = new SessionListViewModel(projection, recomputeCoordinator,
-            new InlineUiThreadDispatcher(), pending, new FakeTimeProvider(), shell, TestShellFeedback.Create());
+            new InlineUiThreadDispatcher(), pending, new FakeTimeProvider(), shell, TestShellFeedback.Create(), Substitute.For<IDialogService>());
         var view = new SessionListDesktopView { DataContext = viewModel };
         var host = await ViewTestHelpers.ShowViewAsync(view);
         try
@@ -83,7 +84,7 @@ public class SessionListViewTests
         using var viewModel = new SessionListViewModel(
             projection,
             TestCoordinatorSubstitutes.Session(),
-            new InlineUiThreadDispatcher(), pendingDeletes: pending, timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
+            new InlineUiThreadDispatcher(), pendingDeletes: pending, timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create(), dialogService: Substitute.For<IDialogService>());
         var view = new SessionListView
         {
             DataContext = viewModel,
@@ -116,7 +117,7 @@ public class SessionListViewTests
 
         var coordinator = TestCoordinatorSubstitutes.Session();
         using var pending = TestPendingDeletes.Create(sessions: TestCoordinatorSubstitutes.Session(), shell: shell);
-        using var viewModel = new SessionListViewModel(projection, coordinator, new InlineUiThreadDispatcher(), pendingDeletes: pending, timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
+        using var viewModel = new SessionListViewModel(projection, coordinator, new InlineUiThreadDispatcher(), pendingDeletes: pending, timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create(), dialogService: Substitute.For<IDialogService>());
         var view = new SessionListDesktopView
         {
             DataContext = viewModel,
@@ -159,7 +160,7 @@ public class SessionListViewTests
         using var viewModel = new SessionListViewModel(
             projection,
             TestCoordinatorSubstitutes.Session(),
-            new InlineUiThreadDispatcher(), pendingDeletes: pending, timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
+            new InlineUiThreadDispatcher(), pendingDeletes: pending, timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create(), dialogService: Substitute.For<IDialogService>());
         var view = new SessionListDesktopView
         {
             DataContext = viewModel,

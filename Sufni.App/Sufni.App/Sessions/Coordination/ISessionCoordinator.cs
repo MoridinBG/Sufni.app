@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -28,6 +29,11 @@ public interface ISessionCoordinator
     Task<SessionPreferenceSaveResult> SavePreferencesAsync(Guid sessionId, Func<SessionPreferences, SessionPreferences> update);
 
     Task<GpsOffsetResult> ShiftGpsOffsetAsync(Guid sessionId, double deltaSeconds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Aligns the GPS clock of each session to its frame gyroscope and publishes the aligned sessions in one step.
+    /// </summary>
+    Task<GpsAlignAllResult> AlignGpsAsync(IReadOnlyCollection<Guid> sessionIds, IProgress<GpsAlignAllProgress>? progress = null);
 
     Task<SessionSaveResult> SaveAsync(SessionDraft draft, SessionDraft draftBase);
 

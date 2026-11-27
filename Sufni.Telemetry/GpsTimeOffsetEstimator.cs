@@ -10,10 +10,14 @@ public closed record GpsTimeOffsetEstimate
     private GpsTimeOffsetEstimate() { }
     public sealed record Measured(double LagSeconds, double Correlation) : GpsTimeOffsetEstimate
     {
-        private const double MinimumSuggestedCorrelation = 0.65;
+        private const double MinimumReliableCorrelation = 0.65;
         private const double MinimumSuggestedLagSeconds = 0.5;
+        // A smaller lag moves the track by less than one cell of the motion grid.
+        private const double MinimumAppliedLagSeconds = 1.0 / TrackMotion.GridRate;
 
-        public bool ShouldSuggest => Correlation >= MinimumSuggestedCorrelation && Math.Abs(LagSeconds) > MinimumSuggestedLagSeconds;
+        public bool IsReliable => Correlation >= MinimumReliableCorrelation;
+        public bool ShouldSuggest => IsReliable && Math.Abs(LagSeconds) > MinimumSuggestedLagSeconds;
+        public bool ShouldApply => IsReliable && Math.Abs(LagSeconds) >= MinimumAppliedLagSeconds;
     }
     public sealed record Unavailable(GpsTimeOffsetUnavailableReason Reason) : GpsTimeOffsetEstimate;
 }

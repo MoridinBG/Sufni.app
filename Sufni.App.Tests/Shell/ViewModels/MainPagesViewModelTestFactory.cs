@@ -103,7 +103,8 @@ internal static class MainPagesViewModelTestFactory
             CreateRecordedSessionProjection(),
             TestCoordinatorSubstitutes.Session(),
             UiThreadDispatcher,
-            pendingDeletes: EmptyPendingDeletes(), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: feedback);
+            pendingDeletes: EmptyPendingDeletes(), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: feedback,
+            dialogService: Substitute.For<IDialogService>());
 
     private static IRecordedSessionProjection CreateRecordedSessionProjection()
     {

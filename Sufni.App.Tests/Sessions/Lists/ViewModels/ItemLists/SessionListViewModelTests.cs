@@ -14,6 +14,7 @@ using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Lists.ViewModels.ItemLists;
 using Sufni.App.Tests.TestSupport.Doubles;
+using Sufni.App.Tests.TestSupport.Extensions;
 using Sufni.App.Tests.TestSupport.Video;
 using Sufni.App.Video.Stores;
 namespace Sufni.App.Tests.Sessions.Lists.ViewModels.ItemLists;
@@ -243,7 +244,7 @@ public class SessionListViewModelTests
                 projection,
                 TestCoordinatorSubstitutes.Session(),
                     UiThreadDispatcher,
-                pendingDeletes: TestPendingDeletes.Create(sessions: TestCoordinatorSubstitutes.Session(), shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
+                pendingDeletes: TestPendingDeletes.Create(sessions: TestCoordinatorSubstitutes.Session(), shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create(), dialogService: Substitute.For<IDialogService>());
 
             Assert.Empty(viewModel.Items);
             Assert.Empty(viewModel.DateGroups);
@@ -452,17 +453,89 @@ public class SessionListViewModelTests
         }
     }
 
+    [Fact]
+    public async Task AlignGps_AlignsOnlyTheShownSessions_AfterConfirmation()
+    {
+        var (projection, cache) = CreateProjection();
+        using (cache)
+        {
+            var shown = CreateSummary("enduro");
+            cache.AddOrUpdate([shown, CreateSummary("commute")]);
+            var coordinator = TestCoordinatorSubstitutes.Session();
+            coordinator.AlignGpsAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<IProgress<GpsAlignAllProgress>>())
+                .Returns(new GpsAlignAllResult(1, 1, 0, 0, 0));
+            var dialogs = ConfirmingDialogs(true);
+            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher,
+                coordinator, dialogs);
+            viewModel.SearchText = "enduro";
+
+            await viewModel.AlignGpsCommand.ExecuteAsync(null);
+
+            await coordinator.Received(1).AlignGpsAsync(
+                Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { shown.Id })),
+                Arg.Any<IProgress<GpsAlignAllProgress>>());
+            Assert.Single(viewModel.Notifications);
+            Assert.Empty(viewModel.ErrorMessages);
+        }
+    }
+
+    [Fact]
+    public async Task AlignGps_LeavesSessionsUnchanged_WhenNotConfirmed()
+    {
+        var (projection, cache) = CreateProjection();
+        using (cache)
+        {
+            cache.AddOrUpdate(CreateSummary("enduro"));
+            var coordinator = TestCoordinatorSubstitutes.Session();
+            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher,
+                coordinator, ConfirmingDialogs(false));
+
+            await viewModel.AlignGpsCommand.ExecuteAsync(null);
+
+            await coordinator.DidNotReceiveWithAnyArgs().AlignGpsAsync(default!, default);
+            Assert.Empty(viewModel.Notifications);
+        }
+    }
+
+    [Fact]
+    public async Task AlignGps_ReportsSessionsThatCouldNotBeAligned()
+    {
+        var (projection, cache) = CreateProjection();
+        using (cache)
+        {
+            cache.AddOrUpdate([CreateSummary("enduro"), CreateSummary("downhill")]);
+            var coordinator = TestCoordinatorSubstitutes.Session();
+            coordinator.AlignGpsAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<IProgress<GpsAlignAllProgress>>())
+                .Returns(new GpsAlignAllResult(2, 1, 0, 0, 1));
+            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher,
+                coordinator, ConfirmingDialogs(true));
+
+            await viewModel.AlignGpsCommand.ExecuteAsync(null);
+
+            Assert.Single(viewModel.ErrorMessages);
+        }
+    }
+
+    private static IDialogService ConfirmingDialogs(bool confirm)
+    {
+        var dialogs = Substitute.For<IDialogService>();
+        dialogs.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(confirm);
+        dialogs.RunProgressWork<GpsAlignAllResult>();
+        return dialogs;
+    }
+
     private SessionListViewModel CreateLoadedViewModel(
         IRecordedSessionProjection projection,
         ISessionCoordinator sessionCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
-        ISessionCoordinator? recomputeCoordinator = null)
+        ISessionCoordinator? recomputeCoordinator = null,
+        IDialogService? dialogService = null)
     {
         var viewModel = new SessionListViewModel(
             projection,
             recomputeCoordinator ?? TestCoordinatorSubstitutes.Session(),
             uiThreadDispatcher,
-            pendingDeletes: TestPendingDeletes.Create(sessions: sessionCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
+            pendingDeletes: TestPendingDeletes.Create(sessions: sessionCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create(), dialogService: dialogService ?? Substitute.For<IDialogService>());
         viewModel.LoadedCommand.Execute(null);
         return viewModel;
     }

@@ -119,6 +119,11 @@ There are five kinds of view model in the presentation layer:
   constructs its own menu items. `IShellActions` supplies the shared sync
   command and import availability; the session list owns `OpenImportCommand`,
   and its desktop view binds directly to it without finding a parent shell.
+  The session list also owns `AlignGpsCommand`: a header button on desktop and
+  an "align GPS" pull-menu item on mobile. It takes the sessions the list
+  shows, so search and the date filter choose them. It asks for confirmation,
+  runs `SessionCoordinator.AlignGpsAsync` behind the progress dialog and
+  reports the counts in the list feedback, with an error when a session failed.
   Bike and setup lists own file import commands, feedback and read cancellation.
   Their desktop buttons and compact pull menus invoke the same command. A bike
   import opens a fresh unsaved draft; a setup import opens its newly persisted

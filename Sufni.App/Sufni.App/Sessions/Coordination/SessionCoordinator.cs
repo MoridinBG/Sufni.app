@@ -25,6 +25,7 @@ using Sufni.App.Bikes.Stores;
 using Sufni.App.Setups.Stores;
 using Sufni.App.Shared.Models;
 using Sufni.App.Shared.Stores;
+using Sufni.App.Terrain.Services;
 namespace Sufni.App.Sessions.Coordination;
 
 /// <summary>Owns session metadata, processing options, GPS alignment and deletion.</summary>
@@ -32,8 +33,14 @@ internal sealed class SessionCoordinator : ISessionCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SessionCoordinator>();
     private readonly RetainedWork retainedWork = new();
+    // Only a bulk alignment stops early on shutdown; its written offsets reach the store on the next start.
+    private readonly CancellationTokenSource stopping = new();
 
-    public Task StopAsync() => retainedWork.DrainAsync();
+    public async Task StopAsync()
+    {
+        await stopping.CancelAsync();
+        await retainedWork.DrainAsync();
+    }
 
 
     private readonly IUiThreadDispatcher dispatcher;
@@ -194,24 +201,10 @@ internal sealed class SessionCoordinator : ISessionCoordinator
                 var telemetry = await processedTelemetryReader.GetAsync(sessionId, cancellationToken);
                 if (telemetry is null) return new GpsOffsetResult.TelemetryUnavailable();
 
-                var offset = SessionTrackTimeline.NormalizeGpsOffsetSeconds(current.GpsOffsetSeconds + deltaSeconds);
-                var timestamp = current.Timestamp ?? telemetry.Metadata.Timestamp;
-                var duration = current.DurationSeconds ?? telemetry.Metadata.Duration;
-                var selected = SessionTrackSelection.Select(trackStore.GetAll(), timestamp, duration, offset, current.WindowStartSeconds);
-                if (selected is null || await trackRepository.GetAsync(selected.Id) is not { } track)
-                    return new GpsOffsetResult.NoMatchingTrack();
-                var points = SessionTrackProjection.GenerateSessionTrack(track, timestamp, duration, offset, current.WindowStartSeconds);
-                if (points is not { Count: > 0 }) return new GpsOffsetResult.NoMatchingTrack();
-                cancellationToken.ThrowIfCancellationRequested();
-                await sessionRepository.UpdateGpsAlignmentAsync(sessionId, offset);
-                var fresh = await sessionRepository.GetSessionAsync(sessionId);
-                if (fresh is null)
-                {
-                    await sessionStore.PublishSessionsRemovedAsync([sessionId]);
-                    return new GpsOffsetResult.SessionMissing();
-                }
-                await sessionStore.PublishSessionsChangedAsync([SessionSnapshot.From(fresh)]);
-                return new GpsOffsetResult.Applied();
+                var (result, fresh) = await WriteGpsAlignmentAsync(current, telemetry, deltaSeconds, cancellationToken);
+                if (result is GpsOffsetResult.SessionMissing) await sessionStore.PublishSessionsRemovedAsync([sessionId]);
+                else if (fresh is not null) await sessionStore.PublishSessionsChangedAsync([fresh]);
+                return result;
             }, cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -220,6 +213,104 @@ internal sealed class SessionCoordinator : ISessionCoordinator
             return new GpsOffsetResult.Failed(GpsOffsetFailureReason.Save, exception.Message);
         }
     }
+
+    /// <summary>Writes the shifted offset when the shifted window still matches a track; does not publish.</summary>
+    private async Task<(GpsOffsetResult Result, SessionSnapshot? Fresh)> WriteGpsAlignmentAsync(
+        Session current, TelemetryData telemetry, double deltaSeconds, CancellationToken cancellationToken)
+    {
+        var offset = SessionTrackTimeline.NormalizeGpsOffsetSeconds(current.GpsOffsetSeconds + deltaSeconds);
+        var timestamp = current.Timestamp ?? telemetry.Metadata.Timestamp;
+        var duration = current.DurationSeconds ?? telemetry.Metadata.Duration;
+        var selected = SessionTrackSelection.Select(trackStore.GetAll(), timestamp, duration, offset, current.WindowStartSeconds);
+        if (selected is null || await trackRepository.GetAsync(selected.Id) is not { } track)
+            return (new GpsOffsetResult.NoMatchingTrack(), null);
+        var points = SessionTrackProjection.GenerateSessionTrack(track, timestamp, duration, offset, current.WindowStartSeconds);
+        if (points is not { Count: > 0 }) return (new GpsOffsetResult.NoMatchingTrack(), null);
+        cancellationToken.ThrowIfCancellationRequested();
+        await sessionRepository.UpdateGpsAlignmentAsync(current.Id, offset);
+        var fresh = await sessionRepository.GetSessionAsync(current.Id);
+        return fresh is null
+            ? (new GpsOffsetResult.SessionMissing(), null)
+            : (new GpsOffsetResult.Applied(), SessionSnapshot.From(fresh));
+    }
+
+    public Task<GpsAlignAllResult> AlignGpsAsync(IReadOnlyCollection<Guid> sessionIds, IProgress<GpsAlignAllProgress>? progress = null) =>
+        retainedWork.Retain(AlignGpsCoreAsync(sessionIds.Distinct().ToList(), progress, stopping.Token));
+
+    private async Task<GpsAlignAllResult> AlignGpsCoreAsync(
+        IReadOnlyList<Guid> sessionIds, IProgress<GpsAlignAllProgress>? progress, CancellationToken cancellationToken)
+    {
+        var aligned = new List<SessionSnapshot>();
+        var removed = new List<Guid>();
+        int alreadyAligned = 0, notAligned = 0, failed = 0;
+        progress?.Report(new GpsAlignAllProgress(0, sessionIds.Count));
+        for (var index = 0; index < sessionIds.Count; index++)
+        {
+            var sessionId = sessionIds[index];
+            try
+            {
+                var (outcome, fresh) = await backgroundTaskRunner.RunAsync(
+                    () => AlignGpsOfSessionAsync(sessionId, cancellationToken), cancellationToken);
+                switch (outcome)
+                {
+                    case GpsAlignOutcome.Aligned: aligned.Add(fresh!); break;
+                    case GpsAlignOutcome.AlreadyAligned: alreadyAligned++; break;
+                    case GpsAlignOutcome.Removed: removed.Add(sessionId); notAligned++; break;
+                    default: notAligned++; break;
+                }
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                logger.Error(exception, "GPS alignment failed for {SessionId}", sessionId);
+                failed++;
+            }
+            progress?.Report(new GpsAlignAllProgress(index + 1, sessionIds.Count));
+        }
+
+        if (aligned.Count > 0 || removed.Count > 0)
+        {
+            await dispatcher.InvokeAsync(async () =>
+            {
+                using var batch = publication.BeginBatch();
+                if (aligned.Count > 0) await sessionStore.PublishSessionsChangedAsync(aligned);
+                if (removed.Count > 0) await sessionStore.PublishSessionsRemovedAsync(removed);
+            });
+        }
+        return new GpsAlignAllResult(sessionIds.Count, aligned.Count, alreadyAligned, notAligned, failed);
+    }
+
+    private async Task<(GpsAlignOutcome Outcome, SessionSnapshot? Fresh)> AlignGpsOfSessionAsync(
+        Guid sessionId, CancellationToken cancellationToken)
+    {
+        var current = await sessionRepository.GetSessionAsync(sessionId);
+        if (current is null) return (GpsAlignOutcome.NotAligned, null);
+        var telemetry = await processedTelemetryReader.GetAsync(sessionId, cancellationToken);
+        if (telemetry is null) return (GpsAlignOutcome.NotAligned, null);
+        var timestamp = current.Timestamp ?? telemetry.Metadata.Timestamp;
+        var duration = current.DurationSeconds ?? telemetry.Metadata.Duration;
+        var selected = SessionTrackSelection.Select(trackStore.GetAll(), timestamp, duration, current.GpsOffsetSeconds,
+            current.WindowStartSeconds);
+        if (selected is null || await trackRepository.GetAsync(selected.Id) is not { } track)
+            return (GpsAlignOutcome.NotAligned, null);
+
+        var timeline = SessionTrackTimeline.FromSessionWindow(telemetry.Metadata.Timestamp, current.GpsOffsetSeconds,
+            current.WindowStartSeconds);
+        var fixes = TrackSampleAdapter.FromOriginalFixes(track.Points, timeline, telemetry.Metadata.Duration);
+        if (GpsTimeOffsetEstimator.Estimate(telemetry, fixes, cancellationToken) is not
+            GpsTimeOffsetEstimate.Measured { IsReliable: true } measured)
+            return (GpsAlignOutcome.NotAligned, null);
+        if (!measured.ShouldApply) return (GpsAlignOutcome.AlreadyAligned, null);
+
+        var (result, fresh) = await WriteGpsAlignmentAsync(current, telemetry, measured.LagSeconds, cancellationToken);
+        return result switch
+        {
+            GpsOffsetResult.Applied => (GpsAlignOutcome.Aligned, fresh),
+            GpsOffsetResult.SessionMissing => (GpsAlignOutcome.Removed, null),
+            _ => (GpsAlignOutcome.NotAligned, null),
+        };
+    }
+
+    private enum GpsAlignOutcome { Aligned, AlreadyAligned, NotAligned, Removed }
 
     public async Task<SessionSaveResult> SaveAsync(SessionDraft draft, SessionDraft draftBase)
     {
@@ -349,6 +440,15 @@ public closed record SessionDeleteResult
     public sealed record Deleted : SessionDeleteResult;
     public sealed record Failed(SessionDeleteFailureReason Reason, string? Details = null) : SessionDeleteResult;
 }
+
+/// <summary>
+/// Aggregate outcome of a bulk GPS alignment. The counts are disjoint and sum to
+/// <see cref="Total"/>. NotAligned covers sessions without telemetry, a frame gyroscope,
+/// a matching track or a reliable estimate.
+/// </summary>
+public sealed record GpsAlignAllResult(int Total, int Aligned, int AlreadyAligned, int NotAligned, int Failed);
+
+public sealed record GpsAlignAllProgress(int Completed, int Total);
 
 public closed record GpsOffsetResult
 {

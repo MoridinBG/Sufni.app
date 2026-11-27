@@ -37,6 +37,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
     private readonly IShellActions shellActions;
     private readonly IRecordedSessionProjection recordedSessionProjection;
     private readonly ISessionCoordinator sessionCoordinator;
+    private readonly IDialogService dialogService;
     private readonly ObservableCollectionExtended<SessionRowViewModel> sessionRowsSource = [];
     private readonly ReadOnlyObservableCollection<SessionRowViewModel> sessionRows;
     private readonly BehaviorSubject<Func<RecordedSessionSummary, bool>> filterSubject = new(_ => true);
@@ -63,17 +64,20 @@ public partial class SessionListViewModel : ItemListViewModelBase
         IPendingDeletes pendingDeletes,
         TimeProvider timeProvider,
         IShellCoordinator shell,
-        IShellActions shellActions)
+        IShellActions shellActions,
+        IDialogService dialogService)
         : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.recordedSessionProjection = recordedSessionProjection;
         this.sessionCoordinator = sessionCoordinator;
         this.shell = shell;
         this.shellActions = shellActions;
+        this.dialogService = dialogService;
         sessionRows = new ReadOnlyObservableCollection<SessionRowViewModel>(sessionRowsSource);
         ObservePendingDeletes<PendingDeleteKey.Session>(pendingDeletes);
         MenuItems.Add(new("sync", shellActions.SyncCommand));
         MenuItems.Add(new("import", OpenImportCommand));
+        MenuItems.Add(new("align GPS", AlignGpsCommand));
     }
 
     #endregion Constructors
@@ -164,6 +168,26 @@ public partial class SessionListViewModel : ItemListViewModelBase
     {
         shell.OpenEditor(new EditorKey.ImportSessions());
         return Task.CompletedTask;
+    }
+
+    /// <summary>Aligns the GPS of the sessions the list shows now, so search and the date filter choose them.</summary>
+    [RelayCommand]
+    private async Task AlignGps()
+    {
+        var sessionIds = sessionRows.Select(row => row.Id).ToList();
+        if (sessionIds.Count == 0) return;
+        if (!await dialogService.ShowConfirmationAsync("Align GPS",
+                $"Align the GPS of {sessionIds.Count} shown session(s) to the frame gyroscope?")) return;
+
+        var result = await dialogService.ShowProgressAsync("Aligning GPS", progress =>
+            sessionCoordinator.AlignGpsAsync(sessionIds, new UiThreadProgress<GpsAlignAllProgress>(UiThreadDispatcher,
+                report => progress.Report(new DialogProgress(report.Total == 0 ? 1 : (double)report.Completed / report.Total,
+                    $"{report.Completed} of {report.Total} sessions")))));
+
+        Notifications.Add($"Aligned {result.Aligned} session(s); {result.AlreadyAligned} already aligned; " +
+                          $"{result.NotAligned} without a reliable match.");
+        if (result.Failed > 0)
+            ErrorMessages.Add(new FailurePresentation($"{result.Failed} of {result.Total} sessions could not be aligned."));
     }
 
     private void RequestRowDelete(SessionRowViewModel row) =>

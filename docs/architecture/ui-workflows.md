@@ -39,7 +39,7 @@ All coordinators are singletons.
 | `IShellCoordinator` (`ShellWorkspaceCoordinator`) | shared | The only navigation surface: `OpenEditor`, `CloseEditorAsync`, `CompleteEdit`, `SwitchLayoutProfileAsync`, `Open`, `Close`, `GoBack`. It delegates to `ShellWorkspaceViewModel`. |
 | `BikeCoordinator` | shared | Bike save, import, cutoff updates and delete. The bike transaction runner rejects deletion of a referenced bike. |
 | `SetupCoordinator` | shared | Setup save, import, delete and the board association. |
-| `SessionCoordinator` | shared | Session metadata save, processing options, recorded preferences, GPS alignment, deletion, and the recompute requests from presentation. |
+| `SessionCoordinator` | shared | Session metadata save, processing options, recorded preferences, GPS alignment of one or many sessions, deletion, and the recompute requests from presentation. |
 | `ISessionEditingCoordinator` (`SessionEditingCoordinator`) | shared | Trim and split of recorded sessions. See [Trim and split](#trim-and-split). |
 | `ISegmentCoordinator` (`SegmentCoordinator`) | shared | Saved segments, segment matching, comparison and analysis comparison, and Strava. See [segments.md](segments.md#store-and-coordinator). |
 | `PairedDeviceCoordinator` | shared | Local unpair and publication of the removal. |
@@ -156,7 +156,11 @@ conflict with the draft. A saved result carries the persisted snapshot for the
 next draft base.
 
 `ShiftGpsOffsetAsync` derives a track window from persisted inputs, writes the
-alignment, then publishes the aligned session. `DeleteAsync` uses the
+alignment, then publishes the aligned session. `AlignGpsAsync` estimates the
+lag of each given session against its frame gyroscope, writes each reliable
+lag the same way and publishes the aligned sessions in one batch; see
+[maps-and-tracks.md](maps-and-tracks.md). `StopAsync` cancels a bulk alignment
+before its next session, then drains the retained work. `DeleteAsync` uses the
 transaction runner to remove the session, its unshared track and its
 unreferenced source. Inside the transaction, the runner selects the current
 track and checks other active sessions through the same overlap rule. The
