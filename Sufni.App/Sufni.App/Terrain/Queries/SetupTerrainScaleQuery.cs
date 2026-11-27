@@ -42,11 +42,13 @@ public static class SetupTerrainScaleQuery
         return contributions.ToDictionary(pair => pair.Key, pair =>
         {
             var (rides, labelled) = pair.Value;
-            var frame = Merge(labelled.Select(summary => summary.FrameImu));
-            var fork = Merge(labelled.Select(summary => summary.ForkImu));
-            var rearAxle = Merge(labelled.Select(summary => summary.RearAxleImu));
-            var smoothClimb = Merge(labelled.Select(summary => summary.SmoothClimb));
-            var technicalClimb = Merge(labelled.Select(summary => summary.TechnicalClimb));
+            var stretches = labelled.SelectMany(summary => summary.Stretches).ToArray();
+            var descents = stretches.Where(stretch => !stretch.Label.Class.IsClimb()).ToArray();
+            var frame = Levels(descents, stretch => stretch.FrameImu);
+            var fork = Levels(descents, stretch => stretch.ForkImu);
+            var rearAxle = Levels(descents, stretch => stretch.RearAxleImu);
+            var smoothClimb = Levels(stretches.Where(stretch => stretch.Label.Class == RoughnessClass.SmoothClimb), stretch => stretch.FrameImu);
+            var technicalClimb = Levels(stretches.Where(stretch => stretch.Label.Class == RoughnessClass.TechnicalClimb), stretch => stretch.FrameImu);
             return new SetupTerrainScale(
                 Anchor(frame) ?? Scale(rides.Select(summary => summary.FrameImu)),
                 Anchor(fork) ?? Scale(rides.Select(summary => summary.ForkImu)),
@@ -75,12 +77,21 @@ public static class SetupTerrainScaleQuery
             : new SensorScale.Ready(Median(merged));
     }
 
-    private static SensorScale.Anchored? Anchor(SortedDictionary<int, double> labelled) =>
-        Metres(labelled) >= MinimumLabelledMetres ? new(Median(labelled)) : null;
+    private static (RoughnessClass Class, StretchLevel Level)[] Levels(IEnumerable<LabelledStretch> stretches,
+        Func<LabelledStretch, StretchLevel?> sensor) =>
+        [.. stretches.Where(stretch => sensor(stretch) is not null).Select(stretch => (stretch.Label.Class, sensor(stretch)!))];
 
-    private static SensorScale.Anchored? ClimbAnchor(SortedDictionary<int, double> smooth, SortedDictionary<int, double> technical) =>
+    private static double Metres((RoughnessClass Class, StretchLevel Level)[] levels) => levels.Sum(level => level.Level.Metres);
+
+    private static SensorScale.Anchored? Anchor((RoughnessClass Class, StretchLevel Level)[] labelled) =>
+        Metres(labelled) >= MinimumLabelledMetres
+            ? new(TerrainLabels.Anchor([.. labelled.Select(label => (label.Level.Level, label.Class))]))
+            : null;
+
+    private static SensorScale.Anchored? ClimbAnchor((RoughnessClass Class, StretchLevel Level)[] smooth,
+        (RoughnessClass Class, StretchLevel Level)[] technical) =>
         Metres(smooth) >= MinimumLabelledMetres && Metres(technical) >= MinimumLabelledMetres
-            ? new((int)Math.Floor((Median(smooth) + Median(technical)) / 2.0))
+            ? new(TerrainLabels.ClimbAnchor([.. smooth.Select(label => label.Level.Level)], [.. technical.Select(label => label.Level.Level)]))
             : null;
 
     private static SortedDictionary<int, double> Merge(IEnumerable<LevelDistribution?> distributions)

@@ -121,6 +121,20 @@ public sealed class SetupTerrainLabelsViewModelTests : IDisposable
         Assert.Equal(FailurePresentation.From(TerrainLabelWriteFailureReason.Delete, "storage unavailable"), Assert.Single(errors));
     }
 
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData(RoughnessClass.Rough, false)]
+    [InlineData(RoughnessClass.Calm, true)]
+    public void ItemNamesOnlyAReadingThatDiffersFromItsLabel(RoughnessClass? reads, bool named)
+    {
+        var row = Row(RoughnessClass.Rough) with { Reading = reads is { } roughness ? new LabelReading(roughness, 0) : null };
+        query.ForSetup(setupId).Returns(new SetupTerrainLabels(null, [row]));
+
+        using var viewModel = Create();
+
+        Assert.Equal(named, viewModel.Labels[0].ReadsText is not null);
+    }
+
     private SetupTerrainLabelsViewModel Create() =>
         new(setupId, query, coordinator, dialogService, openedSessions.Add, errors.Add);
 

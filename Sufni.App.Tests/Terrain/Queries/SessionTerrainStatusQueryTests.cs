@@ -100,7 +100,7 @@ public class SessionTerrainStatusQueryTests
     public void LabelSummaryStoredUnderTheCurrentProfileAndLabelsIsCurrent()
     {
         var (session, status) = Current();
-        var summary = new TerrainLabelSummary(null, null, null, null, null);
+        var summary = new TerrainLabelSummary([]);
         var labelled = session with { TerrainLabelKey = new(status.Key, Labels, TerrainLabels.Version), TerrainLabelSummary = summary };
         Assert.Equal(new TerrainLabelState.Current(summary), SessionTerrainStatusQuery.EvaluateLabels(labelled, status, Labels));
     }
@@ -114,7 +114,7 @@ public class SessionTerrainStatusQueryTests
                      key with { Version = key.Version - 1 },
                      key with { Profile = key.Profile with { AlgorithmVersion = key.Profile.AlgorithmVersion - 1 } } })
             Assert.IsType<TerrainLabelState.Pending>(SessionTerrainStatusQuery.EvaluateLabels(
-                session with { TerrainLabelKey = stored, TerrainLabelSummary = new(null, null, null, null, null) }, status, Labels));
+                session with { TerrainLabelKey = stored, TerrainLabelSummary = new([]) }, status, Labels));
     }
 
     [Fact]

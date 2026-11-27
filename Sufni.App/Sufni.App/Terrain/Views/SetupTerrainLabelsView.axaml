@@ -14,6 +14,15 @@
     <UserControl.Resources>
         <views:TerrainSwatchConverter x:Key="Swatch" />
     </UserControl.Resources>
+    <UserControl.Styles>
+        <Style Selector="TextBlock.reading">
+            <Setter Property="Opacity" Value="0.72" />
+        </Style>
+        <Style Selector="TextBlock.reading.clash">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="Foreground" Value="{DynamicResource SufniStatusWarningBrush}" />
+        </Style>
+    </UserControl.Styles>
 
     <StackPanel Margin="0,10,0,0" Spacing="8">
         <TextBlock
@@ -59,6 +68,13 @@
                                     <Run Text=" · " />
                                     <Run Text="{Binding RangeText}" />
                                 </TextBlock>
+                                <TextBlock
+                                    Classes="reading"
+                                    Classes.clash="{Binding Clashes}"
+                                    IsVisible="{Binding ReadsText, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                    Text="{Binding ReadsText}"
+                                    TextWrapping="Wrap"
+                                    ToolTip.Tip="How the labelled stretch reads on the current scale. Yellow: more than one class away from its label." />
                             </StackPanel>
                             <Button
                                 x:Name="OpenTerrainLabelRideButton"

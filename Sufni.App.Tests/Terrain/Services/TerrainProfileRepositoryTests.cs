@@ -133,8 +133,7 @@ public class TerrainProfileRepositoryTests
         Assert.Equal((null, null), (stored.TerrainLabelKey, stored.TerrainLabelSummary));
     }
 
-    private static readonly TerrainLabelSummary LabelSummary = new(
-        new LevelDistribution(System.Collections.Immutable.ImmutableSortedDictionary<int, double>.Empty.Add(-3, 10)), null, null, null, null);
+    private static readonly TerrainLabelSummary LabelSummary = new([TerrainProfiles.Stretch(RoughnessClass.Rough, 2)]);
 
     private static TerrainLabelKey LabelKey(TerrainProfileKey profile) =>
         new(profile, TerrainProfiles.Labels(new TerrainLabelRange(0, 1, RoughnessClass.Rough)), TerrainLabels.Version);

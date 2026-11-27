@@ -169,11 +169,52 @@ public class TerrainClassifierTests
         Assert.Equal(new TerrainClassSummary(0, 0), TerrainClassifier.Summarize(profile));
     }
 
+    [Theory]
+    [InlineData(1, RoughnessClass.Rough, false)]
+    [InlineData(2, RoughnessClass.VeryRough, false)]
+    [InlineData(3, RoughnessClass.VeryRough, true)]
+    [InlineData(-1, RoughnessClass.Calm, true)]
+    public void StretchClashesWithItsLabelOnlyMoreThanOneClassOutsideIt(double steps, RoughnessClass reads, bool clashes)
+    {
+        var reading = TerrainClassifier.Read(TerrainProfiles.Stretch(RoughnessClass.Rough, TerrainProfiles.Steps(steps)), TerrainProfiles.Scale);
+
+        Assert.Equal((reads, clashes), (reading!.Class, reading.Clashes));
+    }
+
+    [Fact]
+    public void StretchReadsTheUnsprungSensorsBeforeTheFrame()
+    {
+        var stretch = TerrainProfiles.Stretch(RoughnessClass.Rough, TerrainProfiles.Steps(1), GroundSensors.Fork) with
+        {
+            FrameImu = new StretchLevel(TerrainProfiles.Steps(-2), 100)
+        };
+
+        Assert.Equal(RoughnessClass.Rough, TerrainClassifier.Read(stretch, TerrainProfiles.Scale)!.Class);
+    }
+
+    [Theory]
+    [InlineData(-0.5, RoughnessClass.SmoothClimb, false)]
+    [InlineData(2, RoughnessClass.TechnicalClimb, true)]
+    public void ClimbStretchReadsAgainstTheClimbMedian(double steps, RoughnessClass reads, bool clashes)
+    {
+        var reading = TerrainClassifier.Read(TerrainProfiles.Stretch(RoughnessClass.SmoothClimb, TerrainProfiles.Steps(steps)), TerrainProfiles.Scale);
+
+        Assert.Equal((reads, clashes), (reading!.Class, reading.Clashes));
+    }
+
+    [Fact]
+    public void StretchWithoutASensorOnTheScaleHasNoReading()
+    {
+        var stretch = TerrainProfiles.Stretch(RoughnessClass.Rough, TerrainProfiles.Steps(1));
+
+        Assert.Null(TerrainClassifier.Read(stretch, TerrainProfiles.Scale with { FrameImu = null }));
+    }
+
     private static TerrainWindow Descent() => TerrainProfiles.Window(0) with { Band = GradeBand.Descent };
 
     /// <summary>A reading the given number of class steps from the median of <see cref="TerrainProfiles.Scale"/>.</summary>
     private static SensorRoughness Reading(double steps, double clippedShare = 0) =>
-        TerrainProfiles.Sensor(TerrainLevels.Median(0) * Math.Pow(TerrainLevels.Step, steps), clippedShare: clippedShare);
+        TerrainProfiles.Sensor(TerrainProfiles.Steps(steps), clippedShare: clippedShare);
 
     private static TerrainLabelSet Label(double start, double end, RoughnessClass roughness) =>
         TerrainProfiles.Labels(new TerrainLabelRange(start, end, roughness));

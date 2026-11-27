@@ -67,6 +67,33 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
+    public async Task UpgradeDiscardsLabelSummariesOfLevelDistributionsAndKeepsTheProfile()
+    {
+        using var temp = new TempDatabase();
+        var session = new Session(Guid.NewGuid(), "ride", "", null, 100) { ProcessedData = [1], DurationSeconds = 10 };
+        TerrainProfileKey key;
+        await using (var db = new TestPersistenceHarness(temp.DatabasePath))
+        {
+            await db.PutAsync(session);
+            key = SessionTerrainStatusQuery.Evaluate(SessionSnapshot.From((await db.GetSessionAsync(session.Id))!), []).Key;
+            var connection = await db.GetInitializedConnectionAsync();
+            await connection.ExecuteAsync("DELETE FROM core_migration WHERE id = 'terrain-label-stretches'");
+            await connection.ExecuteAsync("""
+                INSERT INTO session_terrain_profile (session_id, terrain_profile_key, terrain_outcome, terrain_summary, profile,
+                    terrain_labels_key, terrain_labels)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, session.Id, AppJson.Serialize(key), (int)TerrainOutcome.Computed, """{"MovingMetres":600,"ClimbMetres":null}""",
+                new byte[] { 1 }, AppJson.Serialize(new TerrainLabelKey(key, TerrainLabelSet.None, 1)),
+                """{"FrameImu":{"MetresByBin":{"9":200}},"ForkImu":null,"RearAxleImu":null,"SmoothClimb":null,"TechnicalClimb":null}""");
+        }
+
+        await using var reopened = new TestPersistenceHarness(temp.DatabasePath);
+        var stored = SessionSnapshot.From(Assert.Single(await reopened.GetSessionsAsync()));
+
+        Assert.Equal((key, null, null), (stored.TerrainProfileKey, stored.TerrainLabelKey, stored.TerrainLabelSummary));
+    }
+
+    [Fact]
     public async Task UpgradeKeepsStoredTerrainProfilesAndAcceptsTheirClasses()
     {
         using var temp = new TempDatabase();

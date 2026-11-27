@@ -16,6 +16,12 @@ public sealed record ClassifiedProfile(TerrainProfile Profile, TerrainScaleKey S
 /// <see cref="ClassifiedMetres"/>, the distance of the windows with a descent class.</summary>
 public sealed record TerrainClassSummary(double ClassifiedMetres, double RoughShare);
 
+/// <summary>The class that a labelled stretch reads on a scale, and the class steps it lies outside the class of its label.</summary>
+public sealed record LabelReading(RoughnessClass Class, double StepsOutside)
+{
+    public bool Clashes => StepsOutside > TerrainLabels.ClashSteps;
+}
+
 /// <summary>
 /// Classes a profile on the scale of its setup. A sensor without a ready median sets no class. A label sets the class
 /// of the windows it holds, after the outlier merge.
@@ -40,6 +46,26 @@ public static class TerrainClassifier
         var rough = classified.Count(w => w.Roughness is RoughnessClass.Rough or RoughnessClass.VeryRough);
         return new(TerrainProfileCalculator.WindowMetres * (double)classified.Length,
             classified.Length == 0 ? 0 : (double)rough / classified.Length);
+    }
+
+    /// <summary>
+    /// How a labelled stretch reads on a scale, with the source order of a window: the fork and rear axle, then the frame.
+    /// Null without a reading of a sensor that has a median.
+    /// </summary>
+    public static LabelReading? Read(LabelledStretch stretch, TerrainScaleKey scale)
+    {
+        var label = stretch.Label.Class;
+        if (label.IsClimb())
+        {
+            if (scale.FrameClimb is not { } climbBin || stretch.FrameImu is not { Level: > 0 } climb) return null;
+            var steps = Math.Log(climb.Level / TerrainLevels.Median(climbBin)) / Math.Log(TerrainLevels.Step);
+            return new(steps < 0 ? RoughnessClass.SmoothClimb : RoughnessClass.TechnicalClimb,
+                Math.Max(label == RoughnessClass.SmoothClimb ? steps : -steps, 0));
+        }
+        return (Unsprung(Usable(stretch.ForkImu, scale.ForkImu), Usable(stretch.RearAxleImu, scale.RearAxleImu))?.Value
+                ?? Usable(stretch.FrameImu, scale.FrameImu)?.Value) is { } value
+            ? new(TerrainLevels.Classify(value), TerrainLevels.StepsOutside(value, label))
+            : null;
     }
 
     private static ClassifiedWindow Classify(TerrainWindow window, TerrainScaleKey scale)
@@ -74,6 +100,9 @@ public static class TerrainClassifier
         reading is { Level: > 0 } && medianBin is { } bin
             ? new(TerrainLevels.Value(reading.SpeedRemoved, bin), reading.ClippedShare > TerrainProfileCalculator.ClippedShareLimit)
             : null;
+
+    private static Reading? Usable(StretchLevel? stretch, int? medianBin) =>
+        stretch is { Level: > 0 } && medianBin is { } bin ? new(TerrainLevels.Value(stretch.Level, bin), false) : null;
 
     private readonly record struct Reading(double Value, bool Clipped);
 }

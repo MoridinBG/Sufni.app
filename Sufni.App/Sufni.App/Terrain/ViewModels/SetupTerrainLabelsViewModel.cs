@@ -22,6 +22,13 @@ public sealed record SetupTerrainLabelItem(SetupTerrainLabelRow Row)
     public RoughnessClass Class => Row.Class;
     public string ClassName => TerrainClassText.Name(Row.Class);
     public string RangeText => string.Create(CultureInfo.InvariantCulture, $"{Row.Range.StartSeconds:F1}-{Row.Range.EndSeconds:F1}s");
+
+    /// <summary>The class the stretch reads on the setup scale, only where it differs from the label.</summary>
+    public string? ReadsText => Row.Reading is { } reading && reading.Class != Row.Class
+        ? $"Reads as {TerrainClassText.Name(reading.Class)}"
+        : null;
+
+    public bool Clashes => Row.Reading?.Clashes == true;
 }
 
 /// <summary>

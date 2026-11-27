@@ -12,6 +12,7 @@ using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Queries;
 using Sufni.App.Terrain.Stores;
 using Sufni.Telemetry;
+using Sufni.Telemetry.Tests;
 using NSubstitute;
 using Sufni.App.Shared.Stores;
 
@@ -393,8 +394,7 @@ public class RecordedSessionProjectionTests
         await stores.Sessions.PublishSessionsChangedAsync([labelled.Session with
         {
             TerrainLabelKey = new(labelled.Session.TerrainProfileKey!, labels, TerrainLabels.Version),
-            TerrainLabelSummary = new(new LevelDistribution(System.Collections.Immutable.ImmutableSortedDictionary<int, double>.Empty.Add(9, 200)),
-                null, null, null, null)
+            TerrainLabelSummary = new([TerrainProfiles.Stretch(RoughnessClass.Medium, TerrainLevels.Median(9), metres: 200)])
         }]);
         await scheduler.DrainAsync();
 

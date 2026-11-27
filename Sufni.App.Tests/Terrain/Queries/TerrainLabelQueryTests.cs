@@ -6,6 +6,9 @@ using Sufni.App.Shared.Stores;
 using Sufni.App.Terrain.Queries;
 using Sufni.App.Terrain.Stores;
 using Sufni.Telemetry;
+using Sufni.App.Terrain.Models;
+using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.Telemetry.Tests;
 
 namespace Sufni.App.Tests.Terrain.Queries;
 
@@ -110,6 +113,30 @@ public sealed class TerrainLabelQueryTests : IDisposable
     }
 
     [Fact]
+    public async Task ForSetupRowsReadTheirStretchOnTheSetupScale()
+    {
+        var setupId = Guid.NewGuid();
+        await labels.PublishLabelsAsync([Label(2, 4, RoughnessClass.Rough), Label(6, 8, RoughnessClass.Rough), Label(10, 12, RoughnessClass.Rough)], []);
+        var session = Labelled(Measured(setupId), steps: [1, 1, 4]);
+        sessionStore.GetAll().Returns([session]);
+
+        var result = query.ForSetup(setupId);
+
+        Assert.Equal([false, false, true], result.Labels.Select(row => row.Reading!.Clashes));
+    }
+
+    [Fact]
+    public async Task ForSetupRowHasNoReadingWithoutACurrentLabelSummary()
+    {
+        var setupId = Guid.NewGuid();
+        await labels.PublishLabelsAsync([Label(2, 4, RoughnessClass.Rough)], []);
+        var session = Labelled(Measured(setupId), steps: [1]) with { TerrainLabelKey = null };
+        sessionStore.GetAll().Returns([session]);
+
+        Assert.Null(Assert.Single(query.ForSetup(setupId).Labels).Reading);
+    }
+
+    [Fact]
     public void SetupWithoutASessionHasNoScaleAndNoRows()
     {
         sessionStore.GetAll().Returns([Session(0, 20)]);
@@ -135,6 +162,24 @@ public sealed class TerrainLabelQueryTests : IDisposable
     {
         SourceSessionId = sourceId, WindowStartSeconds = windowStart, DurationSeconds = duration
     };
+
+    private SessionSnapshot Measured(Guid setupId) => TestSnapshots.WithCurrentTerrain(
+        TestSnapshots.Session(setupId: setupId, hasProcessedData: true) with
+        {
+            SourceSessionId = sourceId, WindowStartSeconds = 0, DurationSeconds = 40
+        }, TerrainOutcome.Computed, new TerrainSummary(400, null));
+
+    /// <summary>The session with a current label summary whose stretches read the given class steps from bin 0.</summary>
+    private SessionSnapshot Labelled(SessionSnapshot session, double[] steps)
+    {
+        var set = query.LabelsOf(session);
+        return session with
+        {
+            TerrainLabelKey = new(session.TerrainProfileKey!, set, TerrainLabels.Version),
+            TerrainLabelSummary = new([.. set.Ranges.Select((range, i) =>
+                TerrainProfiles.Stretch(range.Class, TerrainProfiles.Steps(steps[i])) with { Label = range })])
+        };
+    }
 
     private static TerrainLabelSnapshot Label(double start, double end, RoughnessClass roughness) =>
         new(Guid.NewGuid(), "source-hash", start, end, roughness);

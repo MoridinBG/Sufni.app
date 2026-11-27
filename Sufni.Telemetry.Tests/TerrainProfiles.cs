@@ -43,6 +43,23 @@ public static class TerrainProfiles
         _ => 2
     });
 
+    /// <summary>
+    /// A labelled stretch of <paramref name="metres"/> from <paramref name="start"/> seconds whose <paramref name="source"/>
+    /// sensors read <paramref name="level"/>.
+    /// </summary>
+    public static LabelledStretch Stretch(RoughnessClass label, double level, GroundSensors source = GroundSensors.Frame,
+        double start = 0, double metres = 100)
+    {
+        var reading = new StretchLevel(level, metres);
+        return new(new TerrainLabelRange(start, start + 1, label),
+            source == GroundSensors.Frame ? reading : null,
+            source is GroundSensors.Fork or GroundSensors.ForkAndRearAxle ? reading : null,
+            source is GroundSensors.RearAxle or GroundSensors.ForkAndRearAxle ? reading : null);
+    }
+
+    /// <summary>The level <paramref name="steps"/> class steps from the median of <paramref name="bin"/>.</summary>
+    public static double Steps(double steps, int bin = 0) => TerrainLevels.Median(bin) * Math.Pow(TerrainLevels.Step, steps);
+
     /// <summary>A sensor reading with every band and the speed-removed value at <paramref name="level"/>.</summary>
     public static SensorRoughness Sensor(double level, double clippedShare = 0) =>
         new(level, level, level, level, level, clippedShare);

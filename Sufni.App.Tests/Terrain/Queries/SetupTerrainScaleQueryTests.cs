@@ -55,7 +55,7 @@ public class SetupTerrainScaleQueryTests
     public void LabelledReadingsAnchorASensorFromOneHundredMetres(double metres, bool anchored)
     {
         var rides = Enumerable.Range(0, 3).Select(_ => Ride((5, 2000))).ToArray();
-        rides[0] = Labelled(rides[0], new(Bins((9, metres)), null, null, null, null));
+        rides[0] = Labelled(rides[0], Stretches(TerrainProfiles.Stretch(RoughnessClass.Medium, TerrainLevels.Median(9), metres: metres)));
 
         var scale = Evaluate(rides);
 
@@ -79,9 +79,21 @@ public class SetupTerrainScaleQueryTests
     }
 
     [Fact]
+    public void EachLabelCountsOnceWhateverItsLength()
+    {
+        var shortLabels = Enumerable.Range(0, 3).Select(i => TerrainProfiles.Stretch(RoughnessClass.Medium, TerrainLevels.Median(10), start: i));
+        var longLabel = TerrainProfiles.Stretch(RoughnessClass.Medium, TerrainLevels.Median(50), start: 3, metres: 1000);
+
+        var scale = Evaluate(Labelled(Ride((5, 2000)), Stretches([.. shortLabels, longLabel])));
+
+        Assert.Equal(new SensorScale.Anchored(10), scale.FrameImu);
+    }
+
+    [Fact]
     public void NewRideDoesNotMoveAnAnchoredSensor()
     {
-        SessionSnapshot[] rides = [Labelled(Ride((5, 2000)), new(Bins((9, 200)), null, null, null, null)), Ride((5, 2000)), Ride((5, 2000))];
+        SessionSnapshot[] rides = [Labelled(Ride((5, 2000)), Stretches(TerrainProfiles.Stretch(RoughnessClass.Medium, TerrainLevels.Median(9), metres: 200))),
+            Ride((5, 2000)), Ride((5, 2000))];
 
         Assert.Equal(Evaluate(rides).FrameImu, Evaluate([.. rides, Ride((30, 9000))]).FrameImu);
     }
@@ -90,7 +102,8 @@ public class SetupTerrainScaleQueryTests
     public void SessionInThePendingLabelStateAddsNoLabelledReading()
     {
         var rides = Enumerable.Range(0, 3).Select(_ => Ride((5, 2000))).ToArray();
-        rides[0] = Labelled(rides[0], new(Bins((9, 200)), null, null, null, null)) with { TerrainLabelKey = null };
+        rides[0] = Labelled(rides[0], Stretches(TerrainProfiles.Stretch(RoughnessClass.Medium, TerrainLevels.Median(9), metres: 200)))
+            with { TerrainLabelKey = null };
 
         var scale = Evaluate(rides);
 
@@ -103,7 +116,8 @@ public class SetupTerrainScaleQueryTests
     [InlineData(90, false)]
     public void ClimbLimitNeedsOneHundredMetresOfEachClimbClassAndSitsBetweenTheirMedians(double technicalMetres, bool anchored)
     {
-        var ride = Labelled(Ride((5, 2000)), new(null, null, null, Bins((2, 100)), Bins((7, technicalMetres))));
+        var ride = Labelled(Ride((5, 2000)), Stretches(TerrainProfiles.Stretch(RoughnessClass.SmoothClimb, TerrainLevels.Median(2)),
+            TerrainProfiles.Stretch(RoughnessClass.TechnicalClimb, TerrainLevels.Median(7), start: 1, metres: technicalMetres)));
 
         var scale = Evaluate(ride);
 
@@ -146,8 +160,7 @@ public class SetupTerrainScaleQueryTests
         TerrainLabelKey = new(ride.TerrainProfileKey!, Labels, TerrainLabels.Version), TerrainLabelSummary = summary
     };
 
-    private static LevelDistribution Bins(params (int Bin, double Metres)[] bins) =>
-        new(bins.ToImmutableSortedDictionary(b => b.Bin, b => b.Metres));
+    private static TerrainLabelSummary Stretches(params LabelledStretch[] stretches) => new([.. stretches]);
 
     private static SessionSnapshot Ride(params (int Bin, double Metres)[] frame)
     {

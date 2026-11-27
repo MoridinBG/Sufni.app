@@ -25,6 +25,14 @@ public static class TerrainLevels
         value < 0 ? RoughnessClass.Calm : value < 1 ? RoughnessClass.Medium :
         value < 2 ? RoughnessClass.Rough : RoughnessClass.VeryRough;
 
+    /// <summary>The class steps by which a value lies outside the values that <see cref="Classify"/> gives a descent class.</summary>
+    public static double StepsOutside(double value, RoughnessClass roughness)
+    {
+        var lower = roughness == RoughnessClass.Smooth ? double.NegativeInfinity : (int)roughness - 2;
+        var upper = roughness == RoughnessClass.VeryRough ? double.PositiveInfinity : (int)roughness - 1;
+        return Math.Max(Math.Max(lower - value, value - upper), 0);
+    }
+
     /// <summary>The levels at the boundaries between adjacent descent classes.</summary>
     public static IReadOnlyList<double> Edges(int medianBin) =>
         [.. new[] { -1.5, -0.5, 0.5, 1.5 }.Select(n => Median(medianBin) * Math.Pow(Step, n))];

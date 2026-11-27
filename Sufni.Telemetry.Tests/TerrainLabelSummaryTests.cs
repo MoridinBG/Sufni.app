@@ -1,60 +1,61 @@
-using System.Collections.Immutable;
-
 namespace Sufni.Telemetry.Tests;
 
 public class TerrainLabelSummaryTests
 {
-    private const double Level = 2;
+    private static readonly TerrainLabelRange Rough = new(0, 10, RoughnessClass.Rough);
 
     [Theory]
-    [InlineData(RoughnessClass.Smooth, 2)]
-    [InlineData(RoughnessClass.Medium, 0)]
-    [InlineData(RoughnessClass.Rough, -1)]
-    public void LabelledReadingLandsInItsBinMovedByTheStepsOfItsClassFromMedium(RoughnessClass label, int steps)
+    [InlineData(new[] { 1d, 9, 2 }, 2)]
+    [InlineData(new[] { 4d, 1 }, 2)]
+    public void StretchLevelIsTheMedianOfItsReadings(double[] levels, double expected)
     {
-        var reading = TerrainProfiles.Sensor(Level);
-        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0) with { Frame = reading, Fork = reading, RearAxle = reading }]);
+        var profile = TerrainProfiles.Profile(levels.Select((level, i) => TerrainProfiles.Window(i) with { Frame = TerrainProfiles.Sensor(level) }));
 
-        var summary = TerrainLabels.Summarize(profile, Label(label));
+        var stretch = Assert.Single(TerrainLabels.Summarize(profile, TerrainProfiles.Labels(Rough)).Stretches);
 
-        var expected = Bins(TerrainLevels.Bin(Level) + steps * TerrainLevels.BinsPerStep);
-        Assert.Equal(new TerrainLabelSummary(expected, expected, expected, null, null), summary);
+        Assert.Equal(expected, stretch.FrameImu!.Level, 9);
+        Assert.Equal(levels.Length * TerrainProfileCalculator.WindowMetres, stretch.FrameImu.Metres);
+    }
+
+    [Theory]
+    [InlineData(RoughnessClass.Rough, null, 9d)]
+    [InlineData(RoughnessClass.TechnicalClimb, GradeBand.Climb, 2d)]
+    public void DescentLabelReadsTheSpeedRemovedLevelAndClimbLabelTheRawFrameLevel(RoughnessClass label, GradeBand? band, double expected)
+    {
+        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0) with { Band = band, Frame = new SensorRoughness(2, 1, 1, 1, 9, 0) }]);
+
+        var summary = TerrainLabels.Summarize(profile, TerrainProfiles.Labels(new TerrainLabelRange(0, 1, label)));
+
+        Assert.Equal(expected, Assert.Single(summary.Stretches).FrameImu!.Level);
+    }
+
+    [Fact]
+    public void EachLabelGivesItsOwnStretchInLabelOrder()
+    {
+        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0) with { Frame = TerrainProfiles.Sensor(1) },
+            TerrainProfiles.Window(1) with { Frame = TerrainProfiles.Sensor(3) }]);
+        var labels = TerrainProfiles.Labels(new TerrainLabelRange(0, 1, RoughnessClass.Calm), new TerrainLabelRange(1, 2, RoughnessClass.Rough));
+
+        var summary = TerrainLabels.Summarize(profile, labels);
+
+        Assert.Equal([(labels.Ranges[0], 1d), (labels.Ranges[1], 3d)], summary.Stretches.Select(s => (s.Label, s.FrameImu!.Level)));
     }
 
     [Theory]
     [InlineData(0, 0)]
-    [InlineData(Level, 0.05)]
-    public void ReadingThatIsNotEligibleAddsNothing(double level, double clippedShare)
+    [InlineData(2, 0.05)]
+    public void ReadingThatIsNotEligibleGivesNoStretch(double level, double clippedShare)
     {
         var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0) with { Frame = TerrainProfiles.Sensor(level, clippedShare) }]);
 
-        Assert.Equal(new TerrainLabelSummary(null, null, null, null, null), TerrainLabels.Summarize(profile, Label(RoughnessClass.Rough)));
+        Assert.Empty(TerrainLabels.Summarize(profile, TerrainProfiles.Labels(Rough)).Stretches);
     }
 
     [Fact]
-    public void ClimbLabelsFillTheirClimbDistributionWithTheRawFrameLevel()
+    public void WindowWithoutLabelGivesNoStretch()
     {
-        var climb = TerrainProfiles.Window(0) with { Band = GradeBand.Climb, Frame = new SensorRoughness(Level, 1, 1, 1, 9, 0) };
-        var profile = TerrainProfiles.Profile([climb, climb with { StartSeconds = 1, EndSeconds = 2 }]);
-        var labels = TerrainProfiles.Labels(new TerrainLabelRange(0, 1, RoughnessClass.SmoothClimb),
-            new TerrainLabelRange(1, 2, RoughnessClass.TechnicalClimb));
+        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0) with { Frame = TerrainProfiles.Sensor(2) }]);
 
-        var summary = TerrainLabels.Summarize(profile, labels);
-
-        Assert.Equal(new TerrainLabelSummary(null, null, null, Bins(TerrainLevels.Bin(Level)), Bins(TerrainLevels.Bin(Level))), summary);
+        Assert.Empty(TerrainLabels.Summarize(profile, TerrainProfiles.Labels(new TerrainLabelRange(5, 9, RoughnessClass.Rough))).Stretches);
     }
-
-    [Fact]
-    public void WindowWithoutLabelAddsNothing()
-    {
-        var profile = TerrainProfiles.Profile([TerrainProfiles.Window(0) with { Frame = TerrainProfiles.Sensor(Level) }]);
-
-        Assert.Equal(new TerrainLabelSummary(null, null, null, null, null),
-            TerrainLabels.Summarize(profile, TerrainProfiles.Labels(new TerrainLabelRange(5, 9, RoughnessClass.Rough))));
-    }
-
-    private static TerrainLabelSet Label(RoughnessClass roughness) => TerrainProfiles.Labels(new TerrainLabelRange(0, 1, roughness));
-
-    private static LevelDistribution Bins(int bin) =>
-        new(ImmutableSortedDictionary<int, double>.Empty.Add(bin, TerrainProfileCalculator.WindowMetres));
 }

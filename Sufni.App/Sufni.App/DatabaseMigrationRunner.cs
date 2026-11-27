@@ -82,6 +82,9 @@ internal sealed class DatabaseMigrationRunner(
             transaction.Execute("ALTER TABLE session_terrain_profile ADD COLUMN terrain_labels_key TEXT");
             transaction.Execute("ALTER TABLE session_terrain_profile ADD COLUMN terrain_labels TEXT");
         });
+        // Stored label summaries hold level distributions, which no longer parse; the summaries recompute.
+        await coreMigrations.ApplyAsync("terrain-label-stretches", transaction =>
+            transaction.Execute("UPDATE session_terrain_profile SET terrain_labels_key = NULL, terrain_labels = NULL"));
         await EnsureSessionBlobSwapRequestIntegrityAsync();
         await coreMigrations.MarkAppliedAsync("session-segment");
         await DropSchemaVersionTableAsync();

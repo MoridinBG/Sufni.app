@@ -7,7 +7,7 @@ namespace Sufni.App.Terrain.Models;
 
 /// <summary>
 /// The median level of one sensor over the rides of a setup, once it has enough of them. <see cref="Anchored"/> is the
-/// median that the labelled readings of the setup set.
+/// median that the labelled stretches of the setup fit best.
 /// </summary>
 public closed record SensorScale
 {

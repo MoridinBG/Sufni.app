@@ -102,7 +102,7 @@ Details per coordinator:
   recording at a time, commits each result under its key and publishes it onto
   the current session snapshot. An open editor can prioritize a pending
   recording. When no profile work remains, one label run summarizes the
-  labelled readings of the pending sessions and writes them in one guarded
+  labelled stretches of the pending sessions and writes them in one guarded
   transaction. Then it classes the pending sessions of each setup on the setup
   scale with their label sets, writes their class summaries in one guarded
   transaction and publishes them in one step. A changed label run cancels the

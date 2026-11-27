@@ -100,7 +100,7 @@ public class TerrainProfileCoordinatorTests
             TerrainClassKey = new(earlier, TerrainProfiles.Scale, TerrainLabelSet.None, TerrainClassifier.Version),
             TerrainClassSummary = new(400, 0.25),
             TerrainLabelKey = new(earlier, TerrainLabelSet.None, TerrainLabels.Version),
-            TerrainLabelSummary = new(null, null, null, null, null)
+            TerrainLabelSummary = new([])
         };
         await h.StartAsync([session]);
         await h.WaitForAsync(session, TerrainOutcome.Computed);
