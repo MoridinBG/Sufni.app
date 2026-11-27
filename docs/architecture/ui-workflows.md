@@ -337,22 +337,23 @@ write the column, so a save after a decision keeps it and does not conflict. Tri
 leaves decisions unchanged, because their ranges are on the source timeline;
 split copies them to the new part.
 
-The offer uses one shared presentation in `Sessions/SensorFindings/`.
-`SensorFindingsViewModel` holds the findings of one session, watches the session
-store, and shows `SensorDecisions.Undecided(findings)` as rows: one per sensor and
-class, with its ranges (in session time) and reasons. Droppable rows have Drop and
-Keep, which send all undecided droppable ranges of the sensor; notice rows have no
-action. A published decision removes the row. Failures go to the owner's error
-and notification bars.
+The user decides when a session opens. `SensorFindingsPrompt`, a part of the
+recorded session editor, follows the editor state. When the loaded generation is
+current and has undecided findings, it waits for the tab to be active and shows
+`SensorFindingsViewModel` (`Sessions/SensorFindings/`) in a content dialog. It
+offers each set of findings once per editor, so the recompute after a Drop does not
+reopen the dialog. Import does not offer findings.
 
-- **Import:** see [Import Screen Boundaries](acquisition.md#import-screen-boundaries).
-- **Opening a session:** `SessionDetailViewModel.SensorFindings` is built from
-  the loaded telemetry while the domain staleness is `Current`, and is null
-  otherwise. It is replaced only when the loaded telemetry changes and disposed on
-  close. `SessionDetailDesktopView` and the mobile `SessionDetailView` show it
-  above the session shell when it has rows. After a Drop, the session is stale,
-  so the panel hides; the recompute reloads the telemetry and the panel returns
-  without the decided sensor.
+`SensorFindingsViewModel` watches the session store and shows
+`SensorDecisions.Undecided(findings)` as rows: one per sensor and class. Each row
+sums up every reason as its total time and span in session time (`m:ss`, or
+`h:mm:ss` for a session of an hour or more), with the longest reason first. A
+reason that covers 95% of the session reads "the whole ride". The exact ranges are
+in the tooltip. Droppable rows have Drop and Keep, which send all undecided
+droppable ranges of the sensor; notice rows have no action. A published decision
+removes the row. "Not now" closes the dialog, and so does the last decision.
+Failures go to the editor's error and notification bars.
+
 - **Live captures:** a saved capture is derived through the recorded-session
   reprocessor, so the offer on opening covers it. The live preview runs no
   detection and shows no findings.

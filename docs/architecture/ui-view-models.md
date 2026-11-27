@@ -73,7 +73,7 @@ There are five kinds of view model in the presentation layer:
   the initial store refresh and creates pages only after initialization and
   refresh succeed.
 
-- **Feature page view models** — non-entity top-level screens such as `ImportSessionsViewModel` and the pairing pages. They own only screen-scoped state, bind directly to controls, attach subscriptions and browse lifetime in `Loaded` / `Unloaded`, and delegate workflows to coordinators and services. `ImportSessionsViewModel` is the canonical example: it keeps datastore / file selection, notifications, and errors; resolves `SelectedSetup` from `ISetupBoardQuery.FindByBoardId`; and delegates source observation, file listing, folder registration and the import itself to `ImportSessionsCoordinator`. For work that belongs to a screen, generated async-command `IsRunning` remains the busy-state source. Import runs belong to the coordinator: the import tab observes its replayed `SessionImportState` and renders progress/results. It releases the observation on final close. A reopened tab sees the same active batch. Each `Imported` event with undecided sensor findings adds a `SensorFindingsViewModel`; the list clears when a new run starts and on close.
+- **Feature page view models** — non-entity top-level screens such as `ImportSessionsViewModel` and the pairing pages. They own only screen-scoped state, bind directly to controls, attach subscriptions and browse lifetime in `Loaded` / `Unloaded`, and delegate workflows to coordinators and services. `ImportSessionsViewModel` is the canonical example: it keeps datastore / file selection, notifications, and errors; resolves `SelectedSetup` from `ISetupBoardQuery.FindByBoardId`; and delegates source observation, file listing, folder registration and the import itself to `ImportSessionsCoordinator`. For work that belongs to a screen, generated async-command `IsRunning` remains the busy-state source. Import runs belong to the coordinator: the import tab observes its replayed `SessionImportState` and renders progress/results. It releases the observation on final close. A reopened tab sees the same active batch.
 
 - **List view models** (`ViewModels/ItemLists/`) — `BikeListViewModel`,
   `SetupListViewModel`, `SessionListViewModel`,
@@ -266,6 +266,7 @@ There are five kinds of view model in the presentation layer:
   | `RecordedSessionAnalysisDemand` | Owns the analysis result state, semantic keys, invalidation, requests and result publication. The reducer explicitly prepares analysis before publishing each distinct state; presentation subscription order does not establish this dependency. Insights visibility is a `Func<int, bool>` over the page collection, evaluated with the selected index from the received state; page membership changes call `OnPagesChanged`. Insights demand remains after leaving the page. |
   | `RecordedSessionTerrainController` | Follows the group of terrain status, setup scale key and label set, prioritizes pending sessions, and loads and classifies the current profile with its labels for the editor. A change of only the scale key or the label set keeps the loaded terrain until the new classes replace it. It selects the bike baseline identity and the scale catalogue synchronously on each summary commit and fits a changed baseline on the background runner. Closing the tab cancels and drains its reads and fits. |
   | `GpsOffsetSuggestionPrompt` | Estimates the GPS offset from the frame gyroscope after a load, once per track, telemetry, fixes and timeline. It offers a qualifying estimate when the tab is active and records the handled track ID. A failed estimate is logged once and shows nothing. |
+  | `SensorFindingsPrompt` | Offers the undecided sensor findings of a current generation in a content dialog once the tab is active. It offers each set of findings once per editor; see [Sensor decisions](ui-workflows.md#sensor-decisions). |
   | `RecordedSessionLoadController` | Owns two-stage loading, progress, supersession and processed-telemetry retention. |
   | `SessionStalenessPrompt` | Owns prompt visibility, deduplication by required fingerprint pair, unavailable-input feedback, and single/bulk recompute choices. |
   | `RecordedSessionPreferencesController` | Owns the persisted preference baseline and pending local edits, derives effective preferences, forwards commits and retains pending writes. Processing completions return to the reducer with their captured draft. |
@@ -286,12 +287,6 @@ There are five kinds of view model in the presentation layer:
   in the initial state; loads preserve the user's explicit overlay choices.
   The media workspace applies map points and timeline context from its state
   subscription.
-  The editor exposes `SensorFindings`, a `SensorFindingsViewModel` from
-  `Sessions/SensorFindings/`, while the loaded generation is current. It builds a
-  new one when the loaded telemetry changes and disposes it on close. The view
-  model follows the session decisions in the store and sends Drop and Keep to
-  `ISessionCoordinator.SetSensorDecisionAsync`; see
-  [Sensor decisions](ui-workflows.md#sensor-decisions).
 
   Readiness and selection highlights are keyed background results. A telemetry or
   range change clears stale outputs; track-only augmentation keeps valid results.
