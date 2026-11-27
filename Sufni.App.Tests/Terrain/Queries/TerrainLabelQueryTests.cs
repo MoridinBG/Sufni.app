@@ -113,16 +113,17 @@ public sealed class TerrainLabelQueryTests : IDisposable
     }
 
     [Fact]
-    public async Task ForSetupRowsReadTheirStretchOnTheSetupScale()
+    public async Task ForSetupRowsCarryTheReadingsOfTheSetupScale()
     {
         var setupId = Guid.NewGuid();
-        await labels.PublishLabelsAsync([Label(2, 4, RoughnessClass.Rough), Label(6, 8, RoughnessClass.Rough), Label(10, 12, RoughnessClass.Rough)], []);
-        var session = Labelled(Measured(setupId), steps: [1, 1, 4]);
+        await labels.PublishLabelsAsync([Label(2, 4, RoughnessClass.Rough), Label(6, 8, RoughnessClass.Rough),
+            Label(10, 12, RoughnessClass.Rough), Label(14, 16, RoughnessClass.Rough)], []);
+        var session = Labelled(Measured(setupId), steps: [1, 1, 1, 4]);
         sessionStore.GetAll().Returns([session]);
 
         var result = query.ForSetup(setupId);
 
-        Assert.Equal([false, false, true], result.Labels.Select(row => row.Reading!.Clashes));
+        Assert.Equal([false, false, false, true], result.Labels.Select(row => row.Reading!.Clashes));
     }
 
     [Fact]

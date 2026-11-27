@@ -10,10 +10,13 @@ public sealed record SavedSegmentRow(Guid Id, string Name, TelemetryTimeRange Ra
     public string RangeText => SegmentRangeText.Format(Range);
 }
 
-public sealed record TerrainLabelRow(Guid Id, RoughnessClass Class, TelemetryTimeRange Range, bool IsSelected)
+/// <summary>A label of the session. <see cref="Reading"/> is how its stretch reads on the scale of everything else.</summary>
+public sealed record TerrainLabelRow(Guid Id, RoughnessClass Class, TelemetryTimeRange Range, bool IsSelected, LabelReading? Reading = null)
 {
     public string ClassName => TerrainClassText.Name(Class);
     public string RangeText => SegmentRangeText.Format(Range);
+    public string? ReadsText => TerrainClassText.ReadsAs(Class, Reading);
+    public bool Clashes => Reading?.Clashes == true;
 }
 
 public sealed record StravaSegmentRow(string Name, TelemetryTimeRange Range, double DistanceMeters)

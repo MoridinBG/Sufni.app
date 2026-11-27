@@ -74,7 +74,7 @@
                                     IsVisible="{Binding ReadsText, Converter={x:Static ObjectConverters.IsNotNull}}"
                                     Text="{Binding ReadsText}"
                                     TextWrapping="Wrap"
-                                    ToolTip.Tip="How the labelled stretch reads on the current scale. Yellow: more than one class away from its label." />
+                                    ToolTip.Tip="How the labelled stretch reads on the scale set without this label. Yellow: more than one class away from its label." />
                             </StackPanel>
                             <Button
                                 x:Name="OpenTerrainLabelRideButton"

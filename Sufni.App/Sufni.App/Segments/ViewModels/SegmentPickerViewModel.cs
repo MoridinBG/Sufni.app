@@ -16,6 +16,7 @@ using Sufni.App.Segments.Coordinators;
 using Sufni.App.Segments.Models;
 using Sufni.App.Segments.Stores;
 using Sufni.App.Terrain.Coordinators;
+using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Queries;
 using Sufni.App.Terrain.Stores;
 using Sufni.App.Terrain.ViewModels;
@@ -23,14 +24,15 @@ namespace Sufni.App.Segments.ViewModels;
 
 /// <summary>
 /// The open session's start (unix seconds), processed telemetry duration, and
-/// analysis range.
+/// analysis range, and the scale of its setup.
 /// </summary>
 public sealed record SegmentPickerSessionState(
     long? Timestamp,
     double? TelemetryDurationSeconds,
     TelemetryTimeRange? AnalysisRange,
     string? OwnerKey = null,
-    double WindowStartSeconds = 0);
+    double WindowStartSeconds = 0,
+    SetupTerrainScale? TerrainScale = null);
 
 /// <summary>
 /// Segments picker of one open recorded session. It lives as long as the
@@ -56,6 +58,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     private IReadOnlyCollection<SessionSegmentSnapshot> segments = [];
     private IReadOnlyCollection<TerrainLabelSnapshot> labels = [];
     private string? ownerKey;
+    private SetupTerrainScale? terrainScale;
     private SessionTrackTimeline ownerTimeline;
     private long? sessionTimestamp;
     private double? telemetryDurationSeconds;
@@ -130,6 +133,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     private void OnSessionStateChanged(SegmentPickerSessionState state)
     {
         ownerKey = state.OwnerKey;
+        terrainScale = state.TerrainScale;
         ownerTimeline = new SessionTrackTimeline(0, OwnerOriginSeconds: state.WindowStartSeconds);
         sessionTimestamp = state.Timestamp;
         telemetryDurationSeconds = state.TelemetryDurationSeconds is > 0 ? state.TelemetryDurationSeconds : null;
@@ -426,7 +430,8 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     {
         TerrainLabels = telemetryDurationSeconds is { } duration && ownerKey is { } owner
             ? [.. TerrainLabelQuery.InWindow(labels.Where(label => label.OwnerKey == owner), ownerTimeline.OwnerOriginSeconds, duration)
-                .Select(label => new TerrainLabelRow(label.Id, label.Class, label.Range, IsSelected(label.Range)))]
+                .Select(label => new TerrainLabelRow(label.Id, label.Class, label.Range, IsSelected(label.Range),
+                    terrainScale?.ReadingOf(sessionId, new TerrainLabelRange(label.Range.StartSeconds, label.Range.EndSeconds, label.Class))))]
             : [];
     }
 

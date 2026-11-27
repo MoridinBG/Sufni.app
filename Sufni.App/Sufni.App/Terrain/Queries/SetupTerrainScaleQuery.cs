@@ -28,7 +28,7 @@ public static class SetupTerrainScaleQuery
     public static IReadOnlyDictionary<Guid, SetupTerrainScale> Evaluate(IEnumerable<SessionSnapshot> sessions,
         IReadOnlyList<TrackSnapshot> tracks, IReadOnlyDictionary<Guid, TerrainLabelSet> labels)
     {
-        var contributions = new Dictionary<Guid, (List<TerrainSummary> Rides, List<TerrainLabelSummary> Labels)>();
+        var contributions = new Dictionary<Guid, (List<TerrainSummary> Rides, List<(Guid SessionId, LabelledStretch Stretch)> Stretches)>();
         foreach (var session in sessions)
         {
             if (session.SetupId is not { } setupId) continue;
@@ -37,25 +37,37 @@ public static class SetupTerrainScaleQuery
             contribution.Rides.Add(current.Summary);
             if (SessionTerrainStatusQuery.EvaluateLabels(session, current, labels.GetValueOrDefault(session.Id) ?? TerrainLabelSet.None)
                 is TerrainLabelState.Current labelled)
-                contribution.Labels.Add(labelled.Summary);
+                contribution.Stretches.AddRange(labelled.Summary.Stretches.Select(stretch => (session.Id, stretch)));
         }
         return contributions.ToDictionary(pair => pair.Key, pair =>
         {
-            var (rides, labelled) = pair.Value;
-            var stretches = labelled.SelectMany(summary => summary.Stretches).ToArray();
-            var descents = stretches.Where(stretch => !stretch.Label.Class.IsClimb()).ToArray();
-            var frame = Levels(descents, stretch => stretch.FrameImu);
-            var fork = Levels(descents, stretch => stretch.ForkImu);
-            var rearAxle = Levels(descents, stretch => stretch.RearAxleImu);
-            var smoothClimb = Levels(stretches.Where(stretch => stretch.Label.Class == RoughnessClass.SmoothClimb), stretch => stretch.FrameImu);
-            var technicalClimb = Levels(stretches.Where(stretch => stretch.Label.Class == RoughnessClass.TechnicalClimb), stretch => stretch.FrameImu);
-            return new SetupTerrainScale(
-                Anchor(frame) ?? Scale(rides.Select(summary => summary.FrameImu)),
-                Anchor(fork) ?? Scale(rides.Select(summary => summary.ForkImu)),
-                Anchor(rearAxle) ?? Scale(rides.Select(summary => summary.RearAxleImu)),
-                ClimbAnchor(smoothClimb, technicalClimb) ?? Scale(rides.Select(summary => summary.FrameClimb)),
-                new TerrainLabelCoverage(Metres(frame), Metres(fork), Metres(rearAxle), Metres(smoothClimb), Metres(technicalClimb)));
+            var (rides, stretches) = pair.Value;
+            var fromRides = new SetupTerrainScale(Scale(rides.Select(summary => summary.FrameImu)),
+                Scale(rides.Select(summary => summary.ForkImu)), Scale(rides.Select(summary => summary.RearAxleImu)),
+                Scale(rides.Select(summary => summary.FrameClimb)), TerrainLabelCoverage.None);
+            var readings = ImmutableDictionary.CreateBuilder<(Guid SessionId, TerrainLabelRange Label), LabelReading>();
+            for (var i = 0; i < stretches.Count; i++)
+            {
+                var others = WithLabels(fromRides, stretches.Where((_, j) => j != i).Select(entry => entry.Stretch));
+                if (TerrainClassifier.Read(stretches[i].Stretch, others.Key) is { } reading)
+                    readings[(stretches[i].SessionId, stretches[i].Stretch.Label)] = reading;
+            }
+            return WithLabels(fromRides, stretches.Select(entry => entry.Stretch)) with { Readings = readings.ToImmutable() };
         });
+    }
+
+    private static SetupTerrainScale WithLabels(SetupTerrainScale fromRides, IEnumerable<LabelledStretch> labelled)
+    {
+        var stretches = labelled.ToArray();
+        var descents = stretches.Where(stretch => !stretch.Label.Class.IsClimb()).ToArray();
+        var frame = Levels(descents, stretch => stretch.FrameImu);
+        var fork = Levels(descents, stretch => stretch.ForkImu);
+        var rearAxle = Levels(descents, stretch => stretch.RearAxleImu);
+        var smoothClimb = Levels(stretches.Where(stretch => stretch.Label.Class == RoughnessClass.SmoothClimb), stretch => stretch.FrameImu);
+        var technicalClimb = Levels(stretches.Where(stretch => stretch.Label.Class == RoughnessClass.TechnicalClimb), stretch => stretch.FrameImu);
+        return new SetupTerrainScale(Anchor(frame) ?? fromRides.FrameImu, Anchor(fork) ?? fromRides.ForkImu,
+            Anchor(rearAxle) ?? fromRides.RearAxleImu, ClimbAnchor(smoothClimb, technicalClimb) ?? fromRides.FrameClimb,
+            new TerrainLabelCoverage(Metres(frame), Metres(fork), Metres(rearAxle), Metres(smoothClimb), Metres(technicalClimb)));
     }
 
     /// <summary>The scale key that the session summaries carry for each setup.</summary>

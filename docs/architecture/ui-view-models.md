@@ -171,8 +171,9 @@ There are five kinds of view model in the presentation layer:
   A saved setup editor holds a `SetupTerrainLabelsViewModel` in `TerrainLabels`;
   a new setup has none. It reads `ITerrainLabelQuery.ForSetup` at creation and
   on each `Changes` item and shows the scale lines and the label rows. A row
-  names the class its stretch reads where it differs from the label, in the
-  warning colour when the reading clashes with the label. Its
+  names the class its stretch reads on the scale set without it, where the
+  class differs from the label, in the warning colour when the reading clashes
+  with the label. Its
   commands act at once through `ITerrainLabelCoordinator` and the shell: open
   the ride, change the class through the class prompt, and delete after a
   confirmation. A failure goes to the editor's error messages. The section is

@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Sufni.App.Shared.Models;
 using System.Reactive.Subjects;
 using DynamicData;
@@ -8,6 +9,7 @@ using Sufni.App.Segments.Models;
 using Sufni.App.Segments.Stores;
 using Sufni.App.Segments.ViewModels;
 using Sufni.App.Terrain.Coordinators;
+using Sufni.App.Terrain.Models;
 using Sufni.App.Terrain.Stores;
 using Sufni.App.Terrain.ViewModels;
 using Sufni.App.Tests.TestSupport.Extensions;
@@ -321,6 +323,24 @@ public class SegmentPickerViewModelTests
 
         Assert.Equal(new TerrainLabelRow(kept.Id, RoughnessClass.Rough, new TelemetryTimeRange(2, 4), false),
             Assert.Single(picker.TerrainLabels));
+    }
+
+    [Fact]
+    public void TerrainLabels_CarryTheirReadingOnTheSetupScale()
+    {
+        AddLabel(RoughnessClass.Rough, 12.5, 14.5);
+        using var picker = CreateLoadedPicker();
+        var noData = new SensorScale.NotEnoughData(0, 0);
+        var reading = new LabelReading(RoughnessClass.Calm, 2.5);
+        var scale = new SetupTerrainScale(noData, noData, noData, noData, TerrainLabelCoverage.None)
+        {
+            Readings = ImmutableDictionary<(Guid, TerrainLabelRange), LabelReading>.Empty
+                .Add((sessionId, new TerrainLabelRange(2, 4, RoughnessClass.Rough)), reading)
+        };
+
+        sessionState.OnNext(new SegmentPickerSessionState(SessionTimestamp, 5, null, "source-hash", 10.5, scale));
+
+        Assert.Equal(reading, Assert.Single(picker.TerrainLabels).Reading);
     }
 
     [Fact]

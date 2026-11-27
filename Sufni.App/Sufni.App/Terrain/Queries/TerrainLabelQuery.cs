@@ -14,7 +14,7 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Terrain.Queries;
 
-/// <summary>A label of a setup. <see cref="Reading"/> is how its stretch reads on the setup scale, null until known.</summary>
+/// <summary>A label of a setup. <see cref="Reading"/> is how its stretch reads on the scale of everything else, null until known.</summary>
 public sealed record SetupTerrainLabelRow(Guid LabelId, Guid SessionId, string SessionName, long Timestamp, RoughnessClass Class,
     TelemetryTimeRange Range, LabelReading? Reading = null);
 
@@ -81,28 +81,11 @@ internal sealed class TerrainLabelQuery(
     {
         var sessions = sessionStore.GetAll().Where(s => s.SetupId == setupId).ToArray();
         if (sessions.Length == 0) return new(null, []);
-        var trackSnapshots = tracks.GetAll();
-        var labelSets = LabelsOf(sessions);
-        var scale = SetupTerrainScaleQuery.Evaluate(sessions, trackSnapshots, labelSets).GetValueOrDefault(setupId);
-        return new(scale, [.. sessions.OrderByDescending(s => s.Timestamp).SelectMany(session =>
-        {
-            var stretches = CurrentStretches(session, trackSnapshots, labelSets[session.Id]);
-            return LabelsInWindow(session).Select(l => new SetupTerrainLabelRow(l.Id, session.Id, session.Name, session.Timestamp ?? 0,
-                l.Class, l.Range, ReadingOf(stretches, new TerrainLabelRange(l.Range.StartSeconds, l.Range.EndSeconds, l.Class), scale)));
-        })]);
+        var scale = SetupTerrainScaleQuery.Evaluate(sessions, tracks.GetAll(), LabelsOf(sessions)).GetValueOrDefault(setupId);
+        return new(scale, [.. sessions.OrderByDescending(s => s.Timestamp).SelectMany(session => LabelsInWindow(session)
+            .Select(l => new SetupTerrainLabelRow(l.Id, session.Id, session.Name, session.Timestamp ?? 0, l.Class, l.Range,
+                scale?.ReadingOf(session.Id, new TerrainLabelRange(l.Range.StartSeconds, l.Range.EndSeconds, l.Class)))))]);
     }
-
-    private static ImmutableArray<LabelledStretch> CurrentStretches(SessionSnapshot session, IReadOnlyList<TrackSnapshot> trackSnapshots,
-        TerrainLabelSet labels) =>
-        SessionTerrainStatusQuery.Evaluate(session, trackSnapshots).Status is TerrainStatus.Current current &&
-        SessionTerrainStatusQuery.EvaluateLabels(session, current, labels) is TerrainLabelState.Current labelled
-            ? labelled.Summary.Stretches
-            : [];
-
-    private static LabelReading? ReadingOf(ImmutableArray<LabelledStretch> stretches, TerrainLabelRange label, SetupTerrainScale? scale) =>
-        scale is not null && stretches.FirstOrDefault(stretch => stretch.Label == label) is { } stretch
-            ? TerrainClassifier.Read(stretch, scale.Key)
-            : null;
 
     private IReadOnlyList<(Guid Id, TelemetryTimeRange Range, RoughnessClass Class)> LabelsInWindow(SessionSnapshot session) =>
         session.DurationSeconds is > 0 && OwnerKey(session) is { } ownerKey

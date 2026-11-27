@@ -28,4 +28,8 @@ internal static class TerrainClassText
         RoughnessClass.TechnicalClimb => "Technical climb",
         _ => throw new ArgumentOutOfRangeException(nameof(level))
     };
+
+    /// <summary>The class a labelled stretch reads, only where it differs from the label.</summary>
+    public static string? ReadsAs(RoughnessClass label, LabelReading? reading) =>
+        reading is { } read && read.Class != label ? $"Reads as {Name(read.Class)}" : null;
 }

@@ -23,6 +23,13 @@
         <Style Selector="Button.savedSegmentRow.selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource SufniSelectionSurfaceSubtle}" />
         </Style>
+        <Style Selector="TextBlock.reading">
+            <Setter Property="Opacity" Value="0.72" />
+        </Style>
+        <Style Selector="TextBlock.reading.clash">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="Foreground" Value="{DynamicResource SufniStatusWarningBrush}" />
+        </Style>
     </UserControl.Styles>
 
     <Border
@@ -176,6 +183,13 @@
                                                     FontWeight="SemiBold"
                                                     Text="{Binding ClassName}" />
                                                 <TextBlock Opacity="0.72" Text="{Binding RangeText}" />
+                                                <TextBlock
+                                                    Classes="reading"
+                                                    Classes.clash="{Binding Clashes}"
+                                                    IsVisible="{Binding ReadsText, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                    Text="{Binding ReadsText}"
+                                                    TextWrapping="Wrap"
+                                                    ToolTip.Tip="How the labelled stretch reads on the scale set without this label. Yellow: more than one class away from its label." />
                                             </StackPanel>
                                         </Grid>
                                     </Button>

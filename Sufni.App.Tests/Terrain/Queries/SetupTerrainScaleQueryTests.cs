@@ -90,6 +90,33 @@ public class SetupTerrainScaleQueryTests
     }
 
     [Fact]
+    public void LabelReadsOnTheRidesWhenTheOtherLabelsDoNotAnchor()
+    {
+        var label = TerrainProfiles.Stretch(RoughnessClass.VeryRough, TerrainProfiles.Steps(-1));
+        var rides = Enumerable.Range(0, 3).Select(_ => Ride((0, 2000))).ToArray();
+        rides[0] = Labelled(rides[0], Stretches(label));
+
+        var reading = Evaluate(rides).ReadingOf(rides[0].Id, label.Label);
+
+        Assert.Equal(RoughnessClass.Calm, reading?.Class);
+        Assert.True(reading?.Clashes);
+    }
+
+    [Fact]
+    public void LabelReadsOnTheScaleTheOtherLabelsAnchor()
+    {
+        var label = TerrainProfiles.Stretch(RoughnessClass.Medium, TerrainLevels.Median(20));
+        var rides = Enumerable.Range(0, 3).Select(_ => Ride((0, 2000))).ToArray();
+        rides[0] = Labelled(rides[0], Stretches(label,
+            TerrainProfiles.Stretch(RoughnessClass.Medium, TerrainLevels.Median(20), start: 1),
+            TerrainProfiles.Stretch(RoughnessClass.Medium, TerrainLevels.Median(20), start: 2)));
+
+        var reading = Evaluate(rides).ReadingOf(rides[0].Id, label.Label);
+
+        Assert.Equal(RoughnessClass.Medium, reading?.Class);
+    }
+
+    [Fact]
     public void NewRideDoesNotMoveAnAnchoredSensor()
     {
         SessionSnapshot[] rides = [Labelled(Ride((5, 2000)), Stretches(TerrainProfiles.Stretch(RoughnessClass.Medium, TerrainLevels.Median(9), metres: 200))),

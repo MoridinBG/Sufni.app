@@ -333,7 +333,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
                 state.TelemetryData?.Metadata.Duration,
                 state.Intent.AnalysisRange,
                 state.Domain?.Source?.SourceHash,
-                state.Session?.WindowStartSeconds ?? 0)),
+                state.Session?.WindowStartSeconds ?? 0,
+                state.Domain?.TerrainScale)),
             range =>
             {
                 if (editorLifetime.IsCancellationRequested) return;
