@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 using MessagePack;
 
 namespace Sufni.Telemetry;
@@ -32,7 +33,7 @@ public enum SensorFaultReason : byte
 [MessagePackObject(keyAsPropertyName: true)]
 public readonly record struct SourceTimeRange(double StartSeconds, double EndSeconds)
 {
-    [IgnoreMember] public double DurationSeconds => EndSeconds - StartSeconds;
+    [IgnoreMember, JsonIgnore] public double DurationSeconds => EndSeconds - StartSeconds;
 }
 
 /// <summary>Ranges in which one sensor gave wrong readings, or none.</summary>
@@ -41,7 +42,7 @@ public readonly record struct SourceTimeRange(double StartSeconds, double EndSec
 public sealed record SensorFinding(SensorIdentity Sensor, SensorFaultReason Reason, ImmutableArray<SourceTimeRange> Ranges)
 {
     /// <summary>Missing readings. A notice has nothing to drop, so it takes no decision.</summary>
-    [IgnoreMember] public bool IsNotice => Reason is SensorFaultReason.FixLost or SensorFaultReason.NoValue;
+    [IgnoreMember, JsonIgnore] public bool IsNotice => Reason is SensorFaultReason.FixLost or SensorFaultReason.NoValue;
 
     public bool Equals(SensorFinding? other) =>
         other is not null && Sensor == other.Sensor && Reason == other.Reason && Ranges.SequenceEqual(other.Ranges);

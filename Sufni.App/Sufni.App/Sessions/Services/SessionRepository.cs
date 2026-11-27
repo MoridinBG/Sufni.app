@@ -1,3 +1,4 @@
+using Sufni.Telemetry;
 using Sufni.App.SyncAndPairing.Services;
 using System;
 using System.Collections.Generic;
@@ -54,6 +55,11 @@ public interface ISessionRepository
     Task<Guid> PutSessionAsync(Session session);
 
     Task<Session?> SetProcessingOptionAsync(Guid id, int windowMilliseconds);
+
+    /// <summary>Decides <paramref name="ranges"/> of <paramref name="sensor"/> as <paramref name="decision"/> as an
+    /// authored change. The decisions of other sensors stay unchanged.</summary>
+    Task<Session?> SetSensorDecisionAsync(Guid id, SensorIdentity sensor, SensorDecision decision,
+        IReadOnlyList<SourceTimeRange> ranges);
     Task<Session?> RestoreProcessingOptionAsync(Guid id, int expectedWindowMilliseconds, int? previousWindowMilliseconds);
 
     Task<SessionImportCommitResult.Exists?> GetImportCheckpointAsync(string sourceHash);
@@ -122,6 +128,7 @@ internal sealed class SessionRepository(
                                                                      description,
                                                                      timestamp,
                                                                      velocity_filter_window_ms,
+                                                                     sensor_decisions,
                                                                      duration_seconds,
                                                                      distance_meters,
                                                                       ascent_meters,
@@ -339,6 +346,21 @@ internal sealed class SessionRepository(
         {
             if (connection.Execute("UPDATE session SET velocity_filter_window_ms = ? WHERE id = ? AND deleted IS NULL", windowMilliseconds, id) > 0)
                 SynchronizationWriteMetadata.StampAuthoredChange<Session>(connection, id, timeProvider.GetUtcNow().ToUnixTimeSeconds(), writer);
+        });
+        return await GetSessionAsync(id);
+    }
+
+    public async Task<Session?> SetSensorDecisionAsync(Guid id, SensorIdentity sensor, SensorDecision decision,
+        IReadOnlyList<SourceTimeRange> ranges)
+    {
+        var writer = await localDeviceIdentity.GetIdAsync();
+        await connectionContext.RunInTransactionAsync(connection =>
+        {
+            var row = connection.FindWithQuery<Session>("SELECT id, sensor_decisions FROM session WHERE id = ? AND deleted IS NULL", id);
+            if (row is null) return;
+            var decisions = SensorDecisionsJson.Parse(row.SensorDecisionsJson).With(sensor, decision, ranges);
+            connection.Execute("UPDATE session SET sensor_decisions = ? WHERE id = ?", SensorDecisionsJson.Write(decisions), id);
+            SynchronizationWriteMetadata.StampAuthoredChange<Session>(connection, id, timeProvider.GetUtcNow().ToUnixTimeSeconds(), writer);
         });
         return await GetSessionAsync(id);
     }

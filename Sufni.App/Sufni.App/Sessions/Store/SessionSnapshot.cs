@@ -61,8 +61,13 @@ public sealed record SessionSnapshot(
 
     public Guid RecordingSourceSessionId => SourceSessionId ?? Id;
 
+    public SensorDecisions SensorDecisions { get; init; } = SensorDecisions.None;
+
     public TelemetryProcessingOptions ProcessingOptions => new(
-        VelocityFilterWindowMilliseconds ?? TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds);
+        VelocityFilterWindowMilliseconds ?? TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds)
+    {
+        Drops = SensorDecisions.Drops,
+    };
 
     public bool CanUndoTrim => PreviousWindowStartSeconds is not null;
 
@@ -104,7 +109,10 @@ public sealed record SessionSnapshot(
         session.TerrainClassKey,
         session.TerrainClassSummary,
         session.TerrainLabelKey,
-        session.TerrainLabelSummary);
+        session.TerrainLabelSummary)
+    {
+        SensorDecisions = SensorDecisionsJson.Parse(session.SensorDecisionsJson),
+    };
 }
 
 public static class SessionSnapshotExtensions
@@ -121,6 +129,7 @@ public static class SessionSnapshotExtensions
             snapshot.Timestamp)
         {
             VelocityFilterWindowMilliseconds = snapshot.VelocityFilterWindowMilliseconds,
+            SensorDecisionsJson = SensorDecisionsJson.Write(snapshot.SensorDecisions),
             DurationSeconds = snapshot.DurationSeconds,
             ProcessingFingerprintJson = snapshot.ProcessingFingerprintJson,
             GpsOffsetSeconds = snapshot.GpsOffsetSeconds,

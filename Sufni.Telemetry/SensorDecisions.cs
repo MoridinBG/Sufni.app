@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 
 namespace Sufni.Telemetry;
 
@@ -27,7 +28,7 @@ public sealed record SensorDecisions(ImmutableArray<SensorDecisionList> Sensors)
 {
     public static SensorDecisions None { get; } = new(ImmutableArray<SensorDecisionList>.Empty);
 
-    public bool IsEmpty => Sensors.IsDefaultOrEmpty;
+    [JsonIgnore] public bool IsEmpty => Sensors.IsDefaultOrEmpty;
 
     /// <summary>These decisions with <paramref name="ranges"/> of <paramref name="sensor"/> decided as
     /// <paramref name="decision"/>. The new decision replaces earlier ones where they overlap.</summary>
@@ -44,7 +45,7 @@ public sealed record SensorDecisions(ImmutableArray<SensorDecisionList> Sensors)
     }
 
     /// <summary>Only the Drop decisions.</summary>
-    public SensorDecisions Drops => IsEmpty ? None : new([.. Sensors
+    [JsonIgnore] public SensorDecisions Drops => IsEmpty ? None : new([.. Sensors
         .Select(list => list with { Entries = [.. list.Entries.Where(entry => entry.Decision == SensorDecision.Drop)] })
         .Where(list => list.Entries.Length > 0)]);
 

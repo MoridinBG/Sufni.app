@@ -1,3 +1,4 @@
+using Sufni.Telemetry;
 using NSubstitute;
 using Sufni.App.Sessions.Models;
 using Sufni.App.MapsAndTracks.Models;
@@ -118,6 +119,21 @@ internal sealed class InMemorySessionRepository
                 : Task.FromResult(ToEntity(snapshots.GetValueOrDefault(id)));
         });
 
+        Repository.SetSensorDecisionAsync(Arg.Any<Guid>(), Arg.Any<SensorIdentity>(), Arg.Any<SensorDecision>(),
+            Arg.Any<IReadOnlyList<SourceTimeRange>>()).Returns(call =>
+        {
+            if (WriteFailure is { } failure) return Task.FromException<Session?>(failure);
+            if (!snapshots.TryGetValue(call.Arg<Guid>(), out var current)) return Task.FromResult<Session?>(null);
+            var saved = current with
+            {
+                SensorDecisions = current.SensorDecisions.With(call.Arg<SensorIdentity>(), call.Arg<SensorDecision>(),
+                    call.Arg<IReadOnlyList<SourceTimeRange>>()),
+                Updated = clock.GetUtcNow().ToUnixTimeSeconds(),
+            };
+            snapshots[current.Id] = saved;
+            return Task.FromResult<Session?>(ToEntity(saved));
+        });
+
         Task<Session?> SetWindow(Guid id, int? window)
         {
             if (WriteFailure is { } failure) return Task.FromException<Session?>(failure);
@@ -146,6 +162,7 @@ internal sealed class InMemorySessionRepository
                     DescentMeters = current.DescentMeters,
                     ProcessedTelemetryRevision = current.ProcessedTelemetryRevision,
                     VelocityFilterWindowMilliseconds = current.VelocityFilterWindowMilliseconds,
+                    SensorDecisions = current.SensorDecisions,
                 };
             }
             snapshots[draft.Id] = saved;

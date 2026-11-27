@@ -108,6 +108,11 @@ public class Session : Synchronizable
     [Column("previous_window_end_seconds")]
     public double? PreviousWindowEndSeconds { get; set; }
 
+    // Drop and Keep decisions on sensor findings, as SensorDecisions JSON.
+    [JsonPropertyName("sensor_decisions"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [Column("sensor_decisions")]
+    public string? SensorDecisionsJson { get; set; }
+
     [JsonIgnore]
     [Ignore]
     public Guid RecordingSourceSessionId => SourceSessionId ?? Id;

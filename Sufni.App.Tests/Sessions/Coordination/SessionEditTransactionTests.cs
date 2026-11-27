@@ -1,3 +1,4 @@
+using Sufni.Telemetry;
 using SQLite;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
@@ -115,6 +116,18 @@ public class SessionEditTransactionTests : IDisposable
     }
 
     [Fact]
+    public async Task SplitAsync_CopiesTheSensorDecisionsToTheSecondPart()
+    {
+        var shock = new SensorIdentity(SensorKind.ShockTravel);
+        var session = await InsertSessionAsync(decisions: SensorDecisions.None.With(shock, SensorDecision.Drop, [new(1, 2)]));
+
+        var commit = await runner.SplitAsync(session, 3);
+
+        var part2 = await GetSnapshotAsync(Assert.IsType<Guid>(Assert.IsType<SessionEditCommit.Committed>(commit).CreatedSessionId));
+        Assert.Equal([new SourceTimeRange(1, 2)], part2.SensorDecisions.DropRanges(shock));
+    }
+
+    [Fact]
     public async Task SplitAsync_KeepsOneSourceOwnedVideoLink()
     {
         var session = await InsertSessionAsync();
@@ -202,9 +215,13 @@ public class SessionEditTransactionTests : IDisposable
         Assert.NotNull(await sources.GetRecordedSessionSourceAsync(session.Id));
     }
 
-    private async Task<SessionSnapshot> InsertSessionAsync(double alignment = 0)
+    private async Task<SessionSnapshot> InsertSessionAsync(double alignment = 0, SensorDecisions? decisions = null)
     {
-        var session = new Session(Guid.NewGuid(), "ride", "desc", Guid.NewGuid(), 100) { GpsOffsetSeconds = alignment };
+        var session = new Session(Guid.NewGuid(), "ride", "desc", Guid.NewGuid(), 100)
+        {
+            GpsOffsetSeconds = alignment,
+            SensorDecisionsJson = decisions is null ? null : SensorDecisionsJson.Write(decisions),
+        };
         await (await context.GetInitializedConnectionAsync()).InsertAsync(session);
         return SessionSnapshot.From(session);
     }

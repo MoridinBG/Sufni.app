@@ -86,6 +86,7 @@ internal static class AppJson
 [JsonSerializable(typeof(Sufni.Telemetry.TerrainClassSummary))]
 [JsonSerializable(typeof(Terrain.Models.TerrainLabelKey))]
 [JsonSerializable(typeof(Sufni.Telemetry.TerrainLabelSummary))]
+[JsonSerializable(typeof(Sufni.Telemetry.SensorDecisions))]
 [JsonSerializable(typeof(TrackPoint))]
 [JsonSerializable(typeof(RecordedSessionSourceKind))]
 [JsonSerializable(typeof(ProcessingFingerprint))]

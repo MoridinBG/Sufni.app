@@ -278,6 +278,41 @@ public class SessionRepositoryTests
     }
 
     [Fact]
+    public async Task SetSensorDecisionAsync_AddsToStoredDecisions_AsAnAuthoredChange()
+    {
+        using var temp = new TempDatabase();
+        await using var database = new TestPersistenceHarness(temp.DatabasePath);
+        var session = new Session(Guid.NewGuid(), "ride", "notes", null, 100);
+        await database.PutAsync(session);
+        var gps = new SensorIdentity(SensorKind.Gps);
+        var shock = new SensorIdentity(SensorKind.ShockTravel);
+        var before = await database.SessionRepository.SetSensorDecisionAsync(session.Id, gps, SensorDecision.Keep, [new(1, 2)]);
+
+        var saved = await database.SessionRepository.SetSensorDecisionAsync(session.Id, shock, SensorDecision.Drop, [new(10, 20)]);
+
+        var decisions = SessionSnapshot.From(saved!).SensorDecisions;
+        Assert.Equal([new SourceTimeRange(10, 20)], decisions.DropRanges(shock));
+        Assert.Empty(decisions.Undecided([new SensorFinding(gps, SensorFaultReason.Glitch, [new(1, 2)])]));
+        Assert.True(saved!.Version > before!.Version);
+    }
+
+    [Fact]
+    public async Task PutSessionAsync_PreservesSensorDecisions_OnMetadataUpdate()
+    {
+        using var temp = new TempDatabase();
+        await using var database = new TestPersistenceHarness(temp.DatabasePath);
+        var session = new Session(Guid.NewGuid(), "ride", "notes", null, 100);
+        await database.PutAsync(session);
+        var shock = new SensorIdentity(SensorKind.ShockTravel);
+        await database.SessionRepository.SetSensorDecisionAsync(session.Id, shock, SensorDecision.Drop, [new(10, 20)]);
+
+        await database.PutSessionAsync(new Session(session.Id, "renamed", "notes", null, 100));
+
+        var loaded = SessionSnapshot.From((await database.GetSessionAsync(session.Id))!);
+        Assert.Equal([new SourceTimeRange(10, 20)], loaded.SensorDecisions.DropRanges(shock));
+    }
+
+    [Fact]
     public async Task ImportProcessedSessionAsync_PersistsDurationWithoutWritingGpsMetrics()
     {
         using var tempDatabase = new TempDatabase("processed-session-as-given.db");
