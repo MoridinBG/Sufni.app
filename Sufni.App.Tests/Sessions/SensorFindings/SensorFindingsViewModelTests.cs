@@ -60,14 +60,14 @@ public sealed class SensorFindingsViewModelTests : IDisposable
 
     public static TheoryData<SensorFinding[], double, double, string> Summaries => new()
     {
-        { [new(Shock, SensorFaultReason.Frozen, [new(10, 20), new(100, 110)])], 600, 0, "frozen for 20 s (0:10–1:50)" },
-        { [new(Shock, SensorFaultReason.Frozen, [new(130, 140)])], 600, 100, "frozen for 10 s (0:30)" },
-        { [new(Gps, SensorFaultReason.Glitch, [new(5, 5.4)])], 600, 0, "glitches for under 1 s (0:05)" },
-        { [new(Shock, SensorFaultReason.Zero, [new(0, 590)])], 600, 0, "reads zero for the whole ride" },
-        { [new(Shock, SensorFaultReason.Frozen, [new(3700, 3790)])], 4000, 0, "frozen for 1 min 30 s (1:01:40–1:03:10)" },
+        { [new(Shock, SensorFaultReason.Frozen, [new(10, 20), new(100, 110)])], 600, 0, "Frozen for 20 s (0:10–1:50)" },
+        { [new(Shock, SensorFaultReason.Frozen, [new(130, 140)])], 600, 100, "Frozen for 10 s (0:30)" },
+        { [new(Gps, SensorFaultReason.Glitch, [new(5, 5.4)])], 600, 0, "Glitches for under 1 s (0:05)" },
+        { [new(Shock, SensorFaultReason.Zero, [new(0, 590)])], 600, 0, "Reads zero for the whole ride" },
+        { [new(Shock, SensorFaultReason.Frozen, [new(3700, 3790)])], 4000, 0, "Frozen for 1 min 30 s (1:01:40–1:03:10)" },
         {
             [new(Shock, SensorFaultReason.Frozen, [new(10, 20)]), new(Shock, SensorFaultReason.OutOfRange, [new(100, 160)])],
-            600, 0, "out of range for 1 min (1:40–2:40), frozen for 10 s (0:10)"
+            600, 0, "Out of range for 1 min (1:40–2:40), frozen for 10 s (0:10)"
         },
     };
 
@@ -87,7 +87,7 @@ public sealed class SensorFindingsViewModelTests : IDisposable
         using var vm = await CreateAsync(session with { DurationSeconds = 600 },
             [new(Shock, SensorFaultReason.Frozen, [new(10, 20), new(100, 110)]), new(Shock, SensorFaultReason.OutOfRange, [new(200, 300)])]);
 
-        Assert.Equal($"out of range: 3:20–5:00{Environment.NewLine}frozen: 0:10–0:20, 1:40–1:50", Assert.Single(vm.Rows).RangesText);
+        Assert.Equal($"Out of range: 3:20–5:00{Environment.NewLine}Frozen: 0:10–0:20, 1:40–1:50", Assert.Single(vm.Rows).RangesText);
     }
 
     [Fact]

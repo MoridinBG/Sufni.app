@@ -71,8 +71,8 @@ public sealed partial class SensorFindingsViewModel : ObservableObject, IContent
                 .OrderByDescending(reason => Total(reason.Ranges))
                 .ToArray();
             Rows.Add(new SensorFindingRowViewModel(group.Key.Sensor, SensorName(group.Key.Sensor),
-                string.Join(", ", reasons.Select(reason => text.Summary(Reason(reason.Reason), reason.Ranges))),
-                string.Join(Environment.NewLine, reasons.Select(reason => $"{Reason(reason.Reason)}: {text.Ranges(reason.Ranges)}")),
+                Capitalized(string.Join(", ", reasons.Select(reason => text.Summary(Reason(reason.Reason), reason.Ranges)))),
+                string.Join(Environment.NewLine, reasons.Select(reason => Capitalized($"{Reason(reason.Reason)}: {text.Ranges(reason.Ranges)}"))),
                 [.. group.SelectMany(finding => finding.Ranges)], !group.Key.IsNotice, DecideAsync));
         }
         HasRows = Rows.Count > 0;
@@ -131,6 +131,8 @@ public sealed partial class SensorFindingsViewModel : ObservableObject, IContent
         SensorFaultReason.NoValue => "no readings",
         _ => throw new ArgumentOutOfRangeException(nameof(reason)),
     };
+
+    private static string Capitalized(string text) => char.ToUpperInvariant(text[0]) + text[1..];
 
     private static double Total(IEnumerable<SourceTimeRange> ranges) => ranges.Sum(range => range.EndSeconds - range.StartSeconds);
 
