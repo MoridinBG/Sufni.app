@@ -11,13 +11,19 @@ public sealed record RideRecording(
     TelemetryTimeRange? FixLoss = null, TelemetryTimeRange? RecordingGap = null, TelemetryTimeRange? Stop = null,
     TelemetryTimeRange? Braking = null, double BrakingAcceleration = 2.94, double MountPitch = 0, double Roll = 0,
     bool Frame = true, bool Fork = true, bool RearAxle = false, int AccelScale = 4096,
-    int Seed = 17, double NoiseG = 0, int? ForkAccelScale = null, (TerrainSensor Sensor, TelemetryTimeRange Range)? Silence = null);
+    int Seed = 17, double NoiseG = 0, int? ForkAccelScale = null, (TerrainSensor Sensor, TelemetryTimeRange Range)? Silence = null,
+    double ShakeG = 0, double DiveMillimetresPerMps2 = 0, TelemetryTimeRange? Airtime = null, double AirtimePitch = 0);
 
 public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<TrackSample> Fixes)
 {
     private const double Gravity = 9.80665;
     private const double Radians = Math.PI / 180;
     private const int GyroScale = 16;
+    private const double PitchRampSeconds = 0.25;
+    private const double ReceiverSpeedLagSeconds = 0.2;
+
+    /// <summary>The distance between the axles that turns the brake dive into frame pitch.</summary>
+    public const double WheelbaseMillimetres = 1250;
 
     /// <summary>The fork vibration level relative to the frame level at the same speed.</summary>
     public const double ForkLevelFactor = 1.75;
@@ -66,7 +72,11 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
         double east = 0, north = 0, elevation = 1000, heading = 0, distance = 0, sectionStart = 0;
         var sectionIndex = 0;
         var lastSpeed = sections[0].Speed;
-        var previousPitch = (recording.MountPitch - sections[0].GradeDegrees) * Radians;
+        var speeds = new List<double>();
+        var rampTo = (recording.MountPitch - sections[0].GradeDegrees) * Radians;
+        var rampFrom = rampTo;
+        var rampStart = 0d;
+        var previousPitch = rampTo;
         var roll = recording.Roll * Radians;
         var tick = 0;
         while (true)
@@ -74,7 +84,13 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
             var seconds = (double)tick / rate;
             var section = sections[sectionIndex];
             var speed = Speed(section.Speed, seconds, recording);
-            var pitch = (recording.MountPitch - section.GradeDegrees) * Radians;
+            speeds.Add(speed);
+            var ramped = double.Lerp(rampFrom, rampTo, Math.Clamp((seconds - rampStart) / PitchRampSeconds, 0, 1));
+            var target = (recording.MountPitch - section.GradeDegrees +
+                (Inside(recording.Airtime, seconds) ? recording.AirtimePitch : 0)) * Radians;
+            if (target != rampTo) (rampFrom, rampTo, rampStart) = (ramped, target, seconds);
+            var dive = recording.DiveMillimetresPerMps2 * Math.Max(0, (lastSpeed - speed) * rate);
+            var pitch = ramped - Math.Atan(dive / WheelbaseMillimetres);
             var pitchRate = (pitch - previousPitch) * rate;
             var yawRate = section.TurnRadius == 0 ? 0 : speed / section.TurnRadius;
             var upX = Math.Sin(pitch);
@@ -98,16 +114,19 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
                         continue;
                     }
                     var vibration = ground * sensor.LevelScale(speed) + recording.NoiseG * (2 * random.NextDouble() - 1);
-                    var pedal = sensor.Identity == TerrainSensor.FrameImu
-                        ? PedalFrameG * Math.Sin(2 * Math.PI * section.PedalHz * seconds) : 0;
-                    sensor.Add(tick, rate, upX + (speed - lastSpeed) * rate / Gravity,
-                        upY + speed * gz / Gravity + vibration, upZ - speed * gy / Gravity + pedal,
+                    var frame = sensor.Identity == TerrainSensor.FrameImu;
+                    var pedal = frame ? PedalFrameG * Math.Sin(2 * Math.PI * section.PedalHz * seconds) : 0;
+                    var shake = frame ? recording.ShakeG * Math.Sqrt(2) : 0;
+                    sensor.Add(tick, rate,
+                        upX + (speed - lastSpeed) * rate / Gravity + shake * Math.Sin(2 * Math.PI * 3 * seconds + phases[0]),
+                        upY + speed * gz / Gravity + vibration,
+                        upZ - speed * gy / Gravity + pedal + shake * Math.Sin(2 * Math.PI * 12 * seconds + phases[1]),
                         upX * yawRate / Radians, gy / Radians, gz / Radians);
                 }
                 var level = Math.Sqrt(section.LowBandG * section.LowBandG +
                     section.MiddleBandG * section.MiddleBandG + section.HighBandG * section.HighBandG);
                 var response = ResponseAmplitude(level, speed);
-                front.Add(tick, Silent(TerrainSensor.ForkTravel) ? 0 : response, section, 0);
+                front.Add(tick, Silent(TerrainSensor.ForkTravel) ? 0 : response, section, 0, dive);
                 rear.Add(tick, Silent(TerrainSensor.ShockTravel) ? 0 : response * 0.8, section, Silent(TerrainSensor.ShockTravel) ? 0 : section.BobMillimetres);
             }
 
@@ -122,8 +141,10 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
             while (nextFix <= fixHorizon)
             {
                 var weight = Math.Clamp((nextFix - seconds) * rate, 0, 1);
+                var lagged = Math.Clamp((int)Math.Round((nextFix - ReceiverSpeedLagSeconds) * rate), 0, speeds.Count - 1);
                 if (!Inside(recording.FixLoss, nextFix))
-                    fixes.Add(new(nextFix + recording.TrackShift, east + weight * dx, north + weight * dy, elevation + weight * dz));
+                    fixes.Add(new(nextFix + recording.TrackShift, east + weight * dx, north + weight * dy,
+                        elevation + weight * dz, speeds[lagged]));
                 nextFix += (recording.IrregularFixes ? 0.75 + 0.5 * fixClock.NextDouble() : 1) / recording.FixRate;
             }
             if (finished) break;
@@ -149,7 +170,8 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
             ImuData = sensors.Count == 0 ? null : new RawImuData { SampleRate = rate,
                 Meta = [.. sensors.Select(s => s.Meta)], ActiveLocations = [.. sensors.Select(s => s.Meta.LocationId)],
                 Segments = [.. sensors.SelectMany(s => s.Finish())], HasGaps = recording.RecordingGap.HasValue },
-            Front = front.Finish(), Rear = rear.Finish(), Airtimes = []
+            Front = front.Finish(), Rear = rear.Finish(),
+            Airtimes = recording.Airtime is { } air ? [new Airtime { Start = air.StartSeconds, End = air.EndSeconds }] : []
         };
         return new(telemetry, fixes.ToImmutable());
     }
@@ -215,7 +237,7 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
     {
         private readonly List<double> travel = [], velocity = [];
         private readonly List<ProcessedSuspensionSegment> segments = [];
-        public void Add(int tick, double response, RideSection section, double bob)
+        public void Add(int tick, double response, RideSection section, double bob, double sag = 0)
         {
             var pedalAngle = 2 * Math.PI * section.PedalHz * tick / rate;
             if (segments.Count == 0 || tick != (int)segments[^1].FirstSourceIndex + travel.Count - segments[^1].FirstDenseIndex)
@@ -227,7 +249,7 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
             velocity.Add(response * (compression ? section.CompressionGain : -section.ReboundGain) * Math.Sin(angle)
                 + bob / 2 * 2 * Math.PI * section.PedalHz * Math.Cos(pedalAngle));
             travel.Add(35 + response * section.CompressionGain * compressionTime / (2 * Math.PI)
-                * (1 + (compression ? -1 : 1) * Math.Cos(angle)) + bob / 2 * Math.Sin(pedalAngle));
+                * (1 + (compression ? -1 : 1) * Math.Cos(angle)) + bob / 2 * Math.Sin(pedalAngle) + sag);
         }
 
         public Suspension Finish()

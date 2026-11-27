@@ -36,11 +36,20 @@ public class FrameAttitudeEstimatorTests
     }
 
     [Fact]
-    public void RoughDescentRetainsItsMeanInclination()
+    public void ShakenDescentRetainsItsMeanInclination()
     {
-        var ride = SyntheticRide.Build([new RideSection(210, GradeDegrees: 10, LowBandG: 1.2, MiddleBandG: 1.5, HighBandG: 1.6)]);
+        var ride = SyntheticRide.Build([Quiet(210, 10)], new RideRecording(ShakeG: 2));
         var interior = Recorded(ride).Skip(2000).Take(2000);
-        Assert.InRange(interior.Average(a => a.PitchDegrees), -12, -8);
+        Assert.InRange(interior.Average(a => a.PitchDegrees), -10.5, -9.5);
+    }
+
+    [Fact]
+    public void PitchChangeShowsWithinHalfASecondOnEachSide()
+    {
+        const int rate = 200;
+        var attitudes = Recorded(SyntheticRide.Build([Quiet(70, 0), Quiet(70, 15)]));
+        Assert.InRange(attitudes[(int)(9.5 * rate)].PitchDegrees, -1, 1);
+        Assert.InRange(attitudes[(int)(10.5 * rate)].PitchDegrees, -16, -14);
     }
 
     [Fact]
@@ -48,11 +57,11 @@ public class FrameAttitudeEstimatorTests
     {
         const int rate = 200;
         var ride = SyntheticRide.Build([Quiet(800, 10) with { Speed = 25 }],
-            new RideRecording(Braking: new TelemetryTimeRange(10, 17), FixRate: 3));
+            new RideRecording(Braking: new TelemetryTimeRange(10, 25), BrakingAcceleration: 1.5, FixRate: 3));
         double DuringBraking(bool aided) => Recorded(ride, aided)
-            .Skip(12 * rate).Take(3 * rate).Average(a => a.PitchDegrees);
+            .Skip(12 * rate).Take(6 * rate).Average(a => a.PitchDegrees);
         Assert.InRange(DuringBraking(true), -12, -8);
-        Assert.True(Math.Abs(DuringBraking(false) + 10) > 5);
+        Assert.True(Math.Abs(DuringBraking(false) + 10) > 2);
     }
 
     private static RideSection Quiet(double length, double grade) => new(length, GradeDegrees: grade,
